@@ -14,8 +14,8 @@ import (
 	"yunion.io/yunion-kube/pkg/types/config"
 )
 
-func Start(httpAddr, httpsAddr string, scaledCtx *config.ScaledContext) error {
-	log.Infof("Start listen on https addr: %q, http addr: %q", httpsAddr, httpAddr)
+func Start(httpsAddr string, scaledCtx *config.ScaledContext) error {
+	log.Infof("Start listen on https addr: %q", httpsAddr)
 
 	opt := options.Options
 
@@ -40,18 +40,11 @@ func Start(httpAddr, httpsAddr string, scaledCtx *config.ScaledContext) error {
 
 	root.PathPrefix("/k8s/clusters/").Handler(sp)
 	root.Handle("/connect", connectHandler)
-	//httpRoot.Handle("/connect", connectHandler)
+	root.Handle("/connect/register", connectHandler)
 
 	serveHTTPS := func() error {
 		return http.ListenAndServeTLS(httpsAddr, tlsCertFile, tlsPrivateKey, root)
 	}
-	serveHTTP := func() {
-		err := http.ListenAndServe(httpAddr, httpRoot)
-		if err != nil {
-			log.Fatalf("http: %v", err)
-		}
-	}
-	go serveHTTP()
 	return serveHTTPS()
 }
 

@@ -37,7 +37,6 @@ func prepareEnv() {
 func Run(ctx context.Context) error {
 	prepareEnv()
 	opt := options.Options
-	httpAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpPort))
 	httpsAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpsPort))
 
 	if opt.KubeConfig == "" {
@@ -53,7 +52,7 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	if err := server.Start(httpAddr, httpsAddr, scaledCtx); err != nil {
+	if err := server.Start(httpsAddr, scaledCtx); err != nil {
 		return err
 	}
 	return nil
