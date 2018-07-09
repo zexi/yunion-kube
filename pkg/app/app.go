@@ -9,6 +9,8 @@ import (
 
 	"k8s.io/client-go/rest"
 
+	"yunion.io/yunioncloud/pkg/cloudcommon"
+
 	"yunion.io/yunion-kube/pkg/dialer"
 	"yunion.io/yunion-kube/pkg/k8s"
 	"yunion.io/yunion-kube/pkg/options"
@@ -32,10 +34,13 @@ func prepareEnv() {
 	os.Unsetenv("SSH_AUTH_SOCK")
 	os.Unsetenv("SSH_AGENT_PID")
 	os.Setenv("DISABLE_HTTP2", "true")
+
+	cloudcommon.ParseOptions(&options.Options, &options.Options.Options, os.Args, "kube-server.conf")
 }
 
 func Run(ctx context.Context) error {
 	prepareEnv()
+
 	opt := options.Options
 	httpsAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpsPort))
 
