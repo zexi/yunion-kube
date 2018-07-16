@@ -170,7 +170,7 @@ func changed(ctx context.Context, c *client.Client, p yketypes.Process, containe
 		left := reflect.ValueOf(newProcess).Field(i).Interface()
 		right := reflect.ValueOf(p).Field(i).Interface()
 		if !reflect.DeepEqual(left, right) {
-			logrus.Infof("For process %s, %s has changed from %v to %v", p.Name, f.Name, right, left)
+			log.Infof("For process %s, %s has changed from %v to %v", p.Name, f.Name, right, left)
 			changed = true
 		}
 	}

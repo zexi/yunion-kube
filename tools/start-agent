@@ -2,7 +2,7 @@
 
 export YUNION_KUBE_TOKEN="19328790-ba7c-4208-8c9f-a1beb83c9ec2"
 export YUNION_KUBE_SERVER="http://127.0.0.1:8443"
-export YUNION_KUBE_ROLE="worker"
+export YUNION_KUBE_ROLE="controlplane,etcd,worker"
 export YUNION_KUBE_NODE_NAME="fake-node01"
 export YUNION_KUBE_ADDRESS="127.0.0.1"
 

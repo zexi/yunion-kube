@@ -69,7 +69,7 @@ func (s *session) startPings() {
 				if err := s.conn.conn.WriteControl(websocket.PingMessage, []byte(""), time.Now().Add(time.Second)); err != nil {
 					log.Errorf("Error writing ping")
 				}
-				log.Debugf("Wrote ping")
+				log.V(2).Debugf("Wrote ping")
 				s.conn.Unlock()
 			}
 		}
@@ -112,7 +112,7 @@ func (s *session) serveMessage(reader io.Reader) error {
 		return err
 	}
 
-	log.Debugf("REQUEST %v", message)
+	log.V(10).Debugf("REQUEST %v", message)
 
 	if message.messageType == Connect {
 		if s.auth != nil && !s.auth(message.proto, message.address) {
@@ -150,7 +150,7 @@ func (s *session) closeConnection(connID int64, err error) {
 	s.Lock()
 	conn := s.conns[connID]
 	delete(s.conns, connID)
-	log.Debugf("CONNECTION %d %d", s.sessionKey, len(s.conns))
+	log.V(10).Debugf("CONNECTION %d %d", s.sessionKey, len(s.conns))
 	s.Unlock()
 
 	if conn != nil {
@@ -163,7 +163,7 @@ func (s *session) clientConnect(message *message) {
 
 	s.Lock()
 	s.conns[message.connID] = conn
-	log.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
+	log.V(10).Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
 	s.Unlock()
 
 	go clientDial(conn, message)
@@ -175,7 +175,7 @@ func (s *session) serverConnect(deadline time.Duration, proto, address string) (
 
 	s.Lock()
 	s.conns[connID] = conn
-	log.Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
+	log.V(10).Debugf("CONNECTIONS %d %d", s.sessionKey, len(s.conns))
 	s.Unlock()
 
 	_, err := s.writeMessage(newConnect(connID, deadline, proto, address))
@@ -188,7 +188,7 @@ func (s *session) serverConnect(deadline time.Duration, proto, address string) (
 }
 
 func (s *session) writeMessage(message *message) (int, error) {
-	log.Debugf("RESPONSE %v", message)
+	log.V(10).Debugf("RESPONSE %v", message)
 	return message.WriteTo(s.conn)
 }
 

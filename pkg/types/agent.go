@@ -13,7 +13,7 @@ const (
 const (
 	ROLE_ETCD          = "etcd"
 	ROLE_CONTROL_PLANE = "controlplane"
-	ROLE_WORKER        = "wroker"
+	ROLE_WORKER        = "worker"
 )
 
 const (

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
 	"yunion.io/yunioncloud/pkg/jsonutils"
 	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/mcclient"
+	"yunion.io/yunioncloud/pkg/sqlchemy"
 
 	"yunion.io/yunion-kube/pkg/types/apis"
 )
@@ -46,7 +48,7 @@ func (m *SNodeManager) FetchNode(ident string) *SNode {
 	return node.(*SNode)
 }
 
-func (m *SNodeManager) GetNode(ident string) (*apis.Node, error) {
+func (m *SNodeManager) GetNode(cluster, ident string) (*apis.Node, error) {
 	node := m.FetchNode(ident)
 	if node == nil {
 		return nil, NodeNotFoundError
@@ -63,14 +65,25 @@ func (m *SNodeManager) Create(data *apis.Node) (*SNode, error) {
 	if !ok {
 		return nil, fmt.Errorf("Convert to SNode error")
 	}
+	node.ClusterId = data.ClusterId
 	node.Name = data.Name
 	node.Etcd = data.Etcd
 	node.ControlPlane = data.ControlPlane
 	node.Worker = data.Worker
+
+	node.NodeConfig = jsonutils.Marshal(*data.NodeConfig)
+
 	err = m.TableSpec().Insert(node)
 	if err != nil {
 		return nil, err
 	}
+
+	// update cluster config
+	_, err = ClusterManager.UpdateCluster(node, true)
+	if err != nil {
+		return nil, err
+	}
+
 	return node, nil
 }
 
@@ -82,14 +95,37 @@ func (m *SNodeManager) Update(data *apis.Node) (*SNode, error) {
 	return node.Update(data)
 }
 
+func (m *SNodeManager) ListByCluster(clusterId string) ([]*apis.Node, error) {
+	nodes := m.Query().SubQuery()
+	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("cluster_id"), clusterId))
+	objs := []SNode{}
+	err := q.All(&objs)
+	if err != nil {
+		return nil, err
+	}
+	rets := []*apis.Node{}
+	for _, obj := range objs {
+		n, err := obj.Node()
+		if err != nil {
+			log.Errorf("Get node %q apis result error: %v", obj.Name, err)
+			continue
+		}
+		rets = append(rets, n)
+	}
+	return rets, nil
+}
+
 type SNode struct {
 	db.SVirtualResourceBase
+
 	ClusterId    string `nullable:"false" create:"required"`
+	Address      string `nullable:"false"`
 	Etcd         bool   `nullable:"true" default:"false"`
 	ControlPlane bool   `nullable:"true" default:"false"`
 	Worker       bool   `nullable:"true" default:"false"`
 
 	CustomConfig jsonutils.JSONObject `nullable:"true" list:"admin"`
+	NodeConfig   jsonutils.JSONObject `nullable:"true"`
 	DockerInfo   jsonutils.JSONObject `nullable:"true"`
 }
 
@@ -98,12 +134,17 @@ func (n *SNode) Node() (*apis.Node, error) {
 	if n.CustomConfig != nil {
 		n.CustomConfig.Unmarshal(&conf)
 	}
+	nodeConf := yketypes.ConfigNode{}
+	if n.NodeConfig != nil {
+		n.NodeConfig.Unmarshal(&nodeConf)
+	}
 	return &apis.Node{
 		Name:         n.Name,
 		Etcd:         n.Etcd,
 		ControlPlane: n.ControlPlane,
 		Worker:       n.Worker,
 		CustomConfig: &conf,
+		NodeConfig:   &nodeConf,
 	}, nil
 }
 
@@ -119,4 +160,17 @@ func (n *SNode) Update(data *apis.Node) (*SNode, error) {
 		return nil
 	})
 	return n, err
+}
+
+func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return n.IsOwner(userCred)
+}
+
+func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
+	// TODO: validate cluster status, only can delete when cluster ready
+	return nil
+}
+
+func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	return nil
 }

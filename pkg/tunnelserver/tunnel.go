@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	yketypes "yunion.io/yke/pkg/types"
+
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/remotedialer"
 	"yunion.io/yunion-kube/pkg/types/apis"
@@ -139,15 +141,21 @@ func (t *Authorizer) createNode(inNode *client.Node, cluster *apis.Cluster, req 
 	if customConfig.Address == "" {
 		return nil, errors.New("invalid input, address empty")
 	}
+	nodeConfig := yketypes.ConfigNode{
+		Role:    customConfig.Roles,
+		Address: customConfig.Address,
+	}
 
 	name := nodeName(inNode)
 
 	node := &apis.Node{
+		ClusterId:         cluster.Id,
 		Name:              name,
 		Etcd:              inNode.Etcd,
 		ControlPlane:      inNode.ControlPlane,
 		Worker:            inNode.Worker,
 		RequestedHostname: inNode.RequestedHostname,
+		NodeConfig:        &nodeConfig,
 		CustomConfig:      customConfig,
 	}
 
@@ -192,7 +200,7 @@ func nodeName(node *client.Node) string {
 
 func (t *Authorizer) getClusterNode(cluster *apis.Cluster, inNode *client.Node) (*apis.Node, error) {
 	nodeName := nodeName(inNode)
-	node, err := models.NodeManager.GetNode(nodeName)
+	node, err := models.NodeManager.GetNode(cluster.Name, nodeName)
 	return node, err
 }
 

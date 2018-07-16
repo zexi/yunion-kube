@@ -1,13 +1,20 @@
 package apis
 
+import (
+	"yunion.io/yke/pkg/types"
+)
+
 type Node struct {
-	Name              string        `json:"name"`
-	Etcd              bool          `json:"etcd"`
-	ControlPlane      bool          `json:"controlPlane"`
-	Worker            bool          `json:"worker"`
-	RequestedHostname string        `json:"requestedHostname"`
-	CustomConfig      *CustomConfig `json:"customConfig"`
-	DockerInfo        *DockerInfo   `json:"dockerInfo"`
+	ClusterId         string            `json:"clusterId"`
+	Name              string            `json:"name"`
+	Etcd              bool              `json:"etcd"`
+	ControlPlane      bool              `json:"controlPlane"`
+	Worker            bool              `json:"worker"`
+	RequestedHostname string            `json:"requestedHostname"`
+	Address           string            `json:"address"`
+	CustomConfig      *CustomConfig     `json:"customConfig"`
+	DockerInfo        *DockerInfo       `json:"dockerInfo"`
+	NodeConfig        *types.ConfigNode `json:"ykeNodeConfig"`
 	//Status            NodeStatus    `json:"status"`
 }
 

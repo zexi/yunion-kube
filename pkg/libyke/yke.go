@@ -3,7 +3,7 @@ package libyke
 import (
 	"context"
 
-	"github.com/docker/docker/api/types"
+	dtypes "github.com/docker/docker/api/types"
 
 	"yunion.io/yke/pkg/cluster"
 	"yunion.io/yke/pkg/hosts"
@@ -11,6 +11,9 @@ import (
 	"yunion.io/yke/pkg/pki"
 	"yunion.io/yke/pkg/tunnel"
 	"yunion.io/yke/pkg/types"
+
+	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/yunion-kube/pkg/utils/convert"
 )
 
 type yke struct{}
@@ -43,6 +46,19 @@ func (*yke) ParseCluster(clusterName string, config *types.KubernetesEngineConfi
 		k8sWrapTransport)
 }
 
-func (*yke) GeneratePlan(ctx context.Context, config *types.KubernetesEngineConfig, dockerInfo map[string]types.Info) (types.Plan, error) {
-	return cluster.GeneratePlan(ctx, config, dockerInfo)
+func (*yke) GeneratePlan(ctx context.Context, config *types.KubernetesEngineConfig, dockerInfo map[string]dtypes.Info) (types.Plan, error) {
+	return cluster.GeneratePlan(ctx, config)
+}
+
+func GetDockerInfo(node *apis.Node) (map[string]dtypes.Info, error) {
+	infos := map[string]dtypes.Info{}
+	if node.DockerInfo != nil {
+		dockerInfo := dtypes.Info{}
+		err := convert.ToObj(node.DockerInfo, &dockerInfo)
+		if err != nil {
+			return nil, err
+		}
+		infos[node.CustomConfig.Address] = dockerInfo
+	}
+	return infos, nil
 }

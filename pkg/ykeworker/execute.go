@@ -1,4 +1,4 @@
-package rkeworker
+package ykeworker
 
 import (
 	"bytes"
@@ -9,13 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rancher/norman/types"
-	"github.com/rancher/rancher/pkg/rkecerts"
+	"yunion.io/yunioncloud/pkg/util/errors"
+
+	"yunion.io/yunion-kube/pkg/ykecerts"
 )
 
 func ExecutePlan(ctx context.Context, nodeConfig *NodeConfig) error {
 	if nodeConfig.Certs != "" {
-		bundle, err := rkecerts.Unmarshal(nodeConfig.Certs)
+		bundle, err := ykecerts.Unmarshal(nodeConfig.Certs)
 		if err != nil {
 			return err
 		}
@@ -79,5 +80,5 @@ func (f *fileWriter) write(path string, base64Content string) {
 }
 
 func (f *fileWriter) err() error {
-	return types.NewErrors(f.errs...)
+	return errors.NewAggregate(f.errs)
 }

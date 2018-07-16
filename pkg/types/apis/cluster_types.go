@@ -1,9 +1,17 @@
 package apis
 
+import (
+	"yunion.io/yke/pkg/types"
+)
+
 type Cluster struct {
-	Name   string
-	Spec   ClusterSpec   `json:"spec"`
-	Status ClusterStatus `json:"status"`
+	Id                           string
+	Name                         string
+	Spec                         ClusterSpec   `json:"spec"`
+	Status                       ClusterStatus `json:"status"`
+	ApiEndpoint                  string        `json:"apiEndpoint"`
+	CaCert                       string        `json:"caCert"`
+	YunionKubernetesEngineConfig *types.KubernetesEngineConfig
 }
 
 type ClusterSpec struct {

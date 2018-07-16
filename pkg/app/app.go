@@ -11,11 +11,14 @@ import (
 
 	"yunion.io/yunioncloud/pkg/cloudcommon"
 
+	"yunion.io/yunion-kube/pkg/clusterdriver"
+	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/yunion-kube/pkg/dialer"
 	"yunion.io/yunion-kube/pkg/k8s"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/server"
 	"yunion.io/yunion-kube/pkg/types/config"
+	"yunion.io/yunion-kube/pkg/ykedialerfactory"
 )
 
 func buildScaledContext(ctx context.Context, kubeConfig rest.Config) (*config.ScaledContext, error) {
@@ -57,8 +60,25 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
+	go RegisterDriver(scaledCtx)
+
 	if err := server.Start(httpsAddr, scaledCtx); err != nil {
 		return err
 	}
 	return nil
+}
+
+func RegisterDriver(scaledCtx *config.ScaledContext) {
+	local := &ykedialerfactory.YKEDialerFactory{
+		Factory: scaledCtx.Dialer,
+	}
+	docker := &ykedialerfactory.YKEDialerFactory{
+		Factory: scaledCtx.Dialer,
+		Docker:  true,
+	}
+	driver := clusterdriver.Drivers["yke"]
+	ykeDriver := driver.(*yke.Driver)
+	ykeDriver.DockerDialer = docker.Build
+	ykeDriver.LocalDialer = local.Build
+	ykeDriver.WrapTransportFactory = docker.WrapTransport
 }

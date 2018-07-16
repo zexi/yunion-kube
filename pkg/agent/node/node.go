@@ -18,6 +18,7 @@ func TokenAndURL() (string, string, error) {
 
 func Params() map[string]interface{} {
 	roles := split(os.Getenv(types.ENV_AGENT_ROLE))
+	log.Infof("======roles: %#v", roles)
 	params := map[string]interface{}{
 		"customConfig": map[string]interface{}{
 			"address":         os.Getenv(types.ENV_AGENT_ADDRESS),
