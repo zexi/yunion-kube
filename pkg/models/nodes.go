@@ -39,6 +39,13 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
+func (m *SNodeManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
+	if len(ownerProjId) > 0 {
+		q = q.Equals("tenant_id", ownerProjId)
+	}
+	return q
+}
+
 func (m *SNodeManager) FetchNode(ident string) *SNode {
 	node, err := m.FetchByIdOrName("", ident)
 	if err != nil {

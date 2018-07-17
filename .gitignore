@@ -32,3 +32,5 @@ bin
 /structargtest
 .idea
 .ropeproject
+
+management-state/

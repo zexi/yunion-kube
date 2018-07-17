@@ -7,9 +7,12 @@ type ClusterInfo struct {
 	RootCaCertificate   string
 	ClientCertificate   string
 	ClientKey           string
+	Config              string
+	Certs               string
 	NodeCount           int64
-	Metadata            map[string]string
-	Status              string
+
+	Metadata map[string]string
+	//Status string
 }
 
 type DriverOptions struct {

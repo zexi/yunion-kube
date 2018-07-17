@@ -103,14 +103,20 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 	}
 
 	return d.save(&types.ClusterInfo{
-		Metadata: map[string]string{
-			"Endpoint":   apiURL,
-			"RootCA":     base64.StdEncoding.EncodeToString([]byte(caCrt)),
-			"ClientCert": base64.StdEncoding.EncodeToString([]byte(clientCert)),
-			"ClientKey":  base64.StdEncoding.EncodeToString([]byte(clientKey)),
-			"Config":     yaml,
-			"Certs":      certsStr,
-		},
+		Endpoint:          apiURL,
+		RootCaCertificate: base64.StdEncoding.EncodeToString([]byte(caCrt)),
+		ClientCertificate: base64.StdEncoding.EncodeToString([]byte(clientCert)),
+		ClientKey:         base64.StdEncoding.EncodeToString([]byte(clientKey)),
+		Config:            yaml,
+		Certs:             certsStr,
+
+		//Metadata: map[string]string{
+		//"Endpoint":   apiURL,
+		//"RootCA":     base64.StdEncoding.EncodeToString([]byte(caCrt)),
+		//"ClientCert": base64.StdEncoding.EncodeToString([]byte(clientCert)),
+		//"ClientKey":  base64.StdEncoding.EncodeToString([]byte(clientKey)),
+		//"Config":     yaml,
+		//},
 	}, stateDir), nil
 }
 
@@ -132,11 +138,11 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	}
 	defer d.cleanup(stateDir)
 
-	certStr := ""
+	certsStr := ""
 	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, &ykeConfig, d.DockerDialer, d.LocalDialer,
 		d.wrapTransport(&ykeConfig), false, stateDir, false, false)
 	if err == nil {
-		certStr, err = ykecerts.ToString(certs)
+		certsStr, err = ykecerts.ToString(certs)
 	}
 	if err != nil {
 		return d.save(&types.ClusterInfo{
@@ -147,29 +153,30 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	}
 
 	return d.save(&types.ClusterInfo{
-		Metadata: map[string]string{
-			"Endpoint":   apiURL,
-			"RootCA":     base64.StdEncoding.EncodeToString([]byte(caCrt)),
-			"ClientCert": base64.StdEncoding.EncodeToString([]byte(clientCert)),
-			"ClientKey":  base64.StdEncoding.EncodeToString([]byte(clientKey)),
-			"Config":     yaml,
-			"Certs":      certStr,
-		},
+		Endpoint:          apiURL,
+		RootCaCertificate: base64.StdEncoding.EncodeToString([]byte(caCrt)),
+		ClientCertificate: base64.StdEncoding.EncodeToString([]byte(clientCert)),
+		ClientKey:         base64.StdEncoding.EncodeToString([]byte(clientKey)),
+		Config:            yaml,
+		Certs:             certsStr,
+		//Metadata: map[string]string{
+		//"Endpoint":   apiURL,
+		//"RootCA":     base64.StdEncoding.EncodeToString([]byte(caCrt)),
+		//"ClientCert": base64.StdEncoding.EncodeToString([]byte(clientCert)),
+		//"ClientKey":  base64.StdEncoding.EncodeToString([]byte(clientKey)),
+		//"Config":     yaml,
+		//"Certs":      certStr,
+		//},
 	}, stateDir), nil
 }
 
 func (d *Driver) getClientset(info *types.ClusterInfo) (*kubernetes.Clientset, error) {
-	yaml := info.Metadata["Config"]
+	yaml := info.Config
 
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {
 		return nil, err
 	}
-
-	info.Endpoint = info.Metadata["Endpoint"]
-	info.ClientCertificate = info.Metadata["ClientCert"]
-	info.ClientKey = info.Metadata["ClientKey"]
-	info.RootCaCertificate = info.Metadata["RootCA"]
 
 	certBytes, err := base64.StdEncoding.DecodeString(info.ClientCertificate)
 	if err != nil {
@@ -232,11 +239,7 @@ func (d *Driver) PostCheck(ctx context.Context, info *types.ClusterInfo) (*types
 }
 
 func nodeCount(info *types.ClusterInfo) (int64, error) {
-	yaml, ok := info.Metadata["Config"]
-	if !ok {
-		return 0, nil
-	}
-
+	yaml := info.Config
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {
 		return 0, err
@@ -254,7 +257,8 @@ func nodeCount(info *types.ClusterInfo) (int64, error) {
 
 // Remove the cluster
 func (d *Driver) Remove(ctx context.Context, clusterInfo *types.ClusterInfo) error {
-	ykeConfig, err := utils.ConvertToYkeConfig(clusterInfo.Metadata["Config"])
+	log.Infof("")
+	ykeConfig, err := utils.ConvertToYkeConfig(clusterInfo.Config)
 	if err != nil {
 		return err
 	}

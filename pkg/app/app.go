@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"yunion.io/yunioncloud/pkg/cloudcommon"
+	"yunion.io/yunioncloud/pkg/util/runtime"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
@@ -39,6 +40,7 @@ func prepareEnv() {
 	os.Setenv("DISABLE_HTTP2", "true")
 
 	cloudcommon.ParseOptions(&options.Options, &options.Options.Options, os.Args, "kube-server.conf")
+	runtime.ReallyCrash = false
 }
 
 func Run(ctx context.Context) error {

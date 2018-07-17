@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	yketypes "yunion.io/yke/pkg/types"
+	"yunion.io/yunioncloud/pkg/log"
 
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/remotedialer"
 	"yunion.io/yunion-kube/pkg/types/apis"
 	"yunion.io/yunion-kube/pkg/types/client"
 	"yunion.io/yunion-kube/pkg/types/config"
-	"yunion.io/yunioncloud/pkg/log"
 )
 
 const (
