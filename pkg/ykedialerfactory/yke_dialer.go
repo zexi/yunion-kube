@@ -27,24 +27,24 @@ func (t *YKEDialerFactory) Build(h tunnel.HostConfig) (tunnel.DialFunc, error) {
 	//if len(parts) != 2 {
 	//return nil, fmt.Errorf("Invalid name reference %q", h.NodeName)
 	//}
-	clusterName, nodeName := "", ""
+	clusterId, nodeId := "", ""
 	if len(parts) == 1 {
-		nodeName = parts[0]
+		nodeId = parts[0]
 	} else if len(parts) == 2 {
-		clusterName = parts[0]
-		nodeName = parts[1]
+		clusterId = parts[0]
+		nodeId = parts[1]
 	} else {
 		return nil, fmt.Errorf("Invalid name reference %q", h.NodeName)
 	}
 
 	if t.Docker {
-		return t.Factory.DockerDialer(clusterName, nodeName)
+		return t.Factory.DockerDialer(clusterId, nodeId)
 	}
-	return t.Factory.NodeDialer(clusterName, nodeName)
+	return t.Factory.NodeDialer(clusterId, nodeId)
 }
 
 func (t *YKEDialerFactory) WrapTransport(config *types.KubernetesEngineConfig) k8s.WrapTransport {
-	parse := func(ref string) (clusterName, nodeName string) {
+	parse := func(ref string) (clusterId, nodeId string) {
 		parts := strings.SplitN(ref, ":", 2)
 		if len(parts) == 1 {
 			return "", parts[0]
@@ -56,8 +56,8 @@ func (t *YKEDialerFactory) WrapTransport(config *types.KubernetesEngineConfig) k
 			continue
 		}
 
-		clusterName, nodeName := parse(node.NodeName)
-		dialer, err := t.Factory.NodeDialer(clusterName, nodeName)
+		clusterId, nodeId := parse(node.NodeName)
+		dialer, err := t.Factory.NodeDialer(clusterId, nodeId)
 		if dialer == nil || err != nil {
 			continue
 		}

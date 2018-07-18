@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -47,11 +48,15 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 		err = fmt.Errorf("Roles must provided")
 		return
 	}
+	var role string
 	for _, reqRole := range roles {
-		role := reqRole.String()
+		role, err = reqRole.GetString()
+		if err != nil {
+			return
+		}
 		if !validRoles.Has(role) {
-			err = fmt.Errorf("Invalid role %q", role)
-			break
+			err = fmt.Errorf("Invalid role %s", role)
+			return
 		}
 		switch role {
 		case "etcd":
@@ -63,7 +68,7 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 		}
 	}
 	if !(etcd || ctrl || worker) {
-		err = fmt.Errorf("Invalid roles: %#v", roles)
+		err = fmt.Errorf("Invalid roles: %s", roles)
 	}
 	return
 }
@@ -73,10 +78,11 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	if clusterIdent == "" {
 		return nil, httperrors.NewInputParameterError("Cluster must specified")
 	}
-	cluster := ClusterManager.FetchCluster(clusterIdent)
-	if cluster == nil {
-		return nil, httperrors.NewInputParameterError("Cluster %q not found", clusterIdent)
+	cluster, err := ClusterManager.FetchClusterByIdOrName(ownerId, clusterIdent)
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Cluster %q found error: %v", clusterIdent, err)
 	}
+	data.Add(jsonutils.NewString(cluster.Id), "cluster_id")
 
 	isEtcd, isCtrl, isWorker, err := validateRoles(data)
 	if err != nil {
@@ -95,31 +101,34 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-func (m *SNodeManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
-	if len(ownerProjId) > 0 {
-		q = q.Equals("tenant_id", ownerProjId)
-	}
-	return q
-}
+//func (m *SNodeManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
+//if len(ownerProjId) > 0 {
+//q = q.Equals("tenant_id", ownerProjId)
+//}
+//return q
+//}
 
-func (m *SNodeManager) FetchNode(ident string) *SNode {
-	node, err := m.FetchByIdOrName("", ident)
+func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
+	node, err := m.FetchById(ident)
+	if err == sql.ErrNoRows {
+		return nil, NodeNotFoundError
+	}
 	if err != nil {
 		log.Errorf("Fetch node %q fail: %v", ident, err)
-		return nil
+		return nil, err
 	}
-	return node.(*SNode)
+	return node.(*SNode), nil
 }
 
-func (m *SNodeManager) FetchClusterNode(cluster, ident string) *SNode {
+func (m *SNodeManager) FetchClusterNode(cluster, ident string) (*SNode, error) {
 	// TODO: impl this
-	return m.FetchNode(ident)
+	return m.FetchNodeById(ident)
 }
 
-func (m *SNodeManager) GetNode(cluster, ident string) (*apis.Node, error) {
-	node := m.FetchNode(ident)
-	if node == nil {
-		return nil, NodeNotFoundError
+func (m *SNodeManager) GetNodeById(cluster, ident string) (*apis.Node, error) {
+	node, err := m.FetchNodeById(ident)
+	if err != nil {
+		return nil, err
 	}
 	return node.Node()
 }
@@ -168,12 +177,12 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 type SNode struct {
 	db.SVirtualResourceBase
 
-	ClusterId string `nullable:"false" create:"required" list:"user"`
+	ClusterId    string `nullable:"false" create:"required" list:"user"`
+	Etcd         bool   `nullable:"true" create:"required" list:"user"`
+	Controlplane bool   `nullable:"true" create:"required" list:"user"`
+	Worker       bool   `nullable:"true" create:"required" list:"user"`
 
 	Address           string `nullable:"true" list:"user"`
-	Etcd              bool   `nullable:"true" default:"false" list:"user"`
-	ControlPlane      bool   `nullable:"true" default:"false" list:"user"`
-	Worker            bool   `nullable:"true" default:"false" list:"user"`
 	RequestedHostname string `nullable:"true" list:"user"`
 	HostnameOverride  string `nullable:"true" list:"user"`
 
@@ -219,7 +228,7 @@ func (n *SNode) Node() (*apis.Node, error) {
 	return &apis.Node{
 		Name:         n.Name,
 		Etcd:         n.Etcd,
-		ControlPlane: n.ControlPlane,
+		ControlPlane: n.Controlplane,
 		Worker:       n.Worker,
 		NodeConfig:   n.GetNodeConfig(),
 	}, nil
@@ -230,7 +239,7 @@ func (n *SNode) GetRoles() []string {
 	if n.Etcd {
 		roles = append(roles, "etcd")
 	}
-	if n.ControlPlane {
+	if n.Controlplane {
 		roles = append(roles, "controlplane")
 	}
 	if n.Worker {
@@ -245,9 +254,13 @@ func (n *SNode) GetLabels() (map[string]string, error) {
 	return labels, err
 }
 
+func (n *SNode) YKENodeName() string {
+	return fmt.Sprintf("%s:%s", n.ClusterId, n.Id)
+}
+
 func (n *SNode) GetNodeConfig() *yketypes.ConfigNode {
 	node := &yketypes.ConfigNode{
-		NodeName:         n.Name,
+		NodeName:         n.YKENodeName(),
 		Address:          n.Address,
 		Port:             "22",
 		User:             "root",
@@ -265,12 +278,18 @@ func (n *SNode) GetNodeConfig() *yketypes.ConfigNode {
 }
 
 func (n *SNode) GetCluster() (*SCluster, error) {
-	cluster := ClusterManager.FetchCluster(n.ClusterId)
-	if cluster == nil {
-		return nil, ClusterNotFoundError
-	}
-	return cluster, nil
+	return ClusterManager.FetchClusterById(n.ClusterId)
 }
+
+//func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+//isEtcd := jsonutils.QueryBoolean(data, "etcd", false)
+//isCtrl := jsonutils.QueryBoolean(data, "controlplane", false)
+//isWorker := jsonutils.QueryBoolean(data, "worker", false)
+//n.Etcd = isEtcd
+//n.Controlplane = isCtrl
+//n.Worker = isWorker
+//return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
+//}
 
 func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return n.IsOwner(userCred)
@@ -282,7 +301,7 @@ func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if sets.NewString(CLUSTER_RUNNING, CLUSTER_UPDATING).Has(cluster.Status) {
+	if sets.NewString(CLUSTER_CREATING, CLUSTER_POST_CHECK, CLUSTER_UPDATING).Has(cluster.Status) {
 		return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
 	}
 	return nil
@@ -297,17 +316,25 @@ func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCred
 	if err != nil {
 		return err
 	}
+	if config == nil {
+		return nil
+	}
 	config = RemoveYKEConfigNode(config, n)
 	return cluster.SetYKEConfig(config)
 }
 
 func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) *yketypes.KubernetesEngineConfig {
 	ykeNodes := config.Nodes
-	for i, n := range ykeNodes {
-		if n.NodeName == rNode.Name {
-			ykeNodes = append(ykeNodes[:i], ykeNodes[i+1:]...)
-		}
+	if len(ykeNodes) == 0 {
+		return config
 	}
-	config.Nodes = ykeNodes
+	newNodes := make([]yketypes.ConfigNode, 0)
+	for _, n := range ykeNodes {
+		if n.NodeName == rNode.YKENodeName() {
+			continue
+		}
+		newNodes = append(newNodes, n)
+	}
+	config.Nodes = newNodes
 	return config
 }

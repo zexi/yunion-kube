@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 	"yunion.io/yunioncloud/pkg/jsonutils"
 	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/mcclient"
-	"yunion.io/yunioncloud/pkg/sqlchemy"
+	//"yunion.io/yunioncloud/pkg/sqlchemy"
 	"yunion.io/yunioncloud/pkg/util/wait"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
@@ -39,6 +40,7 @@ func init() {
 }
 
 const (
+	CLUSTER_INIT         = "init"
 	CLUSTER_PRE_CREATING = "pre-creating"
 	CLUSTER_CREATING     = "creating"
 	CLUSTER_POST_CHECK   = "post-checking"
@@ -68,32 +70,43 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-func (m *SClusterManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
-	if len(ownerProjId) > 0 {
-		q = q.Equals("tenant_id", ownerProjId)
+func (m *SClusterManager) FetchClusterByIdOrName(ownerProjId, ident string) (*SCluster, error) {
+	cluster, err := m.FetchByIdOrName(ownerProjId, ident)
+	if err == sql.ErrNoRows {
+		return nil, ClusterNotFoundError
 	}
-	return q
-}
-
-func (m *SClusterManager) FetchCluster(ident string) *SCluster {
-	cluster, err := m.FetchByIdOrName("", ident)
 	if err != nil {
 		log.Errorf("Fetch cluster %q fail: %v", ident, err)
-		return nil
+		return nil, err
 	}
-	return cluster.(*SCluster)
+	return cluster.(*SCluster), nil
 }
 
-func (m *SClusterManager) GetCluster(ident string) (*apis.Cluster, error) {
-	cluster := m.FetchCluster(ident)
-	if cluster == nil {
-		return nil, fmt.Errorf("Not found cluster %q", ident)
+func (m *SClusterManager) FetchClusterById(ident string) (*SCluster, error) {
+	cluster, err := m.FetchById(ident)
+	if err == sql.ErrNoRows {
+		return nil, ClusterNotFoundError
+	}
+	if err != nil {
+		log.Errorf("Fetch cluster by id %q fail: %v", ident, err)
+		return nil, err
+	}
+	return cluster.(*SCluster), nil
+}
+
+func (m *SClusterManager) GetClusterById(ident string) (*apis.Cluster, error) {
+	cluster, err := m.FetchClusterById(ident)
+	if err != nil {
+		return nil, err
 	}
 	return cluster.Cluster()
 }
 
 func (m *SClusterManager) AddClusterNodes(clusterId string, pendingNodes ...*SNode) error {
-	cluster := m.FetchCluster(clusterId)
+	cluster, err := m.FetchClusterById(clusterId)
+	if err != nil {
+
+	}
 	if cluster == nil {
 		return ClusterNotFoundError
 	}
@@ -106,9 +119,9 @@ func (m *SClusterManager) AddClusterNodes(clusterId string, pendingNodes ...*SNo
 }
 
 func (m *SClusterManager) UpdateCluster(clusterId string, pendingNodes ...*SNode) error {
-	cluster := m.FetchCluster(clusterId)
-	if cluster == nil {
-		return ClusterNotFoundError
+	cluster, err := m.FetchClusterById(clusterId)
+	if err != nil {
+		return err
 	}
 	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
 		return fmt.Errorf("Cluster %q update: status is %s", cluster.Name, cluster.Status)
@@ -425,6 +438,9 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 }
 
 func (c *SCluster) SetYKEConfig(config *types.KubernetesEngineConfig) error {
+	if config == nil {
+		return nil
+	}
 	confStr, err := utils.ConvertYkeConfigToStr(*config)
 	if err != nil {
 		return err

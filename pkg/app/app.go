@@ -16,6 +16,7 @@ import (
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/yunion-kube/pkg/dialer"
 	"yunion.io/yunion-kube/pkg/k8s"
+	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/server"
 	"yunion.io/yunion-kube/pkg/types/config"
@@ -29,9 +30,9 @@ func buildScaledContext(ctx context.Context, kubeConfig rest.Config) (*config.Sc
 	}
 
 	dialerFactory, err := dialer.NewFactory(scaledCtx)
-	scaledCtx.Dialer = dialerFactory
-
-	return scaledCtx, nil
+	return scaledCtx.SetDialerFactory(dialerFactory).
+		SetClusterManager(models.ClusterManager).
+		SetNodeManager(models.NodeManager), nil
 }
 
 func prepareEnv() {

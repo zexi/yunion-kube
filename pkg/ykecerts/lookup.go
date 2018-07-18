@@ -1,8 +1,6 @@
 package ykecerts
 
 import (
-	"fmt"
-
 	"yunion.io/yke/pkg/pki"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"
@@ -19,9 +17,9 @@ func NewLookup(man *models.SClusterManager) *BundleLookup {
 }
 
 func (r *BundleLookup) Lookup(cluster *apis.Cluster) (*Bundle, error) {
-	c := r.clusterManager.FetchCluster(cluster.Name)
-	if c == nil {
-		return nil, fmt.Errorf("Not found cluster %q", cluster.Name)
+	c, err := r.clusterManager.FetchClusterById(cluster.Id)
+	if err != nil {
+		return nil, err
 	}
 
 	certs := c.Certs

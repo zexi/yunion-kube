@@ -19,6 +19,8 @@ import (
 type Factory struct {
 	Tunnelserver     *remotedialer.Server
 	TunnelAuthorizer *tunnelserver.Authorizer
+	ClusterManager   *models.SClusterManager
+	NodeManager      *models.SNodeManager
 }
 
 func NewFactory(apiCtx *config.ScaledContext) (dialer.Factory, error) {
@@ -27,10 +29,17 @@ func NewFactory(apiCtx *config.ScaledContext) (dialer.Factory, error) {
 	return &Factory{
 		Tunnelserver:     tunneler,
 		TunnelAuthorizer: authorizer,
+		ClusterManager:   apiCtx.ClusterManager,
+		NodeManager:      apiCtx.NodeManager,
 	}, nil
 }
 
-func (f *Factory) DockerDialer(clusterName, machineName string) (tunnel.DialFunc, error) {
+func (f *Factory) DockerDialer(clusterId, nodeId string) (tunnel.DialFunc, error) {
+	node, err := f.NodeManager.FetchClusterNode(clusterId, nodeId)
+	if err != nil {
+		return nil, err
+	}
+	machineName := node.Name
 	if f.Tunnelserver.HasSession(machineName) {
 		log.Warningf("=======docker dialer: %s", machineName)
 		d := f.Tunnelserver.Dialer(machineName, 15*time.Second)
@@ -39,12 +48,12 @@ func (f *Factory) DockerDialer(clusterName, machineName string) (tunnel.DialFunc
 		}, nil
 	}
 
-	return nil, fmt.Errorf("can not build dialer to %s:%s", clusterName, machineName)
+	return nil, fmt.Errorf("can not build docker dialer to %s:%s", clusterId, machineName)
 }
 
-func (f *Factory) NodeDialer(clusterName, machineName string) (tunnel.DialFunc, error) {
+func (f *Factory) NodeDialer(clusterId, nodeId string) (tunnel.DialFunc, error) {
 	return func(network, address string) (net.Conn, error) {
-		d, err := f.nodeDialer(clusterName, machineName)
+		d, err := f.nodeDialer(clusterId, nodeId)
 		if err != nil {
 			return nil, err
 		}
@@ -52,16 +61,17 @@ func (f *Factory) NodeDialer(clusterName, machineName string) (tunnel.DialFunc, 
 	}, nil
 }
 
-func (f *Factory) nodeDialer(clusterName, machineName string) (tunnel.DialFunc, error) {
-	machine, err := models.NodeManager.GetNode(clusterName, machineName)
+func (f *Factory) nodeDialer(clusterId, nodeId string) (tunnel.DialFunc, error) {
+	node, err := f.NodeManager.FetchClusterNode(clusterId, nodeId)
 	if err != nil {
 		return nil, err
 	}
+	machineName := node.Name
 
-	if f.Tunnelserver.HasSession(machine.Name) {
-		d := f.Tunnelserver.Dialer(machine.Name, 15*time.Second)
+	if f.Tunnelserver.HasSession(machineName) {
+		d := f.Tunnelserver.Dialer(machineName, 15*time.Second)
 		return tunnel.DialFunc(d), nil
 	}
 
-	return nil, fmt.Errorf("can not build dialer to %s:%s", clusterName, machineName)
+	return nil, fmt.Errorf("can not build node dialer to %s:%s", clusterId, machineName)
 }

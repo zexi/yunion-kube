@@ -2,29 +2,65 @@ package node
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"os"
 	"strings"
 
 	"github.com/docker/docker/client"
 
 	"yunion.io/yunioncloud/pkg/log"
+)
 
-	"yunion.io/yunion-kube/pkg/types"
-	//"yunion.io/yunion-kube/pkg/types/apis"
-	//"yunion.io/yunion-kube/pkg/types/slice"
+var (
+	RequestedHostname string
+	Address           string
+	InternalAddress   string
+	AgentToken        string
+	NodeId            string
+	ServerAddress     string
 )
 
 func TokenAndURL() (string, string, error) {
-	return os.Getenv(types.ENV_AGENT_TOKEN), os.Getenv(types.ENV_AGENT_SERVER), nil
+	if len(AgentToken) == 0 {
+		return "", "", fmt.Errorf("Empty AgentToken")
+	}
+	if len(ServerAddress) == 0 {
+		return "", "", fmt.Errorf("Empty ServerAddress")
+	}
+	return AgentToken, ServerAddress, nil
 }
 
-func Params() map[string]interface{} {
-	//roles := split(os.Getenv(types.ENV_AGENT_ROLE))
-	//log.Infof("======roles: %#v", roles)
+func GetLocalIPAddr() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
+}
+
+func Params() (map[string]interface{}, error) {
+	var err error
+	if Address == "" {
+		Address, err = GetLocalIPAddr()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if RequestedHostname == "" {
+		RequestedHostname, _ = os.Hostname()
+	}
+	if NodeId == "" {
+		return nil, fmt.Errorf("Node Id not specified")
+	}
 	params := map[string]interface{}{
-		"address":           os.Getenv(types.ENV_AGENT_ADDRESS),
-		"internalAddress":   os.Getenv(types.ENV_AGENT_INTERNAL_ADDRESS),
-		"requestedHostname": os.Getenv(types.ENV_AGENT_NODE_NAME),
+		"id":                NodeId,
+		"address":           Address,
+		"internalAddress":   InternalAddress,
+		"requestedHostname": RequestedHostname,
 	}
 
 	for k, v := range params {
@@ -38,16 +74,17 @@ func Params() map[string]interface{} {
 	}
 
 	dclient, err := client.NewEnvClient()
+	if err != nil {
+		return nil, err
+	}
+	info, err := dclient.Info(context.Background())
 	if err == nil {
-		info, err := dclient.Info(context.Background())
-		if err == nil {
-			params["dockerInfo"] = info
-		}
+		params["dockerInfo"] = info
 	}
 
 	return map[string]interface{}{
 		"node": params,
-	}
+	}, nil
 }
 
 func split(s string) []string {

@@ -15,6 +15,8 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 
+	"github.com/urfave/cli"
+
 	"yunion.io/yunion-kube/pkg/agent/node"
 	"yunion.io/yunion-kube/pkg/remotedialer"
 	"yunion.io/yunion-kube/pkg/tunnelserver"
@@ -27,15 +29,141 @@ const (
 	Params = tunnelserver.Params
 )
 
+func appFlags() []cli.Flag {
+	return []cli.Flag{
+		cli.BoolFlag{
+			Name:  "debug,d",
+			Usage: "Debug logging",
+		},
+		cli.StringFlag{
+			Name:        "node-name",
+			Usage:       "Requested Hostname",
+			Destination: &node.RequestedHostname,
+		},
+		cli.StringFlag{
+			Name:        "address",
+			Usage:       "IP address",
+			Destination: &node.Address,
+		},
+		cli.StringFlag{
+			Name:        "internal-address",
+			Usage:       "Internal IP address",
+			Destination: &node.InternalAddress,
+		},
+		cli.StringFlag{
+			Name:        "server",
+			Usage:       "Yunion kube server address",
+			Value:       "https://127.0.0.1:8443",
+			Destination: &node.ServerAddress,
+		},
+		cli.StringFlag{
+			Name:        "token",
+			Usage:       "Agent token for register",
+			Destination: &node.AgentToken,
+		},
+		cli.StringFlag{
+			Name:        "id",
+			Usage:       "Node id for register",
+			Destination: &node.NodeId,
+		},
+	}
+}
+
+func setupApp() *cli.App {
+	app := cli.NewApp()
+	app.Name = "kube-agent"
+	app.Version = "0.0.1"
+	app.Usage = "Yunion kubernetes agent"
+	app.Before = func(ctx *cli.Context) error {
+		if ctx.Bool("debug") {
+			log.SetLogLevelByString(log.Logger(), "debug")
+			log.SetVerboseLevel(10)
+		}
+		return nil
+	}
+	app.Author = "Yunion Technology @ 2018"
+	app.Email = "lizexi@yunion.io"
+	app.Flags = appFlags()
+	app.Action = run
+	return app
+}
+
 func main() {
-	log.SetVerboseLevel(10)
-	if err := run(); err != nil {
+	app := setupApp()
+
+	err := app.Run(os.Args)
+	if err != nil {
 		log.Fatalf("%v", err)
 	}
 }
 
+func run(c *cli.Context) error {
+	log.Debugf("Yunion kubernetes agent is starting")
+
+	params, err := getParams()
+	if err != nil {
+		return err
+	}
+
+	bytes, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	log.Debugf("params: %s", string(bytes))
+
+	token, server, err := getTokenAndURL()
+	if err != nil {
+		return err
+	}
+
+	headers := map[string][]string{
+		Token:  {token},
+		Params: {base64.StdEncoding.EncodeToString(bytes)},
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return err
+	}
+
+	onConnect := func(ctx context.Context) error {
+		connectConfig := fmt.Sprintf("https://%s/connect/config", serverURL.Host)
+		log.Debugf("Server connectConfig url: %q", connectConfig)
+		go func() {
+			log.Infof("Starting plan monitor")
+			for {
+				select {
+				case <-time.After(2 * time.Minute):
+					log.Infof("2 mins goes")
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+		return nil
+	}
+
+	for {
+		wsURL := fmt.Sprintf("wss://%s/connect", serverURL.Host)
+		if !isConnect() {
+			wsURL += "/register"
+		}
+		log.Infof("Connecting to %q with token %q", wsURL, token)
+		remotedialer.ClientConnect(wsURL, http.Header(headers), nil, func(proto, address string) bool {
+			switch proto {
+			case "tcp":
+				return true
+			case "unix":
+				return address == "/var/run/docker.sock"
+			}
+			return false
+		}, onConnect)
+		time.Sleep(5 * time.Second)
+	}
+}
+
 func getParams() (map[string]interface{}, error) {
-	return node.Params(), nil
+	return node.Params()
 }
 
 func getTokenAndURL() (string, string, error) {
@@ -99,69 +227,4 @@ func cleanup(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func run() error {
-	log.Debugf("Yunion kubernetes agent is starting")
-
-	params, err := getParams()
-	if err != nil {
-		return err
-	}
-
-	bytes, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	log.Debugf("params: %s", string(bytes))
-
-	token, server, err := getTokenAndURL()
-	if err != nil {
-		return err
-	}
-
-	headers := map[string][]string{
-		Token:  {token},
-		Params: {base64.StdEncoding.EncodeToString(bytes)},
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return err
-	}
-
-	onConnect := func(ctx context.Context) error {
-		connectConfig := fmt.Sprintf("https://%s/connect/config", serverURL.Host)
-		log.Debugf("Server connectConfig url: %q", connectConfig)
-		go func() {
-			log.Infof("Starting plan monitor")
-			for {
-				select {
-				case <-time.After(2 * time.Minute):
-					log.Infof("2 mins goes")
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
-		return nil
-	}
-
-	for {
-		wsURL := fmt.Sprintf("wss://%s/connect", serverURL.Host)
-		if !isConnect() {
-			wsURL += "/register"
-		}
-		log.Infof("Connecting to %q with token %q", wsURL, token)
-		remotedialer.ClientConnect(wsURL, http.Header(headers), nil, func(proto, address string) bool {
-			switch proto {
-			case "tcp":
-				return true
-			case "unix":
-				return address == "/var/run/docker.sock"
-			}
-			return false
-		}, onConnect)
-		time.Sleep(5 * time.Second)
-	}
 }

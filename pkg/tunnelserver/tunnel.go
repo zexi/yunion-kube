@@ -137,15 +137,15 @@ func nodeIdent(node *client.Node) string {
 
 func (t *Authorizer) getClusterNode(cluster *apis.Cluster, inNode *client.Node) (*models.SNode, error) {
 	nodeIdent := nodeIdent(inNode)
-	node := t.NodeManager.FetchClusterNode(cluster.Name, nodeIdent)
-	if node == nil {
-		return nil, models.NodeNotFoundError
+	node, err := t.NodeManager.FetchClusterNode(cluster.Name, nodeIdent)
+	if err != nil {
+		return nil, err
 	}
 	return node, nil
 }
 
 func (t *Authorizer) getClusterByToken(tokenId string) (*apis.Cluster, error) {
-	return t.ClusterManager.GetCluster(tokenId)
+	return t.ClusterManager.GetClusterById(tokenId)
 }
 
 func (t *Authorizer) readInput(cluster *apis.Cluster, req *http.Request) (*input, error) {
@@ -162,6 +162,10 @@ func (t *Authorizer) readInput(cluster *apis.Cluster, req *http.Request) (*input
 
 	if input.Node == nil {
 		return nil, errors.New("missing node registration info")
+	}
+
+	if input.Node.Id == "" {
+		return nil, errors.New("missing node id")
 	}
 
 	if input.Node != nil && input.Node.RequestedHostname == "" {
