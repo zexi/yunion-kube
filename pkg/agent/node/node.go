@@ -7,9 +7,11 @@ import (
 
 	"github.com/docker/docker/client"
 
-	"yunion.io/yunion-kube/pkg/types"
-	"yunion.io/yunion-kube/pkg/types/slice"
 	"yunion.io/yunioncloud/pkg/log"
+
+	"yunion.io/yunion-kube/pkg/types"
+	//"yunion.io/yunion-kube/pkg/types/apis"
+	//"yunion.io/yunion-kube/pkg/types/slice"
 )
 
 func TokenAndURL() (string, string, error) {
@@ -17,17 +19,11 @@ func TokenAndURL() (string, string, error) {
 }
 
 func Params() map[string]interface{} {
-	roles := split(os.Getenv(types.ENV_AGENT_ROLE))
-	log.Infof("======roles: %#v", roles)
+	//roles := split(os.Getenv(types.ENV_AGENT_ROLE))
+	//log.Infof("======roles: %#v", roles)
 	params := map[string]interface{}{
-		"customConfig": map[string]interface{}{
-			"address":         os.Getenv(types.ENV_AGENT_ADDRESS),
-			"internalAddress": os.Getenv(types.ENV_AGENT_INTERNAL_ADDRESS),
-			"roles":           split(os.Getenv(types.ENV_AGENT_ROLE)),
-		},
-		"etcd":              slice.ContainsString(roles, types.ROLE_ETCD),
-		"controlPlane":      slice.ContainsString(roles, types.ROLE_CONTROL_PLANE),
-		"worker":            slice.ContainsString(roles, types.ROLE_WORKER),
+		"address":           os.Getenv(types.ENV_AGENT_ADDRESS),
+		"internalAddress":   os.Getenv(types.ENV_AGENT_INTERNAL_ADDRESS),
 		"requestedHostname": os.Getenv(types.ENV_AGENT_NODE_NAME),
 	}
 

@@ -5,10 +5,10 @@ import (
 )
 
 type Node struct {
-	RequestedHostname string             `json:"requestedHostname,omitempty"`
-	ControlPlane      bool               `json:"controlPlane,omitempty"`
-	Etcd              bool               `json:"etcd,omitempty"`
-	Worker            bool               `json:"worker,omitempty"`
-	CustomConfig      *apis.CustomConfig `json:"customConfig,omitempty"`
-	DockerInfo        *apis.DockerInfo   `json:"dockerInfo,omitempty"`
+	Id                string `json:"id"`
+	RequestedHostname string `json:"requestedHostname,omitempty"`
+	Address           string `json:"address"`
+	InternalAddress   string `json:"internalAddress,omitempty"`
+
+	DockerInfo *apis.DockerInfo `json:"dockerInfo,omitempty"`
 }

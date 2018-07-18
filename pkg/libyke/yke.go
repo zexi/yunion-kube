@@ -58,7 +58,7 @@ func GetDockerInfo(node *apis.Node) (map[string]dtypes.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		infos[node.CustomConfig.Address] = dockerInfo
+		infos[node.Address] = dockerInfo
 	}
 	return infos, nil
 }

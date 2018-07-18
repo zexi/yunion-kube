@@ -56,6 +56,15 @@ func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	k8sVersion, _ := data.GetString("k8s_version")
+	if k8sVersion == "" {
+		k8sVersion = DEFAULT_K8S_VERSION
+		data.Set("k8s_version", jsonutils.NewString(k8sVersion))
+	}
+	_, err := K8sYKEVersionMap.GetYKEVersion(k8sVersion)
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Invalid version %q: %v", k8sVersion, err)
+	}
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
@@ -90,7 +99,7 @@ func (m *SClusterManager) AddClusterNodes(clusterId string, pendingNodes ...*SNo
 	}
 
 	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
-		return fmt.Errorf("Cluster %s status is %s", cluster.Name, cluster.Status)
+		return fmt.Errorf("Cluster %q add node: status is %q", cluster.Name, cluster.Status)
 	}
 
 	return cluster.AddNodes(context.Background(), pendingNodes...)
@@ -102,7 +111,7 @@ func (m *SClusterManager) UpdateCluster(clusterId string, pendingNodes ...*SNode
 		return ClusterNotFoundError
 	}
 	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
-		return fmt.Errorf("Cluster %s status is %s", cluster.Name, cluster.Status)
+		return fmt.Errorf("Cluster %q update: status is %s", cluster.Name, cluster.Status)
 	}
 
 	return cluster.Update(context.Background(), pendingNodes...)
@@ -126,7 +135,7 @@ func (m *SClusterManager) getSpec(cluster *SCluster, pendingNodes ...*SNode) (*t
 
 func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster, pendingNodes ...*SNode) (old, new *types.KubernetesEngineConfig, err error) {
 	clusterId := cluster.Id
-	old, err = cluster.GetYunionKubernetesEngineConfig()
+	old, err = cluster.GetYKEConfig()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,46 +208,39 @@ func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*S
 
 type SCluster struct {
 	db.SVirtualResourceBase
-	Mode                         string               `nullable:"false" create:"required" list:"admin"`
-	ApiEndpoint                  string               `nullable:"true" list:"user"`
-	ClientCertificate            string               `nullable:"true"`
-	ClientKey                    string               `nullable:"true"`
-	RootCaCertificate            string               `nullable:"true"`
-	ServiceAccountToken          string               `nullable:"true"`
-	Certs                        string               `nullable:"true"`
-	Version                      string               `nullable:"true"`
-	YunionKubernetesEngineConfig string               `nullable:"true"`
-	Metadata                     jsonutils.JSONObject `nullable:"true"`
-
-	//Spec          jsonutils.JSONObject `nullable:"true" list:"admin"`
-	//ClusterStatus jsonutils.JSONObject `nullable:"true" list:"admin"`
+	Mode                string               `nullable:"false" create:"required" list:"user"`
+	K8sVersion          string               `nullable:"true" create:"required" list:"user"`
+	ApiEndpoint         string               `nullable:"true" list:"user"`
+	ClientCertificate   string               `nullable:"true"`
+	ClientKey           string               `nullable:"true"`
+	RootCaCertificate   string               `nullable:"true"`
+	ServiceAccountToken string               `nullable:"true"`
+	Certs               string               `nullable:"true"`
+	YkeConfig           string               `nullable:"true"`
+	Metadata            jsonutils.JSONObject `nullable:"true"`
 }
 
 func (c *SCluster) GetYKESystemImages() (*types.SystemImages, error) {
-	imageDefaults := types.K8sVersionToSystemImages[types.K8sV19]
+	if c.K8sVersion == "" {
+		c.K8sVersion = DEFAULT_K8S_VERSION
+	}
+	ykeVersion, err := K8sYKEVersionMap.GetYKEVersion(c.K8sVersion)
+	if err != nil {
+		return nil, err
+	}
+	imageDefaults := types.K8sVersionToSystemImages[ykeVersion]
 	return &imageDefaults, nil
 }
 
 func (c *SCluster) Cluster() (*apis.Cluster, error) {
-	//spec := apis.ClusterSpec{}
-	//status := apis.ClusterStatus{}
-	//if c.Spec != nil {
-	//c.Spec.Unmarshal(&spec)
-	//}
-	//if c.ClusterStatus != nil {
-	//c.ClusterStatus.Unmarshal(&status)
-	//}
-
-	ykeConf, err := c.GetYunionKubernetesEngineConfig()
+	ykeConf, err := c.GetYKEConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	return &apis.Cluster{
-		Id:   c.Id,
-		Name: c.Name,
-		//Spec:                         spec,
-		//Status:                       status,
+		Id:                           c.Id,
+		Name:                         c.Name,
 		CaCert:                       c.RootCaCertificate,
 		ApiEndpoint:                  c.ApiEndpoint,
 		YunionKubernetesEngineConfig: ykeConf,
@@ -255,9 +257,9 @@ func (c *SCluster) ToInfo() *drivertypes.ClusterInfo {
 		ClientKey:           c.ClientKey,
 		RootCaCertificate:   c.RootCaCertificate,
 		ServiceAccountToken: c.ServiceAccountToken,
-		Version:             c.Version,
+		Version:             c.K8sVersion,
 		Endpoint:            c.ApiEndpoint,
-		Config:              c.YunionKubernetesEngineConfig,
+		Config:              c.YkeConfig,
 		Metadata:            metadata,
 		//Status: c.Status,
 	}
@@ -297,17 +299,12 @@ func (c *SCluster) AddNodes(ctx context.Context, pendingNodes ...*SNode) error {
 }
 
 func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) error {
-	// update status to creating
-	//ykeConf, err := ClusterManager.getSpec(c, pendingNodes...)
-	//if err != nil {
-	//return err
-	//}
-	//if ykeConf == nil {
-	//return fmt.Errorf("YKE config is nil, maybe node already added???")
-	//}
-	ykeConf, _, err := ClusterManager.getConfig(false, c)
+	ykeConf, err := ClusterManager.getSpec(c, pendingNodes...)
 	if err != nil {
 		return err
+	}
+	if ykeConf == nil {
+		return fmt.Errorf("YKE config is nil, maybe node already added???")
 	}
 	ykeConfStr, err := utils.ConvertYkeConfigToStr(*ykeConf)
 	if err != nil {
@@ -327,7 +324,7 @@ func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) er
 		if err != nil {
 			log.Errorf("cluster driver create err: %v", err)
 			done = false
-			err = nil
+			c.SetStatus(nil, CLUSTER_ERROR, "")
 			return
 		}
 
@@ -335,6 +332,7 @@ func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) er
 			err = c.saveClusterInfo(info)
 			if err != nil {
 				log.Errorf("Save cluster info after create error: %v", err)
+				c.SetStatus(nil, CLUSTER_ERROR, "")
 			}
 		}
 		c.SetStatus(nil, CLUSTER_RUNNING, "")
@@ -383,7 +381,7 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 		if err != nil {
 			log.Errorf("cluster driver update err: %v", err)
 			done = false
-			err = nil
+			c.SetStatus(nil, CLUSTER_ERROR, "")
 			return
 		}
 
@@ -391,11 +389,12 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 			err = c.saveClusterInfo(info)
 			if err != nil {
 				log.Errorf("Save cluster info after update error: %v", err)
+				c.SetStatus(nil, CLUSTER_ERROR, "")
+				return
 			}
 		}
 		c.SetStatus(nil, CLUSTER_RUNNING, "")
 		done = true
-		//err = nil
 		return
 	}
 
@@ -411,23 +410,34 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 }
 
 func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
-	log.Debugf("=====saveClusterInfo: %#v", clusterInfo)
 	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
 		c.ClientCertificate = clusterInfo.ClientCertificate
 		c.ClientKey = clusterInfo.ClientKey
 		c.RootCaCertificate = clusterInfo.RootCaCertificate
-		c.Version = clusterInfo.Version
+		//c.K8sVersion = clusterInfo.Version
 		c.ApiEndpoint = clusterInfo.Endpoint
 		c.Metadata = jsonutils.Marshal(clusterInfo.Metadata)
 
-		c.YunionKubernetesEngineConfig = clusterInfo.Config
+		c.YkeConfig = clusterInfo.Config
 		return nil
 	})
 	return err
 }
 
-func (c *SCluster) GetYunionKubernetesEngineConfig() (conf *types.KubernetesEngineConfig, err error) {
-	confStr := c.YunionKubernetesEngineConfig
+func (c *SCluster) SetYKEConfig(config *types.KubernetesEngineConfig) error {
+	confStr, err := utils.ConvertYkeConfigToStr(*config)
+	if err != nil {
+		return err
+	}
+	_, err = c.GetModelManager().TableSpec().Update(c, func() error {
+		c.YkeConfig = confStr
+		return nil
+	})
+	return err
+}
+
+func (c *SCluster) GetYKEConfig() (conf *types.KubernetesEngineConfig, err error) {
+	confStr := c.YkeConfig
 	if confStr == "" {
 		return
 	}
@@ -453,6 +463,14 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	nodes, err := NodeManager.ListByCluster(c.Id)
+	if err != nil {
+		return err
+	}
+	if len(nodes) == 0 {
+		log.Debugf("No nodes belongs to cluster %q", c.Name)
+		return c.RealDelete(ctx, userCred)
+	}
 	return c.startRemoveCluster(ctx, userCred)
 }
 
@@ -475,7 +493,8 @@ func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.Tok
 		log.Infof("Deleted cluster [%s]", c.Name)
 		if err != nil {
 			log.Errorf("Delete cluster error: %v", err)
-			err = nil
+			c.SetStatus(nil, CLUSTER_ERROR, "")
+			//err = nil
 		} else {
 			done = true
 		}
@@ -522,4 +541,15 @@ func (c *SCluster) GetAdminKubeconfig() (string, error) {
 	}
 	config := pki.GetKubeConfigX509WithData(info.Endpoint, c.Name, "kube-admin", info.RootCaCertificate, info.ClientCertificate, info.ClientKey)
 	return config, nil
+}
+
+func (c *SCluster) AllowGetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return c.IsOwner(userCred)
+}
+
+func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	configStr := c.YkeConfig
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewString(configStr), "config")
+	return ret, nil
 }
