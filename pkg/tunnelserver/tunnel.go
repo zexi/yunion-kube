@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -22,15 +23,8 @@ const (
 	Params = "X-API-Tunnel-Params"
 )
 
-//type cluster struct {
-//Address string `json:"address"`
-//Token   string `json:"token"`
-//CACert  string `json:"caCert"`
-//}
-
 type input struct {
 	Node *client.Node `json:"node"`
-	//Cluster *cluster     `json:"cluster"`
 }
 
 type Client struct {
@@ -50,10 +44,15 @@ func NewTunnelServer(ctx *config.ScaledContext, authorizer *Authorizer) *remoted
 }
 
 type Authorizer struct {
+	ClusterManager *models.SClusterManager
+	NodeManager    *models.SNodeManager
 }
 
 func NewAuthorizer(context *config.ScaledContext) *Authorizer {
-	auth := &Authorizer{}
+	auth := &Authorizer{
+		ClusterManager: models.ClusterManager,
+		NodeManager:    models.NodeManager,
+	}
 	return auth
 }
 
@@ -114,25 +113,25 @@ func (t *Authorizer) authorizeNode(register bool, cluster *apis.Cluster, inNode 
 		}
 		node, err = t.createNode(inNode, cluster, req)
 		if err != nil {
-			return nil, false, err
+			return nil, false, fmt.Errorf("Create node: %v", err)
 		}
 	} else if err != nil && node == nil {
 		return nil, false, err
 	}
 
 	if register {
-		log.Infof("==== register coming")
+		log.Debugf("==== register coming")
 		node, err = t.updateNode(node, inNode, cluster)
 		if err != nil {
 			return nil, false, err
 		}
 	}
 
-	node, err = t.updateDockerInfo(node, inNode)
-	return node, true, err
+	apiNode, err := node.Node()
+	return apiNode, true, err
 }
 
-func (t *Authorizer) createNode(inNode *client.Node, cluster *apis.Cluster, req *http.Request) (*apis.Node, error) {
+func (t *Authorizer) createNode(inNode *client.Node, cluster *apis.Cluster, req *http.Request) (*models.SNode, error) {
 	customConfig := inNode.CustomConfig
 	if customConfig == nil {
 		return nil, errors.New("invalid input, mssing custom config")
@@ -141,10 +140,8 @@ func (t *Authorizer) createNode(inNode *client.Node, cluster *apis.Cluster, req 
 	if customConfig.Address == "" {
 		return nil, errors.New("invalid input, address empty")
 	}
-	nodeConfig := yketypes.ConfigNode{
-		Role:    customConfig.Roles,
-		Address: customConfig.Address,
-	}
+
+	nodeConfig := clientNodeConfig(inNode)
 
 	name := nodeName(inNode)
 
@@ -155,26 +152,25 @@ func (t *Authorizer) createNode(inNode *client.Node, cluster *apis.Cluster, req 
 		ControlPlane:      inNode.ControlPlane,
 		Worker:            inNode.Worker,
 		RequestedHostname: inNode.RequestedHostname,
-		NodeConfig:        &nodeConfig,
-		CustomConfig:      customConfig,
+		NodeConfig:        nodeConfig,
 	}
 
-	obj, err := models.NodeManager.Create(node)
-	if err != nil {
-		return nil, err
-	}
-	return obj.Node()
+	return t.NodeManager.Create(node)
 }
 
-func (t *Authorizer) updateDockerInfo(node *apis.Node, inNode *client.Node) (*apis.Node, error) {
-	if inNode.DockerInfo == nil {
-		return node, nil
+func clientNodeConfig(inNode *client.Node) *yketypes.ConfigNode {
+	customConfig := inNode.CustomConfig
+	if customConfig == nil {
+		return nil
 	}
-	log.Debugf("Update docker info: %#v", inNode)
-	return node, nil
+	return &yketypes.ConfigNode{
+		Role:    customConfig.Roles,
+		Address: customConfig.Address,
+	}
 }
 
-func fillNodeFromClient(node *apis.Node, inNode *client.Node) *apis.Node {
+func getNodeFromClient(inNode *client.Node) *apis.Node {
+	node := &apis.Node{}
 	//node.Name = inNode.Name
 	node.Etcd = inNode.Etcd
 	node.ControlPlane = inNode.ControlPlane
@@ -182,30 +178,30 @@ func fillNodeFromClient(node *apis.Node, inNode *client.Node) *apis.Node {
 	node.RequestedHostname = inNode.RequestedHostname
 	node.CustomConfig = inNode.CustomConfig
 	node.DockerInfo = inNode.DockerInfo
+	node.NodeConfig = clientNodeConfig(inNode)
 	return node
 }
 
-func (t *Authorizer) updateNode(node *apis.Node, inNode *client.Node, cluster *apis.Cluster) (*apis.Node, error) {
-	node = fillNodeFromClient(node, inNode)
-	obj, err := models.NodeManager.Update(node)
-	if err != nil {
-		return nil, err
-	}
-	return obj.Node()
+func (t *Authorizer) updateNode(obj *models.SNode, inNode *client.Node, cluster *apis.Cluster) (*models.SNode, error) {
+	node := getNodeFromClient(inNode)
+	return obj.Update(node)
 }
 
 func nodeName(node *client.Node) string {
 	return node.RequestedHostname
 }
 
-func (t *Authorizer) getClusterNode(cluster *apis.Cluster, inNode *client.Node) (*apis.Node, error) {
+func (t *Authorizer) getClusterNode(cluster *apis.Cluster, inNode *client.Node) (*models.SNode, error) {
 	nodeName := nodeName(inNode)
-	node, err := models.NodeManager.GetNode(cluster.Name, nodeName)
-	return node, err
+	node := t.NodeManager.FetchClusterNode(cluster.Name, nodeName)
+	if node == nil {
+		return nil, models.NodeNotFoundError
+	}
+	return node, nil
 }
 
 func (t *Authorizer) getClusterByToken(tokenId string) (*apis.Cluster, error) {
-	return models.ClusterManager.GetCluster(tokenId)
+	return t.ClusterManager.GetCluster(tokenId)
 }
 
 func (t *Authorizer) readInput(cluster *apis.Cluster, req *http.Request) (*input, error) {

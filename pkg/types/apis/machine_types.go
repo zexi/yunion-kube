@@ -15,19 +15,11 @@ type Node struct {
 	CustomConfig      *CustomConfig     `json:"customConfig"`
 	DockerInfo        *DockerInfo       `json:"dockerInfo"`
 	NodeConfig        *types.ConfigNode `json:"ykeNodeConfig"`
-	//Status            NodeStatus    `json:"status"`
 }
-
-//type NodeStatus struct {
-//DockerInfo *DockerInfo `json:"dockerInfo"`
-//}
 
 type CustomConfig struct {
 	Address         string   `json:"address"`
 	InternalAddress string   `json:"internalAddress"`
 	DockerSocket    string   `json:"dockerSocket"`
 	Roles           []string `json:"roles"`
-}
-
-type NodeSpec struct {
 }

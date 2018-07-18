@@ -83,60 +83,59 @@ func (m *SClusterManager) GetCluster(ident string) (*apis.Cluster, error) {
 	return cluster.Cluster()
 }
 
-func (m *SClusterManager) UpdateCluster(node *SNode, isCreate bool) (*SCluster, error) {
-	cluster := m.FetchCluster(node.ClusterId)
+func (m *SClusterManager) AddClusterNodes(clusterId string, pendingNodes ...*SNode) error {
+	cluster := m.FetchCluster(clusterId)
 	if cluster == nil {
-		return nil, ClusterNotFoundError
+		return ClusterNotFoundError
 	}
-	//spec, err := m.getSpec(cluster)
-	//if err != nil || spec == nil {
-	//return cluster, err
-	//}
-	if isCreate {
-		err := m.createInner(cluster)
-		if err != nil {
-			return nil, err
-		}
+
+	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
+		return fmt.Errorf("Cluster %s status is %s", cluster.Name, cluster.Status)
 	}
-	return cluster, nil
+
+	return cluster.AddNodes(context.Background(), pendingNodes...)
 }
 
-func (m *SClusterManager) createInner(cls *SCluster) error {
-	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cls.Status) {
-		err := fmt.Errorf("Cluster %s status is %s", cls.Name, cls.Status)
-		log.Infof("%v", err)
-		return err
+func (m *SClusterManager) UpdateCluster(clusterId string, pendingNodes ...*SNode) error {
+	cluster := m.FetchCluster(clusterId)
+	if cluster == nil {
+		return ClusterNotFoundError
 	}
-	return cls.create(context.Background())
+	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
+		return fmt.Errorf("Cluster %s status is %s", cluster.Name, cluster.Status)
+	}
+
+	return cluster.Update(context.Background(), pendingNodes...)
 }
 
-func (m *SClusterManager) getSpec(cluster *SCluster) (*types.KubernetesEngineConfig, error) {
-	oldConf, _, err := m.getConfig(false, cluster)
+func (m *SClusterManager) getSpec(cluster *SCluster, pendingNodes ...*SNode) (*types.KubernetesEngineConfig, error) {
+	oldConf, _, err := m.getConfig(false, cluster, pendingNodes...)
 	if err != nil {
 		return nil, err
 	}
-	_, newConf, err := m.getConfig(true, cluster)
+	_, newConf, err := m.getConfig(true, cluster, pendingNodes...)
 	if err != nil {
 		return nil, err
 	}
-	log.Warningf("==oldConf: %#v, newConf: %#v", oldConf, newConf)
 	if reflect.DeepEqual(oldConf, newConf) {
 		newConf = nil
+		log.Debugf("config not change")
 	}
 	return newConf, nil
 }
 
-func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster) (old, new *types.KubernetesEngineConfig, err error) {
+func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster, pendingNodes ...*SNode) (old, new *types.KubernetesEngineConfig, err error) {
 	clusterId := cluster.Id
 	old, err = cluster.GetYunionKubernetesEngineConfig()
 	if err != nil {
 		return nil, nil, err
 	}
 	if reconcileYKE {
-		nodes, err := m.reconcileYKENodes(clusterId)
+		nodes, err := m.reconcileYKENodes(clusterId, pendingNodes...)
 		if err != nil {
 			return nil, nil, err
 		}
+		log.Errorf("======nodes: %#v, len(%d)", nodes, len(nodes))
 		systemImages, err := cluster.GetYKESystemImages()
 		if err != nil {
 			return nil, nil, err
@@ -153,15 +152,22 @@ func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster) (old, 
 	return old, new, nil
 }
 
-func (m *SClusterManager) reconcileYKENodes(clusterId string) ([]types.ConfigNode, error) {
-	machines, err := NodeManager.ListByCluster(clusterId)
+func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*SNode) ([]types.ConfigNode, error) {
+	objs, err := NodeManager.ListByCluster(clusterId)
 	if err != nil {
 		return nil, err
 	}
+	log.Errorf("******* before merge objs: %#v, pendingNodes: %#v", objs, pendingNodes)
+	objs = mergePendingNodes(objs, pendingNodes)
+	log.Errorf("******* after merge objs: %#v, pendingNodes: %#v", objs, pendingNodes)
 	etcd := false
 	controlplane := false
 	var nodes []types.ConfigNode
-	for _, machine := range machines {
+	for _, obj := range objs {
+		machine, err := obj.Node()
+		if err != nil {
+			return nil, err
+		}
 		log.Infof("===check node config %#v", machine.NodeConfig)
 		if slice.ContainsString(machine.NodeConfig.Role, "etcd") {
 			etcd = true
@@ -204,8 +210,8 @@ type SCluster struct {
 	YunionKubernetesEngineConfig string               `nullable:"true"`
 	Metadata                     jsonutils.JSONObject `nullable:"true"`
 
-	Spec          jsonutils.JSONObject `nullable:"true" list:"admin"`
-	ClusterStatus jsonutils.JSONObject `nullable:"true" list:"admin"`
+	//Spec          jsonutils.JSONObject `nullable:"true" list:"admin"`
+	//ClusterStatus jsonutils.JSONObject `nullable:"true" list:"admin"`
 }
 
 func (c *SCluster) GetYKESystemImages() (*types.SystemImages, error) {
@@ -214,14 +220,14 @@ func (c *SCluster) GetYKESystemImages() (*types.SystemImages, error) {
 }
 
 func (c *SCluster) Cluster() (*apis.Cluster, error) {
-	spec := apis.ClusterSpec{}
-	status := apis.ClusterStatus{}
-	if c.Spec != nil {
-		c.Spec.Unmarshal(&spec)
-	}
-	if c.ClusterStatus != nil {
-		c.ClusterStatus.Unmarshal(&status)
-	}
+	//spec := apis.ClusterSpec{}
+	//status := apis.ClusterStatus{}
+	//if c.Spec != nil {
+	//c.Spec.Unmarshal(&spec)
+	//}
+	//if c.ClusterStatus != nil {
+	//c.ClusterStatus.Unmarshal(&status)
+	//}
 
 	ykeConf, err := c.GetYunionKubernetesEngineConfig()
 	if err != nil {
@@ -229,10 +235,10 @@ func (c *SCluster) Cluster() (*apis.Cluster, error) {
 	}
 
 	return &apis.Cluster{
-		Id:                           c.Id,
-		Name:                         c.Name,
-		Spec:                         spec,
-		Status:                       status,
+		Id:   c.Id,
+		Name: c.Name,
+		//Spec:                         spec,
+		//Status:                       status,
 		CaCert:                       c.RootCaCertificate,
 		ApiEndpoint:                  c.ApiEndpoint,
 		YunionKubernetesEngineConfig: ykeConf,
@@ -283,21 +289,25 @@ func DecodeClusterInfo(info *drivertypes.ClusterInfo) (*drivertypes.ClusterInfo,
 	}, nil
 }
 
-func (c *SCluster) create(ctx context.Context) error {
+func (c *SCluster) AddNodes(ctx context.Context, pendingNodes ...*SNode) error {
 	if c.Status == CLUSTER_POST_CHECK {
 		return nil
 	}
-	return c.startCreateCluster(ctx)
+	return c.startAddNodes(ctx, pendingNodes...)
 }
 
-func (c *SCluster) startCreateCluster(ctx context.Context) error {
+func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) error {
 	// update status to creating
-	ykeConf, err := ClusterManager.getSpec(c)
+	//ykeConf, err := ClusterManager.getSpec(c, pendingNodes...)
+	//if err != nil {
+	//return err
+	//}
+	//if ykeConf == nil {
+	//return fmt.Errorf("YKE config is nil, maybe node already added???")
+	//}
+	ykeConf, _, err := ClusterManager.getConfig(false, c)
 	if err != nil {
 		return err
-	}
-	if ykeConf == nil {
-		return fmt.Errorf("YKE config is nil")
 	}
 	ykeConfStr, err := utils.ConvertYkeConfigToStr(*ykeConf)
 	if err != nil {
@@ -310,8 +320,9 @@ func (c *SCluster) startCreateCluster(ctx context.Context) error {
 	driver := c.ClusterDriver()
 	clusterInfo := c.ToInfo()
 
+	c.SetStatus(nil, CLUSTER_CREATING, "")
+
 	createF := func() (done bool, err error) {
-		log.Debugf("=====start create====")
 		info, err := driver.Create(ctx, opts, clusterInfo)
 		if err != nil {
 			log.Errorf("cluster driver create err: %v", err)
@@ -328,7 +339,7 @@ func (c *SCluster) startCreateCluster(ctx context.Context) error {
 		}
 		c.SetStatus(nil, CLUSTER_RUNNING, "")
 		done = true
-		err = nil
+		//err = nil
 		return
 	}
 
@@ -338,6 +349,62 @@ func (c *SCluster) startCreateCluster(ctx context.Context) error {
 		err := wait.Poll(interval, timeOut, createF)
 		if err != nil {
 			log.Errorf("Create poll error: %v", err)
+		}
+	}()
+	return nil
+}
+
+func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
+	ykeConf, err := ClusterManager.getSpec(c, pendingNodes...)
+	if err != nil {
+		return err
+	}
+	if ykeConf == nil {
+		log.Warningf("ykeConf is none, config not change, skip this update")
+		return nil
+	}
+
+	ykeConfStr, err := utils.ConvertYkeConfigToStr(*ykeConf)
+	if err != nil {
+		return err
+	}
+	opts := &drivertypes.DriverOptions{
+		StringOptions: map[string]string{"ykeConfig": ykeConfStr},
+	}
+
+	driver := c.ClusterDriver()
+	clusterInfo := c.ToInfo()
+
+	c.SetStatus(nil, CLUSTER_UPDATING, "")
+
+	updateF := func() (done bool, err error) {
+		log.Debugf("=====start update====")
+		info, err := driver.Update(ctx, opts, clusterInfo)
+		if err != nil {
+			log.Errorf("cluster driver update err: %v", err)
+			done = false
+			err = nil
+			return
+		}
+
+		if info != nil {
+			err = c.saveClusterInfo(info)
+			if err != nil {
+				log.Errorf("Save cluster info after update error: %v", err)
+			}
+		}
+		c.SetStatus(nil, CLUSTER_RUNNING, "")
+		done = true
+		//err = nil
+		return
+	}
+
+	go func() {
+		timeOut := 30 * time.Minute
+		interval := 5 * time.Second
+		err := wait.Poll(interval, timeOut, updateF)
+		if err != nil {
+			log.Errorf("Update poll error: %v", err)
 		}
 	}()
 	return nil
@@ -390,20 +457,38 @@ func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.TokenCredential) error {
-	go func() {
+	deleteF := func() (done bool, err error) {
 		log.Infof("Deleting cluster [%s]", c.Name)
+		time.Sleep(5 * time.Second)
 		for i := 0; i < 4; i++ {
-			err := c.ClusterDriver().Remove(ctx, c.ToInfo())
+			err = c.ClusterDriver().Remove(ctx, c.ToInfo())
 			if err == nil {
 				break
 			}
 			if i == 3 {
 				log.Errorf("failed to remove the cluster [%s]: %v", c.Name, err)
-				return
+				//return
+				break
 			}
 			time.Sleep(1 * time.Second)
 		}
 		log.Infof("Deleted cluster [%s]", c.Name)
+		if err != nil {
+			log.Errorf("Delete cluster error: %v", err)
+			err = nil
+		} else {
+			done = true
+		}
+		return
+	}
+
+	go func() {
+		timeOut := 30 * time.Minute
+		interval := 5 * time.Second
+		err := wait.Poll(interval, timeOut, deleteF)
+		if err != nil {
+			log.Errorf("Delete poll error: %v", err)
+		}
 	}()
 	return nil
 }

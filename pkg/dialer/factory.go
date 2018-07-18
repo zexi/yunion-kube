@@ -7,6 +7,8 @@ import (
 
 	"yunion.io/yke/pkg/tunnel"
 
+	"yunion.io/yunioncloud/pkg/log"
+
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/remotedialer"
 	"yunion.io/yunion-kube/pkg/tunnelserver"
@@ -30,6 +32,7 @@ func NewFactory(apiCtx *config.ScaledContext) (dialer.Factory, error) {
 
 func (f *Factory) DockerDialer(clusterName, machineName string) (tunnel.DialFunc, error) {
 	if f.Tunnelserver.HasSession(machineName) {
+		log.Warningf("=======docker dialer: %s", machineName)
 		d := f.Tunnelserver.Dialer(machineName, 15*time.Second)
 		return func(string, string) (net.Conn, error) {
 			return d("unix", "/var/run/docker.sock")

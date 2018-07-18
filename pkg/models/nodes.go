@@ -55,6 +55,11 @@ func (m *SNodeManager) FetchNode(ident string) *SNode {
 	return node.(*SNode)
 }
 
+func (m *SNodeManager) FetchClusterNode(cluster, ident string) *SNode {
+	// TODO: impl this
+	return m.FetchNode(ident)
+}
+
 func (m *SNodeManager) GetNode(cluster, ident string) (*apis.Node, error) {
 	node := m.FetchNode(ident)
 	if node == nil {
@@ -63,30 +68,46 @@ func (m *SNodeManager) GetNode(cluster, ident string) (*apis.Node, error) {
 	return node.Node()
 }
 
-func (m *SNodeManager) Create(data *apis.Node) (*SNode, error) {
+func (m *SNodeManager) NewNode(data *apis.Node) (*SNode, error) {
 	model, err := db.NewModelObject(m)
 	if err != nil {
 		return nil, err
 	}
+
 	node, ok := model.(*SNode)
 	if !ok {
 		return nil, fmt.Errorf("Convert to SNode error")
 	}
+
+	if data.ClusterId == "" {
+		return nil, fmt.Errorf("ClusterId must provided")
+	}
+
+	if data.Name == "" {
+		return nil, fmt.Errorf("Name must provided")
+	}
+
 	node.ClusterId = data.ClusterId
 	node.Name = data.Name
 	node.Etcd = data.Etcd
 	node.ControlPlane = data.ControlPlane
 	node.Worker = data.Worker
+	node.NodeConfig = jsonutils.Marshal(data.NodeConfig)
 
-	node.NodeConfig = jsonutils.Marshal(*data.NodeConfig)
+	return node, nil
+}
 
+func (m *SNodeManager) Create(data *apis.Node) (*SNode, error) {
+	node, err := m.NewNode(data)
+	if err != nil {
+		return nil, fmt.Errorf("New node by data %#v error: %v", data, err)
+	}
 	err = m.TableSpec().Insert(node)
 	if err != nil {
 		return nil, err
 	}
 
-	// update cluster config
-	_, err = ClusterManager.UpdateCluster(node, true)
+	err = ClusterManager.AddClusterNodes(node.ClusterId, node)
 	if err != nil {
 		return nil, err
 	}
@@ -94,15 +115,7 @@ func (m *SNodeManager) Create(data *apis.Node) (*SNode, error) {
 	return node, nil
 }
 
-func (m *SNodeManager) Update(data *apis.Node) (*SNode, error) {
-	node := m.FetchNode(data.Name)
-	if node == nil {
-		return nil, NodeNotFoundError
-	}
-	return node.Update(data)
-}
-
-func (m *SNodeManager) ListByCluster(clusterId string) ([]*apis.Node, error) {
+func (m *SNodeManager) ListByCluster(clusterId string) ([]*SNode, error) {
 	nodes := m.Query().SubQuery()
 	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("cluster_id"), clusterId))
 	objs := []SNode{}
@@ -110,16 +123,37 @@ func (m *SNodeManager) ListByCluster(clusterId string) ([]*apis.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	rets := []*apis.Node{}
+	return ConvertPtrNodes(objs), nil
+}
+
+func ConvertPtrNodes(objs []SNode) []*SNode {
+	ret := make([]*SNode, 0)
 	for _, obj := range objs {
-		n, err := obj.Node()
-		if err != nil {
-			log.Errorf("Get node %q apis result error: %v", obj.Name, err)
-			continue
-		}
-		rets = append(rets, n)
+		ret = append(ret, &obj)
 	}
-	return rets, nil
+	return ret
+}
+
+func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
+	isIn := func(pnode *SNode, nodes []*SNode) (int, bool) {
+		for idx, node := range nodes {
+			log.Debugf("====pnode id: %v, node id: %v", pnode.Id, node.Id)
+			if node.Id == pnode.Id {
+				return idx, true
+			}
+		}
+		return 0, false
+	}
+
+	for _, pnode := range pendingNodes {
+		if idx, ok := isIn(pnode, nodes); ok {
+			nodes[idx] = pnode
+		} else {
+			nodes = append(nodes, pnode)
+		}
+	}
+
+	return nodes
 }
 
 type SNode struct {
@@ -131,16 +165,11 @@ type SNode struct {
 	ControlPlane bool   `nullable:"true" default:"false"`
 	Worker       bool   `nullable:"true" default:"false"`
 
-	CustomConfig jsonutils.JSONObject `nullable:"true" list:"admin"`
-	NodeConfig   jsonutils.JSONObject `nullable:"true"`
-	DockerInfo   jsonutils.JSONObject `nullable:"true"`
+	NodeConfig jsonutils.JSONObject `nullable:"true"`
+	DockerInfo jsonutils.JSONObject `nullable:"true"`
 }
 
 func (n *SNode) Node() (*apis.Node, error) {
-	conf := apis.CustomConfig{}
-	if n.CustomConfig != nil {
-		n.CustomConfig.Unmarshal(&conf)
-	}
 	nodeConf := yketypes.ConfigNode{}
 	if n.NodeConfig != nil {
 		n.NodeConfig.Unmarshal(&nodeConf)
@@ -150,23 +179,32 @@ func (n *SNode) Node() (*apis.Node, error) {
 		Etcd:         n.Etcd,
 		ControlPlane: n.ControlPlane,
 		Worker:       n.Worker,
-		CustomConfig: &conf,
 		NodeConfig:   &nodeConf,
 	}, nil
 }
 
 func (n *SNode) Update(data *apis.Node) (*SNode, error) {
 	_, err := n.GetModelManager().TableSpec().Update(n, func() error {
-		n.Name = data.Name
+		//n.Name = data.Name
 		n.Etcd = data.Etcd
 		n.ControlPlane = data.ControlPlane
-		conf := jsonutils.Marshal(data.CustomConfig)
-		n.CustomConfig = conf
-		dInfo := jsonutils.Marshal(data.DockerInfo)
-		n.DockerInfo = dInfo
+		n.Worker = data.Worker
+		if data.DockerInfo != nil {
+			dInfo := jsonutils.Marshal(data.DockerInfo)
+			n.DockerInfo = dInfo
+		}
 		return nil
 	})
-	return n, err
+	if err != nil {
+		return nil, err
+	}
+
+	err = ClusterManager.UpdateCluster(n.ClusterId, n)
+	if err != nil {
+		return nil, err
+	}
+
+	return n, nil
 }
 
 func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {

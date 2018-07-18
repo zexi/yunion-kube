@@ -76,6 +76,8 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 		return nil, err
 	}
 
+	log.Debugf("create yke config: \n%s", yaml)
+
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {
 		return nil, err
@@ -126,6 +128,8 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debugf("update yke config: \n%s", yaml)
 
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {

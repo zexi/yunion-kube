@@ -28,6 +28,7 @@ const (
 )
 
 func main() {
+	log.SetVerboseLevel(10)
 	if err := run(); err != nil {
 		log.Fatalf("%v", err)
 	}
@@ -132,6 +133,17 @@ func run() error {
 	onConnect := func(ctx context.Context) error {
 		connectConfig := fmt.Sprintf("https://%s/connect/config", serverURL.Host)
 		log.Debugf("Server connectConfig url: %q", connectConfig)
+		go func() {
+			log.Infof("Starting plan monitor")
+			for {
+				select {
+				case <-time.After(2 * time.Minute):
+					log.Infof("2 mins goes")
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 		return nil
 	}
 
