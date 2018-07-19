@@ -24,6 +24,15 @@ var (
 	NodeNotFoundError = errors.New("Node not found")
 )
 
+const (
+	NODE_STATUS_INIT     = "init"
+	NODE_STATUS_CREATING = "creating"
+	NODE_STATUS_RUNNING  = "running"
+	NODE_STATUS_ERROR    = "error"
+	NODE_STATUS_UPDATING = "updating"
+	NODE_STATUS_DELETING = "deleting"
+)
+
 func init() {
 	NodeManager = &SNodeManager{
 		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SNode{}, "nodes_tbl", "node", "nodes"),
@@ -138,8 +147,8 @@ func (m *SNodeManager) GetNodeById(cluster, ident string) (*apis.Node, error) {
 func (m *SNodeManager) ListByCluster(clusterId string) ([]*SNode, error) {
 	nodes := NodeManager.Query().SubQuery()
 	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("cluster_id"), clusterId))
-	objs := []SNode{}
-	err := db.FetchModelObjects(m, q, &objs)
+	objs := make([]SNode, 0)
+	err := db.FetchModelObjects(NodeManager, q, &objs)
 	if err != nil {
 		return nil, err
 	}
@@ -215,12 +224,16 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 	}
 
 	f := ClusterManager.UpdateCluster
-	if n.Status == "init" {
+	if n.Status == NODE_STATUS_INIT {
 		f = ClusterManager.AddClusterNodes
+		n.SetStatus(nil, NODE_STATUS_CREATING, "")
+	} else {
+		n.SetStatus(nil, NODE_STATUS_UPDATING, "")
 	}
 
 	err = f(n.ClusterId, n)
 	if err != nil {
+		n.SetStatus(nil, NODE_STATUS_ERROR, err.Error())
 		return nil, err
 	}
 
@@ -296,15 +309,15 @@ func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCred
 }
 
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
-	// TODO: validate cluster status, only can delete when cluster ready
-	cluster, err := n.GetCluster()
-	if err != nil {
-		return err
-	}
-	if sets.NewString(CLUSTER_CREATING, CLUSTER_POST_CHECK, CLUSTER_UPDATING).Has(cluster.Status) {
-		return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
-	}
-	return nil
+	//cluster, err := n.GetCluster()
+	//if err != nil {
+	//return err
+	//}
+	//if sets.NewString(CLUSTER_CREATING, CLUSTER_POST_CHECK, CLUSTER_UPDATING).Has(cluster.Status) {
+	//return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
+	//}
+	//return nil
+	return n.SVirtualResourceBase.ValidateDeleteCondition(ctx)
 }
 
 func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
