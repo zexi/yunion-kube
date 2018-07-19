@@ -1,4 +1,4 @@
-package server
+package app
 
 import (
 	"yunion.io/yunioncloud/pkg/appsrv"

@@ -89,7 +89,6 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 	}
 	defer d.cleanup(stateDir)
 
-	log.Warningf("=== Start clusterup ykeconfig: %#v", ykeConfig)
 	certsStr := ""
 	apiURL, caCrt, clientCert, clientKey, certs, err := clusterUp(ctx, &ykeConfig, d.DockerDialer, d.LocalDialer,
 		d.wrapTransport(&ykeConfig), false, stateDir, false, false)

@@ -101,28 +101,30 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-//func (m *SNodeManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
-//if len(ownerProjId) > 0 {
-//q = q.Equals("tenant_id", ownerProjId)
-//}
-//return q
-//}
-
 func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
 	node, err := m.FetchById(ident)
-	if err == sql.ErrNoRows {
-		return nil, NodeNotFoundError
-	}
 	if err != nil {
 		log.Errorf("Fetch node %q fail: %v", ident, err)
+		if err == sql.ErrNoRows {
+			return nil, NodeNotFoundError
+		}
 		return nil, err
 	}
 	return node.(*SNode), nil
 }
 
-func (m *SNodeManager) FetchClusterNode(cluster, ident string) (*SNode, error) {
-	// TODO: impl this
-	return m.FetchNodeById(ident)
+func (m *SNodeManager) FetchClusterNode(clusterId, ident string) (*SNode, error) {
+	nodes, err := m.ListByCluster(clusterId)
+	if err != nil {
+		return nil, err
+	}
+	for _, node := range nodes {
+		if node.Name == ident || node.Id == ident {
+			return node, nil
+		}
+	}
+	log.Errorf("Cluster %q Node %q not found", clusterId, ident)
+	return nil, NodeNotFoundError
 }
 
 func (m *SNodeManager) GetNodeById(cluster, ident string) (*apis.Node, error) {
@@ -134,10 +136,10 @@ func (m *SNodeManager) GetNodeById(cluster, ident string) (*apis.Node, error) {
 }
 
 func (m *SNodeManager) ListByCluster(clusterId string) ([]*SNode, error) {
-	nodes := m.Query().SubQuery()
+	nodes := NodeManager.Query().SubQuery()
 	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("cluster_id"), clusterId))
 	objs := []SNode{}
-	err := q.All(&objs)
+	err := db.FetchModelObjects(m, q, &objs)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +147,10 @@ func (m *SNodeManager) ListByCluster(clusterId string) ([]*SNode, error) {
 }
 
 func ConvertPtrNodes(objs []SNode) []*SNode {
-	ret := make([]*SNode, 0)
-	for _, obj := range objs {
-		ret = append(ret, &obj)
+	ret := make([]*SNode, len(objs))
+	for i, obj := range objs {
+		temp := obj
+		ret[i] = &temp
 	}
 	return ret
 }
@@ -155,7 +158,6 @@ func ConvertPtrNodes(objs []SNode) []*SNode {
 func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 	isIn := func(pnode *SNode, nodes []*SNode) (int, bool) {
 		for idx, node := range nodes {
-			log.Debugf("====pnode id: %v, node id: %v", pnode.Id, node.Id)
 			if node.Id == pnode.Id {
 				return idx, true
 			}
@@ -177,14 +179,14 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 type SNode struct {
 	db.SVirtualResourceBase
 
-	ClusterId    string `nullable:"false" create:"required" list:"user"`
-	Etcd         bool   `nullable:"true" create:"required" list:"user"`
-	Controlplane bool   `nullable:"true" create:"required" list:"user"`
-	Worker       bool   `nullable:"true" create:"required" list:"user"`
+	ClusterId        string `nullable:"false" create:"required" list:"user"`
+	Etcd             bool   `nullable:"true" create:"required" list:"user"`
+	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
+	Worker           bool   `nullable:"true" create:"required" list:"user"`
+	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
 
 	Address           string `nullable:"true" list:"user"`
 	RequestedHostname string `nullable:"true" list:"user"`
-	HostnameOverride  string `nullable:"true" list:"user"`
 
 	Labels     jsonutils.JSONObject `nullable:true`
 	DockerInfo jsonutils.JSONObject `nullable:"true"`
@@ -201,6 +203,7 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 
 	_, err := n.GetModelManager().TableSpec().Update(n, func() error {
 		n.Address = data.Address
+		n.RequestedHostname = data.RequestedHostname
 		if data.DockerInfo != nil {
 			dInfo := jsonutils.Marshal(data.DockerInfo)
 			n.DockerInfo = dInfo
@@ -250,7 +253,10 @@ func (n *SNode) GetRoles() []string {
 
 func (n *SNode) GetLabels() (map[string]string, error) {
 	labels := make(map[string]string)
-	err := n.Labels.Unmarshal(labels)
+	var err error
+	if n.Labels != nil {
+		err = n.Labels.Unmarshal(labels)
+	}
 	return labels, err
 }
 
@@ -259,13 +265,17 @@ func (n *SNode) YKENodeName() string {
 }
 
 func (n *SNode) GetNodeConfig() *yketypes.ConfigNode {
+	hostnameOverride := n.HostnameOverride
+	if len(hostnameOverride) == 0 {
+		hostnameOverride = n.RequestedHostname
+	}
 	node := &yketypes.ConfigNode{
 		NodeName:         n.YKENodeName(),
+		HostnameOverride: hostnameOverride,
 		Address:          n.Address,
 		Port:             "22",
 		User:             "root",
 		Role:             n.GetRoles(),
-		HostnameOverride: n.HostnameOverride,
 		DockerSocket:     "/var/run/docker.sock",
 	}
 	labels, err := n.GetLabels()
@@ -280,16 +290,6 @@ func (n *SNode) GetNodeConfig() *yketypes.ConfigNode {
 func (n *SNode) GetCluster() (*SCluster, error) {
 	return ClusterManager.FetchClusterById(n.ClusterId)
 }
-
-//func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-//isEtcd := jsonutils.QueryBoolean(data, "etcd", false)
-//isCtrl := jsonutils.QueryBoolean(data, "controlplane", false)
-//isWorker := jsonutils.QueryBoolean(data, "worker", false)
-//n.Etcd = isEtcd
-//n.Controlplane = isCtrl
-//n.Worker = isWorker
-//return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
-//}
 
 func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return n.IsOwner(userCred)

@@ -9,7 +9,10 @@ import (
 
 	"k8s.io/client-go/rest"
 
+	"yunion.io/yunioncloud/pkg/appsrv"
 	"yunion.io/yunioncloud/pkg/cloudcommon"
+	"yunion.io/yunioncloud/pkg/cloudcommon/db"
+	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/util/runtime"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
@@ -44,8 +47,26 @@ func prepareEnv() {
 	runtime.ReallyCrash = false
 }
 
+func initCloudApp() *appsrv.Application {
+	app := cloudcommon.InitApp(&options.Options.Options)
+	InitHandlers(app)
+
+	cloudcommon.InitAuth(&options.Options.Options, func() {
+		log.Infof("Auth complete!!!")
+	})
+
+	return app
+}
+
 func Run(ctx context.Context) error {
 	prepareEnv()
+	app := initCloudApp()
+	// must before InitDB?
+	cloudcommon.InitDB(&options.Options.DBOptions)
+	defer cloudcommon.CloseDB()
+	if !db.CheckSync(options.Options.AutoSyncTable) {
+		log.Fatalf("Fail sync db")
+	}
 
 	opt := options.Options
 	httpsAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpsPort))
@@ -65,7 +86,7 @@ func Run(ctx context.Context) error {
 
 	go RegisterDriver(scaledCtx)
 
-	if err := server.Start(httpsAddr, scaledCtx); err != nil {
+	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
 		return err
 	}
 	return nil
