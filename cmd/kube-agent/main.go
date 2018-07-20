@@ -15,7 +15,8 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 
-	"github.com/urfave/cli"
+	"gopkg.in/urfave/cli.v1"
+	"gopkg.in/urfave/cli.v1/altsrc"
 
 	"yunion.io/yunion-kube/pkg/agent/node"
 	"yunion.io/yunion-kube/pkg/remotedialer"
@@ -31,41 +32,59 @@ const (
 
 func appFlags() []cli.Flag {
 	return []cli.Flag{
-		cli.BoolFlag{
-			Name:  "debug,d",
-			Usage: "Debug logging",
-		},
 		cli.StringFlag{
-			Name:        "node-name",
-			Usage:       "Requested Hostname",
-			Destination: &node.RequestedHostname,
+			Name:  "config, c",
+			Usage: "Load configuration from `FILE`",
 		},
-		cli.StringFlag{
-			Name:        "address",
-			Usage:       "IP address",
-			Destination: &node.Address,
-		},
-		cli.StringFlag{
-			Name:        "internal-address",
-			Usage:       "Internal IP address",
-			Destination: &node.InternalAddress,
-		},
-		cli.StringFlag{
-			Name:        "server",
-			Usage:       "Yunion kube server address",
-			Value:       "https://127.0.0.1:8443",
-			Destination: &node.ServerAddress,
-		},
-		cli.StringFlag{
-			Name:        "token",
-			Usage:       "Agent token for register",
-			Destination: &node.AgentToken,
-		},
-		cli.StringFlag{
-			Name:        "id",
-			Usage:       "Node id for register",
-			Destination: &node.NodeId,
-		},
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:  "log-level",
+				Usage: "Log level `debug|info|warning|error`",
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "node-name",
+				Usage:       "Requested Hostname",
+				Destination: &node.RequestedHostname,
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "address",
+				Usage:       "IP address",
+				Destination: &node.Address,
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "internal-address",
+				Usage:       "Internal IP address",
+				Destination: &node.InternalAddress,
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "server",
+				Usage:       "Yunion kube server address",
+				Value:       "https://127.0.0.1:8443",
+				Destination: &node.ServerAddress,
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "token",
+				Usage:       "Agent token for register",
+				Destination: &node.AgentToken,
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "id",
+				Usage:       "Node id for register",
+				Destination: &node.NodeId,
+			},
+		),
 	}
 }
 
@@ -74,16 +93,11 @@ func setupApp() *cli.App {
 	app.Name = "kube-agent"
 	app.Version = "0.0.1"
 	app.Usage = "Yunion kubernetes agent"
-	app.Before = func(ctx *cli.Context) error {
-		if ctx.Bool("debug") {
-			log.SetLogLevelByString(log.Logger(), "debug")
-			log.SetVerboseLevel(10)
-		}
-		return nil
-	}
+	flags := appFlags()
+	app.Before = altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc("config"))
 	app.Author = "Yunion Technology @ 2018"
 	app.Email = "lizexi@yunion.io"
-	app.Flags = appFlags()
+	app.Flags = flags
 	app.Action = run
 	return app
 }
@@ -98,8 +112,13 @@ func main() {
 }
 
 func run(c *cli.Context) error {
-	log.Debugf("Yunion kubernetes agent is starting")
+	level := c.String("log-level")
+	log.SetLogLevelByString(log.Logger(), level)
+	if level == "debug" {
+		log.SetVerboseLevel(10)
+	}
 
+	log.Debugf("Yunion kubernetes agent is starting")
 	params, err := getParams()
 	if err != nil {
 		return err
@@ -190,9 +209,6 @@ func connected() {
 }
 
 func cleanup(ctx context.Context) error {
-	//if os.Getenv("K8S_MANAGED") != "true" {
-	//return nil
-	//}
 	c, err := client.NewEnvClient()
 	if err != nil {
 		return err

@@ -448,12 +448,22 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get server url: %v", err))
 		return
 	}
-	agentConfig := apis.AgentConfig{
-		ServerUrl: serverUrl,
-		ClusterId: n.ClusterId,
-		NodeId:    n.Id,
+	registerConfig := apis.HostRegisterConfig{
+		AgentConfig: apis.AgentConfig{
+			ServerUrl: serverUrl,
+			Token:     n.ClusterId,
+			ClusterId: n.ClusterId,
+			NodeId:    n.Id,
+		},
+		// TODO: make dockerd configurable
+		DockerdConfig: apis.DockerdConfig{
+			LiveRestore:        true,
+			RegistryMirrors:    []string{},
+			InsecureRegistries: []string{},
+			Graph:              "/opt/docker",
+		},
 	}
-	body := jsonutils.Marshal(agentConfig)
+	body := jsonutils.Marshal(registerConfig)
 	_, err = request.Post(hostManUrl, userCred.GetTokenString(), url, nil, body)
 	if err != nil {
 		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Start agent on host %q: %v", hostId, err))
