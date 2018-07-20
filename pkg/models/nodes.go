@@ -8,14 +8,18 @@ import (
 
 	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
+	cloudmodels "yunion.io/yunioncloud/pkg/compute/models"
 	"yunion.io/yunioncloud/pkg/httperrors"
 	"yunion.io/yunioncloud/pkg/jsonutils"
 	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/mcclient"
+	cloudmod "yunion.io/yunioncloud/pkg/mcclient/modules"
 	"yunion.io/yunioncloud/pkg/sqlchemy"
 	"yunion.io/yunioncloud/pkg/util/sets"
 
+	"yunion.io/yunion-kube/pkg/request"
 	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/yunion-kube/pkg/types/slice"
 )
 
 var NodeManager *SNodeManager
@@ -82,6 +86,39 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 	return
 }
 
+func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
+	hostId, _ := data.GetString("host")
+	if hostId == "" {
+		return "", nil
+	}
+	session, err := GetAdminSession()
+	if err != nil {
+		return "", httperrors.NewInternalServerError("Get admin session: %v", err)
+	}
+	ret, err := cloudmod.Hosts.Get(session, hostId, nil)
+	if err != nil {
+		return "", err
+	}
+	id, _ := ret.GetString("id")
+	if id == "" {
+		return "", httperrors.NewNotFoundError("Host %q not found", hostId)
+	}
+	hostType, _ := ret.GetString("host_type")
+	if !slice.ContainsString([]string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}, hostType) {
+		return "", httperrors.NewInputParameterError("Host %q type %q not support", hostId, hostType)
+	}
+
+	node, err := m.FetchNodeByHostId(id)
+	if err != nil && err != sql.ErrNoRows {
+		return "", httperrors.NewInternalServerError("Fetch node by host id %q: %v", id, err)
+	}
+	if node != nil {
+		return "", httperrors.NewInputParameterError("Host %q already used by node %q", hostId, node.Name)
+	}
+
+	return id, nil
+}
+
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	clusterIdent, _ := data.GetString("cluster")
 	if clusterIdent == "" {
@@ -107,7 +144,25 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	data.Add(toBool(isCtrl), "controlplane")
 	data.Add(toBool(isWorker), "worker")
 
+	hostId, err := validateHost(m, userCred, data)
+	if err != nil {
+		return nil, err
+	}
+	data.Add(jsonutils.NewString(hostId), "host_id")
+
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
+}
+
+func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	nodes := make([]*SNode, len(items))
+	for i, t := range items {
+		nodes[i] = t.(*SNode)
+	}
+	for _, n := range nodes {
+		TaskManager().Run(func() {
+			n.StartAgentOnHost(ctx, userCred, query, data)
+		}, nil)
+	}
 }
 
 func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
@@ -120,6 +175,20 @@ func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
 		return nil, err
 	}
 	return node.(*SNode), nil
+}
+
+func (m *SNodeManager) FetchNodeByHostId(hostId string) (*SNode, error) {
+	if hostId == "" {
+		return nil, fmt.Errorf("Host id not provided")
+	}
+	nodes := m.Query().SubQuery()
+	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("host_id"), hostId))
+	node := SNode{}
+	err := q.First(&node)
+	if err != nil {
+		return nil, err
+	}
+	return &node, nil
 }
 
 func (m *SNodeManager) FetchClusterNode(clusterId, ident string) (*SNode, error) {
@@ -193,6 +262,7 @@ type SNode struct {
 	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
 	Worker           bool   `nullable:"true" create:"required" list:"user"`
 	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
+	HostId           string `nullable:"true" create:"optional" list:"user"`
 
 	Address           string `nullable:"true" list:"user"`
 	RequestedHostname string `nullable:"true" list:"user"`
@@ -226,14 +296,14 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 	f := ClusterManager.UpdateCluster
 	if n.Status == NODE_STATUS_INIT {
 		f = ClusterManager.AddClusterNodes
-		n.SetStatus(nil, NODE_STATUS_CREATING, "")
+		n.SetStatus(GetAdminCred(), NODE_STATUS_CREATING, "")
 	} else {
-		n.SetStatus(nil, NODE_STATUS_UPDATING, "")
+		n.SetStatus(GetAdminCred(), NODE_STATUS_UPDATING, "")
 	}
 
 	err = f(n.ClusterId, n)
 	if err != nil {
-		n.SetStatus(nil, NODE_STATUS_ERROR, err.Error())
+		n.SetStatus(GetAdminCred(), NODE_STATUS_ERROR, err.Error())
 		return nil, err
 	}
 
@@ -350,4 +420,42 @@ func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) 
 	}
 	config.Nodes = newNodes
 	return config
+}
+
+func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	hostId := n.HostId
+	if hostId == "" {
+		log.Debugf("Not yunioncloud host, skip it")
+		return
+	}
+	session, err := GetAdminSession()
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get admin session: %v", err))
+	}
+	result, err := cloudmod.Hosts.Get(session, hostId, nil)
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get host id %q: %v", hostId, err))
+	}
+	log.Infof("Get hosts: %s", result)
+	hostManUrl, _ := result.GetString("manager_uri")
+	if hostManUrl == "" {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Host %q not found manager_uri", hostId))
+		return
+	}
+	url := "/kubeagent/start"
+	serverUrl, err := GetKubeServerUrl()
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get server url: %v", err))
+		return
+	}
+	agentConfig := apis.AgentConfig{
+		ServerUrl: serverUrl,
+		ClusterId: n.ClusterId,
+		NodeId:    n.Id,
+	}
+	body := jsonutils.Marshal(agentConfig)
+	_, err = request.Post(hostManUrl, userCred.GetTokenString(), url, nil, body)
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Start agent on host %q: %v", hostId, err))
+	}
 }

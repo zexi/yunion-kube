@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"sort"
 	"strings"
@@ -359,7 +360,7 @@ func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
 			if err != nil {
 				// Retry until the timeout
 				log.Errorf("backoffTryRun cluster %q error: %v", c.Name, err)
-				c.SetStatus(nil, CLUSTER_STATUS_ERROR, err.Error())
+				c.SetStatus(GetAdminCred(), CLUSTER_STATUS_ERROR, err.Error())
 				return false, nil
 			}
 			// The last f() call was a success, return cleanly
@@ -394,7 +395,7 @@ func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) er
 	clusterInfo := c.ToInfo()
 
 	createF := func() (err error) {
-		err = c.SetStatus(nil, CLUSTER_STATUS_CREATING, "")
+		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_CREATING, "")
 		if err != nil {
 			return
 		}
@@ -409,11 +410,11 @@ func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) er
 			err = c.saveClusterInfo(info)
 			if err != nil {
 				log.Errorf("Save cluster info after create error: %v", err)
-				c.SetStatus(nil, CLUSTER_STATUS_ERROR, err.Error())
+				c.SetStatus(GetAdminCred(), CLUSTER_STATUS_ERROR, err.Error())
 			}
 		}
 		setNodesStatus(pendingNodes, NODE_STATUS_RUNNING)
-		return c.SetStatus(nil, CLUSTER_STATUS_RUNNING, "")
+		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
 	}
 
 	c.backoffTryRun(createF, 5)
@@ -442,7 +443,7 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 	clusterInfo := c.ToInfo()
 
 	updateF := func() (err error) {
-		err = c.SetStatus(nil, CLUSTER_STATUS_UPDATING, "")
+		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_UPDATING, "")
 		if err != nil {
 			return
 		}
@@ -461,7 +462,7 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 			}
 		}
 		setNodesStatus(pendingNodes, NODE_STATUS_RUNNING)
-		return c.SetStatus(nil, CLUSTER_STATUS_RUNNING, "")
+		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
 	}
 
 	c.backoffTryRun(updateF, 5)
@@ -471,7 +472,7 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 func setNodesStatus(nodes []*SNode, status string) error {
 	var err error
 	for _, node := range nodes {
-		err = node.SetStatus(nil, status, "")
+		err = node.SetStatus(GetAdminCred(), status, "")
 	}
 	return err
 }
@@ -547,7 +548,7 @@ func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.TokenCredential) error {
 	deleteF := func() (err error) {
 		log.Infof("Deleting cluster [%s]", c.Name)
-		c.SetStatus(nil, CLUSTER_STATUS_DELETING, "")
+		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
 		err = c.ClusterDriver().Remove(ctx, c.ToInfo())
 		if err != nil {
 			log.Errorf("Delete cluster error: %v", err)
@@ -589,15 +590,39 @@ func (c *SCluster) GetYKENetworkConfig() yketypes.NetworkConfig {
 	return conf
 }
 
-func (c *SCluster) GetK8sWebhookAuthUrl() string {
-	// TODO: impl this
-	return "https://10.168.222.183:8443/webhook"
+func GetKubeServerUrl() (string, error) {
+	session, err := GetAdminSession()
+	if err != nil {
+		return "", err
+	}
+	endpoint, err := session.GetServiceURL(KUBE_SERVER_SERVICE, INTERNAL_ENDPOINT_TYPE)
+	if err != nil {
+		return "", err
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("Parse url %q error: %v", endpoint, err)
+	}
+	u.Path = ""
+	return u.String(), nil
 }
 
-func (c *SCluster) GetYKEWebhookAuthConfig() yketypes.WebhookAuth {
-	return yketypes.WebhookAuth{
-		URL: c.GetK8sWebhookAuthUrl(),
+func (c *SCluster) GetK8sWebhookAuthUrl() (string, error) {
+	serverUrl, err := GetKubeServerUrl()
+	if err != nil {
+		return "", err
 	}
+	return fmt.Sprintf("%s/webhook", serverUrl), nil
+}
+
+func (c *SCluster) GetYKEWebhookAuthConfig() (yketypes.WebhookAuth, error) {
+	ret := yketypes.WebhookAuth{}
+	webhookUrl, err := c.GetK8sWebhookAuthUrl()
+	if err != nil {
+		return ret, err
+	}
+	ret.URL = webhookUrl
+	return ret, nil
 }
 
 func (c *SCluster) GetClusterCIDR() string {
@@ -688,8 +713,8 @@ func (c *SCluster) NewYKEConfig() (yketypes.KubernetesEngineConfig, error) {
 	if err != nil {
 		return conf, err
 	}
-	conf.WebhookAuth = c.GetYKEWebhookAuthConfig()
-	return conf, nil
+	conf.WebhookAuth, err = c.GetYKEWebhookAuthConfig()
+	return conf, err
 }
 
 func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -726,5 +751,19 @@ func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient
 	configStr := c.YkeConfig
 	ret := jsonutils.NewDict()
 	ret.Add(jsonutils.NewString(configStr), "config")
+	return ret, nil
+}
+
+func (c *SCluster) AllowGetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return c.IsOwner(userCred)
+}
+
+func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	webhookUrl, err := c.GetK8sWebhookAuthUrl()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError(err.Error())
+	}
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewString(webhookUrl), "url")
 	return ret, nil
 }
