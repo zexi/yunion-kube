@@ -1,0 +1,4 @@
+log-level = "debug"
+server = "https://10.168.222.183:8443"
+token = "testtoken"
+id = "myid"

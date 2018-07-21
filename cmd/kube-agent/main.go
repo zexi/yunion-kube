@@ -14,15 +14,16 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-
 	"gopkg.in/urfave/cli.v1"
 	"gopkg.in/urfave/cli.v1/altsrc"
+
+	"yunion.io/yunioncloud/pkg/log"
+	"yunion.io/yunioncloud/pkg/util/version"
 
 	"yunion.io/yunion-kube/pkg/agent/node"
 	"yunion.io/yunion-kube/pkg/remotedialer"
 	"yunion.io/yunion-kube/pkg/tunnelserver"
 	ytypes "yunion.io/yunion-kube/pkg/types"
-	"yunion.io/yunioncloud/pkg/log"
 )
 
 const (
@@ -91,12 +92,12 @@ func appFlags() []cli.Flag {
 func setupApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "kube-agent"
-	app.Version = "0.0.1"
+	app.Version = version.GetJsonString()
 	app.Usage = "Yunion kubernetes agent"
 	flags := appFlags()
 	app.Before = altsrc.InitInputSourceWithContext(flags, altsrc.NewTomlSourceFromFlagFunc("config"))
 	app.Author = "Yunion Technology @ 2018"
-	app.Email = "lizexi@yunion.io"
+	app.Email = "admin@yunion.io"
 	app.Flags = flags
 	app.Action = run
 	return app

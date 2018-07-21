@@ -1,0 +1,17 @@
+[Unit]
+Description=Yunion Kube Server
+Documention=http://docs.yunion.cn
+After=network.target httpd.service
+
+[Service]
+Type=simple
+User=yunion
+Group=yunion
+ExecStart=/opt/yunion/bin/kube-server --config /etc/yunion/kube-server.conf
+WorkingDirectory=/opt/yunion
+KillMode=process
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
