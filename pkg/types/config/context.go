@@ -1,25 +1,18 @@
 package config
 
 import (
-	"k8s.io/client-go/rest"
-
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/types/config/dialer"
 )
 
 type ScaledContext struct {
-	RESTConfig     rest.Config
 	Dialer         dialer.Factory
 	ClusterManager *models.SClusterManager
 	NodeManager    *models.SNodeManager
 }
 
-func NewScaledContext(config rest.Config) (*ScaledContext, error) {
-	//var err error
-
-	ctx := &ScaledContext{
-		RESTConfig: config,
-	}
+func NewScaledContext() (*ScaledContext, error) {
+	ctx := &ScaledContext{}
 	return ctx, nil
 }
 

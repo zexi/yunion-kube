@@ -2,12 +2,9 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"strconv"
-
-	"k8s.io/client-go/rest"
 
 	"yunion.io/yunioncloud/pkg/appsrv"
 	"yunion.io/yunioncloud/pkg/cloudcommon"
@@ -18,7 +15,6 @@ import (
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/yunion-kube/pkg/dialer"
-	"yunion.io/yunion-kube/pkg/k8s"
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/server"
@@ -26,8 +22,8 @@ import (
 	"yunion.io/yunion-kube/pkg/ykedialerfactory"
 )
 
-func buildScaledContext(ctx context.Context, kubeConfig rest.Config) (*config.ScaledContext, error) {
-	scaledCtx, err := config.NewScaledContext(kubeConfig)
+func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
+	scaledCtx, err := config.NewScaledContext()
 	if err != nil {
 		return nil, err
 	}
@@ -71,15 +67,7 @@ func Run(ctx context.Context) error {
 	opt := options.Options
 	httpsAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpsPort))
 
-	if opt.KubeConfig == "" {
-		return fmt.Errorf("kube config file must provided")
-	}
-	kubeConfig, err := k8s.GetConfig(opt.KubeConfig)
-	if err != nil {
-		return err
-	}
-
-	scaledCtx, err := buildScaledContext(ctx, *kubeConfig)
+	scaledCtx, err := buildScaledContext(ctx)
 	if err != nil {
 		return err
 	}

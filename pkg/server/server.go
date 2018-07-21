@@ -10,7 +10,7 @@ import (
 	"yunion.io/yunioncloud/pkg/appsrv"
 	"yunion.io/yunioncloud/pkg/log"
 
-	"yunion.io/yunion-kube/pkg/clusterrouter/proxy"
+	//"yunion.io/yunion-kube/pkg/clusterrouter/proxy"
 	"yunion.io/yunion-kube/pkg/dialer"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/types/config"
@@ -34,14 +34,14 @@ func Start(httpsAddr string, scaledCtx *config.ScaledContext, app *appsrv.Applic
 	httpRoot := mux.NewRouter()
 	httpRoot.UseEncodedPath()
 
-	sp, err := proxy.New(&scaledCtx.RESTConfig, nil)
-	if err != nil {
-		return err
-	}
+	//sp, err := proxy.New(&scaledCtx.RESTConfig, nil)
+	//if err != nil {
+	//return err
+	//}
 
 	connectHandler, connectConfigHandler := connectHandlers(scaledCtx)
 
-	root.PathPrefix("/k8s/clusters/").Handler(sp)
+	//root.PathPrefix("/k8s/clusters/").Handler(sp)
 	root.Handle("/connect", connectHandler)
 	root.Handle("/connect/register", connectHandler)
 	root.Handle("/connect/config", connectConfigHandler)
