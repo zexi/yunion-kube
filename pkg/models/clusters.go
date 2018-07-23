@@ -687,7 +687,12 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 	}
 
 	config.Kubelet = yketypes.KubeletService{
-		BaseService:         yketypes.BaseService{Image: images.Kubernetes},
+		BaseService: yketypes.BaseService{
+			Image: images.Kubernetes,
+			ExtraArgs: map[string]string{
+				"read-only-port": "10255",
+			},
+		},
 		ClusterDomain:       c.GetClusterDomain(),
 		ClusterDNSServer:    c.GetClusterDNSServiceIp(),
 		InfraContainerImage: infraContainerImage,
