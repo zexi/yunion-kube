@@ -6,22 +6,27 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
+	ykecluster "yunion.io/yke/pkg/cluster"
 	"yunion.io/yke/pkg/pki"
-	"yunion.io/yke/pkg/types"
+	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
 	"yunion.io/yunioncloud/pkg/httperrors"
 	"yunion.io/yunioncloud/pkg/jsonutils"
 	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/mcclient"
 	//"yunion.io/yunioncloud/pkg/sqlchemy"
+	"yunion.io/yunioncloud/pkg/util/sets"
 	"yunion.io/yunioncloud/pkg/util/wait"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/yunion-kube/pkg/clusterdriver/types"
+	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/types/apis"
 	"yunion.io/yunion-kube/pkg/types/slice"
 	"yunion.io/yunion-kube/pkg/utils"
@@ -40,13 +45,21 @@ func init() {
 }
 
 const (
-	CLUSTER_INIT         = "init"
-	CLUSTER_PRE_CREATING = "pre-creating"
-	CLUSTER_CREATING     = "creating"
-	CLUSTER_POST_CHECK   = "post-checking"
-	CLUSTER_RUNNING      = "running"
-	CLUSTER_ERROR        = "error"
-	CLUSTER_UPDATING     = "updating"
+	CLUSTER_STATUS_INIT         = "init"
+	CLUSTER_STATUS_PRE_CREATING = "pre-creating"
+	CLUSTER_STATUS_CREATING     = "creating"
+	CLUSTER_STATUS_POST_CHECK   = "post-checking"
+	CLUSTER_STATUS_RUNNING      = "running"
+	CLUSTER_STATUS_ERROR        = "error"
+	CLUSTER_STATUS_UPDATING     = "updating"
+	CLUSTER_STATUS_DELETING     = "deleting"
+
+	CLUSTER_MODE_INTERNAL = "internal"
+
+	DEFAULT_CLUSER_MODE           = CLUSTER_MODE_INTERNAL
+	DEFAULT_CLUSER_CIDR           = "10.43.0.0/16"
+	DEFAULT_CLUSTER_DOMAIN        = "cluster.local"
+	DEFAULT_INFRA_CONTAINER_IMAGE = "yunion/pause-amd64:3.0"
 )
 
 type SClusterManager struct {
@@ -58,25 +71,39 @@ func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	k8sVersion, _ := data.GetString("k8s_version")
-	if k8sVersion == "" {
-		k8sVersion = DEFAULT_K8S_VERSION
-		data.Set("k8s_version", jsonutils.NewString(k8sVersion))
+	setDefaultStr := func(key, def string) string {
+		val, _ := data.GetString(key)
+		if val == "" {
+			val = def
+			data.Set(key, jsonutils.NewString(val))
+		}
+		return val
 	}
+
+	k8sVersion := setDefaultStr("k8s_version", DEFAULT_K8S_VERSION)
 	_, err := K8sYKEVersionMap.GetYKEVersion(k8sVersion)
 	if err != nil {
 		return nil, httperrors.NewInputParameterError("Invalid version %q: %v", k8sVersion, err)
 	}
+
+	mode := setDefaultStr("mode", DEFAULT_CLUSER_MODE)
+	if !sets.NewString(CLUSTER_MODE_INTERNAL).Has(mode) {
+		return nil, httperrors.NewInputParameterError("Invalid cluster mode: %q", mode)
+	}
+
+	setDefaultStr("cluster_cidr", DEFAULT_CLUSER_CIDR)
+	setDefaultStr("cluster_domain", DEFAULT_CLUSTER_DOMAIN)
+	setDefaultStr("infra_container_image", DEFAULT_INFRA_CONTAINER_IMAGE)
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
 func (m *SClusterManager) FetchClusterByIdOrName(ownerProjId, ident string) (*SCluster, error) {
 	cluster, err := m.FetchByIdOrName(ownerProjId, ident)
-	if err == sql.ErrNoRows {
-		return nil, ClusterNotFoundError
-	}
 	if err != nil {
 		log.Errorf("Fetch cluster %q fail: %v", ident, err)
+		if err == sql.ErrNoRows {
+			return nil, ClusterNotFoundError
+		}
 		return nil, err
 	}
 	return cluster.(*SCluster), nil
@@ -84,11 +111,11 @@ func (m *SClusterManager) FetchClusterByIdOrName(ownerProjId, ident string) (*SC
 
 func (m *SClusterManager) FetchClusterById(ident string) (*SCluster, error) {
 	cluster, err := m.FetchById(ident)
-	if err == sql.ErrNoRows {
-		return nil, ClusterNotFoundError
-	}
 	if err != nil {
 		log.Errorf("Fetch cluster by id %q fail: %v", ident, err)
+		if err == sql.ErrNoRows {
+			return nil, ClusterNotFoundError
+		}
 		return nil, err
 	}
 	return cluster.(*SCluster), nil
@@ -111,11 +138,11 @@ func (m *SClusterManager) AddClusterNodes(clusterId string, pendingNodes ...*SNo
 		return ClusterNotFoundError
 	}
 
-	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
+	if slice.ContainsString([]string{CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_POST_CHECK}, cluster.Status) {
 		return fmt.Errorf("Cluster %q add node: status is %q", cluster.Name, cluster.Status)
 	}
 
-	return cluster.AddNodes(context.Background(), pendingNodes...)
+	return cluster.addNodes(context.Background(), pendingNodes...)
 }
 
 func (m *SClusterManager) UpdateCluster(clusterId string, pendingNodes ...*SNode) error {
@@ -123,14 +150,14 @@ func (m *SClusterManager) UpdateCluster(clusterId string, pendingNodes ...*SNode
 	if err != nil {
 		return err
 	}
-	if slice.ContainsString([]string{CLUSTER_UPDATING, CLUSTER_POST_CHECK}, cluster.Status) {
+	if slice.ContainsString([]string{CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_POST_CHECK}, cluster.Status) {
 		return fmt.Errorf("Cluster %q update: status is %s", cluster.Name, cluster.Status)
 	}
 
 	return cluster.Update(context.Background(), pendingNodes...)
 }
 
-func (m *SClusterManager) getSpec(cluster *SCluster, pendingNodes ...*SNode) (*types.KubernetesEngineConfig, error) {
+func (m *SClusterManager) GetConfig(cluster *SCluster, pendingNodes ...*SNode) (*yketypes.KubernetesEngineConfig, error) {
 	oldConf, _, err := m.getConfig(false, cluster, pendingNodes...)
 	if err != nil {
 		return nil, err
@@ -146,7 +173,7 @@ func (m *SClusterManager) getSpec(cluster *SCluster, pendingNodes ...*SNode) (*t
 	return newConf, nil
 }
 
-func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster, pendingNodes ...*SNode) (old, new *types.KubernetesEngineConfig, err error) {
+func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster, pendingNodes ...*SNode) (old, new *yketypes.KubernetesEngineConfig, err error) {
 	clusterId := cluster.Id
 	old, err = cluster.GetYKEConfig()
 	if err != nil {
@@ -157,58 +184,42 @@ func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster, pendin
 		if err != nil {
 			return nil, nil, err
 		}
-		log.Errorf("======nodes: %#v, len(%d)", nodes, len(nodes))
-		systemImages, err := cluster.GetYKESystemImages()
+		newConf, err := cluster.NewYKEConfig()
 		if err != nil {
 			return nil, nil, err
 		}
-		newConf := types.KubernetesEngineConfig{}
 		if old != nil {
 			newConf = *old
 		}
 		newConf.Nodes = nodes
-		newConf.SystemImages = *systemImages
 		new = &newConf
-		log.Infof("======get newconfig: %#v, images: %#v", new, systemImages)
 	}
 	return old, new, nil
 }
 
-func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*SNode) ([]types.ConfigNode, error) {
+func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*SNode) ([]yketypes.ConfigNode, error) {
 	objs, err := NodeManager.ListByCluster(clusterId)
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("******* before merge objs: %#v, pendingNodes: %#v", objs, pendingNodes)
 	objs = mergePendingNodes(objs, pendingNodes)
-	log.Errorf("******* after merge objs: %#v, pendingNodes: %#v", objs, pendingNodes)
 	etcd := false
 	controlplane := false
-	var nodes []types.ConfigNode
+	var nodes []yketypes.ConfigNode
 	for _, obj := range objs {
-		machine, err := obj.Node()
-		if err != nil {
-			return nil, err
-		}
-		log.Infof("===check node config %#v", machine.NodeConfig)
-		if slice.ContainsString(machine.NodeConfig.Role, "etcd") {
+		if obj.Etcd {
 			etcd = true
 		}
-		if slice.ContainsString(machine.NodeConfig.Role, "controlplane") {
+		if obj.Controlplane {
 			controlplane = true
 		}
 
-		node := *machine.NodeConfig
-		if node.User == "" {
-			node.User = "root"
+		node := obj.GetNodeConfig()
+		if node.Address == "" {
+			log.Warningf("Node %q may not registered, skip it", node.NodeName)
+			continue
 		}
-		if node.Port == "" {
-			node.Port = "22"
-		}
-		if node.NodeName == "" {
-			node.NodeName = machine.Name
-		}
-		nodes = append(nodes, node)
+		nodes = append(nodes, *node)
 	}
 	if !etcd || !controlplane {
 		return nil, errors.New("waiting for etcd and controlplane nodes to be registered")
@@ -221,8 +232,13 @@ func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*S
 
 type SCluster struct {
 	db.SVirtualResourceBase
-	Mode                string               `nullable:"false" create:"required" list:"user"`
-	K8sVersion          string               `nullable:"true" create:"required" list:"user"`
+	Mode          string `nullable:"false" create:"required" list:"user"`
+	K8sVersion    string `nullable:"false" create:"required" list:"user"`
+	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
+	ClusterDomain string `nullable:"true" create:"optional" list:"user"`
+	//ServiceClusterIPRange string `nullable:"false" create:"optional" default:"10.43.0.0/16" list:"user"`
+	InfraContainerImage string `nullable:"true" create:"optional" list:"user"`
+
 	ApiEndpoint         string               `nullable:"true" list:"user"`
 	ClientCertificate   string               `nullable:"true"`
 	ClientKey           string               `nullable:"true"`
@@ -233,7 +249,7 @@ type SCluster struct {
 	Metadata            jsonutils.JSONObject `nullable:"true"`
 }
 
-func (c *SCluster) GetYKESystemImages() (*types.SystemImages, error) {
+func (c *SCluster) GetYKESystemImages() (*yketypes.SystemImages, error) {
 	if c.K8sVersion == "" {
 		c.K8sVersion = DEFAULT_K8S_VERSION
 	}
@@ -241,7 +257,7 @@ func (c *SCluster) GetYKESystemImages() (*types.SystemImages, error) {
 	if err != nil {
 		return nil, err
 	}
-	imageDefaults := types.K8sVersionToSystemImages[ykeVersion]
+	imageDefaults := yketypes.K8sVersionToSystemImages[ykeVersion]
 	return &imageDefaults, nil
 }
 
@@ -274,7 +290,6 @@ func (c *SCluster) ToInfo() *drivertypes.ClusterInfo {
 		Endpoint:            c.ApiEndpoint,
 		Config:              c.YkeConfig,
 		Metadata:            metadata,
-		//Status: c.Status,
 	}
 }
 
@@ -304,15 +319,64 @@ func DecodeClusterInfo(info *drivertypes.ClusterInfo) (*drivertypes.ClusterInfo,
 	}, nil
 }
 
-func (c *SCluster) AddNodes(ctx context.Context, pendingNodes ...*SNode) error {
-	if c.Status == CLUSTER_POST_CHECK {
-		return nil
+func (c *SCluster) GetNodes() ([]*SNode, error) {
+	return NodeManager.ListByCluster(c.Id)
+}
+
+func (c *SCluster) GetYKENodes() ([]*SNode, error) {
+	ykeConf, err := c.GetYKEConfig()
+	if err != nil {
+		return nil, err
 	}
+	nodes := ykeConf.Nodes
+	objs := make([]*SNode, 0)
+	for _, node := range nodes {
+		parts := strings.Split(node.NodeName, ":")
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("Invalid yke node name: %q", node.NodeName)
+		}
+		clusterId, nodeId := parts[0], parts[1]
+		if clusterId != c.Id {
+			return nil, fmt.Errorf("YKE node %q cluster id not equal '%s:%s'", nodeId, clusterId, c.Name, c.Id)
+		}
+		obj, err := NodeManager.FetchNodeById(nodeId)
+		if err != nil {
+			return nil, err
+		}
+		objs = append(objs, obj)
+	}
+	return objs, nil
+}
+
+func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
+	run := func() error {
+		backoff := wait.Backoff{
+			Duration: 5 * time.Second,
+			Factor:   2, // double the timeout for every failure
+			Steps:    failureThreshold,
+		}
+		return wait.ExponentialBackoff(backoff, func() (bool, error) {
+			err := f()
+			if err != nil {
+				// Retry until the timeout
+				log.Errorf("backoffTryRun cluster %q error: %v", c.Name, err)
+				c.SetStatus(GetAdminCred(), CLUSTER_STATUS_ERROR, err.Error())
+				return false, nil
+			}
+			// The last f() call was a success, return cleanly
+			return true, nil
+		})
+	}
+
+	go run()
+}
+
+func (c *SCluster) addNodes(ctx context.Context, pendingNodes ...*SNode) error {
 	return c.startAddNodes(ctx, pendingNodes...)
 }
 
 func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) error {
-	ykeConf, err := ClusterManager.getSpec(c, pendingNodes...)
+	ykeConf, err := ClusterManager.GetConfig(c, pendingNodes...)
 	if err != nil {
 		return err
 	}
@@ -330,14 +394,15 @@ func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) er
 	driver := c.ClusterDriver()
 	clusterInfo := c.ToInfo()
 
-	c.SetStatus(nil, CLUSTER_CREATING, "")
+	createF := func() (err error) {
+		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_CREATING, "")
+		if err != nil {
+			return
+		}
 
-	createF := func() (done bool, err error) {
 		info, err := driver.Create(ctx, opts, clusterInfo)
 		if err != nil {
-			log.Errorf("cluster driver create err: %v", err)
-			done = false
-			c.SetStatus(nil, CLUSTER_ERROR, "")
+			log.Errorf("cluster create err: %v", err)
 			return
 		}
 
@@ -345,28 +410,19 @@ func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) er
 			err = c.saveClusterInfo(info)
 			if err != nil {
 				log.Errorf("Save cluster info after create error: %v", err)
-				c.SetStatus(nil, CLUSTER_ERROR, "")
+				c.SetStatus(GetAdminCred(), CLUSTER_STATUS_ERROR, err.Error())
 			}
 		}
-		c.SetStatus(nil, CLUSTER_RUNNING, "")
-		done = true
-		//err = nil
-		return
+		setNodesStatus(pendingNodes, NODE_STATUS_RUNNING)
+		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
 	}
 
-	go func() {
-		timeOut := 30 * time.Minute
-		interval := 5 * time.Second
-		err := wait.Poll(interval, timeOut, createF)
-		if err != nil {
-			log.Errorf("Create poll error: %v", err)
-		}
-	}()
+	c.backoffTryRun(createF, 5)
 	return nil
 }
 
 func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
-	ykeConf, err := ClusterManager.getSpec(c, pendingNodes...)
+	ykeConf, err := ClusterManager.GetConfig(c, pendingNodes...)
 	if err != nil {
 		return err
 	}
@@ -386,15 +442,15 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 	driver := c.ClusterDriver()
 	clusterInfo := c.ToInfo()
 
-	c.SetStatus(nil, CLUSTER_UPDATING, "")
+	updateF := func() (err error) {
+		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_UPDATING, "")
+		if err != nil {
+			return
+		}
 
-	updateF := func() (done bool, err error) {
-		log.Debugf("=====start update====")
 		info, err := driver.Update(ctx, opts, clusterInfo)
 		if err != nil {
-			log.Errorf("cluster driver update err: %v", err)
-			done = false
-			c.SetStatus(nil, CLUSTER_ERROR, "")
+			log.Errorf("cluster update err: %v", err)
 			return
 		}
 
@@ -402,24 +458,23 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 			err = c.saveClusterInfo(info)
 			if err != nil {
 				log.Errorf("Save cluster info after update error: %v", err)
-				c.SetStatus(nil, CLUSTER_ERROR, "")
 				return
 			}
 		}
-		c.SetStatus(nil, CLUSTER_RUNNING, "")
-		done = true
-		return
+		setNodesStatus(pendingNodes, NODE_STATUS_RUNNING)
+		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
 	}
 
-	go func() {
-		timeOut := 30 * time.Minute
-		interval := 5 * time.Second
-		err := wait.Poll(interval, timeOut, updateF)
-		if err != nil {
-			log.Errorf("Update poll error: %v", err)
-		}
-	}()
+	c.backoffTryRun(updateF, 5)
 	return nil
+}
+
+func setNodesStatus(nodes []*SNode, status string) error {
+	var err error
+	for _, node := range nodes {
+		err = node.SetStatus(GetAdminCred(), status, "")
+	}
+	return err
 }
 
 func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
@@ -437,7 +492,7 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 	return err
 }
 
-func (c *SCluster) SetYKEConfig(config *types.KubernetesEngineConfig) error {
+func (c *SCluster) SetYKEConfig(config *yketypes.KubernetesEngineConfig) error {
 	if config == nil {
 		return nil
 	}
@@ -452,7 +507,7 @@ func (c *SCluster) SetYKEConfig(config *types.KubernetesEngineConfig) error {
 	return err
 }
 
-func (c *SCluster) GetYKEConfig() (conf *types.KubernetesEngineConfig, err error) {
+func (c *SCluster) GetYKEConfig() (conf *yketypes.KubernetesEngineConfig, err error) {
 	confStr := c.YkeConfig
 	if confStr == "" {
 		return
@@ -491,46 +546,175 @@ func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.TokenCredential) error {
-	deleteF := func() (done bool, err error) {
+	deleteF := func() (err error) {
 		log.Infof("Deleting cluster [%s]", c.Name)
-		time.Sleep(5 * time.Second)
-		for i := 0; i < 4; i++ {
-			err = c.ClusterDriver().Remove(ctx, c.ToInfo())
-			if err == nil {
-				break
-			}
-			if i == 3 {
-				log.Errorf("failed to remove the cluster [%s]: %v", c.Name, err)
-				//return
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		log.Infof("Deleted cluster [%s]", c.Name)
+		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
+		err = c.ClusterDriver().Remove(ctx, c.ToInfo())
 		if err != nil {
 			log.Errorf("Delete cluster error: %v", err)
-			c.SetStatus(nil, CLUSTER_ERROR, "")
-			//err = nil
-		} else {
-			done = true
+			return
 		}
 		return
 	}
 
-	go func() {
-		timeOut := 30 * time.Minute
-		interval := 5 * time.Second
-		err := wait.Poll(interval, timeOut, deleteF)
-		if err != nil {
-			log.Errorf("Delete poll error: %v", err)
-		}
-	}()
+	c.backoffTryRun(deleteF, 5)
 	return nil
 }
 
 func (c *SCluster) ClusterDriver() drivertypes.Driver {
 	driver := clusterdriver.Drivers["yke"]
 	return driver
+}
+
+func (c *SCluster) GetYKEAuthzConfig() yketypes.AuthzConfig {
+	return yketypes.AuthzConfig{Mode: ykecluster.DefaultAuthorizationMode}
+}
+
+func (c *SCluster) GetYKENetworkConfig() yketypes.NetworkConfig {
+	conf := yketypes.NetworkConfig{
+		Plugin: ykecluster.DefaultNetworkPlugin,
+	}
+
+	// TODO:
+	// - fix this hard code bridge name
+	// - not get auth info from options?
+	o := options.Options
+	conf.Options = map[string]string{
+		ykecluster.YunionBridge:       "br0",
+		ykecluster.YunionAuthURL:      o.AuthURL,
+		ykecluster.YunionAdminUser:    o.AdminUser,
+		ykecluster.YunionAdminPasswd:  o.AdminPassword,
+		ykecluster.YunionAdminProject: o.AdminProject,
+		ykecluster.YunionRegion:       o.Region,
+	}
+	return conf
+}
+
+func GetKubeServerUrl() (string, error) {
+	session, err := GetAdminSession()
+	if err != nil {
+		return "", err
+	}
+	endpoint, err := session.GetServiceURL(KUBE_SERVER_SERVICE, INTERNAL_ENDPOINT_TYPE)
+	if err != nil {
+		return "", err
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("Parse url %q error: %v", endpoint, err)
+	}
+	u.Path = ""
+	return u.String(), nil
+}
+
+func (c *SCluster) GetK8sWebhookAuthUrl() (string, error) {
+	serverUrl, err := GetKubeServerUrl()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s/webhook", serverUrl), nil
+}
+
+func (c *SCluster) GetYKEWebhookAuthConfig() (yketypes.WebhookAuth, error) {
+	ret := yketypes.WebhookAuth{}
+	webhookUrl, err := c.GetK8sWebhookAuthUrl()
+	if err != nil {
+		return ret, err
+	}
+	ret.URL = webhookUrl
+	return ret, nil
+}
+
+func (c *SCluster) GetClusterCIDR() string {
+	cidr := c.ClusterCidr
+	if len(cidr) == 0 {
+		return DEFAULT_CLUSER_CIDR
+	}
+	return cidr
+}
+
+func (c *SCluster) GetServiceClusterIPRange() string {
+	// TODO: different from c.ClusterCidr
+	return c.GetClusterCIDR()
+}
+
+func (c *SCluster) GetClusterDomain() string {
+	domain := c.ClusterDomain
+	if len(domain) == 0 {
+		return DEFAULT_CLUSTER_DOMAIN
+	}
+	return domain
+}
+
+func (c *SCluster) GetClusterDNSServiceIp() string {
+	// 10.43.0.0/16 to 10.43.0.10
+	network := strings.Split(c.GetClusterCIDR(), "/")[0]
+	segs := strings.Split(network, ".")[:3]
+	segs = append(segs, "10")
+	return strings.Join(segs, ".")
+}
+
+func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.ConfigServices, error) {
+	config := yketypes.ConfigServices{}
+	config.Etcd = yketypes.ETCDService{
+		BaseService: yketypes.BaseService{Image: images.Etcd},
+	}
+
+	config.KubeAPI = yketypes.KubeAPIService{
+		BaseService: yketypes.BaseService{
+			Image: images.Kubernetes,
+			ExtraArgs: map[string]string{
+				"authentication-token-webhook-config-file": "/etc/kubernetes/webhook.kubeconfig",
+			},
+		},
+		PodSecurityPolicy:     false,
+		ServiceClusterIPRange: c.GetServiceClusterIPRange(),
+	}
+
+	config.KubeController = yketypes.KubeControllerService{
+		BaseService:           yketypes.BaseService{Image: images.Kubernetes},
+		ServiceClusterIPRange: c.GetServiceClusterIPRange(),
+		ClusterCIDR:           c.GetClusterCIDR(),
+	}
+
+	config.Scheduler = yketypes.SchedulerService{
+		BaseService: yketypes.BaseService{Image: images.Kubernetes},
+	}
+
+	infraContainerImage := c.InfraContainerImage
+	if len(infraContainerImage) == 0 {
+		infraContainerImage = images.PodInfraContainer
+	}
+
+	config.Kubelet = yketypes.KubeletService{
+		BaseService:         yketypes.BaseService{Image: images.Kubernetes},
+		ClusterDomain:       c.GetClusterDomain(),
+		ClusterDNSServer:    c.GetClusterDNSServiceIp(),
+		InfraContainerImage: infraContainerImage,
+	}
+
+	config.Kubeproxy = yketypes.KubeproxyService{
+		BaseService: yketypes.BaseService{Image: images.Kubernetes},
+	}
+
+	return config, nil
+}
+
+func (c *SCluster) NewYKEConfig() (yketypes.KubernetesEngineConfig, error) {
+	conf := yketypes.KubernetesEngineConfig{}
+	systemImages, err := c.GetYKESystemImages()
+	if err != nil {
+		return conf, err
+	}
+	conf.SystemImages = *systemImages
+	conf.Authorization = c.GetYKEAuthzConfig()
+	conf.Network = c.GetYKENetworkConfig()
+	conf.Services, err = c.GetYKEServicesConfig(conf.SystemImages)
+	if err != nil {
+		return conf, err
+	}
+	conf.WebhookAuth, err = c.GetYKEWebhookAuthConfig()
+	return conf, err
 }
 
 func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -567,5 +751,19 @@ func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient
 	configStr := c.YkeConfig
 	ret := jsonutils.NewDict()
 	ret.Add(jsonutils.NewString(configStr), "config")
+	return ret, nil
+}
+
+func (c *SCluster) AllowGetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return c.IsOwner(userCred)
+}
+
+func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	webhookUrl, err := c.GetK8sWebhookAuthUrl()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError(err.Error())
+	}
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewString(webhookUrl), "url")
 	return ret, nil
 }

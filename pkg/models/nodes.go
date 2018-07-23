@@ -8,20 +8,33 @@ import (
 
 	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
+	cloudmodels "yunion.io/yunioncloud/pkg/compute/models"
 	"yunion.io/yunioncloud/pkg/httperrors"
 	"yunion.io/yunioncloud/pkg/jsonutils"
 	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/mcclient"
+	cloudmod "yunion.io/yunioncloud/pkg/mcclient/modules"
 	"yunion.io/yunioncloud/pkg/sqlchemy"
 	"yunion.io/yunioncloud/pkg/util/sets"
 
+	"yunion.io/yunion-kube/pkg/request"
 	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/yunion-kube/pkg/types/slice"
 )
 
 var NodeManager *SNodeManager
 
 var (
 	NodeNotFoundError = errors.New("Node not found")
+)
+
+const (
+	NODE_STATUS_INIT     = "init"
+	NODE_STATUS_CREATING = "creating"
+	NODE_STATUS_RUNNING  = "running"
+	NODE_STATUS_ERROR    = "error"
+	NODE_STATUS_UPDATING = "updating"
+	NODE_STATUS_DELETING = "deleting"
 )
 
 func init() {
@@ -73,6 +86,39 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 	return
 }
 
+func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
+	hostId, _ := data.GetString("host")
+	if hostId == "" {
+		return "", nil
+	}
+	session, err := GetAdminSession()
+	if err != nil {
+		return "", httperrors.NewInternalServerError("Get admin session: %v", err)
+	}
+	ret, err := cloudmod.Hosts.Get(session, hostId, nil)
+	if err != nil {
+		return "", err
+	}
+	id, _ := ret.GetString("id")
+	if id == "" {
+		return "", httperrors.NewNotFoundError("Host %q not found", hostId)
+	}
+	hostType, _ := ret.GetString("host_type")
+	if !slice.ContainsString([]string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}, hostType) {
+		return "", httperrors.NewInputParameterError("Host %q type %q not support", hostId, hostType)
+	}
+
+	node, err := m.FetchNodeByHostId(id)
+	if err != nil && err != sql.ErrNoRows {
+		return "", httperrors.NewInternalServerError("Fetch node by host id %q: %v", id, err)
+	}
+	if node != nil {
+		return "", httperrors.NewInputParameterError("Host %q already used by node %q", hostId, node.Name)
+	}
+
+	return id, nil
+}
+
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	clusterIdent, _ := data.GetString("cluster")
 	if clusterIdent == "" {
@@ -98,31 +144,65 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	data.Add(toBool(isCtrl), "controlplane")
 	data.Add(toBool(isWorker), "worker")
 
+	hostId, err := validateHost(m, userCred, data)
+	if err != nil {
+		return nil, err
+	}
+	data.Add(jsonutils.NewString(hostId), "host_id")
+
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-//func (m *SNodeManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
-//if len(ownerProjId) > 0 {
-//q = q.Equals("tenant_id", ownerProjId)
-//}
-//return q
-//}
+func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	nodes := make([]*SNode, len(items))
+	for i, t := range items {
+		nodes[i] = t.(*SNode)
+	}
+	for _, n := range nodes {
+		TaskManager().Run(func() {
+			n.StartAgentOnHost(ctx, userCred, query, data)
+		}, nil)
+	}
+}
 
 func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
 	node, err := m.FetchById(ident)
-	if err == sql.ErrNoRows {
-		return nil, NodeNotFoundError
-	}
 	if err != nil {
 		log.Errorf("Fetch node %q fail: %v", ident, err)
+		if err == sql.ErrNoRows {
+			return nil, NodeNotFoundError
+		}
 		return nil, err
 	}
 	return node.(*SNode), nil
 }
 
-func (m *SNodeManager) FetchClusterNode(cluster, ident string) (*SNode, error) {
-	// TODO: impl this
-	return m.FetchNodeById(ident)
+func (m *SNodeManager) FetchNodeByHostId(hostId string) (*SNode, error) {
+	if hostId == "" {
+		return nil, fmt.Errorf("Host id not provided")
+	}
+	nodes := m.Query().SubQuery()
+	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("host_id"), hostId))
+	node := SNode{}
+	err := q.First(&node)
+	if err != nil {
+		return nil, err
+	}
+	return &node, nil
+}
+
+func (m *SNodeManager) FetchClusterNode(clusterId, ident string) (*SNode, error) {
+	nodes, err := m.ListByCluster(clusterId)
+	if err != nil {
+		return nil, err
+	}
+	for _, node := range nodes {
+		if node.Name == ident || node.Id == ident {
+			return node, nil
+		}
+	}
+	log.Errorf("Cluster %q Node %q not found", clusterId, ident)
+	return nil, NodeNotFoundError
 }
 
 func (m *SNodeManager) GetNodeById(cluster, ident string) (*apis.Node, error) {
@@ -134,10 +214,10 @@ func (m *SNodeManager) GetNodeById(cluster, ident string) (*apis.Node, error) {
 }
 
 func (m *SNodeManager) ListByCluster(clusterId string) ([]*SNode, error) {
-	nodes := m.Query().SubQuery()
+	nodes := NodeManager.Query().SubQuery()
 	q := nodes.Query().Filter(sqlchemy.Equals(nodes.Field("cluster_id"), clusterId))
-	objs := []SNode{}
-	err := q.All(&objs)
+	objs := make([]SNode, 0)
+	err := db.FetchModelObjects(NodeManager, q, &objs)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +225,10 @@ func (m *SNodeManager) ListByCluster(clusterId string) ([]*SNode, error) {
 }
 
 func ConvertPtrNodes(objs []SNode) []*SNode {
-	ret := make([]*SNode, 0)
-	for _, obj := range objs {
-		ret = append(ret, &obj)
+	ret := make([]*SNode, len(objs))
+	for i, obj := range objs {
+		temp := obj
+		ret[i] = &temp
 	}
 	return ret
 }
@@ -155,7 +236,6 @@ func ConvertPtrNodes(objs []SNode) []*SNode {
 func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 	isIn := func(pnode *SNode, nodes []*SNode) (int, bool) {
 		for idx, node := range nodes {
-			log.Debugf("====pnode id: %v, node id: %v", pnode.Id, node.Id)
 			if node.Id == pnode.Id {
 				return idx, true
 			}
@@ -177,14 +257,15 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 type SNode struct {
 	db.SVirtualResourceBase
 
-	ClusterId    string `nullable:"false" create:"required" list:"user"`
-	Etcd         bool   `nullable:"true" create:"required" list:"user"`
-	Controlplane bool   `nullable:"true" create:"required" list:"user"`
-	Worker       bool   `nullable:"true" create:"required" list:"user"`
+	ClusterId        string `nullable:"false" create:"required" list:"user"`
+	Etcd             bool   `nullable:"true" create:"required" list:"user"`
+	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
+	Worker           bool   `nullable:"true" create:"required" list:"user"`
+	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
+	HostId           string `nullable:"true" create:"optional" list:"user"`
 
 	Address           string `nullable:"true" list:"user"`
 	RequestedHostname string `nullable:"true" list:"user"`
-	HostnameOverride  string `nullable:"true" list:"user"`
 
 	Labels     jsonutils.JSONObject `nullable:true`
 	DockerInfo jsonutils.JSONObject `nullable:"true"`
@@ -201,6 +282,7 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 
 	_, err := n.GetModelManager().TableSpec().Update(n, func() error {
 		n.Address = data.Address
+		n.RequestedHostname = data.RequestedHostname
 		if data.DockerInfo != nil {
 			dInfo := jsonutils.Marshal(data.DockerInfo)
 			n.DockerInfo = dInfo
@@ -212,12 +294,16 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 	}
 
 	f := ClusterManager.UpdateCluster
-	if n.Status == "init" {
+	if n.Status == NODE_STATUS_INIT {
 		f = ClusterManager.AddClusterNodes
+		n.SetStatus(GetAdminCred(), NODE_STATUS_CREATING, "")
+	} else {
+		n.SetStatus(GetAdminCred(), NODE_STATUS_UPDATING, "")
 	}
 
 	err = f(n.ClusterId, n)
 	if err != nil {
+		n.SetStatus(GetAdminCred(), NODE_STATUS_ERROR, err.Error())
 		return nil, err
 	}
 
@@ -250,7 +336,10 @@ func (n *SNode) GetRoles() []string {
 
 func (n *SNode) GetLabels() (map[string]string, error) {
 	labels := make(map[string]string)
-	err := n.Labels.Unmarshal(labels)
+	var err error
+	if n.Labels != nil {
+		err = n.Labels.Unmarshal(labels)
+	}
 	return labels, err
 }
 
@@ -259,13 +348,17 @@ func (n *SNode) YKENodeName() string {
 }
 
 func (n *SNode) GetNodeConfig() *yketypes.ConfigNode {
+	hostnameOverride := n.HostnameOverride
+	if len(hostnameOverride) == 0 {
+		hostnameOverride = n.RequestedHostname
+	}
 	node := &yketypes.ConfigNode{
 		NodeName:         n.YKENodeName(),
+		HostnameOverride: hostnameOverride,
 		Address:          n.Address,
 		Port:             "22",
 		User:             "root",
 		Role:             n.GetRoles(),
-		HostnameOverride: n.HostnameOverride,
 		DockerSocket:     "/var/run/docker.sock",
 	}
 	labels, err := n.GetLabels()
@@ -281,30 +374,20 @@ func (n *SNode) GetCluster() (*SCluster, error) {
 	return ClusterManager.FetchClusterById(n.ClusterId)
 }
 
-//func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-//isEtcd := jsonutils.QueryBoolean(data, "etcd", false)
-//isCtrl := jsonutils.QueryBoolean(data, "controlplane", false)
-//isWorker := jsonutils.QueryBoolean(data, "worker", false)
-//n.Etcd = isEtcd
-//n.Controlplane = isCtrl
-//n.Worker = isWorker
-//return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
-//}
-
 func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return n.IsOwner(userCred)
 }
 
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
-	// TODO: validate cluster status, only can delete when cluster ready
-	cluster, err := n.GetCluster()
-	if err != nil {
-		return err
-	}
-	if sets.NewString(CLUSTER_CREATING, CLUSTER_POST_CHECK, CLUSTER_UPDATING).Has(cluster.Status) {
-		return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
-	}
-	return nil
+	//cluster, err := n.GetCluster()
+	//if err != nil {
+	//return err
+	//}
+	//if sets.NewString(CLUSTER_CREATING, CLUSTER_POST_CHECK, CLUSTER_UPDATING).Has(cluster.Status) {
+	//return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
+	//}
+	//return nil
+	return n.SVirtualResourceBase.ValidateDeleteCondition(ctx)
 }
 
 func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -337,4 +420,52 @@ func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) 
 	}
 	config.Nodes = newNodes
 	return config
+}
+
+func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	hostId := n.HostId
+	if hostId == "" {
+		log.Debugf("Not yunioncloud host, skip it")
+		return
+	}
+	session, err := GetAdminSession()
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get admin session: %v", err))
+	}
+	result, err := cloudmod.Hosts.Get(session, hostId, nil)
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get host id %q: %v", hostId, err))
+	}
+	log.Infof("Get hosts: %s", result)
+	hostManUrl, _ := result.GetString("manager_uri")
+	if hostManUrl == "" {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Host %q not found manager_uri", hostId))
+		return
+	}
+	url := "/kubeagent/start"
+	serverUrl, err := GetKubeServerUrl()
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get server url: %v", err))
+		return
+	}
+	registerConfig := apis.HostRegisterConfig{
+		AgentConfig: apis.AgentConfig{
+			ServerUrl: serverUrl,
+			Token:     n.ClusterId,
+			ClusterId: n.ClusterId,
+			NodeId:    n.Id,
+		},
+		// TODO: make dockerd configurable
+		DockerdConfig: apis.DockerdConfig{
+			LiveRestore:        true,
+			RegistryMirrors:    []string{},
+			InsecureRegistries: []string{},
+			Graph:              "/opt/docker",
+		},
+	}
+	body := jsonutils.Marshal(registerConfig)
+	_, err = request.Post(hostManUrl, userCred.GetTokenString(), url, nil, body)
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Start agent on host %q: %v", hostId, err))
+	}
 }

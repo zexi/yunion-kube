@@ -1,4 +1,4 @@
-package server
+package app
 
 import (
 	"yunion.io/yunioncloud/pkg/appsrv"
@@ -11,7 +11,8 @@ import (
 
 func InitHandlers(app *appsrv.Application) {
 	db.InitAllManagers()
-	taskman.AddTaskHandler("/api", app)
+	apiPrefix := "/api"
+	taskman.AddTaskHandler(apiPrefix, app)
 
 	for _, man := range []db.IModelManager{
 		taskman.TaskManager,
@@ -25,11 +26,12 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []db.IModelManager{
+		db.OpsLog.SetKeyword("kube_event", "kube_events"),
 		models.ClusterManager,
 		models.NodeManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
-		dispatcher.AddModelDispatcher("/api", app, handler)
+		dispatcher.AddModelDispatcher(apiPrefix, app, handler)
 	}
 }

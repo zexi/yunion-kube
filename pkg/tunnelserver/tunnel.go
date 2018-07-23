@@ -66,6 +66,7 @@ func (t *Authorizer) authorizeTunnel(req *http.Request) (string, bool, error) {
 func (t *Authorizer) Authorize(req *http.Request) (*Client, bool, error) {
 	token := req.Header.Get(Token)
 	if token == "" {
+		log.Warningf("Header %s token not found", Token)
 		return nil, false, nil
 	}
 
@@ -137,7 +138,7 @@ func nodeIdent(node *client.Node) string {
 
 func (t *Authorizer) getClusterNode(cluster *apis.Cluster, inNode *client.Node) (*models.SNode, error) {
 	nodeIdent := nodeIdent(inNode)
-	node, err := t.NodeManager.FetchClusterNode(cluster.Name, nodeIdent)
+	node, err := t.NodeManager.FetchClusterNode(cluster.Id, nodeIdent)
 	if err != nil {
 		return nil, err
 	}

@@ -42,6 +42,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	clientKey, authed, err := s.authorizer(req)
 	if err != nil {
+		log.Warningf("authorizer error: %v", err)
 		s.errorWriter(rw, req, 400, err)
 		return
 	}

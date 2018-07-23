@@ -2,20 +2,19 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"strconv"
 
-	"k8s.io/client-go/rest"
-
+	"yunion.io/yunioncloud/pkg/appsrv"
 	"yunion.io/yunioncloud/pkg/cloudcommon"
+	"yunion.io/yunioncloud/pkg/cloudcommon/db"
+	"yunion.io/yunioncloud/pkg/log"
 	"yunion.io/yunioncloud/pkg/util/runtime"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/yunion-kube/pkg/dialer"
-	"yunion.io/yunion-kube/pkg/k8s"
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/server"
@@ -23,8 +22,8 @@ import (
 	"yunion.io/yunion-kube/pkg/ykedialerfactory"
 )
 
-func buildScaledContext(ctx context.Context, kubeConfig rest.Config) (*config.ScaledContext, error) {
-	scaledCtx, err := config.NewScaledContext(kubeConfig)
+func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
+	scaledCtx, err := config.NewScaledContext()
 	if err != nil {
 		return nil, err
 	}
@@ -44,28 +43,38 @@ func prepareEnv() {
 	runtime.ReallyCrash = false
 }
 
+func initCloudApp() *appsrv.Application {
+	app := cloudcommon.InitApp(&options.Options.Options)
+	InitHandlers(app)
+
+	cloudcommon.InitAuth(&options.Options.Options, func() {
+		log.Infof("Auth complete!!!")
+	})
+
+	return app
+}
+
 func Run(ctx context.Context) error {
 	prepareEnv()
+	app := initCloudApp()
+	// must before InitDB?
+	cloudcommon.InitDB(&options.Options.DBOptions)
+	defer cloudcommon.CloseDB()
+	if !db.CheckSync(options.Options.AutoSyncTable) {
+		log.Fatalf("Fail sync db")
+	}
 
 	opt := options.Options
 	httpsAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpsPort))
 
-	if opt.KubeConfig == "" {
-		return fmt.Errorf("kube config file must provided")
-	}
-	kubeConfig, err := k8s.GetConfig(opt.KubeConfig)
-	if err != nil {
-		return err
-	}
-
-	scaledCtx, err := buildScaledContext(ctx, *kubeConfig)
+	scaledCtx, err := buildScaledContext(ctx)
 	if err != nil {
 		return err
 	}
 
 	go RegisterDriver(scaledCtx)
 
-	if err := server.Start(httpsAddr, scaledCtx); err != nil {
+	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
 		return err
 	}
 	return nil
