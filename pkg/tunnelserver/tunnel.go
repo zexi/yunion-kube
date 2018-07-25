@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	//"strings"
 
 	"yunion.io/yunioncloud/pkg/log"
 

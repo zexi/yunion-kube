@@ -119,6 +119,20 @@ func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *json
 	return id, nil
 }
 
+func validateDockerConfig(data *jsonutils.JSONDict) error {
+	obj, _ := data.Get("dockerd_config")
+	if obj == nil {
+		return nil
+	}
+
+	config := apis.DockerdConfig{}
+	err := obj.Unmarshal(&config)
+	if err != nil {
+		return httperrors.NewInputParameterError("Parse registryMirrors %s error: %v", obj, err)
+	}
+	return nil
+}
+
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	clusterIdent, _ := data.GetString("cluster")
 	if clusterIdent == "" {
@@ -129,6 +143,11 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 		return nil, httperrors.NewInputParameterError("Cluster %q found error: %v", clusterIdent, err)
 	}
 	data.Add(jsonutils.NewString(cluster.Id), "cluster_id")
+
+	err = validateDockerConfig(data)
+	if err != nil {
+		return nil, err
+	}
 
 	isEtcd, isCtrl, isWorker, err := validateRoles(data)
 	if err != nil {
@@ -267,8 +286,17 @@ type SNode struct {
 	Address           string `nullable:"true" list:"user"`
 	RequestedHostname string `nullable:"true" list:"user"`
 
-	Labels     jsonutils.JSONObject `nullable:true`
-	DockerInfo jsonutils.JSONObject `nullable:"true"`
+	DockerdConfig jsonutils.JSONObject `nullable:"true" list:"user"`
+	Labels        jsonutils.JSONObject `nullable:"true" list:"user"`
+	DockerInfo    jsonutils.JSONObject `nullable:"true" list:"user"`
+}
+
+func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	dockerConf, _ := data.Get("dockerd_config")
+	if dockerConf != nil {
+		n.DockerdConfig = dockerConf
+	}
+	return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
 }
 
 func (n *SNode) Register(data *apis.Node) (*SNode, error) {
@@ -422,6 +450,67 @@ func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) 
 	return config
 }
 
+func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
+	if n.DockerdConfig == nil {
+		return apis.DockerdConfig{
+			// Enable LiveRestore by default
+			LiveRestore: true,
+			Graph:       "/opt/docker",
+		}, nil
+	}
+	config := apis.DockerdConfig{}
+	err := n.DockerdConfig.Unmarshal(&config)
+	if err != nil {
+		return apis.DockerdConfig{}, err
+	}
+	config.LiveRestore = true
+	return config, err
+}
+
+func (n *SNode) getClusterName() string {
+	cluster, _ := n.GetCluster()
+	if cluster == nil {
+		return ""
+	}
+	return cluster.Name
+}
+
+func (n *SNode) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
+	extra := n.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
+	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
+	return extra
+}
+
+func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
+	extra := n.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
+	return extra
+}
+
+func validateHostInfo(host apis.CloudHost) (err error) {
+	log.Infof("Get hosts: %#v", host)
+	if host.ManagerUrl == "" {
+		err = fmt.Errorf("Host %q not found manager_uri", host.Id)
+		return
+	}
+
+	if !host.Enabled {
+		err = fmt.Errorf("Host %q not enable", host.Id)
+		return
+	}
+
+	if host.Status != "running" {
+		err = fmt.Errorf("Host %q status %q is not 'running'", host.Id, host.Status)
+		return
+	}
+
+	if host.HostStatus != "online" {
+		err = fmt.Errorf("Host %q host_status %q is not 'online'", host.Id, host.HostStatus)
+		return
+	}
+	return nil
+}
+
 func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	hostId := n.HostId
 	if hostId == "" {
@@ -431,21 +520,33 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 	session, err := GetAdminSession()
 	if err != nil {
 		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get admin session: %v", err))
+		return
 	}
 	result, err := cloudmod.Hosts.Get(session, hostId, nil)
 	if err != nil {
 		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get host id %q: %v", hostId, err))
+		return
 	}
-	log.Infof("Get hosts: %s", result)
-	hostManUrl, _ := result.GetString("manager_uri")
-	if hostManUrl == "" {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Host %q not found manager_uri", hostId))
+	cloudHost := apis.CloudHost{}
+	err = result.Unmarshal(&cloudHost)
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Unmarshal error: %v", err))
+		return
+	}
+	err = validateHostInfo(cloudHost)
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("HostInfo error: %v", err))
 		return
 	}
 	url := "/kubeagent/start"
 	serverUrl, err := GetKubeServerUrl()
 	if err != nil {
 		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get server url: %v", err))
+		return
+	}
+	dockerdConfig, err := n.GetDockerdConfig()
+	if err != nil {
+		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get dockerd config: %v", err))
 		return
 	}
 	registerConfig := apis.HostRegisterConfig{
@@ -455,17 +556,19 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 			ClusterId: n.ClusterId,
 			NodeId:    n.Id,
 		},
-		// TODO: make dockerd configurable
-		DockerdConfig: apis.DockerdConfig{
-			LiveRestore:        true,
-			RegistryMirrors:    []string{},
-			InsecureRegistries: []string{},
-			Graph:              "/opt/docker",
-		},
+		DockerdConfig: dockerdConfig,
 	}
 	body := jsonutils.Marshal(registerConfig)
-	_, err = request.Post(hostManUrl, userCred.GetTokenString(), url, nil, body)
+	_, err = request.Post(cloudHost.ManagerUrl, userCred.GetTokenString(), url, nil, body)
 	if err != nil {
 		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Start agent on host %q: %v", hostId, err))
 	}
+}
+
+func (n *SNode) AllowGetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return n.IsOwner(userCred)
+}
+
+func (n *SNode) GetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return n.DockerdConfig, nil
 }
