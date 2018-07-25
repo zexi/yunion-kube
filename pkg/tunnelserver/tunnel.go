@@ -87,7 +87,7 @@ func (t *Authorizer) Authorize(req *http.Request) (*Client, bool, error) {
 	//register := strings.HasSuffix(req.URL.Path, "/register")
 	node, ok, err := t.authorizeNode(cluster, input.Node, req)
 	if err != nil {
-		log.Errorf("authorizeNode error: %v", err)
+		log.Errorf("authorizeNode error(%s): %v", req.RemoteAddr, err)
 		return nil, false, err
 	}
 

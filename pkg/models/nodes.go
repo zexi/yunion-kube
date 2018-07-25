@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
@@ -30,7 +31,8 @@ var (
 
 const (
 	NODE_STATUS_INIT     = "init"
-	NODE_STATUS_CREATING = "creating"
+	NODE_STATUS_READY    = "ready"
+	NODE_STATUS_DEPLOY   = "deploying"
 	NODE_STATUS_RUNNING  = "running"
 	NODE_STATUS_ERROR    = "error"
 	NODE_STATUS_UPDATING = "updating"
@@ -87,7 +89,11 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 }
 
 func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
+	name, _ := data.GetString("name")
 	hostId, _ := data.GetString("host")
+	if name == "" && hostId == "" {
+		return "", httperrors.NewInputParameterError("One of host or name must specified")
+	}
 	if hostId == "" {
 		return "", nil
 	}
@@ -107,6 +113,7 @@ func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *json
 	if !slice.ContainsString([]string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}, hostType) {
 		return "", httperrors.NewInputParameterError("Host %q type %q not support", hostId, hostType)
 	}
+	hostName, _ := ret.GetString("name")
 
 	node, err := m.FetchNodeByHostId(id)
 	if err != nil && err != sql.ErrNoRows {
@@ -114,6 +121,10 @@ func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *json
 	}
 	if node != nil {
 		return "", httperrors.NewInputParameterError("Host %q already used by node %q", hostId, node.Name)
+	}
+
+	if name == "" {
+		data.Set("name", jsonutils.NewString(hostName))
 	}
 
 	return id, nil
@@ -299,6 +310,7 @@ func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCred
 	return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
 }
 
+// Register set node status to ready, means node is ready for deploy
 func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 	if n.ClusterId != data.ClusterId {
 		return nil, fmt.Errorf("ClusterId %q and %q not match", n.ClusterId, data.ClusterId)
@@ -321,18 +333,8 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 		return nil, err
 	}
 
-	f := ClusterManager.UpdateCluster
-	if n.Status == NODE_STATUS_INIT {
-		f = ClusterManager.AddClusterNodes
-		n.SetStatus(GetAdminCred(), NODE_STATUS_CREATING, "")
-	} else {
-		n.SetStatus(GetAdminCred(), NODE_STATUS_UPDATING, "")
-	}
-
-	err = f(n.ClusterId, n)
-	if err != nil {
-		n.SetStatus(GetAdminCred(), NODE_STATUS_ERROR, err.Error())
-		return nil, err
+	if n.Status != NODE_STATUS_RUNNING {
+		n.SetStatus(GetAdminCred(), NODE_STATUS_READY, "")
 	}
 
 	return n, nil
@@ -423,7 +425,7 @@ func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCred
 	if err != nil {
 		return err
 	}
-	config, _, err := ClusterManager.getConfig(false, cluster)
+	config, _, err := ClusterManager.getConfig(cluster)
 	if err != nil {
 		return err
 	}
@@ -475,15 +477,21 @@ func (n *SNode) getClusterName() string {
 	return cluster.Name
 }
 
+func rolesString(n *SNode) string {
+	return strings.Join(n.GetRoles(), ",")
+}
+
 func (n *SNode) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := n.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
+	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
 	return extra
 }
 
 func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := n.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
+	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
 	return extra
 }
 

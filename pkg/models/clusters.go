@@ -23,12 +23,12 @@ import (
 	//"yunion.io/yunioncloud/pkg/sqlchemy"
 	"yunion.io/yunioncloud/pkg/util/sets"
 	"yunion.io/yunioncloud/pkg/util/wait"
+	yutils "yunion.io/yunioncloud/pkg/utils"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/types/apis"
-	"yunion.io/yunion-kube/pkg/types/slice"
 	"yunion.io/yunion-kube/pkg/utils"
 )
 
@@ -51,6 +51,7 @@ const (
 	CLUSTER_STATUS_POST_CHECK   = "post-checking"
 	CLUSTER_STATUS_RUNNING      = "running"
 	CLUSTER_STATUS_ERROR        = "error"
+	CLUSTER_STATUS_DEPLOY       = "deploying"
 	CLUSTER_STATUS_UPDATING     = "updating"
 	CLUSTER_STATUS_DELETING     = "deleting"
 
@@ -129,40 +130,8 @@ func (m *SClusterManager) GetClusterById(ident string) (*apis.Cluster, error) {
 	return cluster.Cluster()
 }
 
-func (m *SClusterManager) AddClusterNodes(clusterId string, pendingNodes ...*SNode) error {
-	cluster, err := m.FetchClusterById(clusterId)
-	if err != nil {
-
-	}
-	if cluster == nil {
-		return ClusterNotFoundError
-	}
-
-	if slice.ContainsString([]string{CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_POST_CHECK}, cluster.Status) {
-		return fmt.Errorf("Cluster %q add node: status is %q", cluster.Name, cluster.Status)
-	}
-
-	return cluster.addNodes(context.Background(), pendingNodes...)
-}
-
-func (m *SClusterManager) UpdateCluster(clusterId string, pendingNodes ...*SNode) error {
-	cluster, err := m.FetchClusterById(clusterId)
-	if err != nil {
-		return err
-	}
-	if slice.ContainsString([]string{CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_POST_CHECK}, cluster.Status) {
-		return fmt.Errorf("Cluster %q update: status is %s", cluster.Name, cluster.Status)
-	}
-
-	return cluster.Update(context.Background(), pendingNodes...)
-}
-
-func (m *SClusterManager) GetConfig(cluster *SCluster, pendingNodes ...*SNode) (*yketypes.KubernetesEngineConfig, error) {
-	oldConf, _, err := m.getConfig(false, cluster, pendingNodes...)
-	if err != nil {
-		return nil, err
-	}
-	_, newConf, err := m.getConfig(true, cluster, pendingNodes...)
+func (m *SClusterManager) GetDeployConfig(cluster *SCluster, pendingNodes ...*SNode) (*yketypes.KubernetesEngineConfig, error) {
+	oldConf, newConf, err := m.getConfig(cluster, pendingNodes...)
 	if err != nil {
 		return nil, err
 	}
@@ -173,27 +142,26 @@ func (m *SClusterManager) GetConfig(cluster *SCluster, pendingNodes ...*SNode) (
 	return newConf, nil
 }
 
-func (m *SClusterManager) getConfig(reconcileYKE bool, cluster *SCluster, pendingNodes ...*SNode) (old, new *yketypes.KubernetesEngineConfig, err error) {
+func (m *SClusterManager) getConfig(cluster *SCluster, pendingNodes ...*SNode) (old, new *yketypes.KubernetesEngineConfig, err error) {
 	clusterId := cluster.Id
 	old, err = cluster.GetYKEConfig()
 	if err != nil {
-		return nil, nil, err
+		err = fmt.Errorf("Get old YKE config: %v", err)
+		return
 	}
-	if reconcileYKE {
-		nodes, err := m.reconcileYKENodes(clusterId, pendingNodes...)
-		if err != nil {
-			return nil, nil, err
-		}
-		newConf, err := cluster.NewYKEConfig()
-		if err != nil {
-			return nil, nil, err
-		}
-		if old != nil {
-			newConf = *old
-		}
-		newConf.Nodes = nodes
-		new = &newConf
+
+	nodes, err := m.reconcileYKENodes(clusterId, pendingNodes...)
+	if err != nil {
+		err = fmt.Errorf("Get YKE nodes: %v", err)
+		return
 	}
+	newConf, err := cluster.NewYKEConfig()
+	if err != nil {
+		err = fmt.Errorf("Get cluster new YKE config: %v", err)
+		return
+	}
+	newConf.Nodes = nodes
+	new = &newConf
 	return old, new, nil
 }
 
@@ -233,7 +201,7 @@ func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*S
 type SCluster struct {
 	db.SVirtualResourceBase
 	Mode          string `nullable:"false" create:"required" list:"user"`
-	K8sVersion    string `nullable:"false" create:"required" list:"user"`
+	K8sVersion    string `nullable:"false" create:"required" list:"user" update:"user"`
 	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
 	ClusterDomain string `nullable:"true" create:"optional" list:"user"`
 	//ServiceClusterIPRange string `nullable:"false" create:"optional" default:"10.43.0.0/16" list:"user"`
@@ -348,6 +316,41 @@ func (c *SCluster) GetYKENodes() ([]*SNode, error) {
 	return objs, nil
 }
 
+func (c *SCluster) AllowPerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return c.IsOwner(userCred)
+}
+
+func (c *SCluster) ValidateDeployCondition(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (nodes []*SNode, err error) {
+	nodes, err = c.GetNodes()
+	if err != nil {
+		return
+	}
+	isForce := jsonutils.QueryBoolean(data, "force", false)
+	if isForce {
+		return
+	}
+	if c.Status == CLUSTER_STATUS_DEPLOY {
+		err = fmt.Errorf("Cluster status is %q", c.Status)
+		return
+	}
+	for _, node := range nodes {
+		if !yutils.IsInStringArray(node.Status, []string{NODE_STATUS_READY, NODE_STATUS_RUNNING}) {
+			err = fmt.Errorf("Node %q status %q is not ready or running", node.Name, node.Status)
+			return
+		}
+	}
+	return
+}
+
+func (c *SCluster) PerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	nodes, err := c.ValidateDeployCondition(ctx, userCred, query, data)
+	if err != nil {
+		return nil, err
+	}
+	err = c.Deploy(ctx, nodes...)
+	return nil, err
+}
+
 func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
 	run := func() error {
 		backoff := wait.Backoff{
@@ -371,63 +374,13 @@ func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
 	go run()
 }
 
-func (c *SCluster) addNodes(ctx context.Context, pendingNodes ...*SNode) error {
-	return c.startAddNodes(ctx, pendingNodes...)
-}
-
-func (c *SCluster) startAddNodes(ctx context.Context, pendingNodes ...*SNode) error {
-	ykeConf, err := ClusterManager.GetConfig(c, pendingNodes...)
+func (c *SCluster) Deploy(ctx context.Context, pendingNodes ...*SNode) error {
+	ykeConf, err := ClusterManager.GetDeployConfig(c, pendingNodes...)
 	if err != nil {
 		return err
 	}
 	if ykeConf == nil {
-		return fmt.Errorf("YKE config is nil, maybe node already added???")
-	}
-	ykeConfStr, err := utils.ConvertYkeConfigToStr(*ykeConf)
-	if err != nil {
-		return err
-	}
-	opts := &drivertypes.DriverOptions{
-		StringOptions: map[string]string{"ykeConfig": ykeConfStr},
-	}
-
-	driver := c.ClusterDriver()
-	clusterInfo := c.ToInfo()
-
-	createF := func() (err error) {
-		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_CREATING, "")
-		if err != nil {
-			return
-		}
-
-		info, err := driver.Create(ctx, opts, clusterInfo)
-		if err != nil {
-			log.Errorf("cluster create err: %v", err)
-			return
-		}
-
-		if info != nil {
-			err = c.saveClusterInfo(info)
-			if err != nil {
-				log.Errorf("Save cluster info after create error: %v", err)
-				c.SetStatus(GetAdminCred(), CLUSTER_STATUS_ERROR, err.Error())
-			}
-		}
-		setNodesStatus(pendingNodes, NODE_STATUS_RUNNING)
-		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
-	}
-
-	c.backoffTryRun(createF, 5)
-	return nil
-}
-
-func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
-	ykeConf, err := ClusterManager.GetConfig(c, pendingNodes...)
-	if err != nil {
-		return err
-	}
-	if ykeConf == nil {
-		log.Warningf("ykeConf is none, config not change, skip this update")
+		log.Warningf("ykeConf is none, config not change, skip this deploy")
 		return nil
 	}
 
@@ -442,15 +395,20 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 	driver := c.ClusterDriver()
 	clusterInfo := c.ToInfo()
 
-	updateF := func() (err error) {
-		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_UPDATING, "")
+	deployF := func() (err error) {
+		err = c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DEPLOY, "")
+		if err != nil {
+			return
+		}
+		err = setNodesStatus(pendingNodes, NODE_STATUS_DEPLOY)
 		if err != nil {
 			return
 		}
 
-		info, err := driver.Update(ctx, opts, clusterInfo)
+		info, err := driver.Update(context.Background(), opts, clusterInfo)
 		if err != nil {
 			log.Errorf("cluster update err: %v", err)
+			setNodesStatus(pendingNodes, NODE_STATUS_ERROR)
 			return
 		}
 
@@ -465,7 +423,7 @@ func (c *SCluster) Update(ctx context.Context, pendingNodes ...*SNode) error {
 		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
 	}
 
-	c.backoffTryRun(updateF, 5)
+	c.backoffTryRun(deployF, 1)
 	return nil
 }
 
@@ -549,7 +507,7 @@ func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.Tok
 	deleteF := func() (err error) {
 		log.Infof("Deleting cluster [%s]", c.Name)
 		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
-		err = c.ClusterDriver().Remove(ctx, c.ToInfo())
+		err = c.ClusterDriver().Remove(context.Background(), c.ToInfo())
 		if err != nil {
 			log.Errorf("Delete cluster error: %v", err)
 			return
@@ -557,7 +515,7 @@ func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.Tok
 		return
 	}
 
-	c.backoffTryRun(deleteF, 5)
+	c.backoffTryRun(deleteF, 3)
 	return nil
 }
 
@@ -771,4 +729,15 @@ func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclie
 	ret := jsonutils.NewDict()
 	ret.Add(jsonutils.NewString(webhookUrl), "url")
 	return ret, nil
+}
+
+func (c *SCluster) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	k8sVersion, _ := data.GetString("k8s_version")
+	if k8sVersion != "" {
+		_, err := K8sYKEVersionMap.GetYKEVersion(k8sVersion)
+		if err != nil {
+			return nil, httperrors.NewInputParameterError("Invalid version %q: %v", k8sVersion, err)
+		}
+	}
+	return c.SVirtualResourceBase.ValidateUpdateData(ctx, userCred, query, data)
 }
