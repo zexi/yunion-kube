@@ -3,12 +3,15 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
+	ykehosts "yunion.io/yke/pkg/hosts"
 	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
+	"yunion.io/yunioncloud/pkg/cloudcommon/db/taskman"
 	cloudmodels "yunion.io/yunioncloud/pkg/compute/models"
 	"yunion.io/yunioncloud/pkg/httperrors"
 	"yunion.io/yunioncloud/pkg/jsonutils"
@@ -17,10 +20,10 @@ import (
 	cloudmod "yunion.io/yunioncloud/pkg/mcclient/modules"
 	"yunion.io/yunioncloud/pkg/sqlchemy"
 	"yunion.io/yunioncloud/pkg/util/sets"
+	"yunion.io/yunioncloud/pkg/utils"
 
-	"yunion.io/yunion-kube/pkg/request"
+	drivertypes "yunion.io/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/yunion-kube/pkg/types/apis"
-	"yunion.io/yunion-kube/pkg/types/slice"
 )
 
 var NodeManager *SNodeManager
@@ -37,6 +40,8 @@ const (
 	NODE_STATUS_ERROR    = "error"
 	NODE_STATUS_UPDATING = "updating"
 	NODE_STATUS_DELETING = "deleting"
+
+	CLOUD_HOST_DATA_KEY = "cloudHost"
 )
 
 func init() {
@@ -88,7 +93,36 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 	return
 }
 
-func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
+func validateHostInfo(host apis.CloudHost) (err error) {
+	log.Infof("Get hosts: %#v", host)
+	if host.ManagerUrl == "" {
+		err = fmt.Errorf("Host %q not found manager_uri", host.Id)
+		return
+	}
+
+	if !utils.IsInStringArray(host.HostType, []string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}) {
+		err = fmt.Errorf("Host type %q not support", host.HostType)
+		return
+	}
+
+	if !host.Enabled {
+		err = fmt.Errorf("Host %q not enable", host.Id)
+		return
+	}
+
+	if host.Status != "running" {
+		err = fmt.Errorf("Host %q status %q is not 'running'", host.Id, host.Status)
+		return
+	}
+
+	if host.HostStatus != "online" {
+		err = fmt.Errorf("Host %q host_status %q is not 'online'", host.Id, host.HostStatus)
+		return
+	}
+	return nil
+}
+
+func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
 	name, _ := data.GetString("name")
 	hostId, _ := data.GetString("host")
 	if name == "" && hostId == "" {
@@ -105,15 +139,21 @@ func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *json
 	if err != nil {
 		return "", err
 	}
-	id, _ := ret.GetString("id")
+
+	cloudHost := apis.CloudHost{}
+	err = ret.Unmarshal(&cloudHost)
+	if err != nil {
+		return "", err
+	}
+	id := cloudHost.Id
 	if id == "" {
 		return "", httperrors.NewNotFoundError("Host %q not found", hostId)
 	}
-	hostType, _ := ret.GetString("host_type")
-	if !slice.ContainsString([]string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}, hostType) {
-		return "", httperrors.NewInputParameterError("Host %q type %q not support", hostId, hostType)
+
+	err = validateHostInfo(cloudHost)
+	if err != nil {
+		return "", httperrors.NewInputParameterError("Validate host %q info: %v", hostId, err)
 	}
-	hostName, _ := ret.GetString("name")
 
 	node, err := m.FetchNodeByHostId(id)
 	if err != nil && err != sql.ErrNoRows {
@@ -124,8 +164,9 @@ func validateHost(m *SNodeManager, userCred mcclient.TokenCredential, data *json
 	}
 
 	if name == "" {
-		data.Set("name", jsonutils.NewString(hostName))
+		data.Set("name", jsonutils.NewString(cloudHost.Name))
 	}
+	data.Set(CLOUD_HOST_DATA_KEY, jsonutils.Marshal(cloudHost))
 
 	return id, nil
 }
@@ -174,7 +215,7 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	data.Add(toBool(isCtrl), "controlplane")
 	data.Add(toBool(isWorker), "worker")
 
-	hostId, err := validateHost(m, userCred, data)
+	hostId, err := validateHost(ctx, m, userCred, data)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +461,16 @@ func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	return n.SVirtualResourceBase.ValidateDeleteCondition(ctx)
 }
 
-func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+func (n *SNode) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	log.Infof("Node delete do nothing")
+	return nil
+}
+
+func (n *SNode) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	return n.SVirtualResourceBase.Delete(ctx, userCred)
+}
+
+func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 	cluster, err := n.GetCluster()
 	if err != nil {
 		return err
@@ -434,6 +484,56 @@ func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCred
 	}
 	config = RemoveYKEConfigNode(config, n)
 	return cluster.SetYKEConfig(config)
+}
+
+func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	return n.StartDeleteNodeTask(ctx, userCred, "", data)
+}
+
+func (n *SNode) StartDeleteNodeTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string, data jsonutils.JSONObject) error {
+	n.SetStatus(userCred, NODE_STATUS_DELETING, "")
+	task, err := taskman.TaskManager.NewTask(ctx, "NodeDeleteTask", n, userCred, nil, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (n *SNode) ToYKEHost() *ykehosts.Host {
+	nodeConfig := n.GetNodeConfig()
+	host := &ykehosts.Host{
+		ConfigNode: *nodeConfig,
+		IsEtcd:     n.Etcd,
+		IsControl:  n.Controlplane,
+		IsWorker:   n.Worker,
+	}
+	return host
+}
+
+func (n *SNode) GetDriver() (drivertypes.Driver, error) {
+	cluster, err := n.GetCluster()
+	if err != nil {
+		return nil, err
+	}
+	return cluster.ClusterDriver(), nil
+}
+
+func (n *SNode) CleanUpComponents(ctx context.Context, data jsonutils.JSONObject) error {
+	host := n.ToYKEHost()
+	hostBytes, err := json.Marshal(host)
+	if err != nil {
+		return err
+	}
+	opts := &drivertypes.DriverOptions{
+		StringOptions: map[string]string{"host": string(hostBytes)},
+	}
+
+	driver, err := n.GetDriver()
+	if err != nil {
+		return err
+	}
+	return driver.RemoveNode(ctx, opts)
 }
 
 func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) *yketypes.KubernetesEngineConfig {
@@ -495,69 +595,27 @@ func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCred
 	return extra
 }
 
-func validateHostInfo(host apis.CloudHost) (err error) {
-	log.Infof("Get hosts: %#v", host)
-	if host.ManagerUrl == "" {
-		err = fmt.Errorf("Host %q not found manager_uri", host.Id)
-		return
+func (n *SNode) StartAgentStartTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "NodeStartAgentTask", n, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
 	}
-
-	if !host.Enabled {
-		err = fmt.Errorf("Host %q not enable", host.Id)
-		return
-	}
-
-	if host.Status != "running" {
-		err = fmt.Errorf("Host %q status %q is not 'running'", host.Id, host.Status)
-		return
-	}
-
-	if host.HostStatus != "online" {
-		err = fmt.Errorf("Host %q host_status %q is not 'online'", host.Id, host.HostStatus)
-		return
-	}
+	task.ScheduleRun(nil)
 	return nil
 }
 
-func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	hostId := n.HostId
-	if hostId == "" {
-		log.Debugf("Not yunioncloud host, skip it")
-		return
-	}
-	session, err := GetAdminSession()
-	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get admin session: %v", err))
-		return
-	}
-	result, err := cloudmod.Hosts.Get(session, hostId, nil)
-	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get host id %q: %v", hostId, err))
-		return
-	}
-	cloudHost := apis.CloudHost{}
-	err = result.Unmarshal(&cloudHost)
-	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Unmarshal error: %v", err))
-		return
-	}
-	err = validateHostInfo(cloudHost)
-	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("HostInfo error: %v", err))
-		return
-	}
-	url := "/kubeagent/start"
+func (n *SNode) GetAgentRegisterConfig() (ret apis.HostRegisterConfig, error error) {
 	serverUrl, err := GetKubeServerUrl()
 	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get server url: %v", err))
+		err = fmt.Errorf("Get server url: %v", err)
 		return
 	}
 	dockerdConfig, err := n.GetDockerdConfig()
 	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Get dockerd config: %v", err))
+		err = fmt.Errorf("Get dockerd config: %v", err)
 		return
 	}
-	registerConfig := apis.HostRegisterConfig{
+	ret = apis.HostRegisterConfig{
 		AgentConfig: apis.AgentConfig{
 			ServerUrl: serverUrl,
 			Token:     n.ClusterId,
@@ -566,10 +624,19 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 		},
 		DockerdConfig: dockerdConfig,
 	}
-	body := jsonutils.Marshal(registerConfig)
-	_, err = request.Post(cloudHost.ManagerUrl, userCred.GetTokenString(), url, nil, body)
+	return
+}
+
+func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	hostId := n.HostId
+	if hostId == "" {
+		log.Debugf("Not yunioncloud host, skip it")
+		return
+	}
+	err := n.StartAgentStartTask(ctx, userCred, data.(*jsonutils.JSONDict), "")
 	if err != nil {
-		n.SetStatus(userCred, NODE_STATUS_ERROR, fmt.Sprintf("Start agent on host %q: %v", hostId, err))
+		log.Errorf("Start agent start task error: %v", err)
+		n.SetStatus(userCred, NODE_STATUS_ERROR, err.Error())
 	}
 }
 
