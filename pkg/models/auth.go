@@ -3,8 +3,8 @@ package models
 import (
 	"fmt"
 
-	"yunion.io/yunioncloud/pkg/mcclient"
-	"yunion.io/yunioncloud/pkg/mcclient/auth"
+	"github.com/yunionio/mcclient"
+	"github.com/yunionio/mcclient/auth"
 
 	"yunion.io/yunion-kube/pkg/options"
 )

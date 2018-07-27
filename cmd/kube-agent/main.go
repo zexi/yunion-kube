@@ -17,8 +17,8 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"gopkg.in/urfave/cli.v1/altsrc"
 
-	"yunion.io/yunioncloud/pkg/log"
-	"yunion.io/yunioncloud/pkg/util/version"
+	"github.com/yunionio/log"
+	"github.com/yunionio/pkg/util/version"
 
 	"yunion.io/yunion-kube/pkg/agent/node"
 	"yunion.io/yunion-kube/pkg/remotedialer"

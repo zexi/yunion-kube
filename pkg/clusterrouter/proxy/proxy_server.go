@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/client-go/rest"
 
-	"yunion.io/yunioncloud/pkg/httperrors"
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
+	"github.com/yunionio/pkg/httperrors"
 
 	"yunion.io/yunion-kube/pkg/types/apis"
 )

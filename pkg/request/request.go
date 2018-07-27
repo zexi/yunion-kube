@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"yunion.io/yunioncloud/pkg/jsonutils"
-	"yunion.io/yunioncloud/pkg/mcclient"
-	"yunion.io/yunioncloud/pkg/util/httputils"
+	"github.com/yunionio/jsonutils"
+	"github.com/yunionio/mcclient"
+	"github.com/yunionio/pkg/util/httputils"
 )
 
 func Get(endpoint string, token string, url string, header http.Header, body jsonutils.JSONObject) (jsonutils.JSONObject, error) {

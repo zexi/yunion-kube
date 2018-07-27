@@ -10,11 +10,11 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 
+	"github.com/yunionio/log"
 	"yunion.io/yke/pkg/services"
 	yketypes "yunion.io/yke/pkg/types"
 	ytypes "yunion.io/yunion-kube/pkg/types"
 	"yunion.io/yunion-kube/pkg/types/slice"
-	"yunion.io/yunioncloud/pkg/log"
 )
 
 type NodeConfig struct {
@@ -76,7 +76,7 @@ func runProcess(ctx context.Context, name string, p yketypes.Process, start bool
 	config.Labels["io.cattle.process.name"] = name
 
 	newContainer, err := c.ContainerCreate(ctx, config, hostConfig, nil, name)
-	if client.IsErrImageNotFound(err) {
+	if client.IsErrNotFound(err) {
 		var output io.ReadCloser
 		imagePullOptions := types.ImagePullOptions{}
 		if p.ImageRegistryAuthConfig != "" {

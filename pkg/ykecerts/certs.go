@@ -11,9 +11,9 @@ import (
 
 	"k8s.io/client-go/util/cert"
 
+	"github.com/yunionio/pkg/util/errors"
 	"yunion.io/yke/pkg/pki"
 	"yunion.io/yke/pkg/types"
-	"yunion.io/yunioncloud/pkg/util/errors"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"
 	"yunion.io/yunion-kube/pkg/libyke"

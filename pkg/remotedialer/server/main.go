@@ -12,7 +12,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
 
 	"yunion.io/yunion-kube/pkg/remotedialer"
 )
