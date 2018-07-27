@@ -1,10 +1,10 @@
 package app
 
 import (
-	"yunion.io/yunioncloud/pkg/appsrv"
-	"yunion.io/yunioncloud/pkg/appsrv/dispatcher"
-	"yunion.io/yunioncloud/pkg/cloudcommon/db"
-	"yunion.io/yunioncloud/pkg/cloudcommon/db/taskman"
+	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
+	"github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman"
+	"github.com/yunionio/pkg/appsrv"
+	"github.com/yunionio/pkg/appsrv/dispatcher"
 
 	"yunion.io/yunion-kube/pkg/models"
 )

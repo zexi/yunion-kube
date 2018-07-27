@@ -6,8 +6,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"yunion.io/yunioncloud/pkg/appsrv"
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
+	"github.com/yunionio/pkg/appsrv"
 
 	//"yunion.io/yunion-kube/pkg/clusterrouter/proxy"
 	"yunion.io/yunion-kube/pkg/dialer"

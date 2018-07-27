@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"yunion.io/yunioncloud/pkg/cloudcommon/db"
-	"yunion.io/yunioncloud/pkg/cloudcommon/db/taskman"
-	"yunion.io/yunioncloud/pkg/jsonutils"
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/jsonutils"
+	"github.com/yunionio/log"
+	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
+	"github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/request"

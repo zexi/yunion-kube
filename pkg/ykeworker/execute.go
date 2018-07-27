@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"yunion.io/yunioncloud/pkg/util/errors"
+	"github.com/yunionio/pkg/util/errors"
 
 	"yunion.io/yunion-kube/pkg/ykecerts"
 )
