@@ -3,6 +3,7 @@ package yke
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -15,8 +16,10 @@ import (
 	"k8s.io/client-go/rest"
 
 	"yunion.io/yke/cmd"
+	"yunion.io/yke/pkg/hosts"
 	"yunion.io/yke/pkg/k8s"
 	"yunion.io/yke/pkg/pki"
+	"yunion.io/yke/pkg/services"
 	"yunion.io/yke/pkg/tunnel"
 	yketypes "yunion.io/yke/pkg/types"
 	"yunion.io/yunioncloud/pkg/log"
@@ -260,7 +263,6 @@ func nodeCount(info *types.ClusterInfo) (int64, error) {
 
 // Remove the cluster
 func (d *Driver) Remove(ctx context.Context, clusterInfo *types.ClusterInfo) error {
-	log.Infof("")
 	ykeConfig, err := utils.ConvertToYkeConfig(clusterInfo.Config)
 	if err != nil {
 		return err
@@ -268,6 +270,39 @@ func (d *Driver) Remove(ctx context.Context, clusterInfo *types.ClusterInfo) err
 	stateDir, _ := d.restore(clusterInfo)
 	defer d.save(nil, stateDir)
 	return cmd.ClusterRemove(ctx, &ykeConfig, d.DockerDialer, d.wrapTransport(&ykeConfig), false, stateDir)
+}
+
+func getHost(driverOptions *types.DriverOptions) (*hosts.Host, error) {
+	hostJsonStr, ok := driverOptions.StringOptions["host"]
+	if !ok {
+		return nil, fmt.Errorf("No host json string")
+	}
+	host := hosts.Host{}
+	err := json.NewDecoder(strings.NewReader(hostJsonStr)).Decode(&host)
+	if err != nil {
+		return nil, err
+	}
+	return &host, nil
+}
+
+// RemoveNode from the cluster
+func (d *Driver) RemoveNode(ctx context.Context, opts *types.DriverOptions) error {
+	host, err := getHost(opts)
+	if err != nil {
+		return err
+	}
+	err = host.TunnelUp(ctx, d.DockerDialer)
+	if err != nil {
+		return fmt.Errorf("Tunnel host: %v", err)
+	}
+
+	if host.IsWorker {
+		err = services.RemoveWorkerPlane(ctx, []*hosts.Host{host}, true)
+		if err != nil {
+			return fmt.Errorf("Remove worker components: %v", err)
+		}
+	}
+	return host.CleanUpAll(ctx, "alpine:latest", nil, false)
 }
 
 func (d *Driver) restore(info *types.ClusterInfo) (string, error) {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 
 	"yunion.io/yunioncloud/pkg/appsrv"
