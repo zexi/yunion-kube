@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 
+	_ "github.com/go-sql-driver/mysql"
+
 	"yunion.io/yunioncloud/pkg/appsrv"
 	"yunion.io/yunioncloud/pkg/cloudcommon"
 	"yunion.io/yunioncloud/pkg/cloudcommon/db"
@@ -18,6 +20,7 @@ import (
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/server"
+	_ "yunion.io/yunion-kube/pkg/tasks"
 	"yunion.io/yunion-kube/pkg/types/config"
 	"yunion.io/yunion-kube/pkg/ykedialerfactory"
 )

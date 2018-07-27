@@ -1,6 +1,7 @@
 package remotedialer
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -42,7 +43,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	clientKey, authed, err := s.authorizer(req)
 	if err != nil {
-		log.Warningf("authorizer error: %v", err)
+		log.Warningf("authorizer error(%s): %v", req.RemoteAddr, err)
 		s.errorWriter(rw, req, 400, err)
 		return
 	}
@@ -51,7 +52,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Infof("Handling backend connection request [%s]", clientKey)
+	logKey := fmt.Sprintf("[%s](%s)", clientKey, req.RemoteAddr)
+
+	log.Infof("Handling backend connection request %s", logKey)
 
 	upgrader := websocket.Upgrader{
 		HandshakeTimeout: 5 * time.Second,
@@ -61,7 +64,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	wsConn, err := upgrader.Upgrade(rw, req, nil)
 	if err != nil {
-		s.errorWriter(rw, req, 400, errors.Wrapf(err, "Error during upgrade for host [%v]", clientKey))
+		s.errorWriter(rw, req, 400, errors.Wrapf(err, "Error during upgrade for host %s", logKey))
 		return
 	}
 
@@ -72,6 +75,6 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	code, err := session.serve()
 	if err != nil {
 		// Hijacked so we can't write to the client
-		log.Debugf("error in remotedialer server [%d]: %v", code, err)
+		log.Debugf("error in remotedialer server %s [%d]: %v", logKey, code, err)
 	}
 }
