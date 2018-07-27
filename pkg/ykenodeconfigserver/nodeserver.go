@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"yunion.io/yunioncloud/pkg/httperrors"
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
+	"github.com/yunionio/pkg/httperrors"
 
 	"yunion.io/yke/pkg/services"
 	"yunion.io/yke/pkg/types"

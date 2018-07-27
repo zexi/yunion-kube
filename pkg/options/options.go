@@ -1,7 +1,7 @@
 package options
 
 import (
-	"yunion.io/yunioncloud/pkg/cloudcommon"
+	"github.com/yunionio/onecloud/pkg/cloudcommon"
 )
 
 var (

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
 
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/remotedialer"

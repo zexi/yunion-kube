@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
 
 	"yunion.io/yunion-kube/pkg/app"
 )

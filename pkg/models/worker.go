@@ -1,7 +1,7 @@
 package models
 
 import (
-	"yunion.io/yunioncloud/pkg/appsrv"
+	"github.com/yunionio/pkg/appsrv"
 )
 
 var taskWorkMan *appsrv.WorkerManager

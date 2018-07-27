@@ -3,7 +3,7 @@ package models
 import (
 	"fmt"
 
-	"yunion.io/yunioncloud/pkg/util/sets"
+	"github.com/yunionio/pkg/util/sets"
 
 	yketypes "yunion.io/yke/pkg/types"
 )

@@ -22,7 +22,7 @@ import (
 	"yunion.io/yke/pkg/services"
 	"yunion.io/yke/pkg/tunnel"
 	yketypes "yunion.io/yke/pkg/types"
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"

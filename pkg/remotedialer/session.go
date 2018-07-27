@@ -12,7 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"yunion.io/yunioncloud/pkg/log"
+	"github.com/yunionio/log"
 )
 
 type session struct {

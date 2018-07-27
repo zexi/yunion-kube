@@ -8,11 +8,11 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"yunion.io/yunioncloud/pkg/appsrv"
-	"yunion.io/yunioncloud/pkg/cloudcommon"
-	"yunion.io/yunioncloud/pkg/cloudcommon/db"
-	"yunion.io/yunioncloud/pkg/log"
-	"yunion.io/yunioncloud/pkg/util/runtime"
+	"github.com/yunionio/log"
+	"github.com/yunionio/onecloud/pkg/cloudcommon"
+	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
+	"github.com/yunionio/pkg/appsrv"
+	"github.com/yunionio/pkg/util/runtime"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke"

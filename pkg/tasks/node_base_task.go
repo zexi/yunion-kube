@@ -3,7 +3,7 @@ package tasks
 import (
 	//"context"
 
-	"yunion.io/yunioncloud/pkg/cloudcommon/db/taskman"
+	"github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/yunion-kube/pkg/models"
 )
