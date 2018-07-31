@@ -34,9 +34,9 @@ build: clean
 cmd/%: prepare_dir
 	$(GO_BUILD) -o $(BIN_DIR)/$(shell basename $@) $(REPO_PREFIX)/$@
 
-rpm:
-	make cmd/$(filter-out $@,$(MAKECMDGOALS))
-	$(BUILD_SCRIPT) $(filter-out $@,$(MAKECMDGOALS))
+rpm: build
+	$(BUILD_SCRIPT) kube-server
+	$(BUILD_SCRIPT) kube-agent
 
 rpmclean:
 	rm -rf $(BUILD_DIR)rpms
