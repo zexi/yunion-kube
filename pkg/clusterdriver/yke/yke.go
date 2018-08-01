@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/yunionio/log"
 	"yunion.io/yke/cmd"
 	"yunion.io/yke/pkg/hosts"
 	"yunion.io/yke/pkg/k8s"
@@ -22,7 +23,6 @@ import (
 	"yunion.io/yke/pkg/services"
 	"yunion.io/yke/pkg/tunnel"
 	yketypes "yunion.io/yke/pkg/types"
-	"github.com/yunionio/log"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"
@@ -176,7 +176,7 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	}, stateDir), nil
 }
 
-func (d *Driver) getClientset(info *types.ClusterInfo) (*kubernetes.Clientset, error) {
+func (d *Driver) GetK8sRestConfig(info *types.ClusterInfo) (*rest.Config, error) {
 	yaml := info.Config
 
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
@@ -210,7 +210,14 @@ func (d *Driver) getClientset(info *types.ClusterInfo) (*kubernetes.Clientset, e
 		},
 		WrapTransport: d.WrapTransportFactory(&ykeConfig),
 	}
+	return config, nil
+}
 
+func (d *Driver) getClientset(info *types.ClusterInfo) (*kubernetes.Clientset, error) {
+	config, err := d.GetK8sRestConfig(info)
+	if err != nil {
+		return nil, err
+	}
 	return kubernetes.NewForConfig(config)
 }
 
