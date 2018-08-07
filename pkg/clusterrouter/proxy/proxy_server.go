@@ -3,7 +3,6 @@ package proxy
 import (
 	"crypto/tls"
 	"crypto/x509"
-	//"encoding/base64"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,7 +14,7 @@ import (
 	"github.com/yunionio/log"
 	"github.com/yunionio/pkg/httperrors"
 
-	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/yunion-kube/pkg/models"
 )
 
 type sErrorResponder struct{}
@@ -28,15 +27,33 @@ func (e *sErrorResponder) Error(w http.ResponseWriter, req *http.Request, err er
 	httperrors.InternalServerError(w, err.Error())
 }
 
-func prefix(cluster *apis.Cluster) string {
-	return "/k8s/clusters/" + cluster.Name
+func GetClusterId(req *http.Request) string {
+	clusterId := req.Header.Get("X-API-Cluster-Id")
+	if clusterId != "" {
+		return clusterId
+	}
+
+	parts := strings.Split(req.URL.Path, "/")
+	if len(parts) > 3 && strings.HasPrefix(parts[2], "cluster") {
+		return parts[3]
+	}
+
+	return ""
 }
 
-func New(localConfig *rest.Config, cluster *apis.Cluster) (*SRemoteService, error) {
+func prefix(req *http.Request) string {
+	return models.K8S_PROXY_URL_PREFIX + GetClusterId(req)
+}
+
+func New(cluster *models.SCluster) (*SRemoteService, error) {
+	localConfig, err := cluster.GetK8sRestConfig()
+	if err != nil {
+		return nil, err
+	}
 	return NewLocal(localConfig, cluster)
 }
 
-func NewLocal(localConfig *rest.Config, cluster *apis.Cluster) (*SRemoteService, error) {
+func NewLocal(localConfig *rest.Config, cluster *models.SCluster) (*SRemoteService, error) {
 	hostURL, _, err := rest.DefaultServerURL(localConfig.Host, localConfig.APIPath, schema.GroupVersion{}, true)
 	if err != nil {
 		return nil, err
@@ -63,7 +80,7 @@ func NewLocal(localConfig *rest.Config, cluster *apis.Cluster) (*SRemoteService,
 type urlGetter func() (url.URL, error)
 
 type SRemoteService struct {
-	cluster   *apis.Cluster
+	cluster   *models.SCluster
 	transport http.RoundTripper
 	url       urlGetter
 	auth      string
@@ -82,10 +99,8 @@ func (r *SRemoteService) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Infof("=== req url: %q", req.URL.Path)
-	u.Path = strings.TrimPrefix(req.URL.Path, "/k8s/clusters/")
-	//u.Path = strings.TrimPrefix(req.URL.Path, prefix(r.cluster))
-	log.Infof("=== after req url: %q", u.Path)
+	log.Debugf("Proxy k8s request URL: %q", req.URL.Path)
+	u.Path = strings.TrimPrefix(req.URL.Path, prefix(req))
 	u.RawQuery = req.URL.RawQuery
 	proto := req.Header.Get("X-Forwarded-Proto")
 	if proto != "" {

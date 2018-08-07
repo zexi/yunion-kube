@@ -60,7 +60,6 @@ func initCloudApp() *appsrv.Application {
 func Run(ctx context.Context) error {
 	prepareEnv()
 	app := initCloudApp()
-	// must before InitDB?
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
 	if !db.CheckSync(options.Options.AutoSyncTable) {

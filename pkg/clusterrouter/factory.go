@@ -1,12 +1,30 @@
-//package clusterrouter
+package clusterrouter
 
-//import (
-	//"net/http"
-	//"sync"
+import (
+	"fmt"
+	"net/http"
 
-	//"k8s.io/client-go/rest"
-//)
+	"github.com/yunionio/mcclient/auth"
 
-//type factory struct {
-	////dialerFactory
-//}
+	"yunion.io/yunion-kube/pkg/clusterrouter/proxy"
+	"yunion.io/yunion-kube/pkg/models"
+)
+
+type factory struct {
+}
+
+func (s *factory) get(req *http.Request) (http.Handler, error) {
+	clusterId := proxy.GetClusterId(req)
+	if clusterId == "" {
+		return nil, fmt.Errorf("ClusterId not provided by request: %#v", req)
+	}
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(auth.GetTokenString(), clusterId)
+	if err != nil {
+		return nil, err
+	}
+	return s.newServer(cluster)
+}
+
+func (s *factory) newServer(c *models.SCluster) (*proxy.SRemoteService, error) {
+	return proxy.New(c)
+}
