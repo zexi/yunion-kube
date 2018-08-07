@@ -32,7 +32,7 @@ import (
 
 const (
 	kubeConfigFile = "kube_config_cluster.yml"
-	yunionPath     = "./management-state/yke/"
+	yunionPath     = "/tmp/management-state/yke/"
 )
 
 func NewDriver() types.Driver {
