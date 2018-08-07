@@ -20,13 +20,14 @@ import (
 	"github.com/yunionio/pkg/util/sets"
 	"github.com/yunionio/pkg/util/wait"
 	yutils "github.com/yunionio/pkg/utils"
+	"k8s.io/client-go/rest"
 	ykecluster "yunion.io/yke/pkg/cluster"
-	"yunion.io/yke/pkg/pki"
 	yketypes "yunion.io/yke/pkg/types"
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/yunion-kube/pkg/options"
+	"yunion.io/yunion-kube/pkg/templates"
 	"yunion.io/yunion-kube/pkg/types/apis"
 	"yunion.io/yunion-kube/pkg/utils"
 )
@@ -60,6 +61,8 @@ const (
 	DEFAULT_CLUSER_CIDR           = "10.43.0.0/16"
 	DEFAULT_CLUSTER_DOMAIN        = "cluster.local"
 	DEFAULT_INFRA_CONTAINER_IMAGE = "yunion/pause-amd64:3.0"
+
+	K8S_PROXY_URL_PREFIX = "/k8s/clusters/"
 )
 
 type SClusterManager struct {
@@ -564,6 +567,23 @@ func GetKubeServerUrl() (string, error) {
 	return u.String(), nil
 }
 
+func (c *SCluster) GetK8sRestConfig() (*rest.Config, error) {
+	if c.ApiEndpoint == "" {
+		return nil, fmt.Errorf("cluster %q not found k8s api endpoint", c.Name)
+	}
+	driver := c.ClusterDriver()
+	if driver == nil {
+		return nil, fmt.Errorf("Cluster driver not init?")
+	}
+	config, err := driver.GetK8sRestConfig(c.ToInfo())
+	if err != nil {
+		return nil, err
+	}
+	// clean WrapTransport
+	config.WrapTransport = nil
+	return config, nil
+}
+
 func (c *SCluster) GetK8sWebhookAuthUrl() (string, error) {
 	serverUrl, err := GetKubeServerUrl()
 	if err != nil {
@@ -686,8 +706,12 @@ func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	// TODO:
 	// 1. Get normal user config
-	// 2. Support Endpoint transparent proxy
-	conf, err := c.GetAdminKubeconfig()
+	directly := jsonutils.QueryBoolean(data, "directly", false)
+	getF := c.GetClientKubeConfig
+	if directly {
+		getF = c.GetAdminKubeconfig
+	}
+	conf, err := getF()
 	if err != nil {
 		return nil, httperrors.NewInternalServerError("Generate kubeconfig err: %v", err)
 	}
@@ -696,13 +720,37 @@ func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mccli
 	return ret, nil
 }
 
+func (c *SCluster) GetClientKubeConfig() (string, error) {
+	info, err := DecodeClusterInfo(c.ToInfo())
+	if err != nil {
+		return "", err
+	}
+	endpoint, err := c.ClusterProxyEndpoint()
+	if err != nil {
+		return "", err
+	}
+	return templates.GetKubeConfigByProxy(endpoint, c.Name, "kube-client", info.RootCaCertificate, info.ClientCertificate, info.ClientKey)
+}
+
+func (c *SCluster) ClusterProxyEndpoint() (string, error) {
+	serverUrl, err := GetKubeServerUrl()
+	if err != nil {
+		return "", err
+	}
+	parts, err := url.Parse(serverUrl)
+	if err != nil {
+		return "", err
+	}
+	parts.Path = fmt.Sprintf("%s%s", K8S_PROXY_URL_PREFIX, c.Id)
+	return parts.String(), nil
+}
+
 func (c *SCluster) GetAdminKubeconfig() (string, error) {
 	info, err := DecodeClusterInfo(c.ToInfo())
 	if err != nil {
 		return "", err
 	}
-	config := pki.GetKubeConfigX509WithData(info.Endpoint, c.Name, "kube-admin", info.RootCaCertificate, info.ClientCertificate, info.ClientKey)
-	return config, nil
+	return templates.GetKubeConfig(info.Endpoint, c.Name, "kube-admin", info.RootCaCertificate, info.ClientCertificate, info.ClientKey)
 }
 
 func (c *SCluster) AllowGetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
