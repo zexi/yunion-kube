@@ -42,6 +42,9 @@ const (
 	NODE_STATUS_DELETING = "deleting"
 
 	CLOUD_HOST_DATA_KEY = "cloudHost"
+
+	DEFAULT_DOCKER_GRAPH_DIR       = "/opt/docker"
+	DEFAULT_DOCKER_REGISTRY_MIRROR = "https://registry.docker-cn.com"
 )
 
 func init() {
@@ -475,7 +478,7 @@ func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	config, _, err := ClusterManager.getConfig(cluster)
+	config, err := cluster.GetYKEConfig()
 	if err != nil {
 		return err
 	}
@@ -556,8 +559,9 @@ func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
 	if n.DockerdConfig == nil {
 		return apis.DockerdConfig{
 			// Enable LiveRestore by default
-			LiveRestore: true,
-			Graph:       "/opt/docker",
+			LiveRestore:     true,
+			Graph:           DEFAULT_DOCKER_GRAPH_DIR,
+			RegistryMirrors: []string{DEFAULT_DOCKER_REGISTRY_MIRROR},
 		}, nil
 	}
 	config := apis.DockerdConfig{}
@@ -566,6 +570,12 @@ func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
 		return apis.DockerdConfig{}, err
 	}
 	config.LiveRestore = true
+	if config.Graph == "" {
+		config.Graph = DEFAULT_DOCKER_GRAPH_DIR
+	}
+	if len(config.RegistryMirrors) == 0 {
+		config.RegistryMirrors = []string{DEFAULT_DOCKER_REGISTRY_MIRROR}
+	}
 	return config, err
 }
 
