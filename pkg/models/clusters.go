@@ -20,6 +20,7 @@ import (
 	"github.com/yunionio/pkg/util/sets"
 	"github.com/yunionio/pkg/util/wait"
 	yutils "github.com/yunionio/pkg/utils"
+	"github.com/yunionio/sqlchemy"
 	"k8s.io/client-go/rest"
 	ykecluster "yunion.io/yke/pkg/cluster"
 	yketypes "yunion.io/yke/pkg/types"
@@ -62,7 +63,8 @@ const (
 	DEFAULT_CLUSTER_DOMAIN        = "cluster.local"
 	DEFAULT_INFRA_CONTAINER_IMAGE = "yunion/pause-amd64:3.0"
 
-	K8S_PROXY_URL_PREFIX = "/k8s/clusters/"
+	K8S_PROXY_URL_PREFIX    = "/k8s/clusters/"
+	K8S_AUTH_WEBHOOK_PREFIX = "/k8s/auth/"
 )
 
 type SClusterManager struct {
@@ -198,6 +200,18 @@ func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*S
 		return nodes[i].NodeName < nodes[j].NodeName
 	})
 	return nodes, nil
+}
+
+func (m *SClusterManager) GetInternalClusters() ([]SCluster, error) {
+	q := ClusterManager.Query()
+	q = q.Filter(sqlchemy.Equals(q.Field("mode"), CLUSTER_MODE_INTERNAL))
+
+	ret := []SCluster{}
+	err := q.All(&ret)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
 
 type SCluster struct {
@@ -589,7 +603,12 @@ func (c *SCluster) GetK8sWebhookAuthUrl() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s/webhook", serverUrl), nil
+	parts, err := url.Parse(serverUrl)
+	if err != nil {
+		return "", err
+	}
+	parts.Path = fmt.Sprintf("%s%s", K8S_AUTH_WEBHOOK_PREFIX, c.Id)
+	return parts.String(), nil
 }
 
 func (c *SCluster) GetYKEWebhookAuthConfig() (yketypes.WebhookAuth, error) {

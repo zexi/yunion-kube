@@ -10,7 +10,9 @@ import (
 	"github.com/yunionio/pkg/appsrv"
 
 	"yunion.io/yunion-kube/pkg/clusterrouter"
+	"yunion.io/yunion-kube/pkg/controllers"
 	"yunion.io/yunion-kube/pkg/dialer"
+	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/options"
 	"yunion.io/yunion-kube/pkg/types/config"
 	"yunion.io/yunion-kube/pkg/ykenodeconfigserver"
@@ -37,7 +39,8 @@ func Start(httpsAddr string, scaledCtx *config.ScaledContext, app *appsrv.Applic
 
 	connectHandler, connectConfigHandler := connectHandlers(scaledCtx)
 
-	root.PathPrefix("/k8s/clusters/").Handler(proxy)
+	root.PathPrefix(models.K8S_PROXY_URL_PREFIX).Handler(proxy)
+	root.PathPrefix(models.K8S_AUTH_WEBHOOK_PREFIX).Handler(controllers.NewAuthHandlerFactory())
 	root.Handle("/connect", connectHandler)
 	root.Handle("/connect/register", connectHandler)
 	root.Handle("/connect/config", connectConfigHandler)
