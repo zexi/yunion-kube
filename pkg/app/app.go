@@ -16,6 +16,7 @@ import (
 
 	"yunion.io/yunion-kube/pkg/clusterdriver"
 	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
+	"yunion.io/yunion-kube/pkg/controllers"
 	"yunion.io/yunion-kube/pkg/dialer"
 	"yunion.io/yunion-kube/pkg/models"
 	"yunion.io/yunion-kube/pkg/options"
@@ -51,7 +52,8 @@ func initCloudApp() *appsrv.Application {
 	InitHandlers(app)
 
 	cloudcommon.InitAuth(&options.Options.Options, func() {
-		log.Infof("Auth complete!!!")
+		log.Infof("Auth complete, start controllers.")
+		controllers.Start()
 	})
 
 	return app
