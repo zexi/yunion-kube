@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type NodeDeleteTask struct {

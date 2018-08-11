@@ -15,7 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 	"yunion.io/yke/cmd"
 	"yunion.io/yke/pkg/hosts"
 	"yunion.io/yke/pkg/k8s"
@@ -24,10 +24,10 @@ import (
 	"yunion.io/yke/pkg/tunnel"
 	yketypes "yunion.io/yke/pkg/types"
 
-	"yunion.io/yunion-kube/pkg/clusterdriver/types"
-	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"
-	"yunion.io/yunion-kube/pkg/types/slice"
-	"yunion.io/yunion-kube/pkg/utils"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/types"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke/ykecerts"
+	"yunion.io/x/yunion-kube/pkg/types/slice"
+	"yunion.io/x/yunion-kube/pkg/utils"
 )
 
 const (

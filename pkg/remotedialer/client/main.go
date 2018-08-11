@@ -6,7 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"yunion.io/yunion-kube/pkg/remotedialer"
+	"yunion.io/x/yunion-kube/pkg/remotedialer"
 )
 
 var (

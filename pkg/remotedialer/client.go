@@ -8,7 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 )
 
 type ConnectAuthorizer func(proto, address string) bool

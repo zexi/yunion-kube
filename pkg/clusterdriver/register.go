@@ -1,8 +1,8 @@
 package clusterdriver
 
 import (
-	"yunion.io/yunion-kube/pkg/clusterdriver/types"
-	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/types"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
 )
 
 var Drivers map[string]types.Driver

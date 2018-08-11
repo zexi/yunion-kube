@@ -19,50 +19,50 @@
 			"checksumSHA1": "JDComCcjgkS9/bIox0NGLTC/jIo=",
 			"origin": "yunion.io/yke/vendor/github.com/coreos/etcd/client",
 			"path": "github.com/coreos/etcd/client",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "mKIXx1kDwmVmdIpZ3pJtRBuUKso=",
 			"origin": "yunion.io/yke/vendor/github.com/coreos/etcd/pkg/pathutil",
 			"path": "github.com/coreos/etcd/pkg/pathutil",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "z+C4BtPa8wbOUKW5dmHyhNnTulg=",
 			"origin": "yunion.io/yke/vendor/github.com/coreos/etcd/pkg/srv",
 			"path": "github.com/coreos/etcd/pkg/srv",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "fqju8lgR+3vLJLAEPxhV6P7JAHY=",
 			"origin": "yunion.io/yke/vendor/github.com/coreos/etcd/pkg/types",
 			"path": "github.com/coreos/etcd/pkg/types",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "SCXhykntdCkvDe22S/RNButQ0C0=",
 			"origin": "yunion.io/yke/vendor/github.com/coreos/etcd/version",
 			"path": "github.com/coreos/etcd/version",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "97BsbXOiZ8+Kr+LIuZkQFtSj7H4=",
 			"origin": "yunion.io/yke/vendor/github.com/coreos/go-semver/semver",
 			"path": "github.com/coreos/go-semver/semver",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "dthMvqSLmPflEvl3dFd48c78wZc=",
 			"origin": "yunion.io/yke/vendor/github.com/cosiner/socker",
 			"path": "github.com/cosiner/socker",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "Gj+xR1VgFKKmFXYOJMnAczC3Znk=",
@@ -209,10 +209,11 @@
 			"revisionTime": "2018-03-27T12:31:50Z"
 		},
 		{
-			"checksumSHA1": "VsE3zx2d8kpwj97TWhYddzAwBrY=",
+			"checksumSHA1": "HbOJxa+FsQ1TTsF+BkHAvzqqZv4=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/fatih/color",
 			"path": "github.com/fatih/color",
-			"revision": "507f6050b8568533fb3f5504de8e5205fa62a114",
-			"revisionTime": "2018-02-13T13:34:03Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "17vYJDDMJO63/G/tRFIUuSlMCbE=",
@@ -263,58 +264,67 @@
 			"revisionTime": "2017-03-30T07:10:51Z"
 		},
 		{
-			"checksumSHA1": "rJxTSIbLdyDbaaq4c2Kprb4RxZY=",
+			"checksumSHA1": "O5pe/CwVhxxb9dbFZqjZH/ptX+s=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/errors",
 			"path": "github.com/golang-plus/errors",
-			"revision": "ba223c001a0652d97128ab4f47efee9d7529560b",
-			"revisionTime": "2017-06-10T18:33:08Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
-			"checksumSHA1": "dkgwiEN72DVcZKrgJB3yaUIWCCA=",
+			"checksumSHA1": "nd0p8dmQMUEmGpLdVArjQKwrcS4=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid",
 			"path": "github.com/golang-plus/uuid",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "UCMWQKKpTvJ9bt8P2IS1CDAoKv4=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal",
 			"path": "github.com/golang-plus/uuid/internal",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "4bXRU+ZLWPBYnveO3eHgLhLg3uI=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal/dcesecurity",
 			"path": "github.com/golang-plus/uuid/internal/dcesecurity",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "VdwcIaUxQ7GL/Uo9tVwgStTfABA=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal/namebased",
 			"path": "github.com/golang-plus/uuid/internal/namebased",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "2tYnExBqbwbXAqsYRf7CCYc/T1o=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal/namebased/md5",
 			"path": "github.com/golang-plus/uuid/internal/namebased/md5",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "N4uXlGT6mXFRcdvzQXFs8PorXSA=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal/namebased/sha1",
 			"path": "github.com/golang-plus/uuid/internal/namebased/sha1",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "vzjthpoTvTEk0w9S3cNIlZL8Ue4=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal/random",
 			"path": "github.com/golang-plus/uuid/internal/random",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "P4xMbczqeobxI4SF4ghbnEX8CFg=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/golang-plus/uuid/internal/timebased",
 			"path": "github.com/golang-plus/uuid/internal/timebased",
-			"revision": "abc8f6f4d9f8ee48848030dba1eb233bc8b4c4fe",
-			"revisionTime": "2017-06-10T18:27:40Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "URsJa4y/sUUw/STmbeYx9EKqaYE=",
@@ -323,34 +333,34 @@
 			"revisionTime": "2014-09-23T20:47:00Z"
 		},
 		{
-			"checksumSHA1": "JZV+pLo8Z/kIYExrZr1Zu9KSKyU=",
+			"checksumSHA1": "uuLcVQXUw0CNt8Y5tsmzLWGlixI=",
 			"path": "github.com/golang/protobuf/proto",
-			"revision": "9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6",
-			"revisionTime": "2018-06-16T23:00:25Z"
+			"revision": "89a0c16f4dc2a70c0ed864d8ef64878f24fdaa51",
+			"revisionTime": "2018-08-04T22:03:15Z"
 		},
 		{
 			"checksumSHA1": "tkJPssYejSjuAwE2tdEnoEIj93Q=",
 			"path": "github.com/golang/protobuf/ptypes",
-			"revision": "9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6",
-			"revisionTime": "2018-06-16T23:00:25Z"
+			"revision": "89a0c16f4dc2a70c0ed864d8ef64878f24fdaa51",
+			"revisionTime": "2018-08-04T22:03:15Z"
 		},
 		{
 			"checksumSHA1": "G0aiY+KmzFsQLTNzRAGRhJNSj7A=",
 			"path": "github.com/golang/protobuf/ptypes/any",
-			"revision": "9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6",
-			"revisionTime": "2018-06-16T23:00:25Z"
+			"revision": "89a0c16f4dc2a70c0ed864d8ef64878f24fdaa51",
+			"revisionTime": "2018-08-04T22:03:15Z"
 		},
 		{
 			"checksumSHA1": "kjVDCbK5/WiHqP1g4GMUxm75jos=",
 			"path": "github.com/golang/protobuf/ptypes/duration",
-			"revision": "9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6",
-			"revisionTime": "2018-06-16T23:00:25Z"
+			"revision": "89a0c16f4dc2a70c0ed864d8ef64878f24fdaa51",
+			"revisionTime": "2018-08-04T22:03:15Z"
 		},
 		{
 			"checksumSHA1": "FdeygjOuyR2p5v9b0kNOtzfpjS4=",
 			"path": "github.com/golang/protobuf/ptypes/timestamp",
-			"revision": "9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6",
-			"revisionTime": "2018-06-16T23:00:25Z"
+			"revision": "89a0c16f4dc2a70c0ed864d8ef64878f24fdaa51",
+			"revisionTime": "2018-08-04T22:03:15Z"
 		},
 		{
 			"checksumSHA1": "fgPBEKvm7D7y4IMxGaxHsPmtYtU=",
@@ -410,8 +420,8 @@
 			"checksumSHA1": "EpvNqx0QWzG0qXqgOUjhPxYRUpA=",
 			"origin": "yunion.io/yke/vendor/github.com/kr/fs",
 			"path": "github.com/kr/fs",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "SEnjvwVyfuU2xBaOfXfwPD5MZqk=",
@@ -433,9 +443,10 @@
 		},
 		{
 			"checksumSHA1": "CxNwJP++vjUAyy3bbJnNss1Il9Q=",
+			"origin": "yunion.io/x/onecloud/vendor/github.com/moul/http2curl",
 			"path": "github.com/moul/http2curl",
-			"revision": "9ac6cf4d929b2fa8fd2d2e6dec5bb0feb4f4911d",
-			"revisionTime": "2017-09-19T18:10:01Z"
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
 			"checksumSHA1": "jo23svNy6WAVTRVx+j/dVAncN/I=",
@@ -474,8 +485,8 @@
 			"checksumSHA1": "bffH9450hX0Tfeur22ql1herOCo=",
 			"origin": "yunion.io/yke/vendor/github.com/pkg/sftp",
 			"path": "github.com/pkg/sftp",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "9ZSqjmvF/JE6Qj/5xOoCAmUgXz8=",
@@ -499,329 +510,43 @@
 			"checksumSHA1": "9/2qvuFPQxW7ZXzQSOYwqZb5cNg=",
 			"origin": "yunion.io/yke/vendor/github.com/urfave/cli",
 			"path": "github.com/urfave/cli",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
-		},
-		{
-			"checksumSHA1": "CVCsWjq5deP8n0isXM/nWa8iuQs=",
-			"path": "github.com/yunionio/jsonutils",
-			"revision": "1edf0ca607c9e49be4705bd3628b2165d7ffee3c",
-			"revisionTime": "2018-07-30T04:12:30Z"
-		},
-		{
-			"checksumSHA1": "NPJ+H/JCo1yONCih6hXwcmvMrdE=",
-			"path": "github.com/yunionio/log",
-			"revision": "d2fe137411c230927e28dd82b1a3bcb618dbb28d",
-			"revisionTime": "2018-07-24T17:47:05Z"
-		},
-		{
-			"checksumSHA1": "z/giIkzpg0xYD4156qQo9w3HbXI=",
-			"path": "github.com/yunionio/log/hooks",
-			"revision": "d2fe137411c230927e28dd82b1a3bcb618dbb28d",
-			"revisionTime": "2018-07-24T17:47:05Z"
-		},
-		{
-			"checksumSHA1": "fLQokv536KpgOeocYHwZVWqQwH4=",
-			"path": "github.com/yunionio/mcclient",
-			"revision": "093fc9413496da84f1bb920c3b1be360357e235b",
-			"revisionTime": "2018-07-30T10:29:05Z"
-		},
-		{
-			"checksumSHA1": "w7D9vxknCE6VQCaL+0g+Nr5wlbI=",
-			"path": "github.com/yunionio/mcclient/auth",
-			"revision": "093fc9413496da84f1bb920c3b1be360357e235b",
-			"revisionTime": "2018-07-30T10:29:05Z"
-		},
-		{
-			"checksumSHA1": "eKOuk6kl8WJGjY9In2wvr7UIjX0=",
-			"path": "github.com/yunionio/mcclient/modules",
-			"revision": "093fc9413496da84f1bb920c3b1be360357e235b",
-			"revisionTime": "2018-07-30T10:29:05Z"
-		},
-		{
-			"checksumSHA1": "lAaPBp+6onpdEjQiawbtPOARa0E=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudcommon",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "i6HD+6MGze1F4uGHnI2vH7+RPrw=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudcommon/db",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "SnsuOAep0tDTF+8XFYQQed0s2Tw=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudcommon/db/lockman",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "gAta2ln5C+kZpmogO+/ZP5LD0Mw=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudcommon/db/quotas",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "10gGhYHOAP576HCxm1pTwWiv1bw=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "t/3BwYmq4pcYXFP4QygdElMDG60=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudcommon/notifyclient",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "gxvJi2cWBGWc7rokhdTT610r0mA=",
-			"path": "github.com/yunionio/onecloud/pkg/cloudprovider",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "x1UPVT3X+8pm6JZnkotAso9WztM=",
-			"path": "github.com/yunionio/onecloud/pkg/compute/models",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "imTFx+jwBzhoBLZxfILRWgusxPQ=",
-			"path": "github.com/yunionio/onecloud/pkg/compute/options",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "AFbhiUiprVtXt1KKNoZsC6SbUOo=",
-			"path": "github.com/yunionio/pkg/appctx",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "Bw33t+HmNgr4hR432VypDYRG6wk=",
-			"path": "github.com/yunionio/pkg/appsrv",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "osPLav7XiaqI4DMuVHjSw/MtNMg=",
-			"path": "github.com/yunionio/pkg/appsrv/dispatcher",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "KvUO07cyTx4+NAWG1DyC1f9IIoc=",
-			"path": "github.com/yunionio/pkg/gotypes",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "E6sRV85MqFKJXLqYVsRgvo1uhs8=",
-			"path": "github.com/yunionio/pkg/httperrors",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "rT4pV1Zq2hJiakfhFMapvengZtM=",
-			"path": "github.com/yunionio/pkg/proxy",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "RutkKO2j1v5X7FPvSEfeZoWApyo=",
-			"path": "github.com/yunionio/pkg/trace",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "29u5+2ymG6ySihn0CdCO2vJ8OW8=",
-			"path": "github.com/yunionio/pkg/tristate",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "0BZgTQ4mLecvoUVr5YqQTJ5PaIc=",
-			"path": "github.com/yunionio/pkg/util/cache",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "BqmF3vGiVCw/NhCzbOFxhkGIiCo=",
-			"path": "github.com/yunionio/pkg/util/clock",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "cYO3fVwE5QSdhR51gTbnSH7yiOU=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/compare",
-			"path": "github.com/yunionio/pkg/util/compare",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "Ua+kY3gmw7LklhU4sBKoZxcBwSg=",
-			"path": "github.com/yunionio/pkg/util/errors",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "X/7lWV8Vcsa8amPIsAz81osGIjQ=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/fifoutils",
-			"path": "github.com/yunionio/pkg/util/fifoutils",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "zA8+4SQrFqZ3DMX3MFlOfkmUEjE=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/fileutils",
-			"path": "github.com/yunionio/pkg/util/fileutils",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "Lct6dciW93yh5yj1HRQ4irzKGn0=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/filterclause",
-			"path": "github.com/yunionio/pkg/util/filterclause",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "QX4Y1QsxJH3FVMydTvYvSFExmKM=",
-			"path": "github.com/yunionio/pkg/util/httputils",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "5QrggPtCEkcBzy0YT6KStRD6aj8=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/netutils",
-			"path": "github.com/yunionio/pkg/util/netutils",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "4ULuaXjux/u/8+5jJXM9JPe/vzM=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/osprofile",
-			"path": "github.com/yunionio/pkg/util/osprofile",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "y9KnFMvflVfMFjRRcVx2Lwa6YVc=",
-			"path": "github.com/yunionio/pkg/util/reflectutils",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "NbOBeixemrr1ntL6NI1vYVGA0G4=",
-			"path": "github.com/yunionio/pkg/util/regutils",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "GFbPDSI+71Y0iIoFxXfSn3FFhhM=",
-			"path": "github.com/yunionio/pkg/util/runtime",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "7rXxI95FBGlTn7SXxkRC+B0f4mk=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/secrules",
-			"path": "github.com/yunionio/pkg/util/secrules",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "sXKsV2wG9AFaaPc2MxqbVKT6CoE=",
-			"path": "github.com/yunionio/pkg/util/sets",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "BvBsgXApJEk/OLOEyYuOl/Sn11Q=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/stringutils",
-			"path": "github.com/yunionio/pkg/util/stringutils",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "pBgFl1BjqF2zhQB5eHU/zz+xGdU=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/pkg/util/sysutils",
-			"path": "github.com/yunionio/pkg/util/sysutils",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
-		},
-		{
-			"checksumSHA1": "WHQ77ylNWtEEWCVmhRe7UI8jy/A=",
-			"path": "github.com/yunionio/pkg/util/timeutils",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "ZI1LqF7g7eehIW5dDrdyIjnyEMc=",
-			"path": "github.com/yunionio/pkg/util/version",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "1Wm/NNAV6RfOV5GB5XqBZgKU76g=",
-			"path": "github.com/yunionio/pkg/util/wait",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "hT+/EgNeAgBxKdTtK0Hn4agKAPA=",
-			"path": "github.com/yunionio/pkg/utils",
-			"revision": "d2087867801dbe02dfe6dc6494d65a6696e3f17d",
-			"revisionTime": "2018-07-30T07:20:03Z"
-		},
-		{
-			"checksumSHA1": "x/TZ4gZ/mQ9jofRdKJzQho4ih58=",
-			"path": "github.com/yunionio/sqlchemy",
-			"revision": "a14641a90b9e5c72868b7a8358d62ea1d83eab53",
-			"revisionTime": "2018-07-30T12:39:27Z"
-		},
-		{
-			"checksumSHA1": "RL92dLyUwffi9+r0sElFRZR5SUQ=",
-			"origin": "github.com/yunionio/onecloud/vendor/github.com/yunionio/structarg",
-			"path": "github.com/yunionio/structarg",
-			"revision": "264440f2fc4e4c6657fe84f13178c3d63530a774",
-			"revisionTime": "2018-07-30T04:34:41Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "MlEHIE/60sB86Lmf0MPTIXHzKzE=",
 			"origin": "yunion.io/yke/vendor/golang.org/x/crypto/curve25519",
 			"path": "golang.org/x/crypto/curve25519",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "X6Q8nYb+KXh+64AKHwWOOcyijHQ=",
 			"origin": "yunion.io/yke/vendor/golang.org/x/crypto/ed25519",
 			"path": "golang.org/x/crypto/ed25519",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "LXFcVx8I587SnWmKycSDEq9yvK8=",
 			"origin": "yunion.io/yke/vendor/golang.org/x/crypto/ed25519/internal/edwards25519",
 			"path": "golang.org/x/crypto/ed25519/internal/edwards25519",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "nnD48uEKLyuT9T+DZHrSbMkMRCE=",
 			"origin": "yunion.io/yke/vendor/golang.org/x/crypto/ssh",
 			"path": "golang.org/x/crypto/ssh",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "ujKeyWHFOYmXm5IgAxfyFCGefsY=",
 			"origin": "yunion.io/yke/vendor/golang.org/x/crypto/ssh/agent",
 			"path": "golang.org/x/crypto/ssh/agent",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "nqWNlnMmVpt628zzvyo6Yv2CX5Q=",
@@ -889,8 +614,8 @@
 			"checksumSHA1": "S0DP7Pn7sZUmXc55IzZnNvERu6s=",
 			"origin": "yunion.io/yke/vendor/golang.org/x/sync/errgroup",
 			"path": "golang.org/x/sync/errgroup",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "6ws9uckd33muPlD8IRR8IsNGfA0=",
@@ -1367,6 +1092,18 @@
 			"revisionTime": "2018-02-27T18:50:38Z"
 		},
 		{
+			"checksumSHA1": "Ju4fP8OJ8cxy0PIPTIuWevwA/0g=",
+			"path": "k8s.io/apiserver/pkg/authentication/authenticator",
+			"revision": "0841753fc26e934b715ca7a83dced5bcb721245a",
+			"revisionTime": "2018-04-26T12:17:57Z"
+		},
+		{
+			"checksumSHA1": "YhVB6D6HRl3PVBkHItb917vwx7U=",
+			"path": "k8s.io/apiserver/pkg/authentication/user",
+			"revision": "0841753fc26e934b715ca7a83dced5bcb721245a",
+			"revisionTime": "2018-04-26T12:17:57Z"
+		},
+		{
 			"checksumSHA1": "LwKGyRY/xkKQ+eXyz0LNl5vUQxU=",
 			"path": "k8s.io/client-go/discovery",
 			"revision": "0be17c78bfcc74e0b455bf0fa1ec14e207f0fa64",
@@ -1661,98 +1398,392 @@
 			"revisionTime": "2018-05-15T14:46:02Z"
 		},
 		{
+			"checksumSHA1": "5H6PL30Hb69EhIqvq5ctrt0s/x4=",
+			"path": "yunion.io/x/jsonutils",
+			"revision": "a86e16793be4a6f4c5ea9203e40c2a0a9361efb8",
+			"revisionTime": "2018-08-11T04:38:36Z"
+		},
+		{
+			"checksumSHA1": "v7m02dYrhPc1Fz1T9CXPssEUFfM=",
+			"path": "yunion.io/x/log",
+			"revision": "a10b94c5038480920262e0f344656328434955a2",
+			"revisionTime": "2018-08-11T04:39:02Z"
+		},
+		{
+			"checksumSHA1": "2fkewLhOghFmtNQ7pHtQdtXCJgk=",
+			"path": "yunion.io/x/log/hooks",
+			"revision": "a10b94c5038480920262e0f344656328434955a2",
+			"revisionTime": "2018-08-11T04:39:02Z"
+		},
+		{
+			"checksumSHA1": "3/UfHQXEfUnCAMnRDM4BJGBNHlc=",
+			"path": "yunion.io/x/onecloud/pkg/appctx",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "syUaCuuyoT00xyXFjmk5Cu9gIis=",
+			"path": "yunion.io/x/onecloud/pkg/appsrv",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "9vwGSPHoMWgSrqX1ZgicIL6I8Jg=",
+			"path": "yunion.io/x/onecloud/pkg/appsrv/dispatcher",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "JiholsK+vO9BxEChCrbgyfYQVwA=",
+			"path": "yunion.io/x/onecloud/pkg/cloudcommon",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "CGQyYSSTfVrjOt8VvfNtag14BxA=",
+			"path": "yunion.io/x/onecloud/pkg/cloudcommon/db",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "lwvYWhdkBVEl+jxZKqOJCQjzxy0=",
+			"path": "yunion.io/x/onecloud/pkg/cloudcommon/db/lockman",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "9PIYKx5m93JfdGXvHjc88kc72BQ=",
+			"path": "yunion.io/x/onecloud/pkg/cloudcommon/db/quotas",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "/WOZ9NMGRKFoET9iHtIAGLEgzKc=",
+			"path": "yunion.io/x/onecloud/pkg/cloudcommon/db/taskman",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "G5Mf0lIyBJdBiSGPYGZC1a7DBEU=",
+			"path": "yunion.io/x/onecloud/pkg/cloudcommon/notifyclient",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "Fnh3Lyr7sySbrzNPd1V/yUPD4x0=",
+			"path": "yunion.io/x/onecloud/pkg/cloudprovider",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "ON21BUI278uN6jkV1DO+kzX86aU=",
+			"path": "yunion.io/x/onecloud/pkg/compute/models",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "Q5xUPNZudQLq4ysDMa/K3y84VRM=",
+			"path": "yunion.io/x/onecloud/pkg/compute/options",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "PcIXbMbREFGdT0EbLcsnrw6KkME=",
+			"path": "yunion.io/x/onecloud/pkg/httperrors",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "ia+4ceE+6h+y2ZDEEjL6cJ/6ahE=",
+			"path": "yunion.io/x/onecloud/pkg/mcclient",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "HTn5VLTGMJIqtmnXwtRIeSDZ8ag=",
+			"path": "yunion.io/x/onecloud/pkg/mcclient/auth",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "mgU1lLQSAHMvTUk7O0XzJ3SInrE=",
+			"path": "yunion.io/x/onecloud/pkg/mcclient/modules",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "ejOGNyzTlpypBzsB0euD004WLII=",
+			"path": "yunion.io/x/onecloud/pkg/proxy",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "U0gmd5+wTUZaW9hMH74W2F9yiHA=",
+			"path": "yunion.io/x/onecloud/pkg/util/httputils",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "8cewaMC0TeJosGkkgZVuv6DG4gg=",
+			"path": "yunion.io/x/pkg/gotypes",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "rxSLKY8jUm1HBZ9DzRPyE3HBBmE=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/trace",
+			"path": "yunion.io/x/pkg/trace",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "1VWOGIqjkUvk1eb/WLTwhN2lAIs=",
+			"path": "yunion.io/x/pkg/tristate",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "gX8Wulx2MqqzCm2iRCZgSAPMrmw=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/cache",
+			"path": "yunion.io/x/pkg/util/cache",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "IQpP4ZUpV2X+MTBPfN+GBWbyWvM=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/clock",
+			"path": "yunion.io/x/pkg/util/clock",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "1cx9HCXEBbZqa75Ik3Ds76soums=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/compare",
+			"path": "yunion.io/x/pkg/util/compare",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "zGxSSklNZwB6uRquSFqtsSVQQ6Q=",
+			"path": "yunion.io/x/pkg/util/errors",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "bOeikkAIs/LQ3uKo+9wtEqp+sNQ=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/fifoutils",
+			"path": "yunion.io/x/pkg/util/fifoutils",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "SZ6fmbiurTBjYWbIJztvj89J9QY=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/fileutils",
+			"path": "yunion.io/x/pkg/util/fileutils",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "OANGtmrX7q/40sTIy2ctrcFTpgY=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/filterclause",
+			"path": "yunion.io/x/pkg/util/filterclause",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "PDvuBcKMTzHzGU71wNl0ygW/Jw0=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/netutils",
+			"path": "yunion.io/x/pkg/util/netutils",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "VV8JpwkuLpR3g4qKSgXjhsnG+fU=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/osprofile",
+			"path": "yunion.io/x/pkg/util/osprofile",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "UCRhh9pkaVUmCNcx4XdxDwnV/iA=",
+			"path": "yunion.io/x/pkg/util/reflectutils",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "TZALyrgC8AP5SkD6ixFfdmaB/g0=",
+			"path": "yunion.io/x/pkg/util/regutils",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "BDCnHps1Cbhus00t/dXf7wDfza8=",
+			"path": "yunion.io/x/pkg/util/runtime",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "m4ibiELP3UIG3xyWrMI0D0AB1TM=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/secrules",
+			"path": "yunion.io/x/pkg/util/secrules",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "YcHWfTBjKpOh80cAD7620p/uqbs=",
+			"path": "yunion.io/x/pkg/util/sets",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "KRrhWublhxWQncpbBw52L7eQ3X4=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/stringutils",
+			"path": "yunion.io/x/pkg/util/stringutils",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "vQFGKJtFyk7D6sXVK2+2ipaZj04=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/pkg/util/sysutils",
+			"path": "yunion.io/x/pkg/util/sysutils",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
+			"checksumSHA1": "Ls/lKT87qr8NmeIQLnTjJh+7V/I=",
+			"path": "yunion.io/x/pkg/util/timeutils",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "lzRP7Q11rspUVDxbi0zl7EcVgfk=",
+			"path": "yunion.io/x/pkg/util/version",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "jajh4QSiEuowA16H9rmD1NGT0QQ=",
+			"path": "yunion.io/x/pkg/util/wait",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "q6tHgEx5E2HrRDnP8NZ/95lce+A=",
+			"path": "yunion.io/x/pkg/util/workqueue",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "LLbo7vo/VBtxXPDM4rEQ6CJhIWo=",
+			"path": "yunion.io/x/pkg/utils",
+			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
+			"revisionTime": "2018-08-11T06:24:16Z"
+		},
+		{
+			"checksumSHA1": "0NV9o0R2Y+1HYBlz/nybeGGiUjM=",
+			"path": "yunion.io/x/sqlchemy",
+			"revision": "7d5dbc5102de0f1ef57d357686dd7904cbb09b99",
+			"revisionTime": "2018-08-11T04:32:32Z"
+		},
+		{
+			"checksumSHA1": "GW4wFJe+fGgSCJXMFkIu1Qo9JHc=",
+			"origin": "yunion.io/x/onecloud/vendor/yunion.io/x/structarg",
+			"path": "yunion.io/x/structarg",
+			"revision": "68d4b2caeffcd23f7aacd51a3b179145fb2bb643",
+			"revisionTime": "2018-08-11T06:43:54Z"
+		},
+		{
 			"checksumSHA1": "EYgeFHw41r/4JPTjfj+XVFCtzOo=",
 			"path": "yunion.io/yke/cmd",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "PXwm8bRlahQB7cKL4hIZCyalzSQ=",
 			"path": "yunion.io/yke/pkg/addons",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "cNrfCQJloNNXYtjwnZi5wowlf3Q=",
 			"path": "yunion.io/yke/pkg/authz",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "0GiiZvHFgrM5KTNniEeiBswJbvY=",
 			"path": "yunion.io/yke/pkg/cluster",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "ojsGKAoB3GJZmrbJKvzM60PoZzQ=",
 			"path": "yunion.io/yke/pkg/docker",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "QGSOuKlIMXMyOK36OWTDpViE+nI=",
 			"path": "yunion.io/yke/pkg/hosts",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "h9jucGqvGCHwQq9o5VKWeCuovmM=",
 			"path": "yunion.io/yke/pkg/k8s",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "tCs73w7XXZG7fjlnRcQE6hB54Pk=",
 			"path": "yunion.io/yke/pkg/pki",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "aKFxIGxytWK7XkWaNukXr2Dihv8=",
 			"path": "yunion.io/yke/pkg/services",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "86hNNA3lCGyWks9okVw8LGz7p78=",
 			"path": "yunion.io/yke/pkg/templates",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "Hb37/Upay+bjHopqCwaIkY4U4LM=",
 			"path": "yunion.io/yke/pkg/tunnel",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "XyhuwjG9MXjPVxfnsVK9Y9TICFk=",
 			"path": "yunion.io/yke/pkg/types",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "dtraVRb0hCHXA6qzx8KGSKSipDc=",
 			"origin": "yunion.io/yke/vendor/yunion.io/yunioncloud/pkg/log",
 			"path": "yunion.io/yunioncloud/pkg/log",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
 			"checksumSHA1": "xZFUs97qnXtHHXn32CCsSVabGBE=",
 			"origin": "yunion.io/yke/vendor/yunion.io/yunioncloud/pkg/log/hooks",
 			"path": "yunion.io/yunioncloud/pkg/log/hooks",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "1942acd1ed7911c83b17f1405ad7b82983db9313",
+			"revisionTime": "2018-07-27T06:21:55Z"
 		},
 		{
-			"checksumSHA1": "4SBLZcM213sxM7c/Bwg1yUWojeQ=",
-			"origin": "yunion.io/yke/vendor/yunion.io/yunioncloud/pkg/util/sets",
+			"checksumSHA1": "rNPgRccdJIbr1f5uKDdDo/kLkc8=",
 			"path": "yunion.io/yunioncloud/pkg/util/sets",
-			"revision": "8657cfc1bda1fd8e405b235755076f09c948c348",
-			"revisionTime": "2018-07-27T03:25:33Z"
+			"revision": "9462e2cabbbbc48bb5fdaa30f1fd857dc892ea66",
+			"revisionTime": "2018-08-07T04:11:32Z"
 		}
 	],
-	"rootPath": "yunion.io/yunion-kube"
+	"rootPath": "yunion.io/x/yunion-kube"
 }

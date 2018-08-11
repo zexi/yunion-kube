@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/log"
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/request"
-	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/request"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type NodeStartAgentTask struct {

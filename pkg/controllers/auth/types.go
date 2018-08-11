@@ -3,8 +3,8 @@ package auth
 import (
 	"encoding/json"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/pkg/util/sets"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/util/sets"
 )
 
 const (

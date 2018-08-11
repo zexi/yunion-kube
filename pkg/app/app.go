@@ -8,22 +8,22 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/yunionio/log"
-	"github.com/yunionio/onecloud/pkg/cloudcommon"
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
-	"github.com/yunionio/pkg/appsrv"
-	"github.com/yunionio/pkg/util/runtime"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/cloudcommon"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/pkg/util/runtime"
 
-	"yunion.io/yunion-kube/pkg/clusterdriver"
-	"yunion.io/yunion-kube/pkg/clusterdriver/yke"
-	"yunion.io/yunion-kube/pkg/controllers"
-	"yunion.io/yunion-kube/pkg/dialer"
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/options"
-	"yunion.io/yunion-kube/pkg/server"
-	_ "yunion.io/yunion-kube/pkg/tasks"
-	"yunion.io/yunion-kube/pkg/types/config"
-	"yunion.io/yunion-kube/pkg/ykedialerfactory"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
+	"yunion.io/x/yunion-kube/pkg/controllers"
+	"yunion.io/x/yunion-kube/pkg/dialer"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/server"
+	_ "yunion.io/x/yunion-kube/pkg/tasks"
+	"yunion.io/x/yunion-kube/pkg/types/config"
+	"yunion.io/x/yunion-kube/pkg/ykedialerfactory"
 )
 
 func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
