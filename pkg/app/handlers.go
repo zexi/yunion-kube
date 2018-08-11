@@ -6,7 +6,9 @@ import (
 	"github.com/yunionio/pkg/appsrv"
 	"github.com/yunionio/pkg/appsrv/dispatcher"
 
+	"yunion.io/yunion-kube/pkg/k8s"
 	"yunion.io/yunion-kube/pkg/models"
+	"yunion.io/yunion-kube/pkg/resources/pod"
 )
 
 func InitHandlers(app *appsrv.Application) {
@@ -33,5 +35,12 @@ func InitHandlers(app *appsrv.Application) {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
 		dispatcher.AddModelDispatcher(apiPrefix, app, handler)
+	}
+
+	for _, man := range []k8s.IK8sResourceManager{
+		pod.PodManager,
+	} {
+		handler := k8s.NewK8sResourceHandler(man)
+		k8s.AddK8sResourceDispatcher(apiPrefix, app, handler)
 	}
 }
