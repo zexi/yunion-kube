@@ -3,8 +3,8 @@ package clusterrouter
 import (
 	"net/http"
 
-	"github.com/yunionio/log"
-	"github.com/yunionio/pkg/httperrors"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/httperrors"
 )
 
 type Router struct {

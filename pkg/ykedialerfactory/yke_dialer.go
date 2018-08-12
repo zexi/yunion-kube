@@ -9,8 +9,8 @@ import (
 	"yunion.io/yke/pkg/tunnel"
 	"yunion.io/yke/pkg/types"
 
-	"yunion.io/yunion-kube/pkg/types/config/dialer"
-	"yunion.io/yunion-kube/pkg/types/slice"
+	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
+	"yunion.io/x/yunion-kube/pkg/types/slice"
 )
 
 type YKEDialerFactory struct {

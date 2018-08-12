@@ -9,7 +9,7 @@ import (
 
 	"github.com/docker/docker/client"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 )
 
 var (

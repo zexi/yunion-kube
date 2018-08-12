@@ -12,8 +12,8 @@ import (
 	"yunion.io/yke/pkg/tunnel"
 	"yunion.io/yke/pkg/types"
 
-	"yunion.io/yunion-kube/pkg/types/apis"
-	"yunion.io/yunion-kube/pkg/utils/convert"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/utils/convert"
 )
 
 type yke struct{}

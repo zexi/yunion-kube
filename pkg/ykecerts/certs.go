@@ -11,12 +11,12 @@ import (
 
 	"k8s.io/client-go/util/cert"
 
-	"github.com/yunionio/pkg/util/errors"
+	"yunion.io/x/pkg/util/errors"
 	"yunion.io/yke/pkg/pki"
 	"yunion.io/yke/pkg/types"
 
-	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"
-	"yunion.io/yunion-kube/pkg/libyke"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke/ykecerts"
+	"yunion.io/x/yunion-kube/pkg/libyke"
 )
 
 const (

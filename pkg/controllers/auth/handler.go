@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 )
 

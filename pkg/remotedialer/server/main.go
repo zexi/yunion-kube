@@ -12,9 +12,9 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 
-	"yunion.io/yunion-kube/pkg/remotedialer"
+	"yunion.io/x/yunion-kube/pkg/remotedialer"
 )
 
 var (

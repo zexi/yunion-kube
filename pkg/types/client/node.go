@@ -1,7 +1,7 @@
 package client
 
 import (
-	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type Node struct {

@@ -3,9 +3,9 @@ package ykecerts
 import (
 	"yunion.io/yke/pkg/pki"
 
-	"yunion.io/yunion-kube/pkg/clusterdriver/yke/ykecerts"
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke/ykecerts"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type BundleLookup struct {

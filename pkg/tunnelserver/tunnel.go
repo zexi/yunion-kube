@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/remotedialer"
-	"yunion.io/yunion-kube/pkg/types/apis"
-	"yunion.io/yunion-kube/pkg/types/client"
-	"yunion.io/yunion-kube/pkg/types/config"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/remotedialer"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/types/client"
+	"yunion.io/x/yunion-kube/pkg/types/config"
 )
 
 const (
