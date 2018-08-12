@@ -10,11 +10,11 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 	"yunion.io/yke/pkg/services"
 	yketypes "yunion.io/yke/pkg/types"
-	ytypes "yunion.io/yunion-kube/pkg/types"
-	"yunion.io/yunion-kube/pkg/types/slice"
+	ytypes "yunion.io/x/yunion-kube/pkg/types"
+	"yunion.io/x/yunion-kube/pkg/types/slice"
 )
 
 type NodeConfig struct {

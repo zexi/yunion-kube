@@ -3,10 +3,10 @@ package models
 import (
 	"fmt"
 
-	"github.com/yunionio/mcclient"
-	"github.com/yunionio/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
 
-	"yunion.io/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/options"
 )
 
 const (

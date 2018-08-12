@@ -11,10 +11,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/log"
-	yerrors "github.com/yunionio/pkg/util/errors"
-	"github.com/yunionio/pkg/util/workqueue"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	yerrors "yunion.io/x/pkg/util/errors"
+	"yunion.io/x/pkg/util/workqueue"
 )
 
 var (

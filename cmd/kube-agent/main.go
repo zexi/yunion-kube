@@ -17,13 +17,13 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"gopkg.in/urfave/cli.v1/altsrc"
 
-	"github.com/yunionio/log"
-	"github.com/yunionio/pkg/util/version"
+	"yunion.io/x/log"
+	"yunion.io/x/pkg/util/version"
 
-	"yunion.io/yunion-kube/pkg/agent/node"
-	"yunion.io/yunion-kube/pkg/remotedialer"
-	"yunion.io/yunion-kube/pkg/tunnelserver"
-	ytypes "yunion.io/yunion-kube/pkg/types"
+	"yunion.io/x/yunion-kube/pkg/agent/node"
+	"yunion.io/x/yunion-kube/pkg/remotedialer"
+	"yunion.io/x/yunion-kube/pkg/tunnelserver"
+	ytypes "yunion.io/x/yunion-kube/pkg/types"
 )
 
 const (

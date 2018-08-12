@@ -4,7 +4,7 @@ import (
 	"net"
 	"time"
 
-	"yunion.io/yunion-kube/pkg/types/config/dialer"
+	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
 )
 
 func (s *Server) HasSession(clientKey string) bool {

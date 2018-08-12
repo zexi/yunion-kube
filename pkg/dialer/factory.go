@@ -7,11 +7,11 @@ import (
 
 	"yunion.io/yke/pkg/tunnel"
 
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/remotedialer"
-	"yunion.io/yunion-kube/pkg/tunnelserver"
-	"yunion.io/yunion-kube/pkg/types/config"
-	"yunion.io/yunion-kube/pkg/types/config/dialer"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/remotedialer"
+	"yunion.io/x/yunion-kube/pkg/tunnelserver"
+	"yunion.io/x/yunion-kube/pkg/types/config"
+	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
 )
 
 type Factory struct {

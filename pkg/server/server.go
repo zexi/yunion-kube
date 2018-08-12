@@ -6,16 +6,16 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/yunionio/log"
-	"github.com/yunionio/pkg/appsrv"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/appsrv"
 
-	"yunion.io/yunion-kube/pkg/clusterrouter"
-	"yunion.io/yunion-kube/pkg/controllers"
-	"yunion.io/yunion-kube/pkg/dialer"
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/options"
-	"yunion.io/yunion-kube/pkg/types/config"
-	"yunion.io/yunion-kube/pkg/ykenodeconfigserver"
+	"yunion.io/x/yunion-kube/pkg/clusterrouter"
+	"yunion.io/x/yunion-kube/pkg/controllers"
+	"yunion.io/x/yunion-kube/pkg/dialer"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/types/config"
+	"yunion.io/x/yunion-kube/pkg/ykenodeconfigserver"
 )
 
 func Start(httpsAddr string, scaledCtx *config.ScaledContext, app *appsrv.Application) error {
