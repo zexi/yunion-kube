@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/log"
-	"github.com/yunionio/pkg/appctx"
-	"github.com/yunionio/pkg/appsrv"
-	"github.com/yunionio/pkg/httperrors"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/appctx"
+	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"github.com/yunionio/mcclient/modules"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
 
 func AddK8sResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sResourceHandler) {

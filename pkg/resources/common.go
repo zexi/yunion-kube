@@ -3,8 +3,8 @@ package resources
 import (
 	"context"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/mcclient"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type Request struct {

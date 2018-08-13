@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/yunionio/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
 
-	"yunion.io/yunion-kube/pkg/clusterrouter/proxy"
-	"yunion.io/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/clusterrouter/proxy"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type factory struct {

@@ -201,3 +201,28 @@ func (s String) Len() int {
 func lessString(lhs, rhs string) bool {
 	return lhs < rhs
 }
+
+// borrowed from https://codereview.stackexchange.com/questions/60074/in-array-in-go
+// usage:
+// names := []string{"Mary", "Anna", "Beth", "Johnny", "Beth"}
+// fmt.Println(in_array("Anna", names))
+// fmt.Println(in_array("Jon", names))
+// ints := []int{1, 4, 3, 2, 6}
+// fmt.Println(in_array(3, ints))
+// fmt.Println(in_array(95, ints))
+func InArray(val interface{}, array interface{}) (exists bool, index int) {
+	exists = false
+	index = -1
+	switch reflect.TypeOf(array).Kind() {
+	case reflect.Slice:
+		s := reflect.ValueOf(array)
+		for i := 0; i < s.Len(); i++ {
+			if reflect.DeepEqual(val, s.Index(i).Interface()) == true {
+				index = i
+				exists = true
+				return
+			}
+		}
+	}
+	return
+}

@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 
-	"yunion.io/yunion-kube/pkg/app"
+	"yunion.io/x/yunion-kube/pkg/app"
 )
 
 func main() {

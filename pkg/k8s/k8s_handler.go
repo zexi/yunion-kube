@@ -3,19 +3,19 @@ package k8s
 import (
 	"context"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/log"
-	"github.com/yunionio/mcclient"
-	"github.com/yunionio/mcclient/auth"
-	"github.com/yunionio/mcclient/modules"
-	"github.com/yunionio/pkg/appctx"
-	"github.com/yunionio/pkg/appsrv"
-	"github.com/yunionio/pkg/appsrv/dispatcher"
-	"github.com/yunionio/pkg/httperrors"
 	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/appctx"
+	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/resources"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/resources"
 )
 
 type IK8sResourceHandler interface {

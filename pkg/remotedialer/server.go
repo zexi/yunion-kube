@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 )
 
 var (

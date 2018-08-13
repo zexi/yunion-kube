@@ -1,6 +1,6 @@
-REPO_PREFIX := yunion.io/yunion-kube
+REPO_PREFIX := yunion.io/x/yunion-kube
 VENDOR_PATH := $(REPO_PREFIX)/vendor
-VERSION_PKG_PREFIX := $(VENDOR_PATH)/github.com/yunionio/pkg/util/version
+VERSION_PKG_PREFIX := $(VENDOR_PATH)/yunion.io/x/pkg/util/version
 ROOT_DIR := $(shell pwd)
 BUILD_DIR := $(ROOT_DIR)/_output
 BIN_DIR := $(BUILD_DIR)/bin

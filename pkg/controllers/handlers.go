@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yunionio/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/yunion-kube/pkg/controllers/auth"
-	"yunion.io/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/controllers/auth"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type authFactory struct{}

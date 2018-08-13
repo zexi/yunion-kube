@@ -6,13 +6,13 @@ import (
 
 	"k8s.io/client-go/util/flowcontrol"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 
-	"yunion.io/yunion-kube/pkg/clusterdriver"
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/types/apis"
-	"yunion.io/yunion-kube/pkg/types/config"
-	"yunion.io/yunion-kube/pkg/ykedialerfactory"
+	"yunion.io/x/yunion-kube/pkg/clusterdriver"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/types/config"
+	"yunion.io/x/yunion-kube/pkg/ykedialerfactory"
 )
 
 type Provisioner struct {

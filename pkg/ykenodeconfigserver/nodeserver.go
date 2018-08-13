@@ -6,19 +6,19 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/yunionio/log"
-	"github.com/yunionio/pkg/httperrors"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/httperrors"
 
 	"yunion.io/yke/pkg/services"
 	"yunion.io/yke/pkg/types"
 
-	"yunion.io/yunion-kube/pkg/libyke"
-	"yunion.io/yunion-kube/pkg/tunnelserver"
-	"yunion.io/yunion-kube/pkg/types/apis"
-	"yunion.io/yunion-kube/pkg/types/config"
-	"yunion.io/yunion-kube/pkg/types/slice"
-	"yunion.io/yunion-kube/pkg/ykecerts"
-	"yunion.io/yunion-kube/pkg/ykeworker"
+	"yunion.io/x/yunion-kube/pkg/libyke"
+	"yunion.io/x/yunion-kube/pkg/tunnelserver"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/types/config"
+	"yunion.io/x/yunion-kube/pkg/types/slice"
+	"yunion.io/x/yunion-kube/pkg/ykecerts"
+	"yunion.io/x/yunion-kube/pkg/ykeworker"
 )
 
 type YKENodeConfigServer struct {

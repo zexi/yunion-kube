@@ -11,10 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/proxy"
 	"k8s.io/client-go/rest"
 
-	"github.com/yunionio/log"
-	"github.com/yunionio/pkg/httperrors"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type sErrorResponder struct{}

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 	"k8s.io/client-go/kubernetes"
 
-	"yunion.io/yunion-kube/pkg/controllers/auth"
-	"yunion.io/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/controllers/auth"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 var Manager *SControllerManager

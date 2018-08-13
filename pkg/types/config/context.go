@@ -1,8 +1,8 @@
 package config
 
 import (
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/types/config/dialer"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
 )
 
 type ScaledContext struct {

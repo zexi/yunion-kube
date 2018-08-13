@@ -1,14 +1,14 @@
 package app
 
 import (
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db"
-	"github.com/yunionio/onecloud/pkg/cloudcommon/db/taskman"
-	"github.com/yunionio/pkg/appsrv"
-	"github.com/yunionio/pkg/appsrv/dispatcher"
+	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/yunion-kube/pkg/k8s"
-	"yunion.io/yunion-kube/pkg/models"
-	"yunion.io/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/k8s"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/resources/pod"
 )
 
 func InitHandlers(app *appsrv.Application) {

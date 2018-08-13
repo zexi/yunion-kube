@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/yunionio/pkg/util/errors"
+	"yunion.io/x/pkg/util/errors"
 
-	"yunion.io/yunion-kube/pkg/ykecerts"
+	"yunion.io/x/yunion-kube/pkg/ykecerts"
 )
 
 func ExecutePlan(ctx context.Context, nodeConfig *NodeConfig) error {

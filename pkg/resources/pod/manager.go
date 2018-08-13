@@ -1,7 +1,7 @@
 package pod
 
 import (
-	"yunion.io/yunion-kube/pkg/resources"
+	"yunion.io/x/yunion-kube/pkg/resources"
 )
 
 var PodManager *SPodManager

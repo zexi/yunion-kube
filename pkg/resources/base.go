@@ -1,7 +1,7 @@
 package resources
 
 import (
-	"github.com/yunionio/log"
+	"yunion.io/x/log"
 	"k8s.io/client-go/kubernetes"
 )
 

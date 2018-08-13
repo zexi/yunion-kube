@@ -5,15 +5,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yunionio/jsonutils"
-	"github.com/yunionio/log"
-	"github.com/yunionio/mcclient/auth"
-	"github.com/yunionio/mcclient/modules"
-	"github.com/yunionio/pkg/util/wait"
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
+	"yunion.io/x/pkg/util/wait"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/client-go/kubernetes"
 
-	o "yunion.io/yunion-kube/pkg/options"
+	o "yunion.io/x/yunion-kube/pkg/options"
 )
 
 const (
