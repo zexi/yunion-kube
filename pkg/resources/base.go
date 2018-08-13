@@ -1,8 +1,10 @@
 package resources
 
 import (
-	"yunion.io/x/log"
 	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/log"
+
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 type SResourceBaseManager struct {
@@ -25,11 +27,11 @@ func (m *SResourceBaseManager) KeywordPlural() string {
 	return m.keywordPlural
 }
 
-func (m *SResourceBaseManager) AllowListItems(req *Request) bool {
+func (m *SResourceBaseManager) AllowListItems(req *common.Request) bool {
 	log.Fatalf("AllowListItems not implemented")
 	return false
 }
 
-func (m *SResourceBaseManager) List(k8sCli kubernetes.Interface, req *Request) {
+func (m *SResourceBaseManager) List(k8sCli kubernetes.Interface, req *common.Request) {
 	log.Fatalf("List not implemented")
 }

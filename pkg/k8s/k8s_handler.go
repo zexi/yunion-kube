@@ -15,7 +15,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/resources"
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 type IK8sResourceHandler interface {
@@ -32,8 +32,8 @@ type IK8sResourceManager interface {
 	KeywordPlural() string
 
 	// list hooks
-	AllowListItems(req *resources.Request) bool
-	List(k8sCli kubernetes.Interface, req *resources.Request) (resources.ListResource, error)
+	AllowListItems(req *common.Request) bool
+	List(k8sCli kubernetes.Interface, req *common.Request) (common.ListResource, error)
 }
 
 type K8sResourceHandler struct {
@@ -64,18 +64,18 @@ func getUserCredential(ctx context.Context) mcclient.TokenCredential {
 	return token
 }
 
-func getCluster(ctx context.Context) (*models.SCluster, error) {
+func getCluster(ctx context.Context, userCred mcclient.TokenCredential) (*models.SCluster, error) {
 	params := appctx.AppContextParams(ctx)
 	clusterId := params["<clusterid>"]
-	cluster, err := models.ClusterManager.FetchClusterById(clusterId)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred.GetProjectId(), clusterId)
 	if err != nil {
 		return nil, err
 	}
 	return cluster, nil
 }
 
-func getK8sClient(ctx context.Context) (kubernetes.Interface, error) {
-	cluster, err := getCluster(ctx)
+func getK8sClient(ctx context.Context, userCred mcclient.TokenCredential) (kubernetes.Interface, error) {
+	cluster, err := getCluster(ctx, userCred)
 	if err != nil {
 		return nil, err
 	}
@@ -86,13 +86,13 @@ func getK8sClient(ctx context.Context) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(config)
 }
 
-func getCloudK8sEnv(ctx context.Context, query *jsonutils.JSONDict) (*resources.Request, kubernetes.Interface, error) {
+func getCloudK8sEnv(ctx context.Context, query *jsonutils.JSONDict) (*common.Request, kubernetes.Interface, error) {
 	userCred := getUserCredential(ctx)
-	k8sCli, err := getK8sClient(ctx)
+	k8sCli, err := getK8sClient(ctx, userCred)
 	if err != nil {
 		return nil, nil, err
 	}
-	req := &resources.Request{
+	req := &common.Request{
 		UserCred: userCred,
 		Query:    query,
 		Context:  ctx,
@@ -119,17 +119,17 @@ func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict
 func listItems(
 	man IK8sResourceManager,
 	k8sCli kubernetes.Interface,
-	req *resources.Request,
+	req *common.Request,
 ) (*modules.ListResult, error) {
 	ret, err := man.List(k8sCli, req)
 	if err != nil {
 		return nil, err
 	}
-	count := ret.Total()
+	count := ret.GetTotal()
 	if count == 0 {
 		emptyList := modules.ListResult{Data: []jsonutils.JSONObject{}}
 		return &emptyList, nil
 	}
-	retResult := modules.ListResult{Data: ret.Data(), Total: ret.Total(), Limit: ret.Limit(), Offset: ret.Offset()}
+	retResult := modules.ListResult{Data: ret.GetData(), Total: ret.GetTotal(), Limit: ret.GetLimit(), Offset: ret.GetOffset()}
 	return &retResult, nil
 }

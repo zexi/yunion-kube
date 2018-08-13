@@ -51,10 +51,29 @@ type TypeMeta struct {
 	Kind ResourceKind `json:"kind,omitempty"`
 }
 
+type IListMeta interface {
+	GetLimit() int
+	GetTotal() int
+	GetOffset() int
+}
+
 // ListMeta describes list of objects, i.e. holds information about pagination options set for the list.
 type ListMeta struct {
-	// Total number of items on the list. Used for pagination.
-	TotalItems int `json:"totalItems"`
+	Total  int `json:"total"`
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+}
+
+func (l ListMeta) GetTotal() int {
+	return l.Total
+}
+
+func (l ListMeta) GetLimit() int {
+	return l.Limit
+}
+
+func (l ListMeta) GetOffset() int {
+	return l.Offset
 }
 
 // NewObjectMeta returns internal endpoint name for the given service properties, e.g.,

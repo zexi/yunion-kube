@@ -1398,10 +1398,10 @@
 			"revisionTime": "2018-05-15T14:46:02Z"
 		},
 		{
-			"checksumSHA1": "5H6PL30Hb69EhIqvq5ctrt0s/x4=",
+			"checksumSHA1": "tE22nIZX0Ycj9zMFygBim2dCkkg=",
 			"path": "yunion.io/x/jsonutils",
-			"revision": "a86e16793be4a6f4c5ea9203e40c2a0a9361efb8",
-			"revisionTime": "2018-08-11T04:38:36Z"
+			"revision": "7ea50bbd44da3a63cf00c3eb99e6f4f84a23756b",
+			"revisionTime": "2018-08-12T04:53:10Z"
 		},
 		{
 			"checksumSHA1": "v7m02dYrhPc1Fz1T9CXPssEUFfM=",
@@ -1605,10 +1605,10 @@
 			"revisionTime": "2018-08-11T06:43:54Z"
 		},
 		{
-			"checksumSHA1": "UCRhh9pkaVUmCNcx4XdxDwnV/iA=",
+			"checksumSHA1": "sftXEYV0pG6Iks2BjvUed378F8o=",
 			"path": "yunion.io/x/pkg/util/reflectutils",
-			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
-			"revisionTime": "2018-08-11T06:24:16Z"
+			"revision": "42d05426f3c02107698b58b3023970d03090a397",
+			"revisionTime": "2018-08-12T04:44:51Z"
 		},
 		{
 			"checksumSHA1": "TZALyrgC8AP5SkD6ixFfdmaB/g0=",
@@ -1676,8 +1676,8 @@
 		{
 			"checksumSHA1": "LLbo7vo/VBtxXPDM4rEQ6CJhIWo=",
 			"path": "yunion.io/x/pkg/utils",
-			"revision": "07cad0cb1df5155b3bfa15079594d01050931554",
-			"revisionTime": "2018-08-11T06:24:16Z"
+			"revision": "42d05426f3c02107698b58b3023970d03090a397",
+			"revisionTime": "2018-08-12T04:44:51Z"
 		},
 		{
 			"checksumSHA1": "0NV9o0R2Y+1HYBlz/nybeGGiUjM=",
