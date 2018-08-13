@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -36,6 +37,22 @@ func (r *Request) GetNamespace() *NamespaceQuery {
 		namespace = r.UserCred.GetProjectName()
 	}
 	return NewNamespaceQuery(namespace)
+}
+
+func (r *Request) ToQuery() *dataselect.DataSelectQuery {
+	limit, _ := r.Query.Int("limit")
+	if limit == 0 {
+		limit = 20
+	}
+	offset, _ := r.Query.Int("offset")
+	limitQ := dataselect.NewLimitQuery(int(limit))
+	offsetQ := dataselect.NewOffsetQuery(int(offset))
+	return dataselect.NewDataSelectQuery(
+		dataselect.NoSort,   // TODO
+		dataselect.NoFilter, // TODO
+		limitQ,
+		offsetQ,
+	)
 }
 
 type ListResource interface {

@@ -103,8 +103,7 @@ func ToPodList(pods []v1.Pod, nonCriticalErrors []error, req *common.Request) Po
 	podList := PodList{
 		pods: make([]Pod, 0),
 	}
-	log.Debugf("=======Get pods: %v", pods)
-	selector := dataselect.GenericDataSelector(toCells(pods), dataselect.NoDataSelect)
+	selector := dataselect.GenericDataSelector(toCells(pods), req.ToQuery())
 	pods = fromCells(selector.Data())
 	podList.ListMeta = selector.ListMeta()
 

@@ -18,6 +18,7 @@ type ComparableValue interface {
 }
 
 type DataSelector struct {
+	Total int
 	// GenericDataList hold generic data cells that are being selected
 	GenericDataList []DataCell
 	// DataSelectQuery holds the instructions for data select
@@ -82,23 +83,52 @@ func (s *DataSelector) Filter() *DataSelector {
 	}
 
 	s.GenericDataList = filteredList
+	s.Total = len(filteredList)
+	return s
+}
+
+func (s *DataSelector) Limit() *DataSelector {
+	limit := s.DataSelectQuery.LimitQuery.Limit
+	if limit < 0 {
+		// -1 means not do limit query
+		return s
+	}
+
+	if s.Total > limit {
+		s.GenericDataList = s.GenericDataList[:limit]
+	}
+	return s
+}
+
+func (s *DataSelector) Offset() *DataSelector {
+	offset := s.DataSelectQuery.OffsetQuery.Offset
+	if offset == 0 {
+		return s
+	}
+
+	if s.Total > offset {
+		s.GenericDataList = s.GenericDataList[offset:]
+	} else {
+		s.GenericDataList = make([]DataCell, 0)
+	}
 	return s
 }
 
 func (s *DataSelector) ListMeta() api.ListMeta {
 	return api.ListMeta{
-		Total:  len(s.GenericDataList),
-		Limit:  0,
-		Offset: 0,
+		Total:  s.Total,
+		Limit:  s.DataSelectQuery.LimitQuery.Limit,
+		Offset: s.DataSelectQuery.OffsetQuery.Offset,
 	}
 }
 
 func GenericDataSelector(dataList []DataCell, dsQuery *DataSelectQuery) *DataSelector {
 	selectableData := DataSelector{
+		Total:           len(dataList),
 		GenericDataList: dataList,
 		DataSelectQuery: dsQuery,
 	}
-	return selectableData.Sort()
+	return selectableData.Sort().Filter().Offset().Limit()
 }
 
 func (s *DataSelector) Data() []DataCell {

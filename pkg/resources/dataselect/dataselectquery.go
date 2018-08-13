@@ -3,6 +3,8 @@ package dataselect
 type DataSelectQuery struct {
 	SortQuery   *SortQuery
 	FilterQuery *FilterQuery
+	LimitQuery  *LimitQuery
+	OffsetQuery *OffsetQuery
 }
 
 type SortQuery struct {
@@ -31,12 +33,35 @@ var NoFilter = &FilterQuery{
 	FilterByList: []FilterBy{},
 }
 
-var NoDataSelect = NewDataSelectQuery(NoSort, NoFilter)
+type LimitQuery struct {
+	Limit int
+}
 
-func NewDataSelectQuery(sortQuery *SortQuery, filterQuery *FilterQuery) *DataSelectQuery {
+var NoLimiter = &LimitQuery{
+	Limit: -1,
+}
+
+type OffsetQuery struct {
+	Offset int
+}
+
+var NoOffset = &OffsetQuery{
+	Offset: 0,
+}
+
+var NoDataSelect = NewDataSelectQuery(NoSort, NoFilter, NoLimiter, NoOffset)
+
+func NewDataSelectQuery(
+	sortQuery *SortQuery,
+	filterQuery *FilterQuery,
+	limitQuery *LimitQuery,
+	offsetQuery *OffsetQuery,
+) *DataSelectQuery {
 	return &DataSelectQuery{
 		SortQuery:   sortQuery,
 		FilterQuery: filterQuery,
+		LimitQuery:  limitQuery,
+		OffsetQuery: offsetQuery,
 	}
 }
 
@@ -95,4 +120,12 @@ func NewFilterQuery(filterByListRaw []string) *FilterQuery {
 	return &FilterQuery{
 		FilterByList: filterByList,
 	}
+}
+
+func NewLimitQuery(limit int) *LimitQuery {
+	return &LimitQuery{limit}
+}
+
+func NewOffsetQuery(offset int) *OffsetQuery {
+	return &OffsetQuery{offset}
 }
