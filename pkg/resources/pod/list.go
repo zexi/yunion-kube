@@ -9,7 +9,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	"yunion.io/x/yunion-kube/pkg/resources/errors"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -47,6 +46,7 @@ type listItem struct {
 	RestartCount int32  `json:"restartCount"`
 }
 
+// ToListItem dynamic called by common.ToListJsonData
 func (p Pod) ToListItem() jsonutils.JSONObject {
 	item := listItem{
 		ObjectMeta:   p.ObjectMeta,
@@ -59,69 +59,49 @@ func (p Pod) ToListItem() jsonutils.JSONObject {
 }
 
 type PodList struct {
-	api.ListMeta
+	*dataselect.ListMeta
 	pods []Pod
 }
 
-func (l *PodList) GetData() []jsonutils.JSONObject {
-	ret := make([]jsonutils.JSONObject, len(l.pods))
-	for i, item := range l.pods {
-		ret[i] = item.ToListItem()
-	}
-	return ret
+func (l *PodList) GetResponseData() interface{} {
+	return l.pods
 }
 
 func (man *SPodManager) AllowListItems(req *common.Request) bool {
 	return req.AllowListItems()
 }
 
-func (man *SPodManager) List(k8sCli kubernetes.Interface, req *common.Request) (common.ListResource, error) {
-	return man.GetPodList(k8sCli, req)
+func (man *SPodManager) List(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetPodList(k8sCli, nsQuery, dsQuery)
 }
 
-func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, req *common.Request) (*PodList, error) {
+func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
 	log.Infof("Getting list of all pods in the cluster")
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannelWithOptions(k8sCli, req.GetNamespace(), metaV1.ListOptions{}, 1),
+		PodList: common.GetPodListChannelWithOptions(k8sCli, nsQuery, metaV1.ListOptions{}),
 	}
-	return GetPodListFromChannels(channels, req)
+	return GetPodListFromChannels(channels, dsQuery)
 }
 
-func GetPodListFromChannels(channels *common.ResourceChannels, req *common.Request) (*PodList, error) {
+func (l *PodList) Append(obj interface{}) {
+	l.pods = append(l.pods, ToPod(v1.Pod(obj.(PodCell))))
+}
+
+func (l *PodList) ToCell(obj interface{}) dataselect.DataCell {
+	return PodCell(obj.(v1.Pod))
+}
+
+func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
 	pods := <-channels.PodList.List
 	err := <-channels.PodList.Error
-	nonCriticalErrors, criticalError := errors.HandleError(err)
-	if criticalError != nil {
-		return nil, criticalError
+	if err != nil {
+		return nil, err
 	}
 
-	podList := ToPodList(pods.Items, nonCriticalErrors, req)
-	return &podList, nil
-}
-
-func ToPodList(pods []v1.Pod, nonCriticalErrors []error, req *common.Request) PodList {
-	podList := PodList{
-		pods: make([]Pod, 0),
+	podList := &PodList{
+		ListMeta: dataselect.NewListMeta(),
+		pods:     make([]Pod, 0),
 	}
-	selector := dataselect.GenericDataSelector(toCells(pods), req.ToQuery())
-	pods = fromCells(selector.Data())
-	podList.ListMeta = selector.ListMeta()
-
-	for _, pod := range pods {
-		podDetail := toPod(&pod)
-		podList.pods = append(podList.pods, podDetail)
-	}
-	return podList
-}
-
-func toPod(pod *v1.Pod) Pod {
-	podDetail := Pod{
-		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
-		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
-		PodStatus:    getPodStatus(*pod),
-		RestartCount: getRestartCount(*pod),
-		NodeName:     pod.Spec.NodeName,
-		PodIP:        pod.Status.PodIP,
-	}
-	return podDetail
+	err = dataselect.ToResourceList(podList, pods.Items, dsQuery)
+	return podList, err
 }

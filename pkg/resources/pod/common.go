@@ -4,7 +4,20 @@ import (
 	"k8s.io/api/core/v1"
 
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
+
+func ToPod(pod v1.Pod) Pod {
+	podDetail := Pod{
+		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
+		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
+		PodStatus:    getPodStatus(pod),
+		RestartCount: getRestartCount(pod),
+		NodeName:     pod.Spec.NodeName,
+		PodIP:        pod.Status.PodIP,
+	}
+	return podDetail
+}
 
 func getRestartCount(pod v1.Pod) int32 {
 	var restartCount int32 = 0
@@ -72,20 +85,4 @@ func (p PodCell) GetProperty(name dataselect.PropertyName) dataselect.Comparable
 	default:
 		return nil
 	}
-}
-
-func toCells(std []v1.Pod) []dataselect.DataCell {
-	cells := make([]dataselect.DataCell, len(std))
-	for i := range std {
-		cells[i] = PodCell(std[i])
-	}
-	return cells
-}
-
-func fromCells(cells []dataselect.DataCell) []v1.Pod {
-	std := make([]v1.Pod, len(cells))
-	for i := range std {
-		std[i] = v1.Pod(cells[i].(PodCell))
-	}
-	return std
 }

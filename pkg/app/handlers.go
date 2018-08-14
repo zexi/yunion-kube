@@ -9,6 +9,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/resources/service"
 )
 
 func InitHandlers(app *appsrv.Application) {
@@ -39,6 +40,7 @@ func InitHandlers(app *appsrv.Application) {
 
 	for _, man := range []k8s.IK8sResourceManager{
 		pod.PodManager,
+		service.ServiceManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddK8sResourceDispatcher(apiPrefix, app, handler)

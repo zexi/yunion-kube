@@ -2,6 +2,8 @@ package common
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -58,5 +60,27 @@ func (r *Request) ToQuery() *dataselect.DataSelectQuery {
 type ListResource interface {
 	api.IListMeta
 
-	GetData() []jsonutils.JSONObject
+	GetResponseData() interface{}
+}
+
+func ToListJsonData(data interface{}) ([]jsonutils.JSONObject, error) {
+	v := reflect.ValueOf(data)
+	if v.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("Can't traverse non-slice value, kind: %v", v.Kind())
+	}
+
+	ret := make([]jsonutils.JSONObject, 0)
+	for i := 0; i < v.Len(); i++ {
+		item := v.Index(i)
+		funcV := item.MethodByName("ToListItem")
+		if !funcV.IsValid() || funcV.IsNil() {
+			return nil, fmt.Errorf("Item kind %v not implement ToListItem function", item.Kind())
+		}
+		out := funcV.Call([]reflect.Value{})
+		if len(out) != 1 {
+			return nil, fmt.Errorf("Invalid return value: %#v", out)
+		}
+		ret = append(ret, out[0].Interface().(jsonutils.JSONObject))
+	}
+	return ret, nil
 }
