@@ -83,6 +83,7 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		ListMeta: dataselect.NewListMeta(),
 		pods:     make([]Pod, 0),
 	}
+	log.Debugf("====Get pods: %#v", pods.Items)
 	err = dataselect.ToResourceList(
 		podList,
 		pods.Items,
