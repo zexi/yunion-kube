@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"reflect"
 
+	"k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type IList interface {
 	Append(obj interface{})
 	SetMeta(meta api.ListMeta)
-	ToCell(obj interface{}) DataCell
 }
 
 type ListMeta struct {
@@ -25,7 +27,7 @@ func (l *ListMeta) SetMeta(meta api.ListMeta) {
 	l.ListMeta = meta
 }
 
-type convertF func(item interface{}) DataCell
+type convertF func(item interface{}) (DataCell, error)
 
 func ToCells(data interface{}, cf convertF) ([]DataCell, error) {
 	v := reflect.ValueOf(data)
@@ -34,20 +36,24 @@ func ToCells(data interface{}, cf convertF) ([]DataCell, error) {
 	}
 	cells := make([]DataCell, 0)
 	for i := 0; i < v.Len(); i++ {
-		cells = append(cells, cf(v.Index(i).Interface()))
+		cell, err := cf(v.Index(i).Interface())
+		if err != nil {
+			return nil, err
+		}
+		cells = append(cells, cell)
 	}
 	return cells, nil
 }
 
 func FromCells(cells []DataCell, list IList) {
 	for _, cell := range cells {
-		list.Append(cell)
+		list.Append(cell.GetObject())
 	}
 }
 
-func ToResourceList(list IList, data interface{}, dsQuery *DataSelectQuery) error {
+func ToResourceList(list IList, data interface{}, cellConvertF convertF, dsQuery *DataSelectQuery) error {
 
-	cells, err := ToCells(data, list.ToCell)
+	cells, err := ToCells(data, cellConvertF)
 	if err != nil {
 		return err
 	}
@@ -55,4 +61,83 @@ func ToResourceList(list IList, data interface{}, dsQuery *DataSelectQuery) erro
 	FromCells(selector.Data(), list)
 	list.SetMeta(selector.ListMeta())
 	return nil
+}
+
+func getObjectMeta(obj interface{}) (metaV1.ObjectMeta, error) {
+	v := reflect.ValueOf(obj)
+	f := v.FieldByName("ObjectMeta")
+	if !f.IsValid() {
+		return metaV1.ObjectMeta{}, fmt.Errorf("Object %#v not have ObjectMeta field", obj)
+	}
+	meta := f.Interface().(metaV1.ObjectMeta)
+	return meta, nil
+}
+
+func getObjectPodStatus(obj interface{}) (v1.PodStatus, error) {
+	v := reflect.ValueOf(obj)
+	f := v.FieldByName("Status")
+	if !f.IsValid() {
+		return v1.PodStatus{}, fmt.Errorf("Object %#v not have Status field", obj)
+	}
+	status := f.Interface().(v1.PodStatus)
+	return status, nil
+}
+
+func NewNamespaceDataCell(obj interface{}) (DataCell, error) {
+	meta, err := getObjectMeta(obj)
+	if err != nil {
+		return NamespaceDataCell{}, err
+	}
+	return NamespaceDataCell{ObjectMeta: meta, Object: obj}, nil
+}
+
+type NamespaceDataCell struct {
+	ObjectMeta metaV1.ObjectMeta
+	Object     interface{}
+}
+
+func (cell NamespaceDataCell) GetObject() interface{} {
+	return cell.Object
+}
+
+func (cell NamespaceDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case NameProperty:
+		return StdComparableString(cell.ObjectMeta.Name)
+	case CreationTimestampProperty:
+		return StdComparableTime(cell.ObjectMeta.CreationTimestamp.Time)
+	case NamespaceProperty:
+		return StdComparableString(cell.ObjectMeta.Namespace)
+	default:
+		return nil
+	}
+}
+
+func NewNamespacePodStatusDataCell(obj interface{}) (DataCell, error) {
+	meta, err := getObjectMeta(obj)
+	if err != nil {
+		return NamespacePodStatusDataCell{}, err
+	}
+	status, err := getObjectPodStatus(obj)
+	if err != nil {
+		return NamespacePodStatusDataCell{}, err
+	}
+	return NamespacePodStatusDataCell{
+		NamespaceDataCell: NamespaceDataCell{ObjectMeta: meta, Object: obj},
+		Status:            status,
+	}, nil
+}
+
+type NamespacePodStatusDataCell struct {
+	NamespaceDataCell
+	Status v1.PodStatus
+}
+
+func (cell NamespacePodStatusDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case StatusProperty:
+		return StdComparableString(cell.Status.Phase)
+	default:
+		return cell.NamespaceDataCell.GetProperty(name)
+	}
 }

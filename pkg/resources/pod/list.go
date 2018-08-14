@@ -21,11 +21,11 @@ type PodStatus struct {
 // Pod is a presentation layer view of Pod resource. This means it is Pod plus additional augmented data
 // we can get from other sources (like services that target it).
 type Pod struct {
-	ObjectMeta api.ObjectMeta `json:"objectMeta"`
-	TypeMeta   api.TypeMeta   `json:"typeMeta"`
+	api.ObjectMeta
+	api.TypeMeta
 
 	// More info on pod status
-	PodStatus PodStatus `json:"podStatus"`
+	PodStatus
 
 	PodIP string `json:"podIP"`
 	// Count of containers restarts
@@ -38,24 +38,9 @@ type Pod struct {
 	NodeName string `json:"nodeName"`
 }
 
-type listItem struct {
-	api.ObjectMeta
-	PodStatus
-	PodIP        string `json:"podIP"`
-	NodeName     string `json:"nodeName"`
-	RestartCount int32  `json:"restartCount"`
-}
-
 // ToListItem dynamic called by common.ToListJsonData
 func (p Pod) ToListItem() jsonutils.JSONObject {
-	item := listItem{
-		ObjectMeta:   p.ObjectMeta,
-		PodStatus:    p.PodStatus,
-		PodIP:        p.PodIP,
-		NodeName:     p.NodeName,
-		RestartCount: p.RestartCount,
-	}
-	return jsonutils.Marshal(item)
+	return jsonutils.Marshal(p)
 }
 
 type PodList struct {
@@ -84,11 +69,7 @@ func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.
 }
 
 func (l *PodList) Append(obj interface{}) {
-	l.pods = append(l.pods, ToPod(v1.Pod(obj.(PodCell))))
-}
-
-func (l *PodList) ToCell(obj interface{}) dataselect.DataCell {
-	return PodCell(obj.(v1.Pod))
+	l.pods = append(l.pods, ToPod(obj.(v1.Pod)))
 }
 
 func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
@@ -102,6 +83,10 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		ListMeta: dataselect.NewListMeta(),
 		pods:     make([]Pod, 0),
 	}
-	err = dataselect.ToResourceList(podList, pods.Items, dsQuery)
+	err = dataselect.ToResourceList(
+		podList,
+		pods.Items,
+		dataselect.NewNamespacePodStatusDataCell,
+		dsQuery)
 	return podList, err
 }

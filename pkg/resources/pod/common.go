@@ -3,7 +3,6 @@ package pod
 import (
 	"k8s.io/api/core/v1"
 
-	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -68,21 +67,4 @@ func getPodStatusPhase(pod v1.Pod) v1.PodPhase {
 	// Unknown?
 	//return v1.PodPending
 	return pod.Status.Phase
-}
-
-type PodCell v1.Pod
-
-func (p PodCell) GetProperty(name dataselect.PropertyName) dataselect.ComparableValue {
-	switch name {
-	case dataselect.NameProperty:
-		return dataselect.StdComparableString(p.ObjectMeta.Name)
-	case dataselect.CreationTimestampProperty:
-		return dataselect.StdComparableTime(p.ObjectMeta.CreationTimestamp.Time)
-	case dataselect.NamespaceProperty:
-		return dataselect.StdComparableString(p.ObjectMeta.Namespace)
-	case dataselect.StatusProperty:
-		return dataselect.StdComparableString(p.Status.Phase)
-	default:
-		return nil
-	}
 }

@@ -8,6 +8,8 @@ import (
 
 type DataCell interface {
 	GetProperty(PropertyName) ComparableValue
+	// Return the origin wrappered data
+	GetObject() interface{}
 }
 
 type ComparableValue interface {

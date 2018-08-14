@@ -12,8 +12,8 @@ import (
 )
 
 type Service struct {
-	ObjectMeta api.ObjectMeta `json:"objectMeta"`
-	TypeMeta   api.TypeMeta   `json:"typeMeta"`
+	api.ObjectMeta
+	api.TypeMeta
 
 	// InternalEndpoint of all kubernetes services that have the same label selector as connected Replication
 	// Controller. Endpoint is DNS name merged with ports
@@ -34,23 +34,9 @@ type Service struct {
 	ClusterIP string `json:"clusterIP"`
 }
 
-type listeItem struct {
-	api.ObjectMeta
-	InternalEndpoint  common.Endpoint   `json:"internalEndpoint"`
-	ExternalEndpoints []common.Endpoint `json:"externalEndpoints"`
-	Selector          map[string]string `json:"selector"`
-	ClusterIP         string            `json:"clusterIP"`
-}
-
 // ToListItem dynamic called by common.ToListJsonData
 func (s Service) ToListItem() jsonutils.JSONObject {
-	return jsonutils.Marshal(listeItem{
-		ObjectMeta:        s.ObjectMeta,
-		InternalEndpoint:  s.InternalEndpoint,
-		ExternalEndpoints: s.ExternalEndpoints,
-		Selector:          s.Selector,
-		ClusterIP:         s.ClusterIP,
-	})
+	return jsonutils.Marshal(s)
 }
 
 func (man *SServiceManager) AllowListItems(req *common.Request) bool {
@@ -76,11 +62,7 @@ type ServiceList struct {
 }
 
 func (l *ServiceList) Append(obj interface{}) {
-	l.services = append(l.services, ToService(v1.Service(obj.(ServiceCell))))
-}
-
-func (l *ServiceList) ToCell(obj interface{}) dataselect.DataCell {
-	return ServiceCell(obj.(v1.Service))
+	l.services = append(l.services, ToService(obj.(v1.Service)))
 }
 
 func (l *ServiceList) GetResponseData() interface{} {
@@ -98,6 +80,10 @@ func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *data
 		ListMeta: dataselect.NewListMeta(),
 		services: make([]Service, 0),
 	}
-	err = dataselect.ToResourceList(serviceList, services.Items, dsQuery)
+	err = dataselect.ToResourceList(
+		serviceList,
+		services.Items,
+		dataselect.NewNamespaceDataCell,
+		dsQuery)
 	return serviceList, err
 }
