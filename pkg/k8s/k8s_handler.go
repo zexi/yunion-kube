@@ -16,7 +16,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 )
 
 type IK8sResourceHandler interface {
@@ -34,7 +33,7 @@ type IK8sResourceManager interface {
 
 	// list hooks
 	AllowListItems(req *common.Request) bool
-	List(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
+	List(k8sCli kubernetes.Interface, req *common.Request) (common.ListResource, error)
 }
 
 type K8sResourceHandler struct {
@@ -122,7 +121,7 @@ func listItems(
 	k8sCli kubernetes.Interface,
 	req *common.Request,
 ) (*modules.ListResult, error) {
-	ret, err := man.List(k8sCli, req.GetNamespace(), req.ToQuery())
+	ret, err := man.List(k8sCli, req)
 	if err != nil {
 		return nil, err
 	}

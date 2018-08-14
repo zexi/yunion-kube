@@ -43,8 +43,8 @@ func (man *SServiceManager) AllowListItems(req *common.Request) bool {
 	return req.AllowListItems()
 }
 
-func (man *SServiceManager) List(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetServiceList(k8sCli, nsQuery, dsQuery)
+func (man *SServiceManager) List(k8sCli kubernetes.Interface, req *common.Request) (common.ListResource, error) {
+	return man.GetServiceList(k8sCli, req.GetNamespace(), req.ToQuery())
 }
 
 func (man *SServiceManager) GetServiceList(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {

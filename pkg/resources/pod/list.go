@@ -56,8 +56,8 @@ func (man *SPodManager) AllowListItems(req *common.Request) bool {
 	return req.AllowListItems()
 }
 
-func (man *SPodManager) List(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetPodList(k8sCli, nsQuery, dsQuery)
+func (man *SPodManager) List(k8sCli kubernetes.Interface, req *common.Request) (common.ListResource, error) {
+	return man.GetPodList(k8sCli, req.GetNamespace(), req.ToQuery())
 }
 
 func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {

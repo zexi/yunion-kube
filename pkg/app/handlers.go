@@ -10,6 +10,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
+	"yunion.io/x/yunion-kube/pkg/resources/namespace"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 )
@@ -45,6 +46,7 @@ func InitHandlers(app *appsrv.Application) {
 		deployment.DeploymentManager,
 		pod.PodManager,
 		service.ServiceManager,
+		namespace.NamespaceManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddK8sResourceDispatcher(apiPrefix, app, handler)

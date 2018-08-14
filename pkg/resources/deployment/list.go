@@ -41,8 +41,8 @@ func (man *SDeploymentManager) AllowListItems(req *common.Request) bool {
 	return req.AllowListItems()
 }
 
-func (man *SDeploymentManager) List(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetDeploymentList(client, nsQuery, dsQuery)
+func (man *SDeploymentManager) List(client client.Interface, req *common.Request) (common.ListResource, error) {
+	return man.GetDeploymentList(client, req.GetNamespace(), req.ToQuery())
 }
 
 type DeploymentList struct {

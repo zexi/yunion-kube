@@ -33,8 +33,8 @@ func (man *SConfigMapManager) AllowListItems(req *common.Request) bool {
 	return req.AllowListItems()
 }
 
-func (man *SConfigMapManager) List(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetConfigMapList(client, nsQuery, dsQuery)
+func (man *SConfigMapManager) List(client client.Interface, req *common.Request) (common.ListResource, error) {
+	return man.GetConfigMapList(client, req.GetNamespace(), req.ToQuery())
 }
 
 func (man *SConfigMapManager) GetConfigMapList(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {
