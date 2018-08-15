@@ -1,8 +1,9 @@
 package resources
 
 import (
-	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -32,6 +33,16 @@ func (m *SResourceBaseManager) AllowListItems(req *common.Request) bool {
 	return false
 }
 
-func (m *SResourceBaseManager) List(k8sCli kubernetes.Interface, req *common.Request) {
+func (m *SResourceBaseManager) List(req *common.Request) (*modules.ListResult, error) {
 	log.Fatalf("List not implemented")
+	return nil, nil
+}
+
+func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
+	return nil
+}
+
+func (m *SResourceBaseManager) Create(req *common.Request) (jsonutils.JSONObject, error) {
+	log.Fatalf("Create not implemented")
+	return nil, nil
 }

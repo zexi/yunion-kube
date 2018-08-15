@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"reflect"
 
+	client "k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
@@ -13,9 +15,11 @@ import (
 )
 
 type Request struct {
-	UserCred mcclient.TokenCredential
-	Query    *jsonutils.JSONDict
-	Context  context.Context
+	K8sClient client.Interface
+	UserCred  mcclient.TokenCredential
+	Query     *jsonutils.JSONDict
+	Data      *jsonutils.JSONDict
+	Context   context.Context
 }
 
 func (r *Request) AllowListItems() bool {
@@ -26,11 +30,24 @@ func (r *Request) AllowListItems() bool {
 	return true
 }
 
+func (r *Request) AllowCreateItem() bool {
+	if r.UserCred.IsSystemAdmin() {
+		return true
+	}
+	ns, err := r.GetNamespaceByData()
+	if err != nil {
+		log.Errorf("Get namespace from data error: %v", err)
+		return false
+	}
+	// TODO: support isOwner check
+	return ns == r.UserCred.GetProjectName()
+}
+
 func (r *Request) ShowAllNamespace() bool {
 	return jsonutils.QueryBoolean(r.Query, "all_namespace", false)
 }
 
-func (r *Request) GetNamespace() *NamespaceQuery {
+func (r *Request) GetNamespaceQuery() *NamespaceQuery {
 	if r.ShowAllNamespace() {
 		return NewNamespaceQuery()
 	}
@@ -39,6 +56,22 @@ func (r *Request) GetNamespace() *NamespaceQuery {
 		namespace = r.UserCred.GetProjectName()
 	}
 	return NewNamespaceQuery(namespace)
+}
+
+func (r *Request) GetK8sClient() client.Interface {
+	return r.K8sClient
+}
+
+func (r *Request) GetNamespaceByData() (string, error) {
+	return r.Data.GetString("namespace")
+}
+
+func (r *Request) GetDefaultNamespace() string {
+	ns, _ := r.GetNamespaceByData()
+	if ns == "" {
+		ns = r.UserCred.GetProjectName()
+	}
+	return ns
 }
 
 func (r *Request) ToQuery() *dataselect.DataSelectQuery {

@@ -25,6 +25,14 @@ type IK8sResourceHandler interface {
 	KeywordPlural() string
 
 	List(ctx context.Context, query *jsonutils.JSONDict) (*modules.ListResult, error)
+
+	//Get(ctx context.Context, id string, query jsonutils.JSONObject) (jsonutils.JSONObject, error)
+
+	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+
+	//Update(ctx context.Context, id string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
+
+	//Delete(ctx context.Context, id string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 }
 
 type IK8sResourceManager interface {
@@ -33,7 +41,11 @@ type IK8sResourceManager interface {
 
 	// list hooks
 	AllowListItems(req *common.Request) bool
-	List(k8sCli kubernetes.Interface, req *common.Request) (common.ListResource, error)
+	List(req *common.Request) (common.ListResource, error)
+
+	// create hooks
+	ValidateCreateData(req *common.Request) error
+	Create(req *common.Request) (jsonutils.JSONObject, error)
 }
 
 type K8sResourceHandler struct {
@@ -86,29 +98,31 @@ func getK8sClient(ctx context.Context, userCred mcclient.TokenCredential) (kuber
 	return kubernetes.NewForConfig(config)
 }
 
-func getCloudK8sEnv(ctx context.Context, query *jsonutils.JSONDict) (*common.Request, kubernetes.Interface, error) {
+func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*common.Request, error) {
 	userCred := getUserCredential(ctx)
 	k8sCli, err := getK8sClient(ctx, userCred)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	req := &common.Request{
-		UserCred: userCred,
-		Query:    query,
-		Context:  ctx,
+		K8sClient: k8sCli,
+		UserCred:  userCred,
+		Query:     query,
+		Data:      data,
+		Context:   ctx,
 	}
-	return req, k8sCli, nil
+	return req, nil
 }
 
 func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict) (*modules.ListResult, error) {
-	req, k8sCli, err := getCloudK8sEnv(ctx, query)
+	req, err := NewCloudK8sRequest(ctx, query, nil)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
 	if !h.resourceManager.AllowListItems(req) {
 		return nil, httperrors.NewForbiddenError("Not allow to list")
 	}
-	items, err := listItems(h.resourceManager, k8sCli, req)
+	items, err := listItems(h.resourceManager, req)
 	if err != nil {
 		log.Errorf("Fail to list items: %v", err)
 		return nil, httperrors.NewGeneralError(err)
@@ -118,10 +132,9 @@ func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict
 
 func listItems(
 	man IK8sResourceManager,
-	k8sCli kubernetes.Interface,
 	req *common.Request,
 ) (*modules.ListResult, error) {
-	ret, err := man.List(k8sCli, req)
+	ret, err := man.List(req)
 	if err != nil {
 		return nil, err
 	}
@@ -136,4 +149,29 @@ func listItems(
 	}
 	retResult := modules.ListResult{Data: data, Total: ret.GetTotal(), Limit: ret.GetLimit(), Offset: ret.GetOffset()}
 	return &retResult, nil
+}
+
+func doCreateItem(man IK8sResourceManager, req *common.Request) (jsonutils.JSONObject, error) {
+	err := man.ValidateCreateData(req)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	res, err := man.Create(req)
+	if err != nil {
+		log.Errorf("Fail to create resource: %v", err)
+		return nil, err
+	}
+	return jsonutils.Marshal(res), nil
+}
+
+func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+	req, err := NewCloudK8sRequest(ctx, query, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	if !req.AllowCreateItem() {
+		return nil, httperrors.NewForbiddenError("Not allow to create item")
+	}
+
+	return doCreateItem(h.resourceManager, req)
 }
