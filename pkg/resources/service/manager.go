@@ -7,11 +7,11 @@ import (
 var ServiceManager *SServiceManager
 
 type SServiceManager struct {
-	*resources.SResourceBaseManager
+	*resources.SNamespaceResourceManager
 }
 
 func init() {
 	ServiceManager = &SServiceManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("service", "services"),
+		SNamespaceResourceManager: resources.NewNamespaceResourceManager("service", "services"),
 	}
 }

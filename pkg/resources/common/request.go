@@ -9,7 +9,9 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
+	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -60,6 +62,18 @@ func (r *Request) GetNamespaceQuery() *NamespaceQuery {
 
 func (r *Request) GetK8sClient() client.Interface {
 	return r.K8sClient
+}
+
+func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
+	cli := r.GetK8sClient()
+	return k8sclient.NewResourceVerber(
+		cli.CoreV1().RESTClient(),
+		cli.ExtensionsV1beta1().RESTClient(),
+		cli.AppsV1beta2().RESTClient(),
+		cli.BatchV1().RESTClient(),
+		cli.BatchV1beta1().RESTClient(),
+		cli.AutoscalingV1().RESTClient(),
+		cli.StorageV1().RESTClient()), nil
 }
 
 func (r *Request) GetNamespaceByData() (string, error) {

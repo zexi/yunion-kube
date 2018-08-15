@@ -7,11 +7,11 @@ import (
 var PodManager *SPodManager
 
 type SPodManager struct {
-	*resources.SResourceBaseManager
+	*resources.SNamespaceResourceManager
 }
 
 func init() {
 	PodManager = &SPodManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("pod", "pods"),
+		SNamespaceResourceManager: resources.NewNamespaceResourceManager("pod", "pods"),
 	}
 }

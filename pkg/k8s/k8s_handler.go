@@ -2,7 +2,6 @@ package k8s
 
 import (
 	"context"
-	"fmt"
 
 	"k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
@@ -17,6 +16,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/resources/errors"
 )
 
 type IK8sResourceHandler interface {
@@ -39,6 +39,8 @@ type IK8sResourceHandler interface {
 type IK8sResourceManager interface {
 	Keyword() string
 	KeywordPlural() string
+
+	InNamespace() bool
 
 	// list hooks
 	AllowListItems(req *common.Request) bool
@@ -192,13 +194,31 @@ func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.
 }
 
 func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
-	_, err := NewCloudK8sRequest(ctx, query, data)
+	req, err := NewCloudK8sRequest(ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
+	err = doRawDelete(h.resourceManager, req, id)
+	if err != nil {
+		return nil, errors.NewJSONClientError(err)
+	}
 
-	//if !h.resourceManager.AllowDeleteItem() {
-	//return nil, httperrors.NewForbiddenError("%s not allow to delete", manager.KeywordPlural())
-	//}
-	return nil, fmt.Errorf("not impl")
+	return nil, nil
+}
+
+func doRawDelete(man IK8sResourceManager, req *common.Request, id string) error {
+	verber, err := req.GetVerberClient()
+	if err != nil {
+	}
+
+	kind := man.Keyword()
+	namespace := ""
+	inNamespace := man.InNamespace()
+	if inNamespace {
+		namespace = req.GetDefaultNamespace()
+	}
+	if err := verber.Delete(kind, inNamespace, namespace, id); err != nil {
+		return err
+	}
+	return nil
 }

@@ -5,6 +5,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 // NonCriticalErrors is an array of error statuses, that are non-critical. That means, that this error can be
@@ -67,4 +69,14 @@ func contains(s []int32, e int32) bool {
 		}
 	}
 	return false
+}
+
+func NewJSONClientError(err error) *httputils.JSONClientError {
+	log.Errorf("Handle error: %v", err)
+	statusCode := http.StatusInternalServerError
+	statusError, ok := err.(*errors.StatusError)
+	if ok && statusError.Status().Code > 0 {
+		statusCode = int(statusError.Status().Code)
+	}
+	return httperrors.NewJsonClientError(statusCode, "", err.Error())
 }

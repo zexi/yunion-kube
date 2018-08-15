@@ -7,11 +7,11 @@ import (
 var DeploymentManager *SDeploymentManager
 
 type SDeploymentManager struct {
-	*resources.SResourceBaseManager
+	*resources.SNamespaceResourceManager
 }
 
 func init() {
 	DeploymentManager = &SDeploymentManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("deployment", "deployments"),
+		SNamespaceResourceManager: resources.NewNamespaceResourceManager("deployment", "deployments"),
 	}
 }

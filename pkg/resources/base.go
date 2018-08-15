@@ -30,6 +30,10 @@ func (m *SResourceBaseManager) KeywordPlural() string {
 	return m.keywordPlural
 }
 
+func (m *SResourceBaseManager) InNamespace() bool {
+	return false
+}
+
 func (m *SResourceBaseManager) AllowListItems(req *common.Request) bool {
 	log.Fatalf("AllowListItems not implemented")
 	return false
@@ -55,4 +59,18 @@ func (m *SResourceBaseManager) Create(req *common.Request) (jsonutils.JSONObject
 
 func (m *SResourceBaseManager) Delete(req *common.Request, id string) (jsonutils.JSONObject, error) {
 	return nil, fmt.Errorf("Delete resource not implemented")
+}
+
+type SNamespaceResourceManager struct {
+	*SResourceBaseManager
+}
+
+func NewNamespaceResourceManager(keyword, keywordPlural string) *SNamespaceResourceManager {
+	return &SNamespaceResourceManager{
+		SResourceBaseManager: NewResourceBaseManager(keyword, keywordPlural),
+	}
+}
+
+func (m *SNamespaceResourceManager) InNamespace() bool {
+	return true
 }

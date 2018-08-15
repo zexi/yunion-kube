@@ -7,11 +7,11 @@ import (
 var ConfigMapManager *SConfigMapManager
 
 type SConfigMapManager struct {
-	*resources.SResourceBaseManager
+	*resources.SNamespaceResourceManager
 }
 
 func init() {
 	ConfigMapManager = &SConfigMapManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("configmap", "configmaps"),
+		SNamespaceResourceManager: resources.NewNamespaceResourceManager("configmap", "configmaps"),
 	}
 }
