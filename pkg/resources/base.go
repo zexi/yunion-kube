@@ -1,6 +1,8 @@
 package resources
 
 import (
+	"fmt"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -38,6 +40,10 @@ func (m *SResourceBaseManager) List(req *common.Request) (*modules.ListResult, e
 	return nil, nil
 }
 
+func (m *SResourceBaseManager) Get(req *common.Request, id string) (jsonutils.JSONObject, error) {
+	return nil, fmt.Errorf("Get resource not implemented")
+}
+
 func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
 	return nil
 }
@@ -45,4 +51,8 @@ func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
 func (m *SResourceBaseManager) Create(req *common.Request) (jsonutils.JSONObject, error) {
 	log.Fatalf("Create not implemented")
 	return nil, nil
+}
+
+func (m *SResourceBaseManager) Delete(req *common.Request, id string) (jsonutils.JSONObject, error) {
+	return nil, fmt.Errorf("Delete resource not implemented")
 }

@@ -129,3 +129,5 @@ func NewLimitQuery(limit int) *LimitQuery {
 func NewOffsetQuery(offset int) *OffsetQuery {
 	return &OffsetQuery{offset}
 }
+
+var DefaultDataSelect = NewDataSelectQuery(NoSort, NoFilter, NoLimiter, NoOffset)

@@ -45,11 +45,11 @@ func (p Pod) ToListItem() jsonutils.JSONObject {
 
 type PodList struct {
 	*dataselect.ListMeta
-	pods []Pod
+	Pods []Pod
 }
 
 func (l *PodList) GetResponseData() interface{} {
-	return l.pods
+	return l.Pods
 }
 
 func (man *SPodManager) AllowListItems(req *common.Request) bool {
@@ -69,7 +69,7 @@ func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.
 }
 
 func (l *PodList) Append(obj interface{}) {
-	l.pods = append(l.pods, ToPod(obj.(v1.Pod)))
+	l.Pods = append(l.Pods, ToPod(obj.(v1.Pod)))
 }
 
 func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
@@ -79,14 +79,19 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, err
 	}
 
+	// TODO: add event
+	podList, err := ToPodList(pods.Items, nil, dsQuery)
+	return podList, err
+}
+
+func ToPodList(pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
 	podList := &PodList{
 		ListMeta: dataselect.NewListMeta(),
-		pods:     make([]Pod, 0),
+		Pods:     make([]Pod, 0),
 	}
-	log.Debugf("====Get pods: %#v", pods.Items)
-	err = dataselect.ToResourceList(
+	err := dataselect.ToResourceList(
 		podList,
-		pods.Items,
+		pods,
 		dataselect.NewNamespacePodStatusDataCell,
 		dsQuery)
 	return podList, err

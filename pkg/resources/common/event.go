@@ -1,23 +1,41 @@
 package common
 
 import (
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // EventList is an events response structure.
 type EventList struct {
-	ListMeta api.ListMeta `json:"listMeta"`
-
+	*dataselect.ListMeta
 	// List of events from given namespace.
 	Events []Event `json:"events"`
 }
 
+func (l *EventList) Append(obj interface{}) {
+	event := obj.(v1.Event)
+	l.Events = append(l.Events, Event{
+		ObjectMeta:      api.NewObjectMeta(event.ObjectMeta),
+		TypeMeta:        api.NewTypeMeta(api.ResourceKindEvent),
+		Message:         event.Message,
+		SourceComponent: event.Source.Component,
+		SourceHost:      event.Source.Host,
+		SubObject:       event.InvolvedObject.FieldPath,
+		Count:           event.Count,
+		FirstSeen:       event.FirstTimestamp,
+		LastSeen:        event.LastTimestamp,
+		Reason:          event.Reason,
+		Type:            event.Type,
+	})
+}
+
 // Event is a single event representation.
 type Event struct {
-	ObjectMeta api.ObjectMeta `json:"objectMeta"`
-	TypeMeta   api.TypeMeta   `json:"typeMeta"`
+	api.ObjectMeta `json:"objectMeta"`
+	api.TypeMeta   `json:"typeMeta"`
 
 	// A human-readable description of the status of related object.
 	Message string `json:"message"`
@@ -38,10 +56,10 @@ type Event struct {
 	Count int32 `json:"count"`
 
 	// The time at which the event was first recorded.
-	FirstSeen v1.Time `json:"firstSeen"`
+	FirstSeen metaV1.Time `json:"firstSeen"`
 
 	// The time at which the most recent occurrence of this event was recorded.
-	LastSeen v1.Time `json:"lastSeen"`
+	LastSeen metaV1.Time `json:"lastSeen"`
 
 	// Short, machine understandable string that gives the reason
 	// for this event being generated.

@@ -8,6 +8,11 @@ type NamespaceQuery struct {
 	namespaces []string
 }
 
+// NewSameNamespaceQuery creates new namespace query that queries single namespace.
+func NewSameNamespaceQuery(namespace string) *NamespaceQuery {
+	return &NamespaceQuery{[]string{namespace}}
+}
+
 func NewNamespaceQuery(namespaces ...string) *NamespaceQuery {
 	return &NamespaceQuery{namespaces}
 }

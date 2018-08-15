@@ -46,6 +46,6 @@ func (man *SDeploymentManager) Create(req *common.Request) (jsonutils.JSONObject
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("========DeployApp spec: %#v", spec)
+	log.Infof("========DeployApp spec: %#v, error: %v", spec, err)
 	return jsonutils.Marshal(spec), nil
 }

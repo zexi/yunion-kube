@@ -143,7 +143,7 @@ type Protocols struct {
 // client. App deployment consists of a deployment and an optional service. Both of them
 // share common labels.
 func DeployApp(spec *AppDeploymentSpec, client client.Interface) (*AppDeploymentSpec, error) {
-	log.Infof("Deploying %s application into %s namespace", spec.Name, spec.Namespace)
+	log.Infof("Deploying %q application into %q namespace", spec.Name, spec.Namespace)
 	annotations := map[string]string{}
 	if spec.Description != nil {
 		annotations[DescriptionAnnotationKey] = *spec.Description

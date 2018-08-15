@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
@@ -26,13 +27,13 @@ type IK8sResourceHandler interface {
 
 	List(ctx context.Context, query *jsonutils.JSONDict) (*modules.ListResult, error)
 
-	//Get(ctx context.Context, id string, query jsonutils.JSONObject) (jsonutils.JSONObject, error)
+	Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 
 	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 
 	//Update(ctx context.Context, id string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 
-	//Delete(ctx context.Context, id string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
+	Delete(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 }
 
 type IK8sResourceManager interface {
@@ -43,9 +44,15 @@ type IK8sResourceManager interface {
 	AllowListItems(req *common.Request) bool
 	List(req *common.Request) (common.ListResource, error)
 
+	// get hooks
+	Get(req *common.Request, id string) (jsonutils.JSONObject, error)
+
 	// create hooks
 	ValidateCreateData(req *common.Request) error
 	Create(req *common.Request) (jsonutils.JSONObject, error)
+
+	// delete hooks
+	Delete(req *common.Request, id string) (jsonutils.JSONObject, error)
 }
 
 type K8sResourceHandler struct {
@@ -151,6 +158,14 @@ func listItems(
 	return &retResult, nil
 }
 
+func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+	req, err := NewCloudK8sRequest(ctx, query, nil)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	return h.resourceManager.Get(req, id)
+}
+
 func doCreateItem(man IK8sResourceManager, req *common.Request) (jsonutils.JSONObject, error) {
 	err := man.ValidateCreateData(req)
 	if err != nil {
@@ -174,4 +189,16 @@ func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.
 	}
 
 	return doCreateItem(h.resourceManager, req)
+}
+
+func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+	_, err := NewCloudK8sRequest(ctx, query, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+
+	//if !h.resourceManager.AllowDeleteItem() {
+	//return nil, httperrors.NewForbiddenError("%s not allow to delete", manager.KeywordPlural())
+	//}
+	return nil, fmt.Errorf("not impl")
 }

@@ -26,7 +26,7 @@ func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sR
 	app.AddHandler2("GET", fmt.Sprintf("%s/%s", clusterPrefix, plural), handler.Filter(listHandler), metadata, "list", tags)
 
 	// get resource instance details
-	//app.AddHandler2("GET", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(getHandler), metadata, "get_details", tags)
+	app.AddHandler2("GET", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(getHandler), metadata, "get_details", tags)
 
 	// create resources
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s", clusterPrefix, plural), handler.Filter(createHandler), metadata, "create", tags)
@@ -35,7 +35,7 @@ func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sR
 	//app.AddHandler2("PUT", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(updateHandler), metadata, "update", tags)
 
 	// delete resource
-	//app.AddHandler2("DELETE", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(deleteHandler), metadata, "delete", tags)
+	app.AddHandler2("DELETE", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(deleteHandler), metadata, "delete", tags)
 }
 
 func _fetchEnv(ctx context.Context, w http.ResponseWriter, r *http.Request) (map[string]string, jsonutils.JSONObject, jsonutils.JSONObject) {
@@ -90,15 +90,15 @@ func wrapBody(body jsonutils.JSONObject, key string) jsonutils.JSONObject {
 	}
 }
 
-//func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-//handler, params, query, _ := fetchEnv(ctx, w, r)
-//result, err := handler.Get(ctx, params["<resid>"], query)
-//if err != nil {
-//httperrors.GeneralServerError(w, err)
-//return
-//}
-//appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
-//}
+func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, _ := fetchEnv(ctx, w, r)
+	result, err := handler.Get(ctx, params["<resid>"], query.(*jsonutils.JSONDict))
+	if err != nil {
+		httperrors.GeneralServerError(w, err)
+		return
+	}
+	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+}
 
 func createHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, _, query, body := fetchEnv(ctx, w, r)
@@ -134,21 +134,21 @@ func handleCreate(ctx context.Context, w http.ResponseWriter, handler IK8sResour
 //appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
 //}
 
-//func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-//handler, params, query, body := fetchEnv(ctx, w, r)
-//var data jsonutils.JSONObject
-//var err error
-//if body != nil {
-//data, err = body.Get(handler.Keyword())
-//if err != nil {
-//httperrors.InvalidInputError(w, fmt.Sprintf("No request key: %s", handler.Keyword()))
-//return
-//}
-//}
-//result, err := handler.Delete(ctx, params["<resid>"], query, data)
-//if err != nil {
-//httperrors.GeneralServerError(w, err)
-//return
-//}
-//appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
-//}
+func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, body := fetchEnv(ctx, w, r)
+	var data jsonutils.JSONObject
+	var err error
+	if body != nil {
+		data, err = body.Get(handler.Keyword())
+		if err != nil {
+			httperrors.InvalidInputError(w, fmt.Sprintf("No request key: %s", handler.Keyword()))
+			return
+		}
+	}
+	result, err := handler.Delete(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
+	if err != nil {
+		httperrors.GeneralServerError(w, err)
+		return
+	}
+	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+}
