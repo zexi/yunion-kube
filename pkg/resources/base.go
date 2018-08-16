@@ -57,8 +57,8 @@ func (m *SResourceBaseManager) Create(req *common.Request) (jsonutils.JSONObject
 	return nil, nil
 }
 
-func (m *SResourceBaseManager) Delete(req *common.Request, id string) (jsonutils.JSONObject, error) {
-	return nil, fmt.Errorf("Delete resource not implemented")
+func (m *SResourceBaseManager) Delete(req *common.Request, id string) error {
+	return fmt.Errorf("Delete resource not implemented")
 }
 
 type SNamespaceResourceManager struct {

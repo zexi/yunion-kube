@@ -8,6 +8,7 @@ import (
 	client "k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
@@ -76,12 +77,20 @@ func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
 		cli.StorageV1().RESTClient()), nil
 }
 
+func (r *Request) GetNamespaceByQuery() (string, error) {
+	return r.Query.GetString("namespace")
+}
+
 func (r *Request) GetNamespaceByData() (string, error) {
 	return r.Data.GetString("namespace")
 }
 
 func (r *Request) GetDefaultNamespace() string {
-	ns, _ := r.GetNamespaceByData()
+	ns, _ := r.GetNamespaceByQuery()
+	if ns != "" {
+		return ns
+	}
+	ns, _ = r.GetNamespaceByData()
 	if ns == "" {
 		ns = r.UserCred.GetProjectName()
 	}
@@ -102,6 +111,10 @@ func (r *Request) ToQuery() *dataselect.DataSelectQuery {
 		limitQ,
 		offsetQ,
 	)
+}
+
+func (r *Request) GetParams() map[string]string {
+	return appctx.AppContextParams(r.Context)
 }
 
 type ListResource interface {

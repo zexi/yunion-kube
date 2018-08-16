@@ -33,7 +33,7 @@ type IK8sResourceHandler interface {
 
 	//Update(ctx context.Context, id string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 
-	Delete(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	Delete(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) error
 }
 
 type IK8sResourceManager interface {
@@ -54,7 +54,7 @@ type IK8sResourceManager interface {
 	Create(req *common.Request) (jsonutils.JSONObject, error)
 
 	// delete hooks
-	Delete(req *common.Request, id string) (jsonutils.JSONObject, error)
+	Delete(req *common.Request, id string) error
 }
 
 type K8sResourceHandler struct {
@@ -126,7 +126,7 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict) (*modules.ListResult, error) {
 	req, err := NewCloudK8sRequest(ctx, query, nil)
 	if err != nil {
-		return nil, httperrors.NewGeneralError(err)
+		return nil, errors.NewJSONClientError(err)
 	}
 	if !h.resourceManager.AllowListItems(req) {
 		return nil, httperrors.NewForbiddenError("Not allow to list")
@@ -193,17 +193,17 @@ func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.
 	return doCreateItem(h.resourceManager, req)
 }
 
-func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data *jsonutils.JSONDict) error {
 	req, err := NewCloudK8sRequest(ctx, query, data)
 	if err != nil {
-		return nil, httperrors.NewGeneralError(err)
+		return httperrors.NewGeneralError(err)
 	}
 	err = doRawDelete(h.resourceManager, req, id)
 	if err != nil {
-		return nil, errors.NewJSONClientError(err)
+		return errors.NewJSONClientError(err)
 	}
 
-	return nil, nil
+	return nil
 }
 
 func doRawDelete(man IK8sResourceManager, req *common.Request, id string) error {

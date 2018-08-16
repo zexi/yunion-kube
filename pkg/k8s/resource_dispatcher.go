@@ -14,10 +14,14 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
 
+func getClusterPrefix(prefix string) string {
+	return fmt.Sprintf("%s/clusters/<clusterid>", prefix)
+}
+
 func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sResourceHandler) {
 	log.Infof("Register k8s resource %s", handler.Keyword())
 
-	clusterPrefix := fmt.Sprintf("%s/clusters/<clusterid>", prefix)
+	clusterPrefix := getClusterPrefix(prefix)
 	plural := handler.KeywordPlural()
 	metadata := map[string]interface{}{"manager": handler}
 	tags := map[string]string{"resource": plural}
@@ -145,10 +149,10 @@ func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	result, err := handler.Delete(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
+	err = handler.Delete(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+	w.WriteHeader(http.StatusOK)
 }

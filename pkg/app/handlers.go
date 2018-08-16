@@ -52,5 +52,6 @@ func InitHandlers(app *appsrv.Application) {
 		k8s.AddResourceDispatcher(apiPrefix, app, handler)
 	}
 
+	k8s.AddRawResourceDispatcher(apiPrefix, app)
 	k8s.AddMiscDispatcher(apiPrefix, app)
 }

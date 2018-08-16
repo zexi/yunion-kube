@@ -72,11 +72,15 @@ func contains(s []int32, e int32) bool {
 }
 
 func NewJSONClientError(err error) *httputils.JSONClientError {
-	log.Errorf("Handle error: %v", err)
+	log.Errorf("Handle error: %#v", err)
 	statusCode := http.StatusInternalServerError
 	statusError, ok := err.(*errors.StatusError)
 	if ok && statusError.Status().Code > 0 {
 		statusCode = int(statusError.Status().Code)
 	}
 	return httperrors.NewJsonClientError(statusCode, "", err.Error())
+}
+
+func GeneralServerError(w http.ResponseWriter, err error) {
+	httperrors.GeneralServerError(w, NewJSONClientError(err))
 }
