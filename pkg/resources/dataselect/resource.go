@@ -6,6 +6,8 @@ import (
 
 	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/helm/pkg/proto/hapi/release"
+	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
 
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -139,5 +141,59 @@ func (cell NamespacePodStatusDataCell) GetProperty(name PropertyName) Comparable
 		return StdComparableString(cell.Status.Phase)
 	default:
 		return cell.NamespaceDataCell.GetProperty(name)
+	}
+}
+
+type HelmReleaseDataCell struct {
+	Release *release.Release
+}
+
+func NewHelmReleaseDataCell(obj interface{}) (DataCell, error) {
+	rls, ok := obj.(*release.Release)
+	if !ok {
+		return nil, fmt.Errorf("Object %#v not *release.Release", obj)
+	}
+	return HelmReleaseDataCell{Release: rls}, nil
+}
+
+func (cell HelmReleaseDataCell) GetObject() interface{} {
+	return cell.Release
+}
+
+func (cell HelmReleaseDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case NameProperty:
+		return StdComparableString(cell.Release.Name)
+	//case CreationTimestampProperty:
+	//return StdComparableTime(cell.ObjectMeta.CreationTimestamp.Time)
+	case NamespaceProperty:
+		return StdComparableString(cell.Release.Namespace)
+	default:
+		return nil
+	}
+}
+
+type ChartDataCell struct {
+	Chart *cache.ChartResult
+}
+
+func NewChartDataCell(obj interface{}) (DataCell, error) {
+	chart, ok := obj.(*cache.ChartResult)
+	if !ok {
+		return nil, fmt.Errorf("Object %#v not *cache.ChartResult", obj)
+	}
+	return ChartDataCell{Chart: chart}, nil
+}
+
+func (cell ChartDataCell) GetObject() interface{} {
+	return cell.Chart
+}
+
+func (cell ChartDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case NameProperty:
+		return StdComparableString(cell.Chart.Chart.Name)
+	default:
+		return nil
 	}
 }

@@ -6,12 +6,15 @@ import (
 	"reflect"
 
 	client "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
+	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -19,6 +22,7 @@ import (
 
 type Request struct {
 	K8sClient client.Interface
+	K8sConfig *rest.Config
 	UserCred  mcclient.TokenCredential
 	Query     *jsonutils.JSONDict
 	Data      *jsonutils.JSONDict
@@ -77,6 +81,12 @@ func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
 		cli.StorageV1().RESTClient()), nil
 }
 
+func (r *Request) GetHelmClient() (*helmclient.HelmTunnelClient, error) {
+	k8scli := r.GetK8sClient()
+	k8sconfig := r.K8sConfig
+	return helmclient.NewHelmTunnelClient(k8scli, k8sconfig)
+}
+
 func (r *Request) GetNamespaceByQuery() (string, error) {
 	return r.Query.GetString("namespace")
 }
@@ -97,12 +107,12 @@ func (r *Request) GetDefaultNamespace() string {
 	return ns
 }
 
-func (r *Request) ToQuery() *dataselect.DataSelectQuery {
-	limit, _ := r.Query.Int("limit")
+func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery {
+	limit, _ := query.Int("limit")
 	if limit == 0 {
 		limit = 20
 	}
-	offset, _ := r.Query.Int("offset")
+	offset, _ := query.Int("offset")
 	limitQ := dataselect.NewLimitQuery(int(limit))
 	offsetQ := dataselect.NewOffsetQuery(int(offset))
 	return dataselect.NewDataSelectQuery(
@@ -111,6 +121,10 @@ func (r *Request) ToQuery() *dataselect.DataSelectQuery {
 		limitQ,
 		offsetQ,
 	)
+}
+
+func (r *Request) ToQuery() *dataselect.DataSelectQuery {
+	return NewDataSelectQuery(r.Query)
 }
 
 func (r *Request) GetParams() map[string]string {

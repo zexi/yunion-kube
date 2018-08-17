@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appctx"
@@ -31,7 +33,7 @@ type IK8sResourceHandler interface {
 
 	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 
-	//Update(ctx context.Context, id string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
+	Update(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 
 	Delete(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) error
 }
@@ -53,8 +55,15 @@ type IK8sResourceManager interface {
 	ValidateCreateData(req *common.Request) error
 	Create(req *common.Request) (jsonutils.JSONObject, error)
 
+	// update hooks
+	AllowUpdateItem(req *common.Request, id string) bool
+	Update(req *common.Request, id string) (jsonutils.JSONObject, error)
+
 	// delete hooks
+	AllowDeleteItem(req *common.Request, id string) bool
 	Delete(req *common.Request, id string) error
+
+	IsRawResource() bool
 }
 
 type K8sResourceHandler struct {
@@ -95,26 +104,28 @@ func getCluster(ctx context.Context, userCred mcclient.TokenCredential) (*models
 	return cluster, nil
 }
 
-func getK8sClient(ctx context.Context, userCred mcclient.TokenCredential) (kubernetes.Interface, error) {
+func getK8sClient(ctx context.Context, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
 	cluster, err := getCluster(ctx, userCred)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	config, err := cluster.GetK8sRestConfig()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return kubernetes.NewForConfig(config)
+	cli, err := kubernetes.NewForConfig(config)
+	return cli, config, err
 }
 
 func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*common.Request, error) {
 	userCred := getUserCredential(ctx)
-	k8sCli, err := getK8sClient(ctx, userCred)
+	k8sCli, config, err := getK8sClient(ctx, userCred)
 	if err != nil {
 		return nil, err
 	}
 	req := &common.Request{
 		K8sClient: k8sCli,
+		K8sConfig: config,
 		UserCred:  userCred,
 		Query:     query,
 		Data:      data,
@@ -139,14 +150,7 @@ func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict
 	return items, nil
 }
 
-func listItems(
-	man IK8sResourceManager,
-	req *common.Request,
-) (*modules.ListResult, error) {
-	ret, err := man.List(req)
-	if err != nil {
-		return nil, err
-	}
+func toListResult(ret common.ListResource) (*modules.ListResult, error) {
 	count := ret.GetTotal()
 	if count == 0 {
 		emptyList := modules.ListResult{Data: []jsonutils.JSONObject{}}
@@ -158,6 +162,17 @@ func listItems(
 	}
 	retResult := modules.ListResult{Data: data, Total: ret.GetTotal(), Limit: ret.GetLimit(), Offset: ret.GetOffset()}
 	return &retResult, nil
+}
+
+func listItems(
+	man IK8sResourceManager,
+	req *common.Request,
+) (*modules.ListResult, error) {
+	ret, err := man.List(req)
+	if err != nil {
+		return nil, err
+	}
+	return toListResult(ret)
 }
 
 func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
@@ -193,22 +208,48 @@ func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.
 	return doCreateItem(h.resourceManager, req)
 }
 
+func (h *K8sResourceHandler) Update(ctx context.Context, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+	req, err := NewCloudK8sRequest(ctx, query, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	obj, err := doUpdateItem(h.resourceManager, req, id)
+
+	if err != nil {
+		return nil, errors.NewJSONClientError(err)
+	}
+	return obj, err
+}
+
+func doUpdateItem(man IK8sResourceManager, req *common.Request, id string) (jsonutils.JSONObject, error) {
+	if !man.AllowUpdateItem(req, id) {
+		return nil, httperrors.NewForbiddenError("Not allow to delete")
+	}
+	return man.Update(req, id)
+}
+
 func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data *jsonutils.JSONDict) error {
 	req, err := NewCloudK8sRequest(ctx, query, data)
 	if err != nil {
 		return httperrors.NewGeneralError(err)
 	}
-	err = doRawDelete(h.resourceManager, req, id)
+
+	if h.resourceManager.IsRawResource() {
+		err = doRawDelete(h.resourceManager, req, id)
+	} else {
+		err = doDeleteItem(h.resourceManager, req, id)
+	}
+
 	if err != nil {
 		return errors.NewJSONClientError(err)
 	}
-
 	return nil
 }
 
 func doRawDelete(man IK8sResourceManager, req *common.Request, id string) error {
 	verber, err := req.GetVerberClient()
 	if err != nil {
+		return err
 	}
 
 	kind := man.Keyword()
@@ -221,4 +262,11 @@ func doRawDelete(man IK8sResourceManager, req *common.Request, id string) error 
 		return err
 	}
 	return nil
+}
+
+func doDeleteItem(man IK8sResourceManager, req *common.Request, id string) error {
+	if !man.AllowDeleteItem(req, id) {
+		return httperrors.NewForbiddenError("Not allow to delete")
+	}
+	return man.Delete(req, id)
 }

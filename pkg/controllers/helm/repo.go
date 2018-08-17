@@ -4,7 +4,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
-var OfficialRepos = []Repo{
+var OfficialRepos = []helm.Repo{
 	{
 		Name:   "stable",
 		Url:    "https://kubernetes-charts.storage.googleapis.com",

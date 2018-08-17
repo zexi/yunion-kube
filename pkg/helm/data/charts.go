@@ -22,6 +22,6 @@ type ICharts interface {
 	Search(params jsonutils.JSONObject) ([]*helm.ChartPackage, error)
 	// Refresh charts data
 	Refresh() error
-	RefreshChart(repo string, chartName string) error
-	DeleteChart(repo string, chartName string, version string) error
+	//RefreshChart(repo string, chartName string) error
+	//DeleteChart(repo string, chartName string, version string) error
 }

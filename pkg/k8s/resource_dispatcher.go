@@ -36,7 +36,7 @@ func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sR
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s", clusterPrefix, plural), handler.Filter(createHandler), metadata, "create", tags)
 
 	// update resource
-	//app.AddHandler2("PUT", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(updateHandler), metadata, "update", tags)
+	app.AddHandler2("PUT", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(updateHandler), metadata, "update", tags)
 
 	// delete resource
 	app.AddHandler2("DELETE", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(deleteHandler), metadata, "delete", tags)
@@ -123,20 +123,20 @@ func handleCreate(ctx context.Context, w http.ResponseWriter, handler IK8sResour
 	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
-//func updateHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-//handler, params, query, body := fetchEnv(ctx, w, r)
-//data, err := body.Get(handler.Keyword())
-//if err != nil {
-//httperrors.InvalidInputError(w, fmt.Sprintf("No Request key: %s", handler.Keyword()))
-//return
-//}
-//result, err := handler.Update(ctx, params["<resid>"], query, data)
-//if err != nil {
-//httperrors.GeneralServerError(w, err)
-//return
-//}
-//appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
-//}
+func updateHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, body := fetchEnv(ctx, w, r)
+	data, err := body.Get(handler.Keyword())
+	if err != nil {
+		httperrors.InvalidInputError(w, fmt.Sprintf("No Request key: %s", handler.Keyword()))
+		return
+	}
+	result, err := handler.Update(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
+	if err != nil {
+		httperrors.GeneralServerError(w, err)
+		return
+	}
+	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+}
 
 func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, params, query, body := fetchEnv(ctx, w, r)
@@ -149,7 +149,16 @@ func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	err = handler.Delete(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
+
+	q := jsonutils.NewDict()
+	if query != nil {
+		q = query.(*jsonutils.JSONDict)
+	}
+	d := jsonutils.NewDict()
+	if data != nil {
+		d = data.(*jsonutils.JSONDict)
+	}
+	err = handler.Delete(ctx, params["<resid>"], q, d)
 	if err != nil {
 		httperrors.GeneralServerError(w, err)
 		return

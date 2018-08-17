@@ -3,13 +3,16 @@ package models
 import (
 	"context"
 
+	"k8s.io/helm/pkg/repo"
 
-	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/sqlchemy"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/sqlchemy"
+
+	repobackend "yunion.io/x/yunion-kube/pkg/helm/data/cache/repo"
 )
 
 type SRepoManager struct {
@@ -23,9 +26,9 @@ func init() {
 }
 
 type SRepo struct {
-	db.SStandaloneResourceBase
+	db.SSharableVirtualResourceBase
 
-	Url string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
+	Url    string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
 	Source string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"admin"`
 }
 
@@ -49,20 +52,73 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 	return man.SSharableVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
 
-func (man *SRepoManager) FetchRepoById(id string) *SRepo {
-	repo, err := man.FetchById(id)
-	if err  != nil {
-		log.Errorf("Fetch repo by id %q error: %v", id, err)
-		return nil
+func (man *SRepoManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	repos := make([]*SRepo, len(items))
+	for i, t := range items {
+		repos[i] = t.(*SRepo)
 	}
-	return repo.(*SRepo)
+	for _, r := range repos {
+		go func() {
+			err := r.AddToBackend()
+			if err != nil {
+				log.Errorf("Add repo to backend: %v", err)
+			}
+		}()
+	}
 }
 
-func (man *SRepoManager) FetchRepoByIdOrName(ownerProjId, ident string) *SRepo {
-	repo, err := man.FetchByIdOrName(ownerProjId, ident)
-	if err  != nil {
-		log.Errorf("Fetch repo by id or name %q error: %v", ident, err)
-		return nil
+func (man *SRepoManager) FetchRepoById(id string) (*SRepo, error) {
+	repo, err := man.FetchById(id)
+	if err != nil {
+		return nil, err
 	}
-	return repo.(*SRepo)
+	return repo.(*SRepo), nil
+}
+
+func (man *SRepoManager) FetchRepoByIdOrName(ownerProjId, ident string) (*SRepo, error) {
+	repo, err := man.FetchByIdOrName(ownerProjId, ident)
+	if err != nil {
+		return nil, err
+	}
+	return repo.(*SRepo), nil
+}
+
+func (man *SRepoManager) ListRepos() ([]SRepo, error) {
+	q := man.Query()
+	repos := make([]SRepo, 0)
+	err := db.FetchModelObjects(RepoManager, q, &repos)
+	return repos, err
+}
+
+func (r *SRepo) ToEntry() *repo.Entry {
+	return &repo.Entry{
+		Name: r.Name,
+		URL:  r.Url,
+	}
+}
+
+func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	err := repobackend.BackendManager.Delete(r.Name)
+	_, ok := err.(repobackend.ErrorRepoNotFound)
+	if err != nil && !ok {
+		return err
+	}
+	return r.SSharableVirtualResourceBase.Delete(ctx, userCred)
+}
+
+func (r *SRepo) AddToBackend() error {
+	err := repobackend.BackendManager.Add(r.ToEntry())
+	return err
+}
+
+func (r *SRepo) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return r.IsOwner(userCred)
+}
+
+func (r *SRepo) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, r.DoSync()
+}
+
+func (r *SRepo) DoSync() error {
+	return repobackend.BackendManager.Update(r.Name)
 }

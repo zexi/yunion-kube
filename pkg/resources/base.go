@@ -57,8 +57,28 @@ func (m *SResourceBaseManager) Create(req *common.Request) (jsonutils.JSONObject
 	return nil, nil
 }
 
+func (m *SResourceBaseManager) AllowUpdateItem(req *common.Request, id string) bool {
+	return m.AllowDeleteItem(req, id)
+}
+
+func (m *SResourceBaseManager) Update(req *common.Request, id string) (jsonutils.JSONObject, error) {
+	return nil, fmt.Errorf("Update resource not implemented")
+}
+
+func (m *SResourceBaseManager) AllowDeleteItem(req *common.Request, id string) bool {
+	cred := req.UserCred
+	if cred.IsSystemAdmin() {
+		return true
+	}
+	return false
+}
+
 func (m *SResourceBaseManager) Delete(req *common.Request, id string) error {
 	return fmt.Errorf("Delete resource not implemented")
+}
+
+func (m *SResourceBaseManager) IsRawResource() bool {
+	return true
 }
 
 type SNamespaceResourceManager struct {

@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
-	err := app.Run(context.Background())
-	log.Fatalf("Run err: %v", err)
+	if err := app.Run(context.Background()); err != nil {
+		log.Fatalf("Run err: %v", err)
+	}
 }
