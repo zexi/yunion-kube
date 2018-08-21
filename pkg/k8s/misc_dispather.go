@@ -21,7 +21,7 @@ import (
 
 func AddMiscDispatcher(prefix string, app *appsrv.Application) {
 	log.Infof("Register k8s misc dispatcher handler")
-	clusterPrefix := fmt.Sprintf("%s/clusters/<clusterid>", prefix)
+	clusterPrefix := getClusterPrefix(prefix)
 
 	// handle exec shell
 	app.AddHandler("GET",

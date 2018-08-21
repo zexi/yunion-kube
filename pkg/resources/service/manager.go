@@ -12,6 +12,6 @@ type SServiceManager struct {
 
 func init() {
 	ServiceManager = &SServiceManager{
-		SNamespaceResourceManager: resources.NewNamespaceResourceManager("service", "services"),
+		SNamespaceResourceManager: resources.NewNamespaceResourceManager("k8s_service", "k8s_services"),
 	}
 }

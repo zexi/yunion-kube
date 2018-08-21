@@ -10,6 +10,8 @@ func TrimKindPlural(plural string) string {
 	switch plural {
 	case "ingresses":
 		return api.ResourceKindIngress
+	case "k8s_services":
+		return api.ResourceKindService
 	default:
 		return strings.TrimRight(plural, "s")
 	}
