@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"sync"
 
-	"yunion.io/x/log"
 	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/controllers/auth"
+	"yunion.io/x/yunion-kube/pkg/controllers/helm"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
 
@@ -28,6 +29,7 @@ func Start() {
 			log.Errorf("Add cluster %q to manager error: %v", cluster.Name, err)
 		}
 	}
+	helm.Start()
 }
 
 type SControllerManager struct {

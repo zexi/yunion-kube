@@ -12,16 +12,16 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/rest"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/util/sets"
 	"yunion.io/x/pkg/util/wait"
 	yutils "yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
-	"k8s.io/client-go/rest"
 	ykecluster "yunion.io/yke/pkg/cluster"
 	yketypes "yunion.io/yke/pkg/types"
 
@@ -41,7 +41,7 @@ var (
 
 func init() {
 	ClusterManager = &SClusterManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SCluster{}, "clusters_tbl", "cluster", "clusters"),
+		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SCluster{}, "clusters_tbl", "kube_cluster", "kube_clusters"),
 	}
 }
 
