@@ -33,8 +33,8 @@ type cachedCharts struct {
 }
 
 type ChartResult struct {
-	Repo  string `json:"repo"`
-	Chart *repo.ChartVersion
+	Repo  string             `json:"repo"`
+	Chart *repo.ChartVersion `json:"chart"`
 }
 
 func (r ChartResult) RepoChartPath() string {

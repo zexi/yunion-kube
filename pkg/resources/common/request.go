@@ -2,8 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -137,24 +135,17 @@ type ListResource interface {
 	GetResponseData() interface{}
 }
 
-func ToListJsonData(data interface{}) ([]jsonutils.JSONObject, error) {
-	v := reflect.ValueOf(data)
-	if v.Kind() != reflect.Slice {
-		return nil, fmt.Errorf("Can't traverse non-slice value, kind: %v", v.Kind())
+func ListResource2JSONWithKey(list ListResource, key string) map[string]interface{} {
+	ret := make(map[string]interface{})
+	if list.GetTotal() > 0 {
+		ret["total"] = list.GetTotal()
 	}
-
-	ret := make([]jsonutils.JSONObject, 0)
-	for i := 0; i < v.Len(); i++ {
-		item := v.Index(i)
-		funcV := item.MethodByName("ToListItem")
-		if !funcV.IsValid() || funcV.IsNil() {
-			return nil, fmt.Errorf("Item kind %v not implement ToListItem function", item.Kind())
-		}
-		out := funcV.Call([]reflect.Value{})
-		if len(out) != 1 {
-			return nil, fmt.Errorf("Invalid return value: %#v", out)
-		}
-		ret = append(ret, out[0].Interface().(jsonutils.JSONObject))
+	if list.GetLimit() > 0 {
+		ret["limit"] = list.GetLimit()
 	}
-	return ret, nil
+	if list.GetOffset() > 0 {
+		ret["offset"] = list.GetOffset()
+	}
+	ret[key] = list.GetResponseData()
+	return ret
 }

@@ -10,7 +10,6 @@ import (
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
@@ -100,17 +99,12 @@ func chartlistHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	resp, err := chart.ChartManager.List(cq, dsq)
+	list, err := chart.ChartManager.List(cq, dsq)
 	if err != nil {
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	list, err := toListResult(resp)
-	if err != nil {
-		httperrors.GeneralServerError(w, err)
-		return
-	}
-	appsrv.SendJSON(w, modules.ListResult2JSONWithKey(list, "charts"))
+	SendJSON(w, common.ListResource2JSONWithKey(list, "charts"))
 }
 
 func chartShowHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {

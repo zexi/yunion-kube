@@ -17,11 +17,11 @@ type Service struct {
 
 	// InternalEndpoint of all kubernetes services that have the same label selector as connected Replication
 	// Controller. Endpoint is DNS name merged with ports
-	InternalEndpoint common.Endpoint
+	InternalEndpoint common.Endpoint `json:"internalEndpoint"`
 
 	// ExternalEndpoints of all kubernetes services that have the same label selector as connected Replication
 	// Controller. Endpoint is DNS name merged with ports
-	ExternalEndpoints []common.Endpoint
+	ExternalEndpoints []common.Endpoint `json:"externalEndpoint"`
 
 	// Label selector of the service
 	Selector map[string]string `json:"selector"`
