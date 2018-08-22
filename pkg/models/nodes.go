@@ -49,16 +49,13 @@ const (
 
 func init() {
 	NodeManager = &SNodeManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SNode{}, "nodes_tbl", "kube_node", "kube_nodes"),
+		SStatusStandaloneResourceBaseManager: db.NewStatusStandaloneResourceBaseManager(SNode{}, "nodes_tbl", "kube_node", "kube_nodes"),
 	}
 }
 
 type SNodeManager struct {
-	db.SVirtualResourceBaseManager
-}
-
-func (m *SNodeManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return m.SVirtualResourceBaseManager.AllowListItems(ctx, userCred, query)
+	db.SStatusStandaloneResourceBaseManager
+	cloudmodels.SInfrastructureManager
 }
 
 func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err error) {
@@ -224,7 +221,7 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	}
 	data.Add(jsonutils.NewString(hostId), "host_id")
 
-	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
+	return m.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
 func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
@@ -329,7 +326,8 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 }
 
 type SNode struct {
-	db.SVirtualResourceBase
+	db.SStatusStandaloneResourceBase
+	cloudmodels.SInfrastructure
 
 	ClusterId        string `nullable:"false" create:"required" list:"user"`
 	Etcd             bool   `nullable:"true" create:"required" list:"user"`
@@ -351,7 +349,7 @@ func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCred
 	if dockerConf != nil {
 		n.DockerdConfig = dockerConf
 	}
-	return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
+	return n.SStatusStandaloneResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
 }
 
 // Register set node status to ready, means node is ready for deploy
@@ -448,10 +446,6 @@ func (n *SNode) GetCluster() (*SCluster, error) {
 	return ClusterManager.FetchClusterById(n.ClusterId)
 }
 
-func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return n.IsOwner(userCred)
-}
-
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	//cluster, err := n.GetCluster()
 	//if err != nil {
@@ -461,7 +455,7 @@ func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	//return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
 	//}
 	//return nil
-	return n.SVirtualResourceBase.ValidateDeleteCondition(ctx)
+	return n.SStatusStandaloneResourceBase.ValidateDeleteCondition(ctx)
 }
 
 func (n *SNode) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -470,7 +464,7 @@ func (n *SNode) Delete(ctx context.Context, userCred mcclient.TokenCredential) e
 }
 
 func (n *SNode) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return n.SVirtualResourceBase.Delete(ctx, userCred)
+	return n.SStatusStandaloneResourceBase.Delete(ctx, userCred)
 }
 
 func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
@@ -592,14 +586,14 @@ func rolesString(n *SNode) string {
 }
 
 func (n *SNode) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := n.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
+	extra := n.SStatusStandaloneResourceBase.GetCustomizeColumns(ctx, userCred, query)
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
 	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
 	return extra
 }
 
 func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := n.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	extra := n.SStatusStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
 	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
 	return extra
@@ -651,7 +645,7 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 }
 
 func (n *SNode) AllowGetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return n.IsOwner(userCred)
+	return n.AllowGetDetails(ctx, userCred, query)
 }
 
 func (n *SNode) GetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {

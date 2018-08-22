@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/util/sets"
@@ -41,7 +42,7 @@ var (
 
 func init() {
 	ClusterManager = &SClusterManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SCluster{}, "clusters_tbl", "kube_cluster", "kube_clusters"),
+		SStatusStandaloneResourceBaseManager: db.NewStatusStandaloneResourceBaseManager(SCluster{}, "clusters_tbl", "kube_cluster", "kube_clusters"),
 	}
 }
 
@@ -68,11 +69,12 @@ const (
 )
 
 type SClusterManager struct {
-	db.SVirtualResourceBaseManager
+	db.SStatusStandaloneResourceBaseManager
+	models.SInfrastructureManager
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return m.SVirtualResourceBaseManager.AllowListItems(ctx, userCred, query)
+	return true
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -99,7 +101,7 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 	setDefaultStr("cluster_cidr", DEFAULT_CLUSER_CIDR)
 	setDefaultStr("cluster_domain", DEFAULT_CLUSTER_DOMAIN)
 	setDefaultStr("infra_container_image", DEFAULT_INFRA_CONTAINER_IMAGE)
-	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
+	return m.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
 func (m *SClusterManager) FetchClusterByIdOrName(ownerProjId, ident string) (*SCluster, error) {
@@ -215,7 +217,8 @@ func (m *SClusterManager) GetInternalClusters() ([]SCluster, error) {
 }
 
 type SCluster struct {
-	db.SVirtualResourceBase
+	db.SStatusStandaloneResourceBase
+	models.SInfrastructure
 	Mode          string `nullable:"false" create:"required" list:"user"`
 	K8sVersion    string `nullable:"false" create:"required" list:"user" update:"user"`
 	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
@@ -332,8 +335,12 @@ func (c *SCluster) GetYKENodes() ([]*SNode, error) {
 	return objs, nil
 }
 
+func (c *SCluster) allowPerformAction(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return userCred.IsSystemAdmin()
+}
+
 func (c *SCluster) AllowPerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred)
+	return c.allowPerformAction(ctx, userCred, query, data)
 }
 
 func (c *SCluster) ValidateDeployCondition(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (nodes []*SNode, err error) {
@@ -493,10 +500,6 @@ func (c *SCluster) GetYKEConfig() (conf *yketypes.KubernetesEngineConfig, err er
 	return &confObj, err
 }
 
-func (c *SCluster) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred)
-}
-
 func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
 	// override
 	log.Infof("Cluster delete do nothing")
@@ -504,7 +507,7 @@ func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential
 }
 
 func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return c.SVirtualResourceBase.Delete(ctx, userCred)
+	return c.SStatusStandaloneResourceBase.Delete(ctx, userCred)
 }
 
 func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -719,7 +722,7 @@ func (c *SCluster) NewYKEConfig() (yketypes.KubernetesEngineConfig, error) {
 }
 
 func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred)
+	return c.allowPerformAction(ctx, userCred, query, data)
 }
 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -773,7 +776,7 @@ func (c *SCluster) GetAdminKubeconfig() (string, error) {
 }
 
 func (c *SCluster) AllowGetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred)
+	return c.AllowGetDetails(ctx, userCred, query)
 }
 
 func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -784,7 +787,7 @@ func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient
 }
 
 func (c *SCluster) AllowGetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred)
+	return c.AllowGetDetails(ctx, userCred, query)
 }
 
 func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -805,5 +808,5 @@ func (c *SCluster) ValidateUpdateData(ctx context.Context, userCred mcclient.Tok
 			return nil, httperrors.NewInputParameterError("Invalid version %q: %v", k8sVersion, err)
 		}
 	}
-	return c.SVirtualResourceBase.ValidateUpdateData(ctx, userCred, query, data)
+	return c.SStatusStandaloneResourceBase.ValidateUpdateData(ctx, userCred, query, data)
 }
