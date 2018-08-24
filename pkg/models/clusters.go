@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"k8s.io/client-go/rest"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -50,6 +52,7 @@ const (
 	CLUSTER_STATUS_INIT         = "init"
 	CLUSTER_STATUS_PRE_CREATING = "pre-creating"
 	CLUSTER_STATUS_CREATING     = "creating"
+	CLUSTER_STATUS_IMPORT       = "importing"
 	CLUSTER_STATUS_POST_CHECK   = "post-checking"
 	CLUSTER_STATUS_RUNNING      = "running"
 	CLUSTER_STATUS_ERROR        = "error"
@@ -71,6 +74,26 @@ const (
 type SClusterManager struct {
 	db.SStatusStandaloneResourceBaseManager
 	models.SInfrastructureManager
+}
+
+type SCluster struct {
+	db.SStatusStandaloneResourceBase
+	models.SInfrastructure
+	Mode          string `nullable:"false" create:"required" list:"user"`
+	K8sVersion    string `nullable:"false" create:"required" list:"user" update:"user"`
+	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
+	ClusterDomain string `nullable:"true" create:"optional" list:"user"`
+	//ServiceClusterIPRange string `nullable:"false" create:"optional" default:"10.43.0.0/16" list:"user"`
+	InfraContainerImage string `nullable:"true" create:"optional" list:"user"`
+
+	ApiEndpoint         string               `nullable:"true" list:"user"`
+	ClientCertificate   string               `nullable:"true"`
+	ClientKey           string               `nullable:"true"`
+	RootCaCertificate   string               `nullable:"true"`
+	ServiceAccountToken string               `nullable:"true"`
+	Certs               string               `nullable:"true"`
+	YkeConfig           string               `nullable:"true"`
+	Metadata            jsonutils.JSONObject `nullable:"true"`
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -216,26 +239,6 @@ func (m *SClusterManager) GetInternalClusters() ([]SCluster, error) {
 	return ret, nil
 }
 
-type SCluster struct {
-	db.SStatusStandaloneResourceBase
-	models.SInfrastructure
-	Mode          string `nullable:"false" create:"required" list:"user"`
-	K8sVersion    string `nullable:"false" create:"required" list:"user" update:"user"`
-	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
-	ClusterDomain string `nullable:"true" create:"optional" list:"user"`
-	//ServiceClusterIPRange string `nullable:"false" create:"optional" default:"10.43.0.0/16" list:"user"`
-	InfraContainerImage string `nullable:"true" create:"optional" list:"user"`
-
-	ApiEndpoint         string               `nullable:"true" list:"user"`
-	ClientCertificate   string               `nullable:"true"`
-	ClientKey           string               `nullable:"true"`
-	RootCaCertificate   string               `nullable:"true"`
-	ServiceAccountToken string               `nullable:"true"`
-	Certs               string               `nullable:"true"`
-	YkeConfig           string               `nullable:"true"`
-	Metadata            jsonutils.JSONObject `nullable:"true"`
-}
-
 func (c *SCluster) GetYKESystemImages() (*yketypes.SystemImages, error) {
 	if c.K8sVersion == "" {
 		c.K8sVersion = DEFAULT_K8S_VERSION
@@ -335,12 +338,8 @@ func (c *SCluster) GetYKENodes() ([]*SNode, error) {
 	return objs, nil
 }
 
-func (c *SCluster) allowPerformAction(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
-}
-
 func (c *SCluster) AllowPerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(ctx, userCred, query, data)
+	return allowPerformAction(ctx, userCred, query, data)
 }
 
 func (c *SCluster) ValidateDeployCondition(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (nodes []*SNode, err error) {
@@ -365,13 +364,32 @@ func (c *SCluster) ValidateDeployCondition(ctx context.Context, userCred mcclien
 	return
 }
 
+func FetchClusterDeployTaskData(pendingNodes []*SNode) *jsonutils.JSONDict {
+	ret := jsonutils.NewDict()
+	ids := []string{}
+	for _, node := range pendingNodes {
+		ids = append(ids, node.Id)
+	}
+	ret.Add(jsonutils.NewStringArray(ids), NODES_DEPLOY_IDS_KEY)
+	return ret
+}
+
 func (c *SCluster) PerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	nodes, err := c.ValidateDeployCondition(ctx, userCred, query, data)
 	if err != nil {
 		return nil, err
 	}
-	err = c.Deploy(ctx, nodes...)
+	c.StartClusterDeployTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
 	return nil, err
+}
+
+func (c *SCluster) StartClusterDeployTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeployTask", c, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
@@ -493,11 +511,7 @@ func (c *SCluster) GetYKEConfig() (conf *yketypes.KubernetesEngineConfig, err er
 	if confStr == "" {
 		return
 	}
-	confObj, err := utils.ConvertToYkeConfig(confStr)
-	if err != nil {
-		return nil, err
-	}
-	return &confObj, err
+	return utils.ConvertToYkeConfig(confStr)
 }
 
 func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -722,7 +736,7 @@ func (c *SCluster) NewYKEConfig() (yketypes.KubernetesEngineConfig, error) {
 }
 
 func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(ctx, userCred, query, data)
+	return allowPerformAction(ctx, userCred, query, data)
 }
 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -809,4 +823,236 @@ func (c *SCluster) ValidateUpdateData(ctx context.Context, userCred mcclient.Tok
 		}
 	}
 	return c.SStatusStandaloneResourceBase.ValidateUpdateData(ctx, userCred, query, data)
+}
+
+func (c *SCluster) AllowPerformImport(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+type clusterImportValidator struct {
+	ctx      context.Context
+	cluster  *SCluster
+	userCred mcclient.TokenCredential
+	query    jsonutils.JSONObject
+	data     jsonutils.JSONObject
+}
+
+func (v *clusterImportValidator) clusterValidate() error {
+	nodes, err := v.cluster.GetNodes()
+	if err != nil {
+		return httperrors.NewInternalServerError("Get nodes by cluster %q: %v", v.cluster.Id, err)
+	}
+	if len(nodes) != 0 {
+		return httperrors.NewInputParameterError("Not empty cluster %q has %d nodes", v.cluster.Name, len(nodes))
+	}
+	return nil
+}
+
+func (v *clusterImportValidator) ykeValidate() (ykeConf *yketypes.KubernetesEngineConfig, err error) {
+	ykeConfStr, err := v.data.GetString("yke_config")
+	if err != nil {
+		err = httperrors.NewInputParameterError("Not found yke_config: %v", err)
+		return
+	}
+	ykeConf, err = utils.ConvertToYkeConfig(ykeConfStr)
+	if err != nil {
+		err = httperrors.NewInputParameterError("Convert to YKE config error: %v", err)
+		return
+	}
+	if len(ykeConf.Nodes) == 0 {
+		err = httperrors.NewInputParameterError("YKE config nodes is empty, your config is: %q", ykeConfStr)
+	}
+	return
+}
+
+func (v *clusterImportValidator) kubeConfigValidate() (k8sConf *rest.Config, err error) {
+	kubeConfigStr, err := v.data.GetString("kube_config")
+	if err != nil {
+		err = httperrors.NewInputParameterError("Not found kube_config: %v", err)
+		return
+	}
+
+	k8sConf, err = utils.GetK8sRestConfigFromBytes([]byte(kubeConfigStr))
+	if err != nil {
+		err = httperrors.NewInputParameterError("Convert kube config to rest config error: %v", err)
+		return
+	}
+	if len(k8sConf.Host) == 0 {
+		err = httperrors.NewInputParameterError("Not found kubernetes api server host")
+		return
+	}
+	if len(k8sConf.CAData) == 0 {
+		err = httperrors.NewInputParameterError("Kubeconfig 'certificate-authority-data' must provide")
+		return
+	}
+	if len(k8sConf.CertData) == 0 {
+		err = httperrors.NewInputParameterError("Kubeconfig 'client-certificate-data' must provide")
+		return
+	}
+	if len(k8sConf.KeyData) == 0 {
+		err = httperrors.NewInputParameterError("Kubeconfig 'client-key-data' must provide")
+		return
+	}
+	return
+}
+
+func (v *clusterImportValidator) nodesValidate(ykeConf *yketypes.KubernetesEngineConfig) (nodes []*YkeConfigNodeFactory, err error) {
+	nodes = make([]*YkeConfigNodeFactory, 0)
+	for _, node := range ykeConf.Nodes {
+		var nodeF *YkeConfigNodeFactory
+		nodeF, err = NewYkeConfigNodeFactory(v.ctx, v.userCred, node, v.cluster)
+		if err != nil {
+			return
+		}
+		nodes = append(nodes, nodeF)
+	}
+	return
+}
+
+func (v *clusterImportValidator) do() (
+	ykeConf *yketypes.KubernetesEngineConfig,
+	k8sConf *rest.Config,
+	nodes []*YkeConfigNodeFactory,
+	err error,
+) {
+	err = v.clusterValidate()
+	if err != nil {
+		return
+	}
+	ykeConf, err = v.ykeValidate()
+	if err != nil {
+		return
+	}
+	k8sConf, err = v.kubeConfigValidate()
+	if err != nil {
+		return
+	}
+	nodes, err = v.nodesValidate(ykeConf)
+	return
+}
+
+type ykeImportInfo struct {
+	// info from YKE config
+	Version    string
+	Mode       string
+	CIDR       string
+	Domain     string
+	InfraImage string
+
+	// info from Kube config
+	ApiEndpoint       string
+	RootCaCertificate string
+	ClientCertificate string
+	ClientKey         string
+}
+
+func getClusterYkeImportInfo(ykeConf *yketypes.KubernetesEngineConfig, kubeConf *rest.Config) (info ykeImportInfo, err error) {
+	// get version from YKE config
+	k8sImage := ykeConf.Services.KubeAPI.Image
+	imageVersion := strings.Split(k8sImage, ":")[1]
+	version, ok := YKEK8sVersionMap[imageVersion]
+	if !ok {
+		err = fmt.Errorf("Not support k8s version: %q", imageVersion)
+		return
+	}
+	cidr := ykeConf.Services.KubeAPI.ServiceClusterIPRange
+	if cidr == "" {
+		cidr = DEFAULT_CLUSER_CIDR
+	}
+	domain := ykeConf.Services.Kubelet.ClusterDomain
+	if domain == "" {
+		domain = DEFAULT_CLUSTER_DOMAIN
+	}
+	infraImage := ykeConf.SystemImages.PodInfraContainer
+	if infraImage == "" {
+		infraImage = DEFAULT_INFRA_CONTAINER_IMAGE
+	}
+
+	info = ykeImportInfo{
+		Version:           version,
+		Mode:              DEFAULT_CLUSER_MODE,
+		CIDR:              cidr,
+		Domain:            domain,
+		InfraImage:        infraImage,
+		ApiEndpoint:       kubeConf.Host,
+		RootCaCertificate: string(kubeConf.CAData),
+		ClientCertificate: string(kubeConf.CertData),
+		ClientKey:         string(kubeConf.KeyData),
+	}
+	return
+}
+
+func setClusterInfoFromImport(c *SCluster, ykeConf *yketypes.KubernetesEngineConfig, kubeConf *rest.Config) error {
+	info, err := getClusterYkeImportInfo(ykeConf, kubeConf)
+	if err != nil {
+		return httperrors.NewInputParameterError(err.Error())
+	}
+	_, err = c.GetModelManager().TableSpec().Update(c, func() error {
+		c.Mode = info.Mode
+		c.K8sVersion = info.Version
+		c.ClusterCidr = info.CIDR
+		c.ClusterDomain = info.Domain
+		c.InfraContainerImage = info.InfraImage
+		c.ApiEndpoint = info.ApiEndpoint
+		c.RootCaCertificate = info.RootCaCertificate
+		c.ClientCertificate = info.ClientCertificate
+		c.ClientKey = info.ClientKey
+		return nil
+	})
+	return err
+}
+
+func (c *SCluster) PerformImport(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	validator := &clusterImportValidator{
+		ctx:      ctx,
+		cluster:  c,
+		userCred: userCred,
+		query:    query,
+		data:     data,
+	}
+	ykeConf, kubeConf, nodeFs, err := validator.do()
+	if err != nil {
+		return nil, err
+	}
+	err = setClusterInfoFromImport(c, ykeConf, kubeConf)
+	if err != nil {
+		return nil, err
+	}
+	for _, nodeF := range nodeFs {
+		err = nodeF.Save()
+		if err != nil {
+			return nil, fmt.Errorf("Save node %q error: %v", nodeF.node.Name, err)
+		}
+	}
+	c.StartClusterImportTask(ctx, userCred, fetchClusterImportTaskData(ykeConf, kubeConf, nodeFs), "")
+	return nil, nil
+}
+
+func fetchClusterImportTaskData(ykeConf *yketypes.KubernetesEngineConfig, k8sConf *rest.Config, nodes []*YkeConfigNodeFactory) *jsonutils.JSONDict {
+	retData := jsonutils.NewDict()
+	nodesConfig := jsonutils.NewDict()
+	for _, node := range nodes {
+		nodesConfig.Add(node.CreateData, node.Node().Id)
+	}
+	retData.Add(nodesConfig, NODES_CONFIG_DATA_KEY)
+	return retData
+}
+
+func (c *SCluster) StartClusterImportTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterImportTask", c, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (c *SCluster) IsNodesReady(nodes ...*SNode) bool {
+	isAllReady := true
+	for _, node := range nodes {
+		if node.Status != NODE_STATUS_READY {
+			return false
+		}
+	}
+	return isAllReady
 }

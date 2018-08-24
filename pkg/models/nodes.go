@@ -17,7 +17,6 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/util/sets"
-	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 	ykehosts "yunion.io/yke/pkg/hosts"
 	yketypes "yunion.io/yke/pkg/types"
@@ -41,8 +40,6 @@ const (
 	NODE_STATUS_UPDATING = "updating"
 	NODE_STATUS_DELETING = "deleting"
 
-	CLOUD_HOST_DATA_KEY = "cloudHost"
-
 	DEFAULT_DOCKER_GRAPH_DIR       = "/opt/docker"
 	DEFAULT_DOCKER_REGISTRY_MIRROR = "https://registry.docker-cn.com"
 )
@@ -56,6 +53,25 @@ func init() {
 type SNodeManager struct {
 	db.SStatusStandaloneResourceBaseManager
 	cloudmodels.SInfrastructureManager
+}
+
+type SNode struct {
+	db.SStatusStandaloneResourceBase
+	cloudmodels.SInfrastructure
+
+	ClusterId        string `nullable:"false" create:"required" list:"user"`
+	Etcd             bool   `nullable:"true" create:"required" list:"user"`
+	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
+	Worker           bool   `nullable:"true" create:"required" list:"user"`
+	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
+	HostId           string `nullable:"true" create:"optional" list:"user"`
+
+	Address           string `nullable:"true" list:"user"`
+	RequestedHostname string `nullable:"true" list:"user"`
+
+	DockerdConfig jsonutils.JSONObject `nullable:"true" list:"user"`
+	Labels        jsonutils.JSONObject `nullable:"true" list:"user"`
+	DockerInfo    jsonutils.JSONObject `nullable:"true" list:"user"`
 }
 
 func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err error) {
@@ -93,35 +109,6 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 	return
 }
 
-func validateHostInfo(host apis.CloudHost) (err error) {
-	log.Infof("Get hosts: %#v", host)
-	if host.ManagerUrl == "" {
-		err = fmt.Errorf("Host %q not found manager_uri", host.Id)
-		return
-	}
-
-	if !utils.IsInStringArray(host.HostType, []string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}) {
-		err = fmt.Errorf("Host type %q not support", host.HostType)
-		return
-	}
-
-	if !host.Enabled {
-		err = fmt.Errorf("Host %q not enable", host.Id)
-		return
-	}
-
-	if host.Status != "running" {
-		err = fmt.Errorf("Host %q status %q is not 'running'", host.Id, host.Status)
-		return
-	}
-
-	if host.HostStatus != "online" {
-		err = fmt.Errorf("Host %q host_status %q is not 'online'", host.Id, host.HostStatus)
-		return
-	}
-	return nil
-}
-
 func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
 	name, _ := data.GetString("name")
 	hostId, _ := data.GetString("host")
@@ -145,22 +132,10 @@ func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenC
 	if err != nil {
 		return "", err
 	}
-	id := cloudHost.Id
-	if id == "" {
-		return "", httperrors.NewNotFoundError("Host %q not found", hostId)
-	}
 
-	err = validateHostInfo(cloudHost)
+	err = validateCloudHostCondition(cloudHost)
 	if err != nil {
-		return "", httperrors.NewInputParameterError("Validate host %q info: %v", hostId, err)
-	}
-
-	node, err := m.FetchNodeByHostId(id)
-	if err != nil && err != sql.ErrNoRows {
-		return "", httperrors.NewInternalServerError("Fetch node by host id %q: %v", id, err)
-	}
-	if node != nil {
-		return "", httperrors.NewInputParameterError("Host %q already used by node %q", hostId, node.Name)
+		return "", err
 	}
 
 	if name == "" {
@@ -168,7 +143,7 @@ func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenC
 	}
 	data.Set(CLOUD_HOST_DATA_KEY, jsonutils.Marshal(cloudHost))
 
-	return id, nil
+	return cloudHost.Id, nil
 }
 
 func validateDockerConfig(data *jsonutils.JSONDict) error {
@@ -183,6 +158,26 @@ func validateDockerConfig(data *jsonutils.JSONDict) error {
 		return httperrors.NewInputParameterError("Parse registryMirrors %s error: %v", obj, err)
 	}
 	return nil
+}
+
+func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	q, err := m.SStatusStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var sq *sqlchemy.SSubQuery
+	if cluster, _ := query.GetString("cluster"); len(cluster) > 0 {
+		clusters := ClusterManager.Query().SubQuery()
+		sq = clusters.Query(clusters.Field("id")).
+			Filter(sqlchemy.OR(
+				sqlchemy.Equals(clusters.Field("name"), cluster),
+				sqlchemy.Equals(clusters.Field("id"), cluster))).SubQuery()
+	}
+	if sq != nil {
+		q = q.In("cluster_id", sq)
+	}
+	return q, nil
 }
 
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -325,25 +320,6 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 	return nodes
 }
 
-type SNode struct {
-	db.SStatusStandaloneResourceBase
-	cloudmodels.SInfrastructure
-
-	ClusterId        string `nullable:"false" create:"required" list:"user"`
-	Etcd             bool   `nullable:"true" create:"required" list:"user"`
-	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
-	Worker           bool   `nullable:"true" create:"required" list:"user"`
-	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
-	HostId           string `nullable:"true" create:"optional" list:"user"`
-
-	Address           string `nullable:"true" list:"user"`
-	RequestedHostname string `nullable:"true" list:"user"`
-
-	DockerdConfig jsonutils.JSONObject `nullable:"true" list:"user"`
-	Labels        jsonutils.JSONObject `nullable:"true" list:"user"`
-	DockerInfo    jsonutils.JSONObject `nullable:"true" list:"user"`
-}
-
 func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 	dockerConf, _ := data.Get("dockerd_config")
 	if dockerConf != nil {
@@ -444,6 +420,22 @@ func (n *SNode) GetNodeConfig() *yketypes.ConfigNode {
 
 func (n *SNode) GetCluster() (*SCluster, error) {
 	return ClusterManager.FetchClusterById(n.ClusterId)
+}
+
+func (n *SNode) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (n *SNode) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	err := n.ValidateDeleteCondition(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = n.RemoveNodeFromCluster(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, n.RealDelete(ctx, userCred)
 }
 
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
