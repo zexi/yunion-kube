@@ -139,7 +139,12 @@ func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenC
 	}
 
 	if name == "" {
-		data.Set("name", jsonutils.NewString(cloudHost.Name))
+		name = cloudHost.Name
+		data.Set("name", jsonutils.NewString(name))
+	}
+	n, _ := NodeManager.FetchByIdOrName("", name)
+	if n != nil {
+		return "", httperrors.NewInputParameterError("Node name %q duplicate", name)
 	}
 	data.Set(CLOUD_HOST_DATA_KEY, jsonutils.Marshal(cloudHost))
 
@@ -178,6 +183,27 @@ func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, u
 		q = q.In("cluster_id", sq)
 	}
 	return q, nil
+}
+
+func NewNode(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (*SNode, error) {
+	data, err := NodeManager.ValidateCreateData(ctx, userCred, "", nil, data)
+	if err != nil {
+		return nil, err
+	}
+	model, err := db.NewModelObject(NodeManager)
+	if err != nil {
+		return nil, err
+	}
+	filterData := data.CopyIncludes(ModelCreateFields(NodeManager, userCred)...)
+	err = filterData.Unmarshal(model)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	err = model.CustomizeCreate(ctx, userCred, "", nil, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	return model.(*SNode), nil
 }
 
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -229,6 +255,18 @@ func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, 
 			n.StartAgentOnHost(ctx, userCred, query, data)
 		}, nil)
 	}
+}
+
+func (m *SNodeManager) FetchNodesByIds(ids []string) ([]*SNode, error) {
+	ret := make([]*SNode, len(ids))
+	for i, id := range ids {
+		node, err := m.FetchNodeById(id)
+		if err != nil {
+			return nil, err
+		}
+		ret[i] = node
+	}
+	return ret, nil
 }
 
 func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
@@ -642,4 +680,23 @@ func (n *SNode) AllowGetDetailsDockerConfig(ctx context.Context, userCred mcclie
 
 func (n *SNode) GetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	return n.DockerdConfig, nil
+}
+
+func (n *SNode) GetCloudHost() (*apis.CloudHost, error) {
+	session, err := GetAdminSession()
+	if err != nil {
+		err = httperrors.NewInternalServerError("Get admin session: %v", err)
+		return nil, err
+	}
+	ret, err := cloudmod.Hosts.Get(session, n.HostId, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	cloudHost := apis.CloudHost{}
+	err = ret.Unmarshal(&cloudHost)
+	if err != nil {
+		return nil, err
+	}
+	return &cloudHost, nil
 }

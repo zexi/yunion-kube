@@ -994,9 +994,9 @@ func setClusterInfoFromImport(c *SCluster, ykeConf *yketypes.KubernetesEngineCon
 		c.ClusterDomain = info.Domain
 		c.InfraContainerImage = info.InfraImage
 		c.ApiEndpoint = info.ApiEndpoint
-		c.RootCaCertificate = info.RootCaCertificate
-		c.ClientCertificate = info.ClientCertificate
-		c.ClientKey = info.ClientKey
+		c.RootCaCertificate = base64.StdEncoding.EncodeToString([]byte(info.RootCaCertificate))
+		c.ClientCertificate = base64.StdEncoding.EncodeToString([]byte(info.ClientCertificate))
+		c.ClientKey = base64.StdEncoding.EncodeToString([]byte(info.ClientKey))
 		return nil
 	})
 	return err
@@ -1055,4 +1055,59 @@ func (c *SCluster) IsNodesReady(nodes ...*SNode) bool {
 		}
 	}
 	return isAllReady
+}
+
+func (c *SCluster) AllowPerformAddNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (c *SCluster) validateAddNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (nodes []*SNode, err error) {
+	nodesData, err := data.Get("nodes")
+	if err != nil {
+		err = httperrors.NewInputParameterError("Found nodes data: %v", err)
+		return
+	}
+	opts := []apis.NodeAddOption{}
+	err = nodesData.Unmarshal(&opts)
+	if err != nil {
+		err = httperrors.NewInputParameterError("Invalid nodes data: %s", nodesData)
+		return
+	}
+	if len(opts) == 0 {
+		err = httperrors.NewInputParameterError("Empty nodes to add")
+		return
+	}
+	for i, opt := range opts {
+		opt.Cluster = c.Id
+		opts[i] = opt
+	}
+	for _, opt := range opts {
+		var node *SNode
+		newData := jsonutils.Marshal(opt).(*jsonutils.JSONDict)
+		node, err = NewNode(ctx, userCred, newData)
+		if err != nil {
+			return
+		}
+		nodes = append(nodes, node)
+	}
+	return
+}
+
+func (c *SCluster) PerformAddNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	nodes, err := c.validateAddNodes(ctx, userCred, data.(*jsonutils.JSONDict))
+	if err != nil {
+		return nil, err
+	}
+	for _, node := range nodes {
+		err = NodeManager.TableSpec().Insert(node)
+		if err != nil {
+			return nil, err
+		}
+	}
+	autoDeploy := jsonutils.QueryBoolean(data, "auto_deploy", false)
+	if !autoDeploy {
+		return nil, nil
+	}
+	c.StartClusterDeployTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
+	return nil, nil
 }

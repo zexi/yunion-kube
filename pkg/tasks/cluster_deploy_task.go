@@ -2,8 +2,11 @@ package tasks
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
@@ -11,7 +14,7 @@ import (
 )
 
 type ClusterDeployTask struct {
-	SClusterBaseTask
+	SClusterAgentBaseTask
 }
 
 func init() {
@@ -42,6 +45,29 @@ func (t *ClusterDeployTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.SetFailed(ctx, cluster, err)
 		return
 	}
+	t.SetStage("OnWaitNodesAgentStart", nil)
+	t.StartNodesAgent(ctx, cluster, nodes, data)
+}
+
+func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	cluster := obj.(*models.SCluster)
+	nodes, _ := cluster.GetNodes()
+	if !cluster.IsNodesReady(nodes...) {
+		log.Infof("Not all node ready, wait agents to start")
+		time.Sleep(time.Second * 2)
+		t.ScheduleRun(nil)
+		return
+	}
+	log.Infof("All nodes agent started, start deploy")
+	t.doDeploy(ctx, cluster, nodes)
+}
+
+func (t *ClusterDeployTask) OnWaitNodesAgentStartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	log.Errorf("============callback failed: %s", data)
+	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnWaitNodesAgentStart: %s", data))
+}
+
+func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) {
 	cluster.Deploy(ctx, nodes...)
 	t.SetStageComplete(ctx, nil)
 }

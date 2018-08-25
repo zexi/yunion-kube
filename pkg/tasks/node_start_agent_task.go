@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"yunion.io/x/jsonutils"
@@ -12,7 +11,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/request"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type NodeStartAgentTask struct {
@@ -29,13 +27,11 @@ func (t *NodeStartAgentTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 
 func (t *NodeStartAgentTask) StartKubeAgentOnHost(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	node := obj.(*models.SNode)
-	hostObj, _ := t.Params.Get(models.CLOUD_HOST_DATA_KEY)
-	if hostObj == nil {
-		t.StartAgentFailed(ctx, node, fmt.Errorf("Not found cloud host info"))
+	cloudHost, err := node.GetCloudHost()
+	if err != nil {
+		t.StartAgentFailed(ctx, node, err)
 		return
 	}
-	cloudHost := apis.CloudHost{}
-	hostObj.Unmarshal(&cloudHost)
 	log.Infof("cloud host: %#v", cloudHost)
 
 	registerConfig, err := node.GetAgentRegisterConfig()

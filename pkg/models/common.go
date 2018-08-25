@@ -151,29 +151,15 @@ func NewYkeConfigNodeFactory(
 	if err != nil {
 		return
 	}
+
 	newData := newNodeModelCreateData(cluster, cloudHost, ykeNode)
-	newData, err = NodeManager.ValidateCreateData(ctx, userCred, "", nil, newData)
+	model, err := NewNode(ctx, userCred, newData)
 	if err != nil {
-		return
-	}
-	model, err := db.NewModelObject(NodeManager)
-	if err != nil {
-		return
-	}
-	filterData := newData.CopyIncludes(ModelCreateFields(NodeManager, userCred)...)
-	err = filterData.Unmarshal(model)
-	if err != nil {
-		err = httperrors.NewGeneralError(err)
-		return
-	}
-	err = model.CustomizeCreate(ctx, userCred, "", nil, newData)
-	if err != nil {
-		err = httperrors.NewGeneralError(err)
 		return
 	}
 
 	node = &YkeConfigNodeFactory{
-		node:       model.(*SNode),
+		node:       model,
 		CreateData: newData,
 	}
 	return
