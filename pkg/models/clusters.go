@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"yunion.io/x/jsonutils"
@@ -26,6 +27,7 @@ import (
 	yutils "yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 	ykecluster "yunion.io/yke/pkg/cluster"
+	ykek8s "yunion.io/yke/pkg/k8s"
 	yketypes "yunion.io/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
@@ -615,6 +617,14 @@ func (c *SCluster) GetK8sRestConfig() (*rest.Config, error) {
 	return config, nil
 }
 
+func (c *SCluster) GetK8sClient() (*kubernetes.Clientset, error) {
+	config, err := c.GetK8sRestConfig()
+	if err != nil {
+		return nil, err
+	}
+	return kubernetes.NewForConfig(config)
+}
+
 func (c *SCluster) GetK8sWebhookAuthUrl() (string, error) {
 	serverUrl, err := GetKubeServerUrl()
 	if err != nil {
@@ -848,10 +858,15 @@ func (v *clusterImportValidator) clusterValidate() error {
 	return nil
 }
 
-func (v *clusterImportValidator) ykeValidate() (ykeConf *yketypes.KubernetesEngineConfig, err error) {
-	ykeConfStr, err := v.data.GetString("yke_config")
+func (v *clusterImportValidator) ykeValidate(k8sCli *kubernetes.Clientset) (ykeConf *yketypes.KubernetesEngineConfig, err error) {
+	stateConfigMap, err := ykek8s.GetConfigMap(k8sCli, ykecluster.StateConfigMapName)
 	if err != nil {
-		err = httperrors.NewInputParameterError("Not found yke_config: %v", err)
+		err = httperrors.NewInputParameterError("Get YKE config map from k8s cluster error: %v", err)
+		return
+	}
+	ykeConfStr, ok := stateConfigMap.Data[ykecluster.StateConfigMapName]
+	if !ok {
+		err = httperrors.NewInputParameterError("Not found %q data from YKE configmap %#v", ykecluster.StateConfigMapName, stateConfigMap.Data)
 		return
 	}
 	ykeConf, err = utils.ConvertToYkeConfig(ykeConfStr)
@@ -919,11 +934,15 @@ func (v *clusterImportValidator) do() (
 	if err != nil {
 		return
 	}
-	ykeConf, err = v.ykeValidate()
+	k8sConf, err = v.kubeConfigValidate()
 	if err != nil {
 		return
 	}
-	k8sConf, err = v.kubeConfigValidate()
+	k8sCli, err := kubernetes.NewForConfig(k8sConf)
+	if err != nil {
+		return
+	}
+	ykeConf, err = v.ykeValidate(k8sCli)
 	if err != nil {
 		return
 	}
@@ -1051,6 +1070,7 @@ func (c *SCluster) IsNodesReady(nodes ...*SNode) bool {
 	isAllReady := true
 	for _, node := range nodes {
 		if node.Status != NODE_STATUS_READY {
+			log.Debugf("node %q status %q is not ready", node.Name, node.Status)
 			return false
 		}
 	}

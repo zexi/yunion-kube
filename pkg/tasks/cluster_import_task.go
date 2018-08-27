@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	ykecluster "yunion.io/yke/pkg/cluster"
 
 	"yunion.io/x/yunion-kube/pkg/models"
 )
@@ -27,7 +30,29 @@ func (t *ClusterImportTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.SetFailed(ctx, cluster, err)
 		return
 	}
+	err = t.removeCNINetworkPlugin(ctx, cluster)
+	if err != nil {
+		t.SetFailed(ctx, cluster, err)
+		return
+	}
 	t.StartDeployCluster(ctx, cluster, nodes)
+}
+
+func (t *ClusterImportTask) removeCNINetworkPlugin(ctx context.Context, cluster *models.SCluster) error {
+	k8sCli, err := cluster.GetK8sClient()
+	if err != nil {
+		return err
+	}
+	jobName := fmt.Sprintf("%s-deploy-job", ykecluster.NetworkPluginResourceName)
+	err = k8sCli.BatchV1().Jobs("kube-system").Delete(jobName, &metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	err = k8sCli.AppsV1beta2().DaemonSets("kube-system").Delete("yunion", &metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (t *ClusterImportTask) StartDeployCluster(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) {

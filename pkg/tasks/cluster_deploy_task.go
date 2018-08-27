@@ -26,6 +26,7 @@ func (t *ClusterDeployTask) getPendingDeployNodes() ([]*models.SNode, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Errorf("==============Get nodeIds: %v", nodeIds)
 	ret := make([]*models.SNode, len(nodeIds))
 	for i, idObj := range nodeIds {
 		id, _ := idObj.GetString()
@@ -51,7 +52,11 @@ func (t *ClusterDeployTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 
 func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
-	nodes, _ := cluster.GetNodes()
+	nodes, err := t.getPendingDeployNodes()
+	if err != nil {
+		t.SetFailed(ctx, cluster, fmt.Errorf("Get pendingNodes: %v", err))
+		return
+	}
 	if !cluster.IsNodesReady(nodes...) {
 		log.Infof("Not all node ready, wait agents to start")
 		time.Sleep(time.Second * 2)

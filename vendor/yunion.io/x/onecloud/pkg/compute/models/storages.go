@@ -12,23 +12,27 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/compare"
+	"yunion.io/x/pkg/util/sysutils"
 	"yunion.io/x/sqlchemy"
 )
 
 const (
-	STORAGE_LOCAL        = "local"
-	STORAGE_BAREMETAL    = "baremetal"
-	STORAGE_SHEEPDOG     = "sheepdog"
-	STORAGE_RBD          = "rbd"
-	STORAGE_DOCKER       = "docker"
-	STORAGE_NAS          = "nas"
-	STORAGE_VSAN         = "vsan"
-	STORAGE_PUBLIC_CLOUD = "cloud"
+	STORAGE_LOCAL            = "local"
+	STORAGE_BAREMETAL        = "baremetal"
+	STORAGE_SHEEPDOG         = "sheepdog"
+	STORAGE_RBD              = "rbd"
+	STORAGE_DOCKER           = "docker"
+	STORAGE_NAS              = "nas"
+	STORAGE_VSAN             = "vsan"
+	STORAGE_PUBLIC_CLOUD     = "cloud"
+	STORAGE_CLOUD_EFFICIENCY = "cloud_efficiency"
+	STORAGE_CLOUD_SSD        = "cloud_ssd"
+	STORAGE_EPHEMERAL_SSD    = "ephemeral_ssd"
 
 	STORAGE_ENABLED  = "enabled"
 	STORAGE_DISABLED = "disabled"
 	STORAGE_OFFLINE  = "offline"
-	STORAGE_ONLINE   = "offline"
+	STORAGE_ONLINE   = "online"
 
 	DISK_TYPE_ROTATE = "rotate"
 	DISK_TYPE_SSD    = "ssd"
@@ -235,9 +239,12 @@ func (self *SStorage) SyncStatusWithHosts() {
 	}
 }
 
-func (manager *SStorageManager) getStoragesByZoneId(zoneId string) ([]SStorage, error) {
+func (manager *SStorageManager) getStoragesByZoneId(zoneId string, provider *SCloudprovider) ([]SStorage, error) {
 	storages := make([]SStorage, 0)
 	q := manager.Query().Equals("zone_id", zoneId)
+	if provider != nil {
+		q = q.Equals("manager_id", provider.Id)
+	}
 	err := db.FetchModelObjects(manager, q, &storages)
 	if err != nil {
 		log.Errorf("getStoragesByZoneId fail %s", err)
@@ -261,7 +268,7 @@ func (manager *SStorageManager) scanLegacyStorages() error {
 	return nil
 }
 
-func (manager *SStorageManager) SyncStorages(ctx context.Context, userCred mcclient.TokenCredential, zone *SZone, storages []cloudprovider.ICloudStorage) ([]SStorage, []cloudprovider.ICloudStorage, compare.SyncResult) {
+func (manager *SStorageManager) SyncStorages(ctx context.Context, userCred mcclient.TokenCredential, provider *SCloudprovider, zone *SZone, storages []cloudprovider.ICloudStorage) ([]SStorage, []cloudprovider.ICloudStorage, compare.SyncResult) {
 	localStorages := make([]SStorage, 0)
 	remoteStorages := make([]cloudprovider.ICloudStorage, 0)
 	syncResult := compare.SyncResult{}
@@ -272,7 +279,7 @@ func (manager *SStorageManager) SyncStorages(ctx context.Context, userCred mccli
 		return nil, nil, syncResult
 	}
 
-	dbStorages, err := manager.getStoragesByZoneId(zone.Id)
+	dbStorages, err := manager.getStoragesByZoneId(zone.Id, provider)
 	if err != nil {
 		syncResult.Error(err)
 		return nil, nil, syncResult
@@ -646,6 +653,23 @@ func (manager *SStorageManager) ListItemFilter(ctx context.Context, q *sqlchemy.
 		}
 		sq := ZoneManager.Query("id").Equals("cloudregion_id", regionObj.GetId())
 		q = q.Filter(sqlchemy.In(q.Field("zone_id"), sq.SubQuery()))
+	}
+
+	if jsonutils.QueryBoolean(query, "share", false) {
+		q = q.Filter(sqlchemy.NotIn(q.Field("storage_type"), sysutils.LOCAL_STORAGE_TYPES))
+	}
+
+	if jsonutils.QueryBoolean(query, "local", false) {
+		q = q.Filter(sqlchemy.In(q.Field("storage_type"), sysutils.LOCAL_STORAGE_TYPES))
+	}
+
+	if jsonutils.QueryBoolean(query, "usable", false) {
+		hostStorage := HoststorageManager.Query().SubQuery()
+		q = q.Join(hostStorage, sqlchemy.AND(
+			sqlchemy.Equals(hostStorage.Field("storage_id"), q.Field("id")),
+			sqlchemy.In(q.Field("status"), []string{STORAGE_ENABLED, STORAGE_ONLINE}),
+			sqlchemy.IsTrue(q.Field("enabled")),
+		))
 	}
 
 	managerStr := jsonutils.GetAnyString(query, []string{"manager", "provider", "manager_id", "provider_id"})
