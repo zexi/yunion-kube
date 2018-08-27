@@ -12,15 +12,22 @@ const (
 	K8S_V1_8_10         = "v1.8.10"
 	K8S_V1_9_5          = "v1.9.5"
 	K8S_V1_10_0         = "v1.10.0"
-	DEFAULT_K8S_VERSION = K8S_V1_9_5
+	DEFAULT_K8S_VERSION = K8S_V1_10_0
 )
 
 var (
-	SupportVersions  = sets.NewString(K8S_V1_8_10, K8S_V1_9_5, K8S_V1_10_0)
+	SupportVersions = sets.NewString(K8S_V1_8_10, K8S_V1_9_5, K8S_V1_10_0)
+
 	K8sYKEVersionMap = ykeVersionMap{
 		K8S_V1_8_10: yketypes.K8sV18,
 		K8S_V1_9_5:  yketypes.K8sV19,
 		K8S_V1_10_0: yketypes.K8sV110,
+	}
+
+	YKEK8sVersionMap = map[string]string{
+		yketypes.K8sV18:  K8S_V1_8_10,
+		yketypes.K8sV19:  K8S_V1_9_5,
+		yketypes.K8sV110: K8S_V1_10_0,
 	}
 )
 

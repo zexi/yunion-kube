@@ -2,7 +2,7 @@ package tasks
 
 import (
 	"context"
-	"fmt"
+	"net/http"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -11,7 +11,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/request"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type NodeStartAgentTask struct {
@@ -28,35 +27,39 @@ func (t *NodeStartAgentTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 
 func (t *NodeStartAgentTask) StartKubeAgentOnHost(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	node := obj.(*models.SNode)
-	hostObj, _ := t.Params.Get(models.CLOUD_HOST_DATA_KEY)
-	if hostObj == nil {
-		t.OnStartAgentFail(ctx, node, fmt.Errorf("Not found cloud host info"))
+	cloudHost, err := node.GetCloudHost()
+	if err != nil {
+		t.StartAgentFailed(ctx, node, err)
 		return
 	}
-	cloudHost := apis.CloudHost{}
-	hostObj.Unmarshal(&cloudHost)
 	log.Infof("cloud host: %#v", cloudHost)
 
 	registerConfig, err := node.GetAgentRegisterConfig()
 	if err != nil {
-		t.OnStartAgentFail(ctx, node, err)
+		t.StartAgentFailed(ctx, node, err)
 		return
 	}
+	t.SetStage("OnStartAgent", data.(*jsonutils.JSONDict))
+	header := http.Header{}
+	header.Set("X-Task-Id", t.GetTaskId())
 	url := "/kubeagent/start"
 	body := jsonutils.Marshal(registerConfig)
-	_, err = request.Post(cloudHost.ManagerUrl, t.UserCred.GetTokenString(), url, nil, body)
+	_, err = request.Post(cloudHost.ManagerUrl, t.UserCred.GetTokenString(), url, header, body)
 	if err != nil {
-		t.OnStartAgentFail(ctx, node, err)
+		t.StartAgentFailed(ctx, node, err)
 	}
-	t.OnStartAgentTaskComplete(ctx, node, data)
 }
 
-func (t *NodeStartAgentTask) OnStartAgentTaskComplete(ctx context.Context, node *models.SNode, data jsonutils.JSONObject) {
+func (t *NodeStartAgentTask) OnStartAgent(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, data.(*jsonutils.JSONDict))
 }
 
-func (t *NodeStartAgentTask) OnStartAgentFail(ctx context.Context, node *models.SNode, err error) {
-	errStr := fmt.Sprintf("Start agent on host %q: %v", node.HostId, err)
-	node.SetStatus(t.UserCred, models.NODE_STATUS_ERROR, errStr)
-	t.SetStageFailed(ctx, errStr)
+func (t *NodeStartAgentTask) StartAgentFailed(ctx context.Context, obj db.IStandaloneModel, err error) {
+	t.OnStartAgentFailed(ctx, obj, jsonutils.NewString(err.Error()))
+}
+
+func (t *NodeStartAgentTask) OnStartAgentFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	node := obj.(*models.SNode)
+	node.SetStatus(t.UserCred, models.NODE_STATUS_ERROR, data.String())
+	t.SetStageFailed(ctx, data.String())
 }

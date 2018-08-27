@@ -17,7 +17,6 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/util/sets"
-	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 	ykehosts "yunion.io/yke/pkg/hosts"
 	yketypes "yunion.io/yke/pkg/types"
@@ -41,24 +40,38 @@ const (
 	NODE_STATUS_UPDATING = "updating"
 	NODE_STATUS_DELETING = "deleting"
 
-	CLOUD_HOST_DATA_KEY = "cloudHost"
-
 	DEFAULT_DOCKER_GRAPH_DIR       = "/opt/docker"
 	DEFAULT_DOCKER_REGISTRY_MIRROR = "https://registry.docker-cn.com"
 )
 
 func init() {
 	NodeManager = &SNodeManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SNode{}, "nodes_tbl", "kube_node", "kube_nodes"),
+		SStatusStandaloneResourceBaseManager: db.NewStatusStandaloneResourceBaseManager(SNode{}, "nodes_tbl", "kube_node", "kube_nodes"),
 	}
 }
 
 type SNodeManager struct {
-	db.SVirtualResourceBaseManager
+	db.SStatusStandaloneResourceBaseManager
+	cloudmodels.SInfrastructureManager
 }
 
-func (m *SNodeManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return m.SVirtualResourceBaseManager.AllowListItems(ctx, userCred, query)
+type SNode struct {
+	db.SStatusStandaloneResourceBase
+	cloudmodels.SInfrastructure
+
+	ClusterId        string `nullable:"false" create:"required" list:"user"`
+	Etcd             bool   `nullable:"true" create:"required" list:"user"`
+	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
+	Worker           bool   `nullable:"true" create:"required" list:"user"`
+	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
+	HostId           string `nullable:"true" create:"optional" list:"user"`
+
+	Address           string `nullable:"true" list:"user"`
+	RequestedHostname string `nullable:"true" list:"user"`
+
+	DockerdConfig jsonutils.JSONObject `nullable:"true" list:"user"`
+	Labels        jsonutils.JSONObject `nullable:"true" list:"user"`
+	DockerInfo    jsonutils.JSONObject `nullable:"true" list:"user"`
 }
 
 func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err error) {
@@ -96,35 +109,6 @@ func validateRoles(data jsonutils.JSONObject) (etcd, ctrl, worker bool, err erro
 	return
 }
 
-func validateHostInfo(host apis.CloudHost) (err error) {
-	log.Infof("Get hosts: %#v", host)
-	if host.ManagerUrl == "" {
-		err = fmt.Errorf("Host %q not found manager_uri", host.Id)
-		return
-	}
-
-	if !utils.IsInStringArray(host.HostType, []string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}) {
-		err = fmt.Errorf("Host type %q not support", host.HostType)
-		return
-	}
-
-	if !host.Enabled {
-		err = fmt.Errorf("Host %q not enable", host.Id)
-		return
-	}
-
-	if host.Status != "running" {
-		err = fmt.Errorf("Host %q status %q is not 'running'", host.Id, host.Status)
-		return
-	}
-
-	if host.HostStatus != "online" {
-		err = fmt.Errorf("Host %q host_status %q is not 'online'", host.Id, host.HostStatus)
-		return
-	}
-	return nil
-}
-
 func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
 	name, _ := data.GetString("name")
 	hostId, _ := data.GetString("host")
@@ -148,30 +132,23 @@ func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenC
 	if err != nil {
 		return "", err
 	}
-	id := cloudHost.Id
-	if id == "" {
-		return "", httperrors.NewNotFoundError("Host %q not found", hostId)
-	}
 
-	err = validateHostInfo(cloudHost)
+	err = validateCloudHostCondition(cloudHost)
 	if err != nil {
-		return "", httperrors.NewInputParameterError("Validate host %q info: %v", hostId, err)
-	}
-
-	node, err := m.FetchNodeByHostId(id)
-	if err != nil && err != sql.ErrNoRows {
-		return "", httperrors.NewInternalServerError("Fetch node by host id %q: %v", id, err)
-	}
-	if node != nil {
-		return "", httperrors.NewInputParameterError("Host %q already used by node %q", hostId, node.Name)
+		return "", err
 	}
 
 	if name == "" {
-		data.Set("name", jsonutils.NewString(cloudHost.Name))
+		name = cloudHost.Name
+		data.Set("name", jsonutils.NewString(name))
+	}
+	n, _ := NodeManager.FetchByIdOrName("", name)
+	if n != nil {
+		return "", httperrors.NewInputParameterError("Node name %q duplicate", name)
 	}
 	data.Set(CLOUD_HOST_DATA_KEY, jsonutils.Marshal(cloudHost))
 
-	return id, nil
+	return cloudHost.Id, nil
 }
 
 func validateDockerConfig(data *jsonutils.JSONDict) error {
@@ -186,6 +163,47 @@ func validateDockerConfig(data *jsonutils.JSONDict) error {
 		return httperrors.NewInputParameterError("Parse registryMirrors %s error: %v", obj, err)
 	}
 	return nil
+}
+
+func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	q, err := m.SStatusStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var sq *sqlchemy.SSubQuery
+	if cluster, _ := query.GetString("cluster"); len(cluster) > 0 {
+		clusters := ClusterManager.Query().SubQuery()
+		sq = clusters.Query(clusters.Field("id")).
+			Filter(sqlchemy.OR(
+				sqlchemy.Equals(clusters.Field("name"), cluster),
+				sqlchemy.Equals(clusters.Field("id"), cluster))).SubQuery()
+	}
+	if sq != nil {
+		q = q.In("cluster_id", sq)
+	}
+	return q, nil
+}
+
+func NewNode(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (*SNode, error) {
+	data, err := NodeManager.ValidateCreateData(ctx, userCred, "", nil, data)
+	if err != nil {
+		return nil, err
+	}
+	model, err := db.NewModelObject(NodeManager)
+	if err != nil {
+		return nil, err
+	}
+	filterData := data.CopyIncludes(ModelCreateFields(NodeManager, userCred)...)
+	err = filterData.Unmarshal(model)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	err = model.CustomizeCreate(ctx, userCred, "", nil, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	return model.(*SNode), nil
 }
 
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -224,7 +242,7 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	}
 	data.Add(jsonutils.NewString(hostId), "host_id")
 
-	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
+	return m.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
 func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
@@ -237,6 +255,18 @@ func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, 
 			n.StartAgentOnHost(ctx, userCred, query, data)
 		}, nil)
 	}
+}
+
+func (m *SNodeManager) FetchNodesByIds(ids []string) ([]*SNode, error) {
+	ret := make([]*SNode, len(ids))
+	for i, id := range ids {
+		node, err := m.FetchNodeById(id)
+		if err != nil {
+			return nil, err
+		}
+		ret[i] = node
+	}
+	return ret, nil
 }
 
 func (m *SNodeManager) FetchNodeById(ident string) (*SNode, error) {
@@ -328,30 +358,12 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 	return nodes
 }
 
-type SNode struct {
-	db.SVirtualResourceBase
-
-	ClusterId        string `nullable:"false" create:"required" list:"user"`
-	Etcd             bool   `nullable:"true" create:"required" list:"user"`
-	Controlplane     bool   `nullable:"true" create:"required" list:"user"`
-	Worker           bool   `nullable:"true" create:"required" list:"user"`
-	HostnameOverride string `nullable:"true" create:"optional" list:"user"`
-	HostId           string `nullable:"true" create:"optional" list:"user"`
-
-	Address           string `nullable:"true" list:"user"`
-	RequestedHostname string `nullable:"true" list:"user"`
-
-	DockerdConfig jsonutils.JSONObject `nullable:"true" list:"user"`
-	Labels        jsonutils.JSONObject `nullable:"true" list:"user"`
-	DockerInfo    jsonutils.JSONObject `nullable:"true" list:"user"`
-}
-
 func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 	dockerConf, _ := data.Get("dockerd_config")
 	if dockerConf != nil {
 		n.DockerdConfig = dockerConf
 	}
-	return n.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
+	return n.SStatusStandaloneResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
 }
 
 // Register set node status to ready, means node is ready for deploy
@@ -448,8 +460,20 @@ func (n *SNode) GetCluster() (*SCluster, error) {
 	return ClusterManager.FetchClusterById(n.ClusterId)
 }
 
-func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return n.IsOwner(userCred)
+func (n *SNode) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (n *SNode) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	err := n.ValidateDeleteCondition(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = n.RemoveNodeFromCluster(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nil, n.RealDelete(ctx, userCred)
 }
 
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
@@ -461,7 +485,7 @@ func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	//return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
 	//}
 	//return nil
-	return n.SVirtualResourceBase.ValidateDeleteCondition(ctx)
+	return n.SStatusStandaloneResourceBase.ValidateDeleteCondition(ctx)
 }
 
 func (n *SNode) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -470,7 +494,7 @@ func (n *SNode) Delete(ctx context.Context, userCred mcclient.TokenCredential) e
 }
 
 func (n *SNode) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return n.SVirtualResourceBase.Delete(ctx, userCred)
+	return n.SStatusStandaloneResourceBase.Delete(ctx, userCred)
 }
 
 func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
@@ -592,14 +616,14 @@ func rolesString(n *SNode) string {
 }
 
 func (n *SNode) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := n.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
+	extra := n.SStatusStandaloneResourceBase.GetCustomizeColumns(ctx, userCred, query)
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
 	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
 	return extra
 }
 
 func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := n.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	extra := n.SStatusStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
 	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
 	return extra
@@ -651,9 +675,28 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 }
 
 func (n *SNode) AllowGetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return n.IsOwner(userCred)
+	return n.AllowGetDetails(ctx, userCred, query)
 }
 
 func (n *SNode) GetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	return n.DockerdConfig, nil
+}
+
+func (n *SNode) GetCloudHost() (*apis.CloudHost, error) {
+	session, err := GetAdminSession()
+	if err != nil {
+		err = httperrors.NewInternalServerError("Get admin session: %v", err)
+		return nil, err
+	}
+	ret, err := cloudmod.Hosts.Get(session, n.HostId, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	cloudHost := apis.CloudHost{}
+	err = ret.Unmarshal(&cloudHost)
+	if err != nil {
+		return nil, err
+	}
+	return &cloudHost, nil
 }

@@ -1,7 +1,6 @@
 package chart
 
 import (
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
@@ -11,10 +10,6 @@ import (
 
 type Chart struct {
 	*cache.ChartResult
-}
-
-func (c Chart) ToListItem() jsonutils.JSONObject {
-	return jsonutils.Marshal(c.ChartResult)
 }
 
 func ToChart(ret *cache.ChartResult) Chart {

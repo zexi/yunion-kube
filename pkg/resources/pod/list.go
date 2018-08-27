@@ -4,7 +4,6 @@ import (
 	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -36,11 +35,6 @@ type Pod struct {
 
 	// Name of the Node this pod runs on
 	NodeName string `json:"nodeName"`
-}
-
-// ToListItem dynamic called by common.ToListJsonData
-func (p Pod) ToListItem() jsonutils.JSONObject {
-	return jsonutils.Marshal(p)
 }
 
 type PodList struct {
