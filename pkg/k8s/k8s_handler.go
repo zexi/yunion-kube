@@ -14,7 +14,6 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -27,7 +26,7 @@ type IK8sResourceHandler interface {
 	Keyword() string
 	KeywordPlural() string
 
-	List(ctx context.Context, query *jsonutils.JSONDict) (*modules.ListResult, error)
+	List(ctx context.Context, query *jsonutils.JSONDict) (common.ListResource, error)
 
 	Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 
@@ -134,7 +133,7 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 	return req, nil
 }
 
-func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict) (*modules.ListResult, error) {
+func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict) (common.ListResource, error) {
 	req, err := NewCloudK8sRequest(ctx, query, nil)
 	if err != nil {
 		return nil, errors.NewJSONClientError(err)
@@ -150,29 +149,12 @@ func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict
 	return items, nil
 }
 
-func toListResult(ret common.ListResource) (*modules.ListResult, error) {
-	count := ret.GetTotal()
-	if count == 0 {
-		emptyList := modules.ListResult{Data: []jsonutils.JSONObject{}}
-		return &emptyList, nil
-	}
-	data, err := common.ToListJsonData(ret.GetResponseData())
-	if err != nil {
-		return nil, err
-	}
-	retResult := modules.ListResult{Data: data, Total: ret.GetTotal(), Limit: ret.GetLimit(), Offset: ret.GetOffset()}
-	return &retResult, nil
-}
-
 func listItems(
 	man IK8sResourceManager,
 	req *common.Request,
-) (*modules.ListResult, error) {
+) (common.ListResource, error) {
 	ret, err := man.List(req)
-	if err != nil {
-		return nil, err
-	}
-	return toListResult(ret)
+	return ret, err
 }
 
 func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error) {

@@ -16,17 +16,17 @@ import (
 )
 
 type SRepoManager struct {
-	db.SSharableVirtualResourceBaseManager
+	db.SStandaloneResourceBaseManager
 }
 
 var RepoManager *SRepoManager
 
 func init() {
-	RepoManager = &SRepoManager{SSharableVirtualResourceBaseManager: db.NewSharableVirtualResourceBaseManager(SRepo{}, "repos_tbl", "repo", "repos")}
+	RepoManager = &SRepoManager{SStandaloneResourceBaseManager: db.NewStandaloneResourceBaseManager(SRepo{}, "repos_tbl", "repo", "repos")}
 }
 
 type SRepo struct {
-	db.SSharableVirtualResourceBase
+	db.SStandaloneResourceBase
 
 	Url    string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
 	Source string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"admin"`
@@ -37,7 +37,7 @@ func (man *SRepoManager) AllowListItems(ctx context.Context, userCred mcclient.T
 }
 
 func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	return man.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+	return man.SStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
 }
 
 func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -49,7 +49,7 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 	if url == "" {
 		return nil, httperrors.NewInputParameterError("Missing repo url")
 	}
-	return man.SSharableVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+	return man.SStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
 
 func (man *SRepoManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
@@ -103,7 +103,7 @@ func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) e
 	if err != nil && !ok {
 		return err
 	}
-	return r.SSharableVirtualResourceBase.Delete(ctx, userCred)
+	return r.SStandaloneResourceBase.Delete(ctx, userCred)
 }
 
 func (r *SRepo) AddToBackend() error {
@@ -112,7 +112,7 @@ func (r *SRepo) AddToBackend() error {
 }
 
 func (r *SRepo) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return r.IsOwner(userCred)
+	return allowPerformAction(ctx, userCred, query, data)
 }
 
 func (r *SRepo) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 func getClusterPrefix(prefix string) string {
@@ -81,7 +81,7 @@ func handleList(ctx context.Context, w http.ResponseWriter, handler IK8sResource
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendJSON(w, modules.ListResult2JSONWithKey(result, handler.KeywordPlural()))
+	SendJSON(w, common.ListResource2JSONWithKey(result, handler.KeywordPlural()))
 }
 
 func wrapBody(body jsonutils.JSONObject, key string) jsonutils.JSONObject {

@@ -93,8 +93,8 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 	defer d.cleanup(stateDir)
 
 	certsStr := ""
-	apiURL, caCrt, clientCert, clientKey, certs, err := clusterUp(ctx, &ykeConfig, d.DockerDialer, d.LocalDialer,
-		d.wrapTransport(&ykeConfig), false, stateDir, false, false)
+	apiURL, caCrt, clientCert, clientKey, certs, err := clusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
+		d.wrapTransport(ykeConfig), false, stateDir, false, false)
 	if err == nil {
 		certsStr, err = ykecerts.ToString(certs)
 	}
@@ -145,8 +145,8 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	defer d.cleanup(stateDir)
 
 	certsStr := ""
-	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, &ykeConfig, d.DockerDialer, d.LocalDialer,
-		d.wrapTransport(&ykeConfig), false, stateDir, false, false)
+	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
+		d.wrapTransport(ykeConfig), false, stateDir, false, false)
 	if err == nil {
 		certsStr, err = ykecerts.ToString(certs)
 	}
@@ -165,14 +165,6 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 		ClientKey:         base64.StdEncoding.EncodeToString([]byte(clientKey)),
 		Config:            yaml,
 		Certs:             certsStr,
-		//Metadata: map[string]string{
-		//"Endpoint":   apiURL,
-		//"RootCA":     base64.StdEncoding.EncodeToString([]byte(caCrt)),
-		//"ClientCert": base64.StdEncoding.EncodeToString([]byte(clientCert)),
-		//"ClientKey":  base64.StdEncoding.EncodeToString([]byte(clientKey)),
-		//"Config":     yaml,
-		//"Certs":      certStr,
-		//},
 	}, stateDir), nil
 }
 
@@ -208,7 +200,7 @@ func (d *Driver) GetK8sRestConfig(info *types.ClusterInfo) (*rest.Config, error)
 			CertData: certBytes,
 			KeyData:  keyBytes,
 		},
-		WrapTransport: d.WrapTransportFactory(&ykeConfig),
+		WrapTransport: d.WrapTransportFactory(ykeConfig),
 	}
 	return config, nil
 }
@@ -276,7 +268,7 @@ func (d *Driver) Remove(ctx context.Context, clusterInfo *types.ClusterInfo) err
 	}
 	stateDir, _ := d.restore(clusterInfo)
 	defer d.save(nil, stateDir)
-	return cmd.ClusterRemove(ctx, &ykeConfig, d.DockerDialer, d.wrapTransport(&ykeConfig), false, stateDir)
+	return cmd.ClusterRemove(ctx, ykeConfig, d.DockerDialer, d.wrapTransport(ykeConfig), false, stateDir)
 }
 
 func getHost(driverOptions *types.DriverOptions) (*hosts.Host, error) {
@@ -351,7 +343,7 @@ func clusterUp(
 
 func (d *Driver) cleanup(stateDir string) {
 	if strings.HasSuffix(stateDir, "/cluster.yml") && !strings.Contains(stateDir, "..") {
-		log.Infof("===cleanup statedir: %v", stateDir)
+		log.Infof("Cleanup statedir: %v", stateDir)
 		os.Remove(stateDir)
 		os.Remove(kubeConfig(stateDir))
 		os.Remove(filepath.Dir(stateDir))
