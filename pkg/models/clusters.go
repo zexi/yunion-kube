@@ -579,6 +579,7 @@ func (c *SCluster) GetYKENetworkConfig() yketypes.NetworkConfig {
 		ykecluster.YunionAdminPasswd:  o.AdminPassword,
 		ykecluster.YunionAdminProject: o.AdminProject,
 		ykecluster.YunionRegion:       o.Region,
+		ykecluster.YunionKubeCluster:  c.Name,
 	}
 	return conf
 }
