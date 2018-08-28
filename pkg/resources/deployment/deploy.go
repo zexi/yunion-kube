@@ -18,7 +18,10 @@ import (
 	dynamicclient "k8s.io/client-go/dynamic"
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
 	"yunion.io/x/log"
+
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 const (
@@ -74,6 +77,9 @@ type AppDeploymentSpec struct {
 
 	// Whether to run the container as privileged user (essentially equivalent to root on the host).
 	RunAsPrivileged bool `json:"runAsPrivileged"`
+
+	// Network config
+	NetworkConfig *common.NetworkConfig `json:"networkConfig"`
 }
 
 // AppDeploymentFromFileSpec is a specification for deployment from file
@@ -144,7 +150,7 @@ type Protocols struct {
 // share common labels.
 func DeployApp(spec *AppDeploymentSpec, client client.Interface) (*AppDeploymentSpec, error) {
 	log.Infof("Deploying %q application into %q namespace", spec.Name, spec.Namespace)
-	annotations := map[string]string{}
+	annotations := spec.NetworkConfig.ToPodAnnotation()
 	if spec.Description != nil {
 		annotations[DescriptionAnnotationKey] = *spec.Description
 	}
