@@ -4,6 +4,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/pkg/util/regutils"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -42,10 +43,18 @@ func (man *SDeploymentManager) Create(req *common.Request) (jsonutils.JSONObject
 	if err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
 	}
+
+	if appSpec.NetworkConfig != nil {
+		if addr := appSpec.NetworkConfig.Address; addr != "" {
+			if !regutils.MatchIP4Addr(addr) {
+				return nil, httperrors.NewInputParameterError("Invalid network ip address format: %q", addr)
+			}
+		}
+	}
+
 	spec, err := DeployApp(&appSpec, req.GetK8sClient())
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("========DeployApp spec: %#v, error: %v", spec, err)
 	return jsonutils.Marshal(spec), nil
 }
