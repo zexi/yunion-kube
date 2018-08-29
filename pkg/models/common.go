@@ -25,6 +25,18 @@ const (
 	NODES_DEPLOY_IDS_KEY  = "nodesId"
 )
 
+const (
+	DEFAULT_DOCKER_GRAPH_DIR = "/opt/docker"
+
+	DEFAULT_DOCKER_REGISTRY_MIRROR1 = "http://hub-mirror.c.163.com"
+	DEFAULT_DOCKER_REGISTRY_MIRROR2 = "https://docker.mirrors.ustc.edu.cn"
+	DEFAULT_DOCKER_REGISTRY_MIRROR3 = "https://registry.docker-cn.com"
+)
+
+var (
+	DEFAULT_DOCKER_REGISTRY_MIRRORS = []string{DEFAULT_DOCKER_REGISTRY_MIRROR1, DEFAULT_DOCKER_REGISTRY_MIRROR2, DEFAULT_DOCKER_REGISTRY_MIRROR3}
+)
+
 func validateHostInfo(host apis.CloudHost) (err error) {
 	log.Infof("Get hosts: %#v", host)
 	if host.ManagerUrl == "" {

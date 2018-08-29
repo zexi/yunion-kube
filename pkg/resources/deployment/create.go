@@ -2,7 +2,6 @@ package deployment
 
 import (
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/util/regutils"
 
