@@ -39,9 +39,6 @@ const (
 	NODE_STATUS_ERROR    = "error"
 	NODE_STATUS_UPDATING = "updating"
 	NODE_STATUS_DELETING = "deleting"
-
-	DEFAULT_DOCKER_GRAPH_DIR       = "/opt/docker"
-	DEFAULT_DOCKER_REGISTRY_MIRROR = "https://registry.docker-cn.com"
 )
 
 func init() {
@@ -585,7 +582,7 @@ func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
 			// Enable LiveRestore by default
 			LiveRestore:     true,
 			Graph:           DEFAULT_DOCKER_GRAPH_DIR,
-			RegistryMirrors: []string{DEFAULT_DOCKER_REGISTRY_MIRROR},
+			RegistryMirrors: DEFAULT_DOCKER_REGISTRY_MIRRORS,
 		}, nil
 	}
 	config := apis.DockerdConfig{}
@@ -598,7 +595,7 @@ func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
 		config.Graph = DEFAULT_DOCKER_GRAPH_DIR
 	}
 	if len(config.RegistryMirrors) == 0 {
-		config.RegistryMirrors = []string{DEFAULT_DOCKER_REGISTRY_MIRROR}
+		config.RegistryMirrors = DEFAULT_DOCKER_REGISTRY_MIRRORS
 	}
 	return config, err
 }

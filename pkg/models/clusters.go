@@ -579,6 +579,7 @@ func (c *SCluster) GetYKENetworkConfig() yketypes.NetworkConfig {
 		ykecluster.YunionAdminPasswd:  o.AdminPassword,
 		ykecluster.YunionAdminProject: o.AdminProject,
 		ykecluster.YunionRegion:       o.Region,
+		ykecluster.YunionKubeCluster:  c.Name,
 	}
 	return conf
 }
@@ -1069,7 +1070,8 @@ func (c *SCluster) StartClusterImportTask(ctx context.Context, userCred mcclient
 func (c *SCluster) IsNodesReady(nodes ...*SNode) bool {
 	isAllReady := true
 	for _, node := range nodes {
-		if node.Status != NODE_STATUS_READY {
+		//if node.Status != NODE_STATUS_READY {
+		if !sets.NewString(NODE_STATUS_READY, NODE_STATUS_RUNNING).Has(node.Status) {
 			log.Debugf("node %q status %q is not ready", node.Name, node.Status)
 			return false
 		}
