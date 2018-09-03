@@ -22,6 +22,7 @@ import (
 	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/util/sets"
 	"yunion.io/x/pkg/util/wait"
 	yutils "yunion.io/x/pkg/utils"
@@ -823,6 +824,41 @@ func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclie
 	ret := jsonutils.NewDict()
 	ret.Add(jsonutils.NewString(webhookUrl), "url")
 	return ret, nil
+}
+
+func (c *SCluster) AllowGetDetailsCloudHosts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return c.AllowGetDetails(ctx, userCred, query)
+}
+
+func (c *SCluster) GetDetailsCloudHosts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	session, err := GetAdminSession()
+	if err != nil {
+		err = httperrors.NewInternalServerError("Get admin session: %v", err)
+		return nil, err
+	}
+	params := jsonutils.NewDict()
+	params.Add(jsonutils.NewInt(2000), "limit")
+	filter := jsonutils.NewArray()
+	filter.Add(jsonutils.NewString(fmt.Sprintf("host_type.in(%s, %s)", "hypervisor", "kubelet")))
+	params.Add(filter, "filter")
+	result, err := cloudmod.Hosts.List(session, params)
+	if err != nil {
+		return nil, err
+	}
+	hosts := jsonutils.NewArray()
+	canDeploy := jsonutils.QueryBoolean(query, "can_deploy", false)
+	for _, host := range result.Data {
+		id, _ := host.GetString("id")
+		if len(id) == 0 {
+			continue
+		}
+		node, _ := NodeManager.FetchNodeByHostId(id)
+		if node != nil && canDeploy {
+			continue
+		}
+		hosts.Add(host)
+	}
+	return hosts, nil
 }
 
 func (c *SCluster) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
