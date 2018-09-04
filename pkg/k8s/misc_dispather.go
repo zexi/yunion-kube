@@ -30,13 +30,13 @@ func AddMiscDispatcher(prefix string, app *appsrv.Application) {
 }
 
 func handleExecShell(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	params, query, _ := _fetchEnv(ctx, w, r)
+	params, query, data := _fetchEnv(ctx, w, r)
 	request, err := NewCloudK8sRequest(ctx, query.(*jsonutils.JSONDict), nil)
 	if err != nil {
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	cluster, _ := getCluster(ctx, request.UserCred)
+	cluster, _ := getCluster(query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict), request.UserCred)
 	podName := params["<pod>"]
 	container := params["<container>"]
 
