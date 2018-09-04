@@ -8,7 +8,6 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -93,9 +92,17 @@ func getUserCredential(ctx context.Context) mcclient.TokenCredential {
 	return token
 }
 
-func getCluster(ctx context.Context, userCred mcclient.TokenCredential) (*models.SCluster, error) {
-	params := appctx.AppContextParams(ctx)
-	clusterId := params["<clusterid>"]
+func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredential) (*models.SCluster, error) {
+	var clusterId string
+	for _, src := range []*jsonutils.JSONDict{query, data} {
+		clusterId, _ = src.GetString("cluster")
+		if clusterId != "" {
+			break
+		}
+	}
+	if clusterId == "" {
+		clusterId = "default"
+	}
 	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred.GetProjectId(), clusterId)
 	if err != nil {
 		return nil, err
@@ -103,8 +110,8 @@ func getCluster(ctx context.Context, userCred mcclient.TokenCredential) (*models
 	return cluster, nil
 }
 
-func getK8sClient(ctx context.Context, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
-	cluster, err := getCluster(ctx, userCred)
+func getK8sClient(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
+	cluster, err := getCluster(query, data, userCred)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -118,7 +125,7 @@ func getK8sClient(ctx context.Context, userCred mcclient.TokenCredential) (kuber
 
 func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*common.Request, error) {
 	userCred := getUserCredential(ctx)
-	k8sCli, config, err := getK8sClient(ctx, userCred)
+	k8sCli, config, err := getK8sClient(query, data, userCred)
 	if err != nil {
 		return nil, err
 	}

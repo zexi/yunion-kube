@@ -15,7 +15,7 @@ import (
 )
 
 func getClusterPrefix(prefix string) string {
-	return fmt.Sprintf("%s/kube_clusters/<clusterid>", prefix)
+	return prefix
 }
 
 func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sResourceHandler) {
