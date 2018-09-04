@@ -3,6 +3,7 @@ package pod
 import (
 	"k8s.io/api/core/v1"
 
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -68,4 +69,19 @@ func getPodStatusPhase(pod v1.Pod) v1.PodPhase {
 	//// Unknown?
 	////return v1.PodPending
 	//return pod.Status.Phase
+}
+
+func getPodConditions(pod v1.Pod) []common.Condition {
+	var conditions []common.Condition
+	for _, condition := range pod.Status.Conditions {
+		conditions = append(conditions, common.Condition{
+			Type:               string(condition.Type),
+			Status:             condition.Status,
+			LastProbeTime:      condition.LastProbeTime,
+			LastTransitionTime: condition.LastTransitionTime,
+			Reason:             condition.Reason,
+			Message:            condition.Message,
+		})
+	}
+	return conditions
 }
