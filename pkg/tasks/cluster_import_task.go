@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	ykecluster "yunion.io/yke/pkg/cluster"
@@ -46,11 +47,11 @@ func (t *ClusterImportTask) removeCNINetworkPlugin(ctx context.Context, cluster 
 	jobName := fmt.Sprintf("%s-deploy-job", ykecluster.NetworkPluginResourceName)
 	err = k8sCli.BatchV1().Jobs("kube-system").Delete(jobName, &metav1.DeleteOptions{})
 	if err != nil {
-		return err
+		log.Errorf("Failed to delete job: %q", jobName)
 	}
 	err = k8sCli.AppsV1beta2().DaemonSets("kube-system").Delete("yunion", &metav1.DeleteOptions{})
 	if err != nil {
-		return err
+		log.Errorf("Failed to delete DaemonSets: yunion")
 	}
 	return nil
 }
