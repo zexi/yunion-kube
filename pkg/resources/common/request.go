@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -86,10 +87,16 @@ func (r *Request) GetHelmClient() (*helmclient.HelmTunnelClient, error) {
 }
 
 func (r *Request) GetNamespaceByQuery() (string, error) {
+	if r.Query == nil {
+		return "", fmt.Errorf("query is nil")
+	}
 	return r.Query.GetString("namespace")
 }
 
 func (r *Request) GetNamespaceByData() (string, error) {
+	if r.Data == nil {
+		return "", fmt.Errorf("data is nil")
+	}
 	return r.Data.GetString("namespace")
 }
 
@@ -113,9 +120,19 @@ func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery 
 	offset, _ := query.Int("offset")
 	limitQ := dataselect.NewLimitQuery(int(limit))
 	offsetQ := dataselect.NewOffsetQuery(int(offset))
+
+	filterQ := dataselect.NoFilter
+	filterRawCond := []string{}
+	name, _ := query.GetString("name")
+	if name != "" {
+		filterRawCond = append(filterRawCond, dataselect.NameProperty, name)
+	}
+	if len(filterRawCond) != 0 {
+		filterQ = dataselect.NewFilterQuery(filterRawCond)
+	}
 	return dataselect.NewDataSelectQuery(
-		dataselect.NoSort,   // TODO
-		dataselect.NoFilter, // TODO
+		dataselect.NoSort, // TODO
+		filterQ,
 		limitQ,
 		offsetQ,
 	)

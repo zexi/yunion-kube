@@ -33,7 +33,7 @@ func AddHelmDispatcher(prefix string, app *appsrv.Application) {
 
 	// handle helm charts actions
 	app.AddHandler("GET",
-		fmt.Sprintf("%s/charts/<reponame>/<name>", prefix),
+		fmt.Sprintf("%s/charts/<name>", prefix),
 		auth.Authenticate(chartShowHandler))
 
 	app.AddHandler("GET",
@@ -108,7 +108,11 @@ func chartlistHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 
 func chartShowHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	params, query, _ := _fetchEnv(ctx, w, r)
-	repoName := params["<reponame>"]
+	repoName, _ := query.GetString("repo")
+	if repoName == "" {
+		httperrors.InvalidInputError(w, "repo not provided")
+		return
+	}
 	chartName := params["<name>"]
 	userCred := getUserCredential(ctx)
 	repo, err := models.RepoManager.FetchRepoByIdOrName(userCred.GetProjectId(), repoName)

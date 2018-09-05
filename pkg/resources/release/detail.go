@@ -1,6 +1,9 @@
 package release
 
 import (
+	"fmt"
+
+	"k8s.io/helm/pkg/chartutil"
 	"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/log"
@@ -11,6 +14,8 @@ import (
 
 type ReleaseDetail struct {
 	*release.Release
+	Resources    *Resources       `json:"resources"`
+	ConfigValues chartutil.Values `json:"config_values"`
 }
 
 func (man *SReleaseManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -18,7 +23,7 @@ func (man *SReleaseManager) Get(req *common.Request, id string) (interface{}, er
 	if err != nil {
 		return nil, err
 	}
-	return detail.Release, nil
+	return detail, nil
 }
 
 func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail, error) {
@@ -53,7 +58,20 @@ func GetReleaseDetail(helmclient *client.HelmTunnelClient, namespace, releaseNam
 		return nil, err
 	}
 	rls.Release.Info = status.Info
+
+	cfg, err := chartutil.CoalesceValues(rls.Release.Chart, rls.Release.Config)
+	if err != nil {
+		return nil, fmt.Errorf("CoalesceValues: %v", err)
+	}
+
+	res, err := GetReleaseResources(helmclient.K8sClient(), rls.Release)
+
+	if err != nil {
+		return nil, fmt.Errorf("Get release resources: %v", err)
+	}
 	return &ReleaseDetail{
-		Release: rls.Release,
+		Release:      rls.Release,
+		ConfigValues: cfg,
+		Resources:    res,
 	}, nil
 }

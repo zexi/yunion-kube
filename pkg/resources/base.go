@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -34,13 +33,12 @@ func (m *SResourceBaseManager) InNamespace() bool {
 }
 
 func (m *SResourceBaseManager) AllowListItems(req *common.Request) bool {
-	log.Fatalf("AllowListItems not implemented")
+	log.Errorf("AllowListItems not implemented")
 	return false
 }
 
-func (m *SResourceBaseManager) List(req *common.Request) (*modules.ListResult, error) {
-	log.Fatalf("List not implemented")
-	return nil, nil
+func (m *SResourceBaseManager) List(req *common.Request) (common.ListResource, error) {
+	return nil, fmt.Errorf("List not implemented")
 }
 
 func (m *SResourceBaseManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -52,8 +50,7 @@ func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
 }
 
 func (m *SResourceBaseManager) Create(req *common.Request) (interface{}, error) {
-	log.Fatalf("Create not implemented")
-	return nil, nil
+	return nil, fmt.Errorf("Create not implemented")
 }
 
 func (m *SResourceBaseManager) AllowUpdateItem(req *common.Request, id string) bool {
@@ -92,4 +89,8 @@ func NewNamespaceResourceManager(keyword, keywordPlural string) *SNamespaceResou
 
 func (m *SNamespaceResourceManager) InNamespace() bool {
 	return true
+}
+
+func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
+	return req.AllowListItems()
 }
