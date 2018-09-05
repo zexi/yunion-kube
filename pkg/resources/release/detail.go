@@ -3,7 +3,6 @@ package release
 import (
 	"k8s.io/helm/pkg/proto/hapi/release"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/helm/client"
@@ -14,12 +13,12 @@ type ReleaseDetail struct {
 	*release.Release
 }
 
-func (man *SReleaseManager) Get(req *common.Request, id string) (jsonutils.JSONObject, error) {
+func (man *SReleaseManager) Get(req *common.Request, id string) (interface{}, error) {
 	detail, err := GetReleaseDetailFromRequest(req, id)
 	if err != nil {
 		return nil, err
 	}
-	return jsonutils.Marshal(detail.Release), nil
+	return detail.Release, nil
 }
 
 func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail, error) {

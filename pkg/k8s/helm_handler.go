@@ -122,5 +122,5 @@ func chartShowHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendJSON(w, wrapBody(resp, "chart"))
+	SendJSON(w, wrapBody(resp, "chart"))
 }

@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	client "k8s.io/client-go/kubernetes"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -68,13 +67,9 @@ type EnvVar struct {
 	ValueFrom *v1.EnvVarSource `json:"valueFrom"`
 }
 
-func (man *SPodManager) Get(req *common.Request, id string) (jsonutils.JSONObject, error) {
+func (man *SPodManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	detail, err := GetPodDetail(req.GetK8sClient(), namespace, id)
-	if err != nil {
-		return nil, err
-	}
-	return jsonutils.Marshal(detail), nil
+	return GetPodDetail(req.GetK8sClient(), namespace, id)
 }
 
 func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, error) {
