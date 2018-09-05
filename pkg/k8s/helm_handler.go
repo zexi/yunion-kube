@@ -25,11 +25,10 @@ const (
 
 func AddHelmDispatcher(prefix string, app *appsrv.Application) {
 	log.Infof("Register helm dispatcher handler")
-	clusterPrefix := fmt.Sprintf("%s/clusters/<clusterid>", prefix)
 
 	// handle helm tiller install
 	app.AddHandler("POST",
-		fmt.Sprintf("%s/tiller", clusterPrefix),
+		fmt.Sprintf("%s/tiller", prefix),
 		auth.Authenticate(handleHelmTillerInstall))
 
 	// handle helm charts actions
