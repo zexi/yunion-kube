@@ -2,13 +2,16 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
@@ -93,8 +96,17 @@ func (env *verberEnv) Get() (runtime.Object, error) {
 }
 
 func (env *verberEnv) Put() error {
+	data, err := env.request.Data.Get("raw")
+	if err != nil {
+		return httperrors.NewInputParameterError("Not found raw json body")
+	}
+	rawStr, err := data.GetString()
+	if err != nil {
+		return fmt.Errorf("Get raw string error")
+	}
+	log.Debugf("Get raw update json data: %s", rawStr)
 	putSpec := runtime.Unknown{}
-	err := env.request.Data.Unmarshal(&putSpec)
+	err = json.NewDecoder(strings.NewReader(rawStr)).Decode(&putSpec)
 	if err != nil {
 		return err
 	}
@@ -116,7 +128,7 @@ func getResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		errors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendStruct(w, obj)
+	SendJSON(w, obj)
 }
 
 func putResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
