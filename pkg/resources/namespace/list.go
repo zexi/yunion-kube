@@ -5,21 +5,32 @@ import (
 	client "k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
 
+	"yunion.io/x/log"
+
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
+// NamespaceList contains a list of namespaces in the cluster.
+type NamespaceList struct {
+	*dataselect.ListMeta
+
+	// Unordered list of Namespaces.
+	Namespaces []Namespace `json:"namespaces"`
+}
+
+func (l *NamespaceList) GetNamespaceListFromChannels() interface{} {
+	return l.Namespaces
+}
+
+// Namespace is a presentation layer view of Kubernetes namespaces. This means it is namespace plus
+// additional augmented data we can get from other sources.
 type Namespace struct {
 	api.ObjectMeta
 	api.TypeMeta
 
-	Phase v1.NamespacePhase
-}
-
-type NamespaceList struct {
-	*dataselect.ListMeta
-	namespaces []Namespace
+	Phase v1.NamespacePhase `json:"status"`
 }
 
 func (n Namespace) ToListItem() jsonutils.JSONObject {
@@ -27,14 +38,15 @@ func (n Namespace) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SNamespaceManager) AllowListItems(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.AllowListItems()
 }
 
-func (man *SNamespaceManager) List(client client.Interface, req *common.Request) (common.ListResource, error) {
-	return man.GetNamespaceList(client, req.ToQuery())
+func (man *SNamespaceManager) List(req *common.Request) (common.ListResource, error) {
+	return man.GetNamespaceList(req.GetK8sClient(), req.ToQuery())
 }
 
 func (man *SNamespaceManager) GetNamespaceList(client client.Interface, dsQuery *dataselect.DataSelectQuery) (*NamespaceList, error) {
+	log.Infof("Getting list of all namespaces in the cluster")
 	channels := &common.ResourceChannels{
 		NamespaceList: common.GetNamespaceListChannel(client),
 	}
@@ -42,11 +54,19 @@ func (man *SNamespaceManager) GetNamespaceList(client client.Interface, dsQuery 
 }
 
 func (l *NamespaceList) Append(obj interface{}) {
-	l.namespaces = append(l.namespaces, ToNamespace(obj.(v1.Namespace)))
+	l.Namespaces = append(l.Namespaces, toNamespace(obj.(v1.Namespace)))
+}
+
+func toNamespace(namespace v1.Namespace) Namespace {
+	return Namespace{
+		ObjectMeta: api.NewObjectMeta(namespace.ObjectMeta),
+		TypeMeta:   api.NewTypeMeta(api.ResourceKindNamespace),
+		Phase:      namespace.Status.Phase,
+	}
 }
 
 func (l *NamespaceList) GetResponseData() interface{} {
-	return l.namespaces
+	return l.Namespaces
 }
 
 func GetNamespaceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*NamespaceList, error) {
@@ -57,7 +77,7 @@ func GetNamespaceListFromChannels(channels *common.ResourceChannels, dsQuery *da
 	}
 	namespaceList := &NamespaceList{
 		ListMeta:   dataselect.NewListMeta(),
-		namespaces: make([]Namespace, 0),
+		Namespaces: make([]Namespace, 0),
 	}
 	err = dataselect.ToResourceList(
 		namespaceList,

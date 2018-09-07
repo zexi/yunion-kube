@@ -220,9 +220,9 @@ type SpotguideOptions struct {
 }
 
 type ChartDetail struct {
-	Name    string `json:"name"`
-	Repo    string `json:"repo"`
-	Chart   *repo.ChartVersion
+	Name    string             `json:"name"`
+	Repo    string             `json:"repo"`
+	Chart   *repo.ChartVersion `json:"chart"`
 	Values  string             `json:"values"`
 	Readme  string             `json:"readme"`
 	Options []SpotguideOptions `json:"options"`

@@ -27,11 +27,11 @@ type IK8sResourceHandler interface {
 
 	List(ctx context.Context, query *jsonutils.JSONDict) (common.ListResource, error)
 
-	Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	Get(ctx context.Context, id string, query *jsonutils.JSONDict) (interface{}, error)
 
-	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (interface{}, error)
 
-	Update(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	Update(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (interface{}, error)
 
 	Delete(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) error
 }
@@ -47,15 +47,15 @@ type IK8sResourceManager interface {
 	List(req *common.Request) (common.ListResource, error)
 
 	// get hooks
-	Get(req *common.Request, id string) (jsonutils.JSONObject, error)
+	Get(req *common.Request, id string) (interface{}, error)
 
 	// create hooks
 	ValidateCreateData(req *common.Request) error
-	Create(req *common.Request) (jsonutils.JSONObject, error)
+	Create(req *common.Request) (interface{}, error)
 
 	// update hooks
 	AllowUpdateItem(req *common.Request, id string) bool
-	Update(req *common.Request, id string) (jsonutils.JSONObject, error)
+	Update(req *common.Request, id string) (interface{}, error)
 
 	// delete hooks
 	AllowDeleteItem(req *common.Request, id string) bool
@@ -164,7 +164,7 @@ func listItems(
 	return ret, err
 }
 
-func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutils.JSONDict) (interface{}, error) {
 	req, err := NewCloudK8sRequest(ctx, query, nil)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -185,7 +185,7 @@ func doCreateItem(man IK8sResourceManager, req *common.Request) (jsonutils.JSONO
 	return jsonutils.Marshal(res), nil
 }
 
-func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.JSONDict) (interface{}, error) {
 	req, err := NewCloudK8sRequest(ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -197,7 +197,7 @@ func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.
 	return doCreateItem(h.resourceManager, req)
 }
 
-func (h *K8sResourceHandler) Update(ctx context.Context, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+func (h *K8sResourceHandler) Update(ctx context.Context, id string, query, data *jsonutils.JSONDict) (interface{}, error) {
 	req, err := NewCloudK8sRequest(ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -210,7 +210,7 @@ func (h *K8sResourceHandler) Update(ctx context.Context, id string, query, data 
 	return obj, err
 }
 
-func doUpdateItem(man IK8sResourceManager, req *common.Request, id string) (jsonutils.JSONObject, error) {
+func doUpdateItem(man IK8sResourceManager, req *common.Request, id string) (interface{}, error) {
 	if !man.AllowUpdateItem(req, id) {
 		return nil, httperrors.NewForbiddenError("Not allow to delete")
 	}

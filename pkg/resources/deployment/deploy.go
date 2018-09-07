@@ -150,7 +150,10 @@ type Protocols struct {
 // share common labels.
 func DeployApp(spec *AppDeploymentSpec, client client.Interface) (*AppDeploymentSpec, error) {
 	log.Infof("Deploying %q application into %q namespace", spec.Name, spec.Namespace)
-	annotations := spec.NetworkConfig.ToPodAnnotation()
+	annotations := make(map[string]string)
+	if spec.NetworkConfig != nil {
+		annotations = spec.NetworkConfig.ToPodAnnotation()
+	}
 	if spec.Description != nil {
 		annotations[DescriptionAnnotationKey] = *spec.Description
 	}
