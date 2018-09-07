@@ -8,6 +8,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/sqlchemy"
@@ -17,6 +18,7 @@ import (
 
 type SRepoManager struct {
 	db.SStandaloneResourceBaseManager
+	models.SInfrastructureManager
 }
 
 var RepoManager *SRepoManager
@@ -27,6 +29,7 @@ func init() {
 
 type SRepo struct {
 	db.SStandaloneResourceBase
+	models.SInfrastructure
 
 	Url    string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
 	Source string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"admin"`

@@ -6,7 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	client "k8s.io/client-go/kubernetes"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -82,13 +81,9 @@ type DeploymentDetail struct {
 	Errors []error `json:"errors"`
 }
 
-func (man *SDeploymentManager) Get(req *common.Request, id string) (jsonutils.JSONObject, error) {
+func (man *SDeploymentManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	detail, err := GetDeploymentDetail(req.GetK8sClient(), namespace, id)
-	if err != nil {
-		return nil, err
-	}
-	return jsonutils.Marshal(detail), nil
+	return GetDeploymentDetail(req.GetK8sClient(), namespace, id)
 }
 
 func GetDeploymentDetail(client client.Interface, namespace, deploymentName string) (*DeploymentDetail, error) {

@@ -104,13 +104,16 @@ type IngressListChannel struct {
 }
 
 func GetIngressListChannel(client client.Interface, nsQuery *NamespaceQuery) IngressListChannel {
+	return GetIngressListChannelWithOptions(client, nsQuery, api.ListEverything)
+}
 
+func GetIngressListChannelWithOptions(client client.Interface, nsQuery *NamespaceQuery, options metaV1.ListOptions) IngressListChannel {
 	channel := IngressListChannel{
 		List:  make(chan *extensions.IngressList),
 		Error: make(chan error),
 	}
 	go func() {
-		list, err := client.ExtensionsV1beta1().Ingresses(nsQuery.ToRequestParam()).List(api.ListEverything)
+		list, err := client.ExtensionsV1beta1().Ingresses(nsQuery.ToRequestParam()).List(options)
 		var filteredItems []extensions.Ingress
 		for _, item := range list.Items {
 			if nsQuery.Matches(item.ObjectMeta.Namespace) {
@@ -131,12 +134,16 @@ type ServiceListChannel struct {
 }
 
 func GetServiceListChannel(client client.Interface, nsQuery *NamespaceQuery) ServiceListChannel {
+	return GetServiceListChannelWithOptions(client, nsQuery, api.ListEverything)
+}
+
+func GetServiceListChannelWithOptions(client client.Interface, nsQuery *NamespaceQuery, options metaV1.ListOptions) ServiceListChannel {
 	channel := ServiceListChannel{
 		List:  make(chan *v1.ServiceList),
 		Error: make(chan error),
 	}
 	go func() {
-		list, err := client.CoreV1().Services(nsQuery.ToRequestParam()).List(api.ListEverything)
+		list, err := client.CoreV1().Services(nsQuery.ToRequestParam()).List(options)
 		var filteredItems []v1.Service
 		for _, item := range list.Items {
 			if nsQuery.Matches(item.ObjectMeta.Namespace) {
@@ -481,15 +488,18 @@ type StatefulSetListChannel struct {
 	Error chan error
 }
 
-func GetStatefulSetListChannel(client client.Interface,
-	nsQuery *NamespaceQuery) StatefulSetListChannel {
+func GetStatefulSetListChannel(client client.Interface, nsQuery *NamespaceQuery) StatefulSetListChannel {
+	return GetStatefulSetListChannelWithOptions(client, nsQuery, api.ListEverything)
+}
+
+func GetStatefulSetListChannelWithOptions(client client.Interface, nsQuery *NamespaceQuery, options metaV1.ListOptions) StatefulSetListChannel {
 	channel := StatefulSetListChannel{
 		List:  make(chan *apps.StatefulSetList),
 		Error: make(chan error),
 	}
 
 	go func() {
-		statefulSets, err := client.AppsV1beta2().StatefulSets(nsQuery.ToRequestParam()).List(api.ListEverything)
+		statefulSets, err := client.AppsV1beta2().StatefulSets(nsQuery.ToRequestParam()).List(options)
 		var filteredItems []apps.StatefulSet
 		for _, item := range statefulSets.Items {
 			if nsQuery.Matches(item.ObjectMeta.Namespace) {
@@ -511,14 +521,17 @@ type ConfigMapListChannel struct {
 }
 
 func GetConfigMapListChannel(client client.Interface, nsQuery *NamespaceQuery) ConfigMapListChannel {
+	return GetConfigMapListChannelWithOptions(client, nsQuery, api.ListEverything)
+}
 
+func GetConfigMapListChannelWithOptions(client client.Interface, nsQuery *NamespaceQuery, options metaV1.ListOptions) ConfigMapListChannel {
 	channel := ConfigMapListChannel{
 		List:  make(chan *v1.ConfigMapList),
 		Error: make(chan error),
 	}
 
 	go func() {
-		list, err := client.CoreV1().ConfigMaps(nsQuery.ToRequestParam()).List(api.ListEverything)
+		list, err := client.CoreV1().ConfigMaps(nsQuery.ToRequestParam()).List(options)
 		var filteredItems []v1.ConfigMap
 		for _, item := range list.Items {
 			if nsQuery.Matches(item.ObjectMeta.Namespace) {

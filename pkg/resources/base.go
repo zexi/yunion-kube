@@ -3,9 +3,7 @@ package resources
 import (
 	"fmt"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -35,16 +33,15 @@ func (m *SResourceBaseManager) InNamespace() bool {
 }
 
 func (m *SResourceBaseManager) AllowListItems(req *common.Request) bool {
-	log.Fatalf("AllowListItems not implemented")
+	log.Errorf("AllowListItems not implemented")
 	return false
 }
 
-func (m *SResourceBaseManager) List(req *common.Request) (*modules.ListResult, error) {
-	log.Fatalf("List not implemented")
-	return nil, nil
+func (m *SResourceBaseManager) List(req *common.Request) (common.ListResource, error) {
+	return nil, fmt.Errorf("List not implemented")
 }
 
-func (m *SResourceBaseManager) Get(req *common.Request, id string) (jsonutils.JSONObject, error) {
+func (m *SResourceBaseManager) Get(req *common.Request, id string) (interface{}, error) {
 	return nil, fmt.Errorf("Get resource not implemented")
 }
 
@@ -52,16 +49,15 @@ func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
 	return nil
 }
 
-func (m *SResourceBaseManager) Create(req *common.Request) (jsonutils.JSONObject, error) {
-	log.Fatalf("Create not implemented")
-	return nil, nil
+func (m *SResourceBaseManager) Create(req *common.Request) (interface{}, error) {
+	return nil, fmt.Errorf("Create not implemented")
 }
 
 func (m *SResourceBaseManager) AllowUpdateItem(req *common.Request, id string) bool {
 	return m.AllowDeleteItem(req, id)
 }
 
-func (m *SResourceBaseManager) Update(req *common.Request, id string) (jsonutils.JSONObject, error) {
+func (m *SResourceBaseManager) Update(req *common.Request, id string) (interface{}, error) {
 	return nil, fmt.Errorf("Update resource not implemented")
 }
 
@@ -93,4 +89,8 @@ func NewNamespaceResourceManager(keyword, keywordPlural string) *SNamespaceResou
 
 func (m *SNamespaceResourceManager) InNamespace() bool {
 	return true
+}
+
+func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
+	return req.AllowListItems()
 }

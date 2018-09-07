@@ -55,3 +55,7 @@ func ensureTunnelClosed(tunnel *kube.Tunnel) {
 func (c *HelmTunnelClient) Close() {
 	ensureTunnelClosed(c.tillerTunnel)
 }
+
+func (c *HelmTunnelClient) K8sClient() kubernetes.Interface {
+	return c.k8sClient
+}
