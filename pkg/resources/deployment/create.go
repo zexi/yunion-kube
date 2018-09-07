@@ -36,7 +36,7 @@ func (man *SDeploymentManager) ValidateCreateData(req *common.Request) error {
 	return nil
 }
 
-func (man *SDeploymentManager) Create(req *common.Request) (jsonutils.JSONObject, error) {
+func (man *SDeploymentManager) Create(req *common.Request) (interface{}, error) {
 	appSpec := AppDeploymentSpec{}
 	err := req.Data.Unmarshal(&appSpec)
 	if err != nil {
@@ -55,5 +55,5 @@ func (man *SDeploymentManager) Create(req *common.Request) (jsonutils.JSONObject
 	if err != nil {
 		return nil, err
 	}
-	return jsonutils.Marshal(spec), nil
+	return spec, nil
 }

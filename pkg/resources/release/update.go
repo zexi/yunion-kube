@@ -7,7 +7,6 @@ import (
 	"k8s.io/helm/pkg/helm"
 	rls "k8s.io/helm/pkg/proto/hapi/services"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	controller "yunion.io/x/yunion-kube/pkg/controllers/helm"
@@ -19,7 +18,7 @@ func (man *SReleaseManager) AllowUpdateItem(req *common.Request, id string) bool
 	return man.AllowDeleteItem(req, id)
 }
 
-func (man *SReleaseManager) Update(req *common.Request, id string) (jsonutils.JSONObject, error) {
+func (man *SReleaseManager) Update(req *common.Request, id string) (interface{}, error) {
 	updateOpt, err := NewCreateUpdateReleaseReq(req.Data)
 	cli, err := req.GetHelmClient()
 	if err != nil {
@@ -30,7 +29,7 @@ func (man *SReleaseManager) Update(req *common.Request, id string) (jsonutils.JS
 	if err != nil {
 		return nil, err
 	}
-	return jsonutils.Marshal(ret), nil
+	return ret, nil
 }
 
 func ReleaseUpgrade(helmclient *client.HelmTunnelClient, opt *CreateUpdateReleaseRequest) (*rls.UpdateReleaseResponse, error) {

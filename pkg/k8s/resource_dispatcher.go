@@ -84,14 +84,12 @@ func handleList(ctx context.Context, w http.ResponseWriter, handler IK8sResource
 	SendJSON(w, common.ListResource2JSONWithKey(result, handler.KeywordPlural()))
 }
 
-func wrapBody(body jsonutils.JSONObject, key string) jsonutils.JSONObject {
+func wrapBody(body interface{}, key string) map[string]interface{} {
+	ret := make(map[string]interface{})
 	if body != nil {
-		ret := jsonutils.NewDict()
-		ret.Add(body, key)
-		return ret
-	} else {
-		return nil
+		ret[key] = body
 	}
+	return ret
 }
 
 func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
@@ -101,7 +99,7 @@ func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+	SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
 func createHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
@@ -120,7 +118,7 @@ func handleCreate(ctx context.Context, w http.ResponseWriter, handler IK8sResour
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+	SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
 func updateHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
@@ -135,7 +133,7 @@ func updateHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 		httperrors.GeneralServerError(w, err)
 		return
 	}
-	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+	SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
 func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {

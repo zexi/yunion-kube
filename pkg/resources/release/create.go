@@ -186,7 +186,7 @@ func (man *SReleaseManager) ValidateCreateData(req *common.Request) error {
 	return nil
 }
 
-func (man *SReleaseManager) Create(req *common.Request) (jsonutils.JSONObject, error) {
+func (man *SReleaseManager) Create(req *common.Request) (interface{}, error) {
 	createOpt, err := NewCreateUpdateReleaseReq(req.Data)
 	if err != nil {
 		return nil, err
@@ -196,11 +196,7 @@ func (man *SReleaseManager) Create(req *common.Request) (jsonutils.JSONObject, e
 		return nil, err
 	}
 	defer cli.Close()
-	ret, err := ReleaseCreate(cli, createOpt)
-	if err != nil {
-		return nil, err
-	}
-	return jsonutils.Marshal(ret), nil
+	return ReleaseCreate(cli, createOpt)
 }
 
 func ReleaseCreate(helmclient *client.HelmTunnelClient, opt *CreateUpdateReleaseRequest) (*rls.InstallReleaseResponse, error) {

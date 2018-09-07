@@ -5,10 +5,13 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // GetEvents gets events associated to resource with given name.
@@ -35,6 +38,12 @@ func GetEvents(client client.Interface, namespace, resourceName string) ([]v1.Ev
 	}
 
 	return FillEventsType(eventList.Items), nil
+}
+
+// GetNamespaceEvents gets events associated to a namespace with given name.
+func GetNamespaceEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace string) (common.EventList, error) {
+	events, _ := client.CoreV1().Events(namespace).List(api.ListEverything)
+	return CreateEventList(FillEventsType(events.Items), dsQuery)
 }
 
 // Based on event Reason fills event Type in order to allow correct filtering by Type.
@@ -101,6 +110,30 @@ func GetPodEvents(client client.Interface, namespace, podName string) ([]v1.Even
 
 	events := filterEventsByPodsUID(eventList.Items, l)
 	return FillEventsType(events), nil
+}
+
+// GetNodeEvents gets events associated to node with given name.
+func GetNodeEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, nodeName string) (common.EventList, error) {
+	eventList := common.EventList{
+		Events: make([]common.Event, 0),
+	}
+
+	scheme := runtime.NewScheme()
+	groupVersion := schema.GroupVersion{Group: "", Version: "v1"}
+	scheme.AddKnownTypes(groupVersion, &v1.Node{})
+
+	mc := client.CoreV1().Nodes()
+	node, err := mc.Get(nodeName, metaV1.GetOptions{})
+	if err != nil {
+		return eventList, err
+	}
+
+	events, err := client.CoreV1().Events(v1.NamespaceAll).Search(scheme, node)
+	if err != nil {
+		return eventList, err
+	}
+
+	return CreateEventList(FillEventsType(events.Items), dsQuery)
 }
 
 // GetResourceEvents gets events associated to specified resource.

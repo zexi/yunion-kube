@@ -19,6 +19,10 @@ func ToPod(pod v1.Pod) Pod {
 	return podDetail
 }
 
+func GetRestartCount(pod v1.Pod) int32 {
+	return getRestartCount(pod)
+}
+
 func getRestartCount(pod v1.Pod) int32 {
 	var restartCount int32 = 0
 	for _, containerStatus := range pod.Status.ContainerStatuses {
