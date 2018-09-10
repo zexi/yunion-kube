@@ -57,3 +57,23 @@ func (man *SDeploymentManager) Create(req *common.Request) (interface{}, error) 
 	}
 	return spec, nil
 }
+
+func (man *SDeployFromFileManager) ValidateCreateData(req *common.Request) error {
+	return nil
+}
+
+func (man *SDeployFromFileManager) Create(req *common.Request) (interface{}, error) {
+	deploymentSpec := AppDeploymentFromFileSpec{}
+	err := req.Data.Unmarshal(&deploymentSpec)
+	if err != nil {
+		return nil, err
+	}
+	_, err = DeployAppFromFile(req.K8sConfig, &deploymentSpec)
+	if err != nil {
+		return nil, err
+	}
+	return &AppDeploymentFromFileResponse{
+		Name:    deploymentSpec.Name,
+		Content: deploymentSpec.Content,
+	}, nil
+}
