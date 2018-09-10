@@ -54,6 +54,7 @@ func InitHandlers(app *appsrv.Application) {
 		node.NodeManager,
 		configmap.ConfigMapManager,
 		deployment.DeploymentManager,
+		deployment.DeployFromFileManager,
 		pod.PodManager,
 		service.ServiceManager,
 		namespace.NamespaceManager,
