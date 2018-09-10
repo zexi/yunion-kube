@@ -96,13 +96,9 @@ func (env *verberEnv) Get() (runtime.Object, error) {
 }
 
 func (env *verberEnv) Put() error {
-	data, err := env.request.Data.Get("raw")
+	rawStr, err := env.request.Data.GetString()
 	if err != nil {
-		return httperrors.NewInputParameterError("Not found raw json body")
-	}
-	rawStr, err := data.GetString()
-	if err != nil {
-		return fmt.Errorf("Get raw string error")
+		return httperrors.NewInputParameterError("Get body string error: %v", err)
 	}
 	log.Debugf("Get raw update json data: %s", rawStr)
 	putSpec := runtime.Unknown{}
