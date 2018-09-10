@@ -106,7 +106,7 @@ type AppDeploymentFromFileResponse struct {
 	Content string `json:"content"`
 
 	// Error after create resource
-	Error string `json:"error"`
+	//Error string `json:"error"`
 }
 
 // PortMapping is a specification of port mapping for an application deployment.
