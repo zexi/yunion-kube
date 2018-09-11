@@ -127,6 +127,10 @@ func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery 
 	if name != "" {
 		filterRawCond = append(filterRawCond, dataselect.NameProperty, name)
 	}
+	namespace, _ := query.GetString("namespace")
+	if namespace != "" {
+		filterRawCond = append(filterRawCond, dataselect.NamespaceProperty, namespace)
+	}
 	if len(filterRawCond) != 0 {
 		filterQ = dataselect.NewFilterQuery(filterRawCond)
 	}
