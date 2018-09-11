@@ -89,14 +89,13 @@ type SCluster struct {
 	//ServiceClusterIPRange string `nullable:"false" create:"optional" default:"10.43.0.0/16" list:"user"`
 	InfraContainerImage string `nullable:"true" create:"optional" list:"user"`
 
-	ApiEndpoint         string               `nullable:"true" list:"user"`
-	ClientCertificate   string               `nullable:"true"`
-	ClientKey           string               `nullable:"true"`
-	RootCaCertificate   string               `nullable:"true"`
-	ServiceAccountToken string               `nullable:"true"`
-	Certs               string               `nullable:"true"`
-	YkeConfig           string               `nullable:"true"`
-	Metadata            jsonutils.JSONObject `nullable:"true"`
+	ApiEndpoint         string `nullable:"true" list:"user"`
+	ClientCertificate   string `nullable:"true"`
+	ClientKey           string `nullable:"true"`
+	RootCaCertificate   string `nullable:"true"`
+	ServiceAccountToken string `nullable:"true"`
+	Certs               string `nullable:"true"`
+	YkeConfig           string `nullable:"true"`
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -270,11 +269,7 @@ func (c *SCluster) Cluster() (*apis.Cluster, error) {
 }
 
 func (c *SCluster) ToInfo() *drivertypes.ClusterInfo {
-	metadata := make(map[string]string)
-	if c.Metadata != nil {
-		c.Metadata.Unmarshal(metadata)
-	}
-	return &drivertypes.ClusterInfo{
+	info := &drivertypes.ClusterInfo{
 		ClientCertificate:   c.ClientCertificate,
 		ClientKey:           c.ClientKey,
 		RootCaCertificate:   c.RootCaCertificate,
@@ -282,8 +277,17 @@ func (c *SCluster) ToInfo() *drivertypes.ClusterInfo {
 		Version:             c.K8sVersion,
 		Endpoint:            c.ApiEndpoint,
 		Config:              c.YkeConfig,
-		Metadata:            metadata,
 	}
+	if info.RootCaCertificate != "" && info.Endpoint != "" {
+		dInfo, err := DecodeClusterInfo(info)
+		if err != nil {
+			log.Errorf("DecodeClusterInfo error: %v", err)
+			return info
+		}
+		config, _ := templates.GetKubeConfig(dInfo.Endpoint, c.Name, "kube-admin", dInfo.RootCaCertificate, dInfo.ClientCertificate, dInfo.ClientKey)
+		info.KubeConfig = config
+	}
+	return info
 }
 
 func DecodeClusterInfo(info *drivertypes.ClusterInfo) (*drivertypes.ClusterInfo, error) {
@@ -308,7 +312,6 @@ func DecodeClusterInfo(info *drivertypes.ClusterInfo) (*drivertypes.ClusterInfo,
 		Version:             info.Version,
 		Endpoint:            info.Endpoint,
 		Config:              info.Config,
-		Metadata:            info.Metadata,
 	}, nil
 }
 
@@ -486,8 +489,6 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 		c.RootCaCertificate = clusterInfo.RootCaCertificate
 		//c.K8sVersion = clusterInfo.Version
 		c.ApiEndpoint = clusterInfo.Endpoint
-		c.Metadata = jsonutils.Marshal(clusterInfo.Metadata)
-
 		c.YkeConfig = clusterInfo.Config
 		return nil
 	})

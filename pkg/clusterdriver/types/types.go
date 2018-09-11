@@ -10,8 +10,9 @@ type ClusterInfo struct {
 	Config              string
 	Certs               string
 	NodeCount           int64
+	KubeConfig          string
 
-	Metadata map[string]string
+	//Metadata map[string]string
 	//Status string
 }
 

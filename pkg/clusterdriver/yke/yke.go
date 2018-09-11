@@ -79,8 +79,6 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 		return nil, err
 	}
 
-	log.Debugf("create yke config: \n%s", yaml)
-
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {
 		return nil, err
@@ -90,7 +88,9 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 	if err != nil {
 		return nil, err
 	}
-	defer d.cleanup(stateDir)
+	//defer d.cleanup(stateDir)
+
+	log.Debugf("-------- create yke config: \n%s, stateDir: %q", yaml, stateDir)
 
 	certsStr := ""
 	apiURL, caCrt, clientCert, clientKey, certs, err := clusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
@@ -99,29 +99,17 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 		certsStr, err = ykecerts.ToString(certs)
 	}
 	if err != nil {
-		return d.save(&types.ClusterInfo{
-			Metadata: map[string]string{
-				"Config": yaml,
-			},
-		}, stateDir), err
+		return nil, err
 	}
 
-	return d.save(&types.ClusterInfo{
+	return &types.ClusterInfo{
 		Endpoint:          apiURL,
 		RootCaCertificate: base64.StdEncoding.EncodeToString([]byte(caCrt)),
 		ClientCertificate: base64.StdEncoding.EncodeToString([]byte(clientCert)),
 		ClientKey:         base64.StdEncoding.EncodeToString([]byte(clientKey)),
 		Config:            yaml,
 		Certs:             certsStr,
-
-		//Metadata: map[string]string{
-		//"Endpoint":   apiURL,
-		//"RootCA":     base64.StdEncoding.EncodeToString([]byte(caCrt)),
-		//"ClientCert": base64.StdEncoding.EncodeToString([]byte(clientCert)),
-		//"ClientKey":  base64.StdEncoding.EncodeToString([]byte(clientKey)),
-		//"Config":     yaml,
-		//},
-	}, stateDir), nil
+	}, nil
 }
 
 // Update the yke cluster
@@ -131,7 +119,7 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 		return nil, err
 	}
 
-	log.Debugf("update yke config: \n%s", yaml)
+	log.Debugf("-------update yke config: \n%s", yaml)
 
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {
@@ -142,7 +130,7 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	if err != nil {
 		return nil, err
 	}
-	defer d.cleanup(stateDir)
+	//defer d.cleanup(stateDir)
 
 	certsStr := ""
 	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
@@ -151,21 +139,17 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 		certsStr, err = ykecerts.ToString(certs)
 	}
 	if err != nil {
-		return d.save(&types.ClusterInfo{
-			Metadata: map[string]string{
-				"Config": yaml,
-			},
-		}, stateDir), err
+		return nil, err
 	}
 
-	return d.save(&types.ClusterInfo{
+	return &types.ClusterInfo{
 		Endpoint:          apiURL,
 		RootCaCertificate: base64.StdEncoding.EncodeToString([]byte(caCrt)),
 		ClientCertificate: base64.StdEncoding.EncodeToString([]byte(clientCert)),
 		ClientKey:         base64.StdEncoding.EncodeToString([]byte(clientKey)),
 		Config:            yaml,
 		Certs:             certsStr,
-	}, stateDir), nil
+	}, nil
 }
 
 func (d *Driver) GetK8sRestConfig(info *types.ClusterInfo) (*rest.Config, error) {
@@ -267,7 +251,8 @@ func (d *Driver) Remove(ctx context.Context, clusterInfo *types.ClusterInfo) err
 		return err
 	}
 	stateDir, _ := d.restore(clusterInfo)
-	defer d.save(nil, stateDir)
+	//defer d.save(nil, stateDir)
+	//defer d.cleanup(stateDir)
 	return cmd.ClusterRemove(ctx, ykeConfig, d.DockerDialer, d.wrapTransport(ykeConfig), false, stateDir)
 }
 
@@ -312,8 +297,9 @@ func (d *Driver) restore(info *types.ClusterInfo) (string, error) {
 	}
 
 	if info != nil {
-		state := info.Metadata["state"]
+		state := info.KubeConfig
 		if state != "" {
+			log.Errorf("******** Write file: %q, content: %s", kubeConfig(dir), state)
 			ioutil.WriteFile(kubeConfig(dir), []byte(state), 0600)
 		}
 	}
@@ -334,6 +320,7 @@ func clusterUp(
 	dockerDialerFactory, localConnDialerFactory tunnel.DialerFactory,
 	k8sWrapTransport k8s.WrapTransport,
 	local bool, configDir string, updateOnly, disablePortCheck bool) (string, string, string, string, map[string]pki.CertificatePKI, error) {
+	log.Errorf("=====clusterup configDir: %q", configDir)
 	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, ykeConfig, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport, local, configDir, updateOnly, disablePortCheck)
 	if err != nil {
 		log.Warningf("cluster up error: %v", err)
@@ -350,18 +337,18 @@ func (d *Driver) cleanup(stateDir string) {
 	}
 }
 
-func (d *Driver) save(info *types.ClusterInfo, stateDir string) *types.ClusterInfo {
-	if info != nil {
-		b, err := ioutil.ReadFile(kubeConfig(stateDir))
-		if err == nil {
-			if info.Metadata == nil {
-				info.Metadata = map[string]string{}
-			}
-			info.Metadata["state"] = string(b)
-		}
-	}
+//func (d *Driver) save(info *types.ClusterInfo, stateDir string) *types.ClusterInfo {
+//if info != nil {
+//b, err := ioutil.ReadFile(kubeConfig(stateDir))
+//if err == nil {
+//if info.Metadata == nil {
+//info.Metadata = map[string]string{}
+//}
+//info.Metadata["state"] = string(b)
+//}
+//}
 
-	d.cleanup(stateDir)
+//d.cleanup(stateDir)
 
-	return info
-}
+//return info
+//}
