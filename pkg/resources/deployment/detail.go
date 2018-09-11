@@ -76,9 +76,6 @@ type DeploymentDetail struct {
 
 	// List of Horizontal Pod AutoScalers targeting this Deployment
 	//HorizontalPodAutoscalerList hpa.HorizontalPodAutoscalerList `json:"horizontalPodAutoscalerList"`
-
-	// List of non-critical errors, that occurred during resource retrieval.
-	Errors []error `json:"errors"`
 }
 
 func (man *SDeploymentManager) Get(req *common.Request, id string) (interface{}, error) {
