@@ -8,7 +8,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
@@ -40,11 +39,7 @@ func (r *Request) AllowCreateItem() bool {
 	if r.UserCred.IsSystemAdmin() {
 		return true
 	}
-	ns, err := r.GetNamespaceByData()
-	if err != nil {
-		log.Errorf("Get namespace from data error: %v", err)
-		return false
-	}
+	ns := r.GetDefaultNamespace()
 	// TODO: support isOwner check
 	return ns == r.UserCred.GetProjectName()
 }
@@ -134,8 +129,9 @@ func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery 
 	if len(filterRawCond) != 0 {
 		filterQ = dataselect.NewFilterQuery(filterRawCond)
 	}
+	sortQuery := dataselect.NewSortQuery([]string{"d", dataselect.CreationTimestampProperty})
 	return dataselect.NewDataSelectQuery(
-		dataselect.NoSort, // TODO
+		sortQuery,
 		filterQ,
 		limitQ,
 		offsetQ,

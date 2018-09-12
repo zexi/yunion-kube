@@ -18,12 +18,12 @@ import (
 var ClusterManager *SClusterManager
 
 type SClusterManager struct {
-	*resources.SResourceBaseManager
+	*resources.SClusterResourceManager
 }
 
 func init() {
 	ClusterManager = &SClusterManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("k8s_cluster", "k8s_clusters"),
+		SClusterResourceManager: resources.NewClusterResourceManager("k8s_cluster", "k8s_clusters"),
 	}
 }
 

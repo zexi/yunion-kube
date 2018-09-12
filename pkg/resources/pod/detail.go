@@ -16,23 +16,23 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	//"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
+	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PodDetail struct {
 	api.ObjectMeta
 	api.TypeMeta
-	PodPhase       v1.PodPhase        `json:"podPhase"`
-	PodIP          string             `json:"podIP"`
-	NodeName       string             `json:"nodeName"`
-	RestartCount   int32              `json:"restartCount"`
-	QOSClass       string             `json:"qosClass"`
-	Containers     []Container        `json:"containers"`
-	InitContainers []Container        `json:"initContainers"`
-	Conditions     []common.Condition `json:"conditions"`
-	EventList      common.EventList   `json:"eventList"`
-	//PersistentvolumeclaimList persistentvolumeclaim.PersistentVolumeClaimList `json:"persistentVolumeClaimList"`
+	PodPhase                  v1.PodPhase                                     `json:"podPhase"`
+	PodIP                     string                                          `json:"podIP"`
+	NodeName                  string                                          `json:"nodeName"`
+	RestartCount              int32                                           `json:"restartCount"`
+	QOSClass                  string                                          `json:"qosClass"`
+	Containers                []Container                                     `json:"containers"`
+	InitContainers            []Container                                     `json:"initContainers"`
+	Conditions                []common.Condition                              `json:"conditions"`
+	EventList                 common.EventList                                `json:"eventList"`
+	PersistentvolumeclaimList persistentvolumeclaim.PersistentVolumeClaimList `json:"persistentVolumeClaimList"`
 }
 
 // Container represents a docker/rkt/etc. container that lives in a pod.
@@ -100,7 +100,9 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 		return nil, err
 	}
 
-	podDetail := toPodDetail(pod, configMapList, secretList, eventList)
+	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, namespace, name, dataselect.DefaultDataSelect)
+
+	podDetail := toPodDetail(pod, configMapList, secretList, eventList, persistentVolumeClaimList)
 	return &podDetail, nil
 }
 
@@ -133,7 +135,10 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList, secrets *v1.SecretList, events *common.EventList) PodDetail {
+func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList,
+	secrets *v1.SecretList, events *common.EventList,
+	persistentVolumeClaimList *persistentvolumeclaim.PersistentVolumeClaimList,
+) PodDetail {
 	return PodDetail{
 		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
 		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
@@ -146,9 +151,9 @@ func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList, secrets *v1.SecretLi
 		Containers:     extractContainerInfo(pod.Spec.Containers, pod, configMaps, secrets),
 		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, configMaps, secrets),
 		//Metrics:                   metrics,
-		Conditions: getPodConditions(*pod),
-		EventList:  *events,
-		//PersistentvolumeclaimList: *persistentVolumeClaimList,
+		Conditions:                getPodConditions(*pod),
+		EventList:                 *events,
+		PersistentvolumeclaimList: *persistentVolumeClaimList,
 	}
 }
 

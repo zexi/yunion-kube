@@ -7,10 +7,11 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func ToPod(pod v1.Pod) Pod {
+func ToPod(pod v1.Pod, warnings []common.Event) Pod {
 	podDetail := Pod{
 		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
 		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
+		Warnings:     warnings,
 		PodStatus:    getPodStatus(pod),
 		RestartCount: getRestartCount(pod),
 		NodeName:     pod.Spec.NodeName,

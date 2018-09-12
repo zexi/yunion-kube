@@ -85,38 +85,57 @@ func getObjectPodStatus(obj interface{}) (v1.PodStatus, error) {
 	return status, nil
 }
 
-func NewNamespaceDataCell(obj interface{}) (DataCell, error) {
+func NewResourceDataCell(obj interface{}) (DataCell, error) {
 	meta, err := getObjectMeta(obj)
 	if err != nil {
-		return NamespaceDataCell{}, err
+		return ResourceDataCell{}, err
 	}
-	return NamespaceDataCell{ObjectMeta: meta, Object: obj}, nil
+	return ResourceDataCell{ObjectMeta: meta, Object: obj}, nil
 }
 
-type NamespaceDataCell struct {
+type ResourceDataCell struct {
 	ObjectMeta metaV1.ObjectMeta
 	Object     interface{}
 }
 
-func (cell NamespaceDataCell) GetObject() interface{} {
+func (cell ResourceDataCell) GetObject() interface{} {
 	return cell.Object
 }
 
-func (cell NamespaceDataCell) GetProperty(name PropertyName) ComparableValue {
+func (cell ResourceDataCell) GetProperty(name PropertyName) ComparableValue {
 	switch name {
 	case NameProperty:
 		return StdComparableString(cell.ObjectMeta.Name)
 	case CreationTimestampProperty:
 		return StdComparableTime(cell.ObjectMeta.CreationTimestamp.Time)
-	case NamespaceProperty:
-		return StdComparableString(cell.ObjectMeta.Namespace)
 	default:
 		return nil
 	}
 }
 
-func NewNamespacePodStatusDataCell(obj interface{}) (DataCell, error) {
+func NewNamespaceDataCell(obj interface{}) (DataCell, error) {
 	meta, err := getObjectMeta(obj)
+	if err != nil {
+		return NamespaceDataCell{}, err
+	}
+	return NamespaceDataCell{ResourceDataCell{meta, obj}}, nil
+}
+
+type NamespaceDataCell struct {
+	ResourceDataCell
+}
+
+func (cell NamespaceDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case NamespaceProperty:
+		return StdComparableString(cell.ObjectMeta.Namespace)
+	default:
+		return cell.ResourceDataCell.GetProperty(name)
+	}
+}
+
+func NewNamespacePodStatusDataCell(obj interface{}) (DataCell, error) {
+	cell, err := NewNamespaceDataCell(obj)
 	if err != nil {
 		return NamespacePodStatusDataCell{}, err
 	}
@@ -125,7 +144,7 @@ func NewNamespacePodStatusDataCell(obj interface{}) (DataCell, error) {
 		return NamespacePodStatusDataCell{}, err
 	}
 	return NamespacePodStatusDataCell{
-		NamespaceDataCell: NamespaceDataCell{ObjectMeta: meta, Object: obj},
+		NamespaceDataCell: cell.(NamespaceDataCell),
 		Status:            status,
 	}, nil
 }
