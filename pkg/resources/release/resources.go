@@ -11,6 +11,7 @@ import (
 	"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
@@ -82,7 +83,8 @@ func transforResource(
 		StatefulSets: make([]statefulset.StatefulSet, len(statefulSets.Items)),
 	}
 	for i, item := range pods.Items {
-		res.Pods[i] = pod.ToPod(item)
+		warnings := event.GetPodsEventWarnings(events.Items, []v1.Pod{item})
+		res.Pods[i] = pod.ToPod(item, warnings)
 	}
 	for i, item := range svcs.Items {
 		res.Services[i] = service.ToService(item)

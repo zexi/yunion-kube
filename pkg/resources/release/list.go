@@ -50,6 +50,9 @@ func (man *SReleaseManager) List(req *common.Request) (common.ListResource, erro
 	if err != nil {
 		return nil, err
 	}
+	if q.Namespace == "" {
+		q.Namespace = req.GetDefaultNamespace()
+	}
 	return man.GetReleaseList(cli, q, req.ToQuery())
 }
 

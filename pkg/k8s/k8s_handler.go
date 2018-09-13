@@ -47,9 +47,11 @@ type IK8sResourceManager interface {
 	List(req *common.Request) (common.ListResource, error)
 
 	// get hooks
+	AllowGetItem(req *common.Request, id string) bool
 	Get(req *common.Request, id string) (interface{}, error)
 
 	// create hooks
+	AllowCreateItem(req *common.Request) bool
 	ValidateCreateData(req *common.Request) error
 	Create(req *common.Request) (interface{}, error)
 
@@ -169,6 +171,9 @@ func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutil
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
+	if !h.resourceManager.AllowGetItem(req, id) {
+		return nil, httperrors.NewForbiddenError("Not allow to get item")
+	}
 	return h.resourceManager.Get(req, id)
 }
 
@@ -190,7 +195,7 @@ func (h *K8sResourceHandler) Create(ctx context.Context, query, data *jsonutils.
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
-	if !req.AllowCreateItem() {
+	if !h.resourceManager.AllowCreateItem(req) {
 		return nil, httperrors.NewForbiddenError("Not allow to create item")
 	}
 

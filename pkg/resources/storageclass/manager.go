@@ -7,11 +7,11 @@ import (
 var StorageClassManager *SStorageClassManager
 
 type SStorageClassManager struct {
-	*resources.SResourceBaseManager
+	*resources.SClusterResourceManager
 }
 
 func init() {
 	StorageClassManager = &SStorageClassManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("storageclass", "storageclasses"),
+		SClusterResourceManager: resources.NewClusterResourceManager("storageclass", "storageclasses"),
 	}
 }

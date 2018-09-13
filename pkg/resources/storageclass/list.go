@@ -18,7 +18,7 @@ type StorageClassList struct {
 }
 
 func (man *SStorageClassManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
+	return req.UserCred.IsSystemAdmin()
 }
 
 func (man *SStorageClassManager) List(req *common.Request) (common.ListResource, error) {
@@ -56,7 +56,7 @@ func toStorageClassList(storageClasses []storage.StorageClass, dsQuery *datasele
 	err := dataselect.ToResourceList(
 		storageClassList,
 		storageClasses,
-		dataselect.NewNamespaceDataCell,
+		dataselect.NewResourceDataCell,
 		dsQuery)
 
 	return storageClassList, err

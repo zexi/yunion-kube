@@ -10,14 +10,18 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
+	"yunion.io/x/yunion-kube/pkg/resources/cronjob"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
+	"yunion.io/x/yunion-kube/pkg/resources/job"
 	"yunion.io/x/yunion-kube/pkg/resources/namespace"
 	"yunion.io/x/yunion-kube/pkg/resources/node"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
+	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
+	"yunion.io/x/yunion-kube/pkg/resources/secret"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
@@ -51,19 +55,23 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []k8s.IK8sResourceManager{
-		node.NodeManager,
 		configmap.ConfigMapManager,
+		cronjob.CronJobManager,
 		deployment.DeploymentManager,
 		deployment.DeployFromFileManager,
+		ingress.IngressManager,
+		job.JobManager,
 		pod.PodManager,
-		service.ServiceManager,
 		namespace.NamespaceManager,
-		release.ReleaseManager,
+		node.NodeManager,
+		persistentvolume.PersistentVolumeManager,
+		persistentvolumeclaim.PersistentVolumeClaimManager,
 		rbacroles.RbacRoleManager,
+		release.ReleaseManager,
+		secret.SecretManager,
+		service.ServiceManager,
 		cluster.ClusterManager,
 		statefulset.StatefulSetManager,
-		ingress.IngressManager,
-		persistentvolume.PersistentVolumeManager,
 		storageclass.StorageClassManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
