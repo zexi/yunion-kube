@@ -133,6 +133,26 @@ func (m *SNamespaceResourceManager) InNamespace() bool {
 	return true
 }
 
+func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
+	return req.UserCred.IsSystemAdmin() || req.GetDefaultNamespace() == req.UserCred.GetProjectName()
+}
+
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
+	return m.IsOwner(req)
+}
+
+func (m *SNamespaceResourceManager) AllowCreateItem(req *common.Request) bool {
+	return m.IsOwner(req)
+}
+
+func (m *SNamespaceResourceManager) AllowGetItem(req *common.Request, id string) bool {
+	return m.IsOwner(req)
+}
+
+func (m *SNamespaceResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
+	return m.IsOwner(req)
+}
+
+func (m *SNamespaceResourceManager) AllowDeleteItem(req *common.Request, id string) bool {
+	return m.IsOwner(req)
 }
