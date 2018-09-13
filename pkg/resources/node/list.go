@@ -22,10 +22,6 @@ func (l *NodeList) GetResponseData() interface{} {
 	return l.Nodes
 }
 
-func (man *SNodeManager) AllowListItems(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin()
-}
-
 func (man *SNodeManager) List(req *common.Request) (common.ListResource, error) {
 	return GetNodeList(req.GetK8sClient(), req.ToQuery())
 }

@@ -37,10 +37,6 @@ func (n Namespace) ToListItem() jsonutils.JSONObject {
 	return jsonutils.Marshal(n)
 }
 
-func (man *SNamespaceManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SNamespaceManager) List(req *common.Request) (common.ListResource, error) {
 	return man.GetNamespaceList(req.GetK8sClient(), req.ToQuery())
 }

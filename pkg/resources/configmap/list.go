@@ -29,10 +29,6 @@ func (l *ConfigMapList) GetResponseData() interface{} {
 	return l.configMaps
 }
 
-func (man *SConfigMapManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SConfigMapManager) List(req *common.Request) (common.ListResource, error) {
 	return man.GetConfigMapList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
 }

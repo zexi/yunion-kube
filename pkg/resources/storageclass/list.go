@@ -17,10 +17,6 @@ type StorageClassList struct {
 	StorageClasses []StorageClass
 }
 
-func (man *SStorageClassManager) AllowListItems(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin()
-}
-
 func (man *SStorageClassManager) List(req *common.Request) (common.ListResource, error) {
 	return GetStorageClassList(req.GetK8sClient(), req.ToQuery())
 }
