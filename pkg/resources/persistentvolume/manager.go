@@ -7,11 +7,11 @@ import (
 var PersistentVolumeManager *SPersistentVolumeManager
 
 type SPersistentVolumeManager struct {
-	*resources.SNamespaceResourceManager
+	*resources.SClusterResourceManager
 }
 
 func init() {
 	PersistentVolumeManager = &SPersistentVolumeManager{
-		SNamespaceResourceManager: resources.NewNamespaceResourceManager("persistentvolume", "persistentvolumes"),
+		SClusterResourceManager: resources.NewClusterResourceManager("persistentvolume", "persistentvolumes"),
 	}
 }

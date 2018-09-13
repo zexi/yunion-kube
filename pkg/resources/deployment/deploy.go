@@ -253,10 +253,9 @@ func DeployApp(spec *AppDeploymentSpec, client client.Interface) (*AppDeployment
 		_, err = client.CoreV1().Services(spec.Namespace).Create(service)
 
 		// TODO: Roll back created resources in case of error.
-		return nil, err
 	}
 
-	return spec, nil
+	return spec, err
 }
 
 // GetAvailableProtocols returns list of available protocols. Currently it is TCP and UDP.

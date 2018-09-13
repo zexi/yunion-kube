@@ -41,8 +41,16 @@ func (m *SResourceBaseManager) List(req *common.Request) (common.ListResource, e
 	return nil, fmt.Errorf("List not implemented")
 }
 
+func (m *SResourceBaseManager) AllowGetItem(req *common.Request, id string) bool {
+	return req.UserCred.IsSystemAdmin()
+}
+
 func (m *SResourceBaseManager) Get(req *common.Request, id string) (interface{}, error) {
 	return nil, fmt.Errorf("Get resource not implemented")
+}
+
+func (m *SResourceBaseManager) AllowCreateItem(req *common.Request) bool {
+	return req.AllowCreateItem()
 }
 
 func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
@@ -75,6 +83,40 @@ func (m *SResourceBaseManager) Delete(req *common.Request, id string) error {
 
 func (m *SResourceBaseManager) IsRawResource() bool {
 	return true
+}
+
+type SClusterResourceManager struct {
+	*SResourceBaseManager
+}
+
+func NewClusterResourceManager(keyword, keywordPlural string) *SClusterResourceManager {
+	return &SClusterResourceManager{
+		SResourceBaseManager: NewResourceBaseManager(keyword, keywordPlural),
+	}
+}
+
+func (m *SClusterResourceManager) InNamespace() bool {
+	return false
+}
+
+func (m *SClusterResourceManager) AllowListItems(req *common.Request) bool {
+	return req.UserCred.IsSystemAdmin()
+}
+
+func (m *SClusterResourceManager) AllowGetItem(req *common.Request, id string) bool {
+	return req.UserCred.IsSystemAdmin()
+}
+
+func (m *SClusterResourceManager) AllowCreateItem(req *common.Request) bool {
+	return req.UserCred.IsSystemAdmin()
+}
+
+func (m *SClusterResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
+	return req.UserCred.IsSystemAdmin()
+}
+
+func (m *SClusterResourceManager) AllowDeleteItem(req *common.Request, id string) bool {
+	return req.UserCred.IsSystemAdmin()
 }
 
 type SNamespaceResourceManager struct {

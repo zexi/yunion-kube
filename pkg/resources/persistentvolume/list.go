@@ -65,7 +65,7 @@ func toPersistentVolumeList(persistentVolumes []v1.PersistentVolume, dsQuery *da
 	err := dataselect.ToResourceList(
 		result,
 		persistentVolumes,
-		dataselect.NewNamespaceDataCell,
+		dataselect.NewResourceDataCell,
 		dsQuery,
 	)
 
