@@ -39,10 +39,6 @@ func (s Service) ToListItem() jsonutils.JSONObject {
 	return jsonutils.Marshal(s)
 }
 
-func (man *SServiceManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SServiceManager) List(req *common.Request) (common.ListResource, error) {
 	return man.GetServiceList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
 }

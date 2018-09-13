@@ -61,10 +61,6 @@ type SecretList struct {
 	Secrets []Secret
 }
 
-func (man *SSecretManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SSecretManager) List(req *common.Request) (common.ListResource, error) {
 	return GetSecretList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
 }

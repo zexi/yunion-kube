@@ -37,10 +37,6 @@ func (d Deployment) ToListItem() jsonutils.JSONObject {
 	return jsonutils.Marshal(d)
 }
 
-func (man *SDeploymentManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SDeploymentManager) List(req *common.Request) (common.ListResource, error) {
 	return man.GetDeploymentList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
 }
