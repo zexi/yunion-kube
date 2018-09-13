@@ -49,10 +49,6 @@ func (l *PodList) GetResponseData() interface{} {
 	return l.Pods
 }
 
-func (man *SPodManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SPodManager) List(req *common.Request) (common.ListResource, error) {
 	return man.GetPodList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
 }

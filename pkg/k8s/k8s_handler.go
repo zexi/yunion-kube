@@ -112,8 +112,24 @@ func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredenti
 	return cluster, nil
 }
 
-func getK8sClient(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
-	cluster, err := getCluster(query, data, userCred)
+func newK8sUserClient(cluster *models.SCluster, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
+	info, err := models.DecodeClusterInfo(cluster.ToInfo())
+	if err != nil {
+		return nil, nil, err
+	}
+	config := &rest.Config{
+		Host: info.Endpoint,
+		TLSClientConfig: rest.TLSClientConfig{
+			CAData: []byte(info.RootCaCertificate),
+		},
+		BearerToken: userCred.GetTokenString(),
+	}
+	cli, err := kubernetes.NewForConfig(config)
+	return cli, config, err
+}
+
+func newK8sAdminClient(cluster *models.SCluster) (kubernetes.Interface, *rest.Config, error) {
+	cli, err := cluster.GetK8sClient()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -121,23 +137,35 @@ func getK8sClient(query, data *jsonutils.JSONDict, userCred mcclient.TokenCreden
 	if err != nil {
 		return nil, nil, err
 	}
-	cli, err := kubernetes.NewForConfig(config)
 	return cli, config, err
 }
 
 func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*common.Request, error) {
 	userCred := getUserCredential(ctx)
-	k8sCli, config, err := getK8sClient(query, data, userCred)
+
+	cluster, err := getCluster(query, data, userCred)
+	if err != nil {
+		return nil, err
+	}
+
+	k8sCli, config, err := newK8sUserClient(cluster, userCred)
+	if err != nil {
+		return nil, err
+	}
+
+	k8sAdminCli, adminConfig, err := newK8sAdminClient(cluster)
 	if err != nil {
 		return nil, err
 	}
 	req := &common.Request{
-		K8sClient: k8sCli,
-		K8sConfig: config,
-		UserCred:  userCred,
-		Query:     query,
-		Data:      data,
-		Context:   ctx,
+		K8sClient:      k8sCli,
+		K8sConfig:      config,
+		K8sAdminClient: k8sAdminCli,
+		K8sAdminConfig: adminConfig,
+		UserCred:       userCred,
+		Query:          query,
+		Data:           data,
+		Context:        ctx,
 	}
 	return req, nil
 }

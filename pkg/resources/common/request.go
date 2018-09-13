@@ -19,12 +19,14 @@ import (
 )
 
 type Request struct {
-	K8sClient client.Interface
-	K8sConfig *rest.Config
-	UserCred  mcclient.TokenCredential
-	Query     *jsonutils.JSONDict
-	Data      *jsonutils.JSONDict
-	Context   context.Context
+	K8sClient      client.Interface
+	K8sAdminClient client.Interface
+	K8sConfig      *rest.Config
+	K8sAdminConfig *rest.Config
+	UserCred       mcclient.TokenCredential
+	Query          *jsonutils.JSONDict
+	Data           *jsonutils.JSONDict
+	Context        context.Context
 }
 
 func (r *Request) AllowListItems() bool {
@@ -63,6 +65,18 @@ func (r *Request) GetK8sClient() client.Interface {
 	return r.K8sClient
 }
 
+func (r *Request) GetK8sRestConfig() *rest.Config {
+	return r.K8sConfig
+}
+
+func (r *Request) GetK8sAdminRestConfig() *rest.Config {
+	return r.K8sAdminConfig
+}
+
+func (r *Request) GetK8sAdminClient() client.Interface {
+	return r.K8sAdminClient
+}
+
 func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
 	cli := r.GetK8sClient()
 	return k8sclient.NewResourceVerber(
@@ -76,8 +90,8 @@ func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
 }
 
 func (r *Request) GetHelmClient() (*helmclient.HelmTunnelClient, error) {
-	k8scli := r.GetK8sClient()
-	k8sconfig := r.K8sConfig
+	k8scli := r.GetK8sAdminClient()
+	k8sconfig := r.GetK8sAdminRestConfig()
 	return helmclient.NewHelmTunnelClient(k8scli, k8sconfig)
 }
 

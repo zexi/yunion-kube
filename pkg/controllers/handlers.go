@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
 	"yunion.io/x/yunion-kube/pkg/controllers/auth"
@@ -39,12 +40,13 @@ func (f *authFactory) getKeystoneAuthenticator(clusterId string) (*auth.Keystone
 }
 
 func (f *authFactory) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("Auth request url: %s", r.URL)
 	clusterId := GetClusterId(r)
 	if clusterId == "" {
 		httperrors.NotAcceptableError(w, "Cluster id not provide")
 		return
 	}
-	cluster, err := models.ClusterManager.FetchClusterById(clusterId)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName("", clusterId)
 	if err != nil {
 		httperrors.NotFoundError(w, err.Error())
 		return
