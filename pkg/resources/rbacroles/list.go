@@ -72,7 +72,6 @@ func toRbacRole(meta v1.ObjectMeta, kind api.ResourceKind) RbacRole {
 
 // toRbacRoleLists merges a list of Roles with a list of ClusterRoles to create a simpler, unified list
 func toRbacRoleLists(roles []rbac.Role, clusterRoles []rbac.ClusterRole, dsQuery *dataselect.DataSelectQuery) (*RbacRoleList, error) {
-
 	result := &RbacRoleList{
 		ListMeta: dataselect.NewListMeta(),
 		Items:    make([]RbacRole, 0),
