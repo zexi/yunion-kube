@@ -20,10 +20,6 @@ type RbacRoleList struct {
 	Items []RbacRole `json:"items"`
 }
 
-func (l *RbacRoleList) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (l *RbacRoleList) GetResponseData() interface{} {
 	return l.Items
 }

@@ -35,10 +35,6 @@ func (r Release) ToListItem() jsonutils.JSONObject {
 	return jsonutils.Marshal(r.Release)
 }
 
-func (man *SReleaseManager) AllowListItems(req *common.Request) bool {
-	return req.AllowListItems()
-}
-
 func (man *SReleaseManager) List(req *common.Request) (common.ListResource, error) {
 	cli, err := req.GetHelmClient()
 	if err != nil {
