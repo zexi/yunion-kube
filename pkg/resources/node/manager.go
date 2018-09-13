@@ -7,11 +7,11 @@ import (
 var NodeManager *SNodeManager
 
 type SNodeManager struct {
-	*resources.SResourceBaseManager
+	*resources.SClusterResourceManager
 }
 
 func init() {
 	NodeManager = &SNodeManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("k8s_node", "k8s_nodes"),
+		SClusterResourceManager: resources.NewClusterResourceManager("k8s_node", "k8s_nodes"),
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/resources/event"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -32,7 +33,7 @@ type Pod struct {
 	RestartCount int32 `json:"restartCount"`
 
 	// Pod warning events
-	//Warnings []resources.Event `json:"warnings"`
+	Warnings []common.Event `json:"warnings"`
 
 	// Name of the Node this pod runs on
 	NodeName string `json:"nodeName"`
@@ -40,7 +41,8 @@ type Pod struct {
 
 type PodList struct {
 	*dataselect.ListMeta
-	Pods []Pod
+	Pods   []Pod
+	Events []v1.Event
 }
 
 func (l *PodList) GetResponseData() interface{} {
@@ -58,13 +60,16 @@ func (man *SPodManager) List(req *common.Request) (common.ListResource, error) {
 func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
 	log.Infof("Getting list of all pods in the cluster")
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannelWithOptions(k8sCli, nsQuery, metaV1.ListOptions{}),
+		PodList:   common.GetPodListChannelWithOptions(k8sCli, nsQuery, metaV1.ListOptions{}),
+		EventList: common.GetEventListChannel(k8sCli, nsQuery),
 	}
 	return GetPodListFromChannels(channels, dsQuery)
 }
 
 func (l *PodList) Append(obj interface{}) {
-	l.Pods = append(l.Pods, ToPod(obj.(v1.Pod)))
+	pod := obj.(v1.Pod)
+	warnings := event.GetPodsEventWarnings(l.Events, []v1.Pod{pod})
+	l.Pods = append(l.Pods, ToPod(pod, warnings))
 }
 
 func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
@@ -74,8 +79,13 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, err
 	}
 
-	// TODO: add event
-	podList, err := ToPodList(pods.Items, nil, dsQuery)
+	eventList := <-channels.EventList.List
+	err = <-channels.EventList.Error
+	if err != nil {
+		return nil, err
+	}
+
+	podList, err := ToPodList(pods.Items, eventList.Items, dsQuery)
 	return podList, err
 }
 
@@ -83,6 +93,7 @@ func ToPodList(pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQ
 	podList := &PodList{
 		ListMeta: dataselect.NewListMeta(),
 		Pods:     make([]Pod, 0),
+		Events:   events,
 	}
 	err := dataselect.ToResourceList(
 		podList,
