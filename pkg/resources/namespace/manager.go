@@ -7,11 +7,11 @@ import (
 var NamespaceManager *SNamespaceManager
 
 type SNamespaceManager struct {
-	*resources.SResourceBaseManager
+	*resources.SClusterResourceManager
 }
 
 func init() {
 	NamespaceManager = &SNamespaceManager{
-		SResourceBaseManager: resources.NewResourceBaseManager("namespace", "namespaces"),
+		SClusterResourceManager: resources.NewClusterResourceManager("namespace", "namespaces"),
 	}
 }

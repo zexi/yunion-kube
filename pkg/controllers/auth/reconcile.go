@@ -140,6 +140,9 @@ func IsK8sResourceExist(checkF func() (interface{}, error)) (bool, error) {
 	if errors.IsNotFound(err) {
 		return false, nil
 	}
+	if errors.IsAlreadyExists(err) {
+		return true, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -240,7 +243,11 @@ func EnsureFunc(
 		return err
 	}
 	if !exists {
-		return createF()
+		err = createF()
+		if errors.IsAlreadyExists(err) {
+			return nil
+		}
+		return err
 	}
 	return nil
 }
@@ -312,6 +319,15 @@ func (r *Reconciler) EnsureProjectsLimitRange(projects ...string) error {
 	}, projects...)
 }
 
+func isASCII(s string) bool {
+	for _, c := range s {
+		if c > 127 {
+			return false
+		}
+	}
+	return true
+}
+
 func ProjectsTranslate(names []string) []string {
 	ret := []string{}
 	trans := func(name string, olds []string, new string) string {
@@ -321,6 +337,10 @@ func ProjectsTranslate(names []string) []string {
 		return name
 	}
 	for _, name := range names {
+		if !isASCII(name) {
+			log.Warningf("Project name %q is not ASCII string, skip it", name)
+			continue
+		}
 		validName := trans(name,
 			[]string{"/", `\`, ".", "?", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "+", "="}, "-")
 		log.Debugf("Do trans %q => %q", name, validName)
