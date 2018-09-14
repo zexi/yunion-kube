@@ -197,7 +197,7 @@ func listItems(
 func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutils.JSONDict) (interface{}, error) {
 	req, err := NewCloudK8sRequest(ctx, query, nil)
 	if err != nil {
-		return nil, httperrors.NewGeneralError(err)
+		return nil, errors.NewJSONClientError(err)
 	}
 	if !h.resourceManager.AllowGetItem(req, id) {
 		return nil, httperrors.NewForbiddenError("Not allow to get item")
