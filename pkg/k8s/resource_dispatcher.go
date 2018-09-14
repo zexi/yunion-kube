@@ -12,6 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/resources/errors"
 )
 
 func getClusterPrefix(prefix string) string {
@@ -78,7 +79,7 @@ func listHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 func handleList(ctx context.Context, w http.ResponseWriter, handler IK8sResourceHandler, query jsonutils.JSONObject) {
 	result, err := handler.List(ctx, query.(*jsonutils.JSONDict))
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	SendJSON(w, common.ListResource2JSONWithKey(result, handler.KeywordPlural()))
@@ -96,7 +97,7 @@ func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, params, query, _ := fetchEnv(ctx, w, r)
 	result, err := handler.Get(ctx, params["<resid>"], query.(*jsonutils.JSONDict))
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -115,7 +116,7 @@ func handleCreate(ctx context.Context, w http.ResponseWriter, handler IK8sResour
 	}
 	result, err := handler.Create(ctx, query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -130,7 +131,7 @@ func updateHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	}
 	result, err := handler.Update(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -158,7 +159,7 @@ func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	}
 	err = handler.Delete(ctx, params["<resid>"], q, d)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
