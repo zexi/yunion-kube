@@ -24,16 +24,6 @@ func (man *SDeploymentManager) ValidateCreateData(req *common.Request) error {
 		namespace = req.GetDefaultNamespace()
 		data.Set("namespace", jsonutils.NewString(namespace))
 	}
-	labels, _ := data.Get("labels")
-	if labels == nil {
-		labels = jsonutils.Marshal([]Label{
-			Label{
-				Key:   "run",
-				Value: name,
-			},
-		})
-	}
-	data.Set("labels", labels)
 	return nil
 }
 
@@ -42,6 +32,15 @@ func (man *SDeploymentManager) Create(req *common.Request) (interface{}, error) 
 	err := req.Data.Unmarshal(&appSpec)
 	if err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
+	}
+
+	// check labels
+	if len(appSpec.Labels) == 0 {
+		// set default label run=<name>
+		appSpec.Labels = append(appSpec.Labels, Label{
+			Key:   "run",
+			Value: appSpec.Name,
+		})
 	}
 
 	if appSpec.NetworkConfig != nil {
