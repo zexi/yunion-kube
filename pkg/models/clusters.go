@@ -98,6 +98,30 @@ type SCluster struct {
 	YkeConfig           string `nullable:"true"`
 }
 
+func (m *SClusterManager) InitializeData() error {
+	// check if default cluster exists
+	_, err := m.FetchByIdOrName("", "default")
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return err
+		}
+		defCluster := SCluster{}
+		defCluster.Id = "default"
+		defCluster.Name = "default"
+		defCluster.K8sVersion = DEFAULT_K8S_VERSION
+		defCluster.Mode = DEFAULT_CLUSER_MODE
+		defCluster.ClusterCidr = DEFAULT_CLUSER_CIDR
+		defCluster.ClusterDomain = DEFAULT_CLUSTER_DOMAIN
+		defCluster.InfraContainerImage = DEFAULT_INFRA_CONTAINER_IMAGE
+		defCluster.Status = CLUSTER_STATUS_INIT
+		err = m.TableSpec().Insert(&defCluster)
+		if err != nil {
+			return fmt.Errorf("Insert default cluster error: %v", err)
+		}
+	}
+	return nil
+}
+
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return true
 }
