@@ -9,9 +9,9 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/pkg/util/runtime"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
@@ -64,7 +64,12 @@ func Run(ctx context.Context) error {
 	app := initCloudApp()
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
-	if !db.CheckSync(options.Options.AutoSyncTable) {
+	if db.CheckSync(options.Options.AutoSyncTable) {
+		err := models.InitDB()
+		if err != nil {
+			log.Fatalf("Init models error: %v", err)
+		}
+	} else {
 		log.Fatalf("Fail sync db")
 	}
 
