@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
@@ -216,12 +215,8 @@ func (c *Cluster) parseWebhookConfig(ctx context.Context) error {
 }
 
 func isLocalConfigWorking(ctx context.Context, localKubeConfigPath string, k8sWrapTransport k8s.WrapTransport) bool {
-	data, e := ioutil.ReadFile(localKubeConfigPath)
-	if e != nil {
-		panic(e)
-	}
 	if _, err := GetK8sVersion(localKubeConfigPath, k8sWrapTransport); err != nil {
-		log.Infof("[reconcile] Local config is not vaild, error: %v, rebuilding admin config, data: \n%s", err, data)
+		log.Infof("[reconcile] Local config is not vaild, rebuilding admin config")
 		return false
 	}
 	return true
