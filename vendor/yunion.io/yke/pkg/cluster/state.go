@@ -39,7 +39,6 @@ func (c *Cluster) GetClusterState(ctx context.Context) (*Cluster, error) {
 	var err error
 	var currentCluster *Cluster
 
-	log.Errorf("============c.LocalKubeConfigPath: %q", c.LocalKubeConfigPath)
 	// check if local kubeconfig file exists
 	if _, err = os.Stat(c.LocalKubeConfigPath); !os.IsNotExist(err) {
 		log.Infof("[state] Found local kube config file, trying to get state from cluster")
@@ -78,8 +77,6 @@ func (c *Cluster) GetClusterState(ctx context.Context) (*Cluster, error) {
 				return nil, fmt.Errorf("Failed to regenerate KubeAPI certificate %v", err)
 			}
 		}
-	} else {
-		log.Errorf("------------ error get current state: %v", err)
 	}
 	return currentCluster, nil
 }

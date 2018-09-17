@@ -4334,74 +4334,74 @@
 		{
 			"checksumSHA1": "EYgeFHw41r/4JPTjfj+XVFCtzOo=",
 			"path": "yunion.io/yke/cmd",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "PXwm8bRlahQB7cKL4hIZCyalzSQ=",
 			"path": "yunion.io/yke/pkg/addons",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "cNrfCQJloNNXYtjwnZi5wowlf3Q=",
 			"path": "yunion.io/yke/pkg/authz",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "jkToPqPOxPjYL59c6O1a7dsSn68=",
 			"path": "yunion.io/yke/pkg/cluster",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "m6YrFvmZzIVfjfXlOTdeUWvPRBI=",
 			"path": "yunion.io/yke/pkg/docker",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "QGSOuKlIMXMyOK36OWTDpViE+nI=",
 			"path": "yunion.io/yke/pkg/hosts",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "pCoHMMaaJTXm9N29DCFgmlfz7bw=",
 			"path": "yunion.io/yke/pkg/k8s",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "tASomxkH3Vp0j8pLjErshLlv32M=",
 			"path": "yunion.io/yke/pkg/pki",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "aKFxIGxytWK7XkWaNukXr2Dihv8=",
 			"path": "yunion.io/yke/pkg/services",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "gNwoR4iOTnsR95rPYbx8guS8fDQ=",
 			"path": "yunion.io/yke/pkg/templates",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "Hb37/Upay+bjHopqCwaIkY4U4LM=",
 			"path": "yunion.io/yke/pkg/tunnel",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
-			"checksumSHA1": "s+1iFRSEdfrNJ08Kv0AXJ10VfL0=",
+			"checksumSHA1": "NIM3+HdKN+u9lvimNsFkHJ7LOFc=",
 			"path": "yunion.io/yke/pkg/types",
-			"revision": "5511fb48c7603d075d5145f53f59ee38a7454686",
-			"revisionTime": "2018-08-28T08:23:34Z"
+			"revision": "2760887f4673c5be731de7df0a5e87910102926d",
+			"revisionTime": "2018-09-17T13:22:44Z"
 		},
 		{
 			"checksumSHA1": "dtraVRb0hCHXA6qzx8KGSKSipDc=",
