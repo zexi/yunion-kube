@@ -15,5 +15,5 @@ type KubeServerOptions struct {
 	TlsPrivateKeyFile string `help:"Tls private key"`
 	HttpsPort         int    `help:"The https port that the service runs on" default:"8443"`
 
-	HelmDataDir string `help:"Helm data directory" default:"/opt/helm"`
+	HelmDataDir string `help:"Helm data directory" default:"/opt/cloud/workspace/helm"`
 }
