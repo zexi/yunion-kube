@@ -2,13 +2,14 @@ package controllers
 
 import (
 	"fmt"
-	"sync"
+	"time"
 
 	"k8s.io/client-go/kubernetes"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/controllers/auth"
 	"yunion.io/x/yunion-kube/pkg/controllers/helm"
+	synccontroller "yunion.io/x/yunion-kube/pkg/controllers/sync"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
 
@@ -21,32 +22,29 @@ func init() {
 func Start() {
 	clusters, err := models.ClusterManager.GetInternalClusters()
 	if err != nil {
-		log.Fatalf("Get internal clusters: %v", err)
+		log.Errorf("Get internal clusters: %v", err)
 	}
 	for _, cluster := range clusters {
 		err = Manager.AddController(&cluster)
 		if err != nil {
-			log.Errorf("Add cluster %q to manager error: %v", cluster.Name, err)
+			log.Fatalf("Add cluster %q to manager error: %v", cluster.Name, err)
 		}
 	}
 	helm.Start()
 }
 
 type SControllerManager struct {
-	controllerLock *sync.Mutex
-	controllerMap  map[string]*SClusterController
+	controllerMap map[string]*SClusterController
 }
 
 func newControllerManager() *SControllerManager {
 	return &SControllerManager{
-		controllerLock: new(sync.Mutex),
-		controllerMap:  make(map[string]*SClusterController),
+		controllerMap: make(map[string]*SClusterController),
 	}
 }
 
 func (m *SControllerManager) GetController(clusterId string) (*SClusterController, error) {
-	m.controllerLock.Lock()
-	defer m.controllerLock.Unlock()
+	log.Warningf("---GetController: %v, map: %#v", clusterId, m.controllerMap)
 	ctrl, ok := m.controllerMap[clusterId]
 	if !ok {
 		return nil, fmt.Errorf("Cluster controller %q not found", clusterId)
@@ -59,9 +57,6 @@ func (m *SControllerManager) AddController(cluster *models.SCluster) error {
 	if controller != nil {
 		return nil
 	}
-
-	m.controllerLock.Lock()
-	defer m.controllerLock.Unlock()
 
 	controller, err := newClusterController(cluster)
 	if err != nil {
@@ -76,6 +71,7 @@ type SClusterController struct {
 	clusterId             string
 	clusterName           string
 	keystoneAuthenticator *auth.KeystoneAuthenticator
+	syncController        *synccontroller.SyncController
 }
 
 func newClusterController(cluster *models.SCluster) (*SClusterController, error) {
@@ -84,25 +80,37 @@ func newClusterController(cluster *models.SCluster) (*SClusterController, error)
 		clusterName: cluster.Name,
 	}
 
-	err := ctrl.RunKeystoneAuthenticator()
+	k8sCli, err := cluster.GetK8sClient()
 	if err != nil {
 		return nil, err
 	}
 
+	err = ctrl.RunKeystoneAuthenticator(k8sCli)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		ctrl.RunSyncController(k8sCli)
+	}()
+
 	return ctrl, nil
 }
 
-func (c *SClusterController) RunKeystoneAuthenticator() error {
-	k8sCli, err := c.K8sClient()
-	if err != nil {
-		return err
-	}
+func (c *SClusterController) RunKeystoneAuthenticator(k8sCli *kubernetes.Clientset) error {
 	kauth, err := auth.NewKeystoneAuthenticator(k8sCli)
 	if err != nil {
 		return err
 	}
 	c.keystoneAuthenticator = kauth
 	return nil
+}
+
+func (c *SClusterController) RunSyncController(k8sCli *kubernetes.Clientset) {
+	c.syncController = synccontroller.NewSyncController(k8sCli, synccontroller.SyncOptions{
+		ResyncPeriod: time.Duration(5 * time.Minute),
+	})
+	c.syncController.Run()
 }
 
 func (c *SClusterController) GetKeystoneAuthenticator() *auth.KeystoneAuthenticator {
