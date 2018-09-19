@@ -39,7 +39,6 @@ func (man *SDeploymentManager) Create(req *common.Request) (interface{}, error) 
 	}
 	log.Errorf("====Get string: %s", dataStr)
 	err = json.NewDecoder(strings.NewReader(dataStr)).Decode(&appSpec)
-	//err := req.Data.Unmarshal(&appSpec)
 	if err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
 	}

@@ -44,7 +44,6 @@ func newControllerManager() *SControllerManager {
 }
 
 func (m *SControllerManager) GetController(clusterId string) (*SClusterController, error) {
-	log.Warningf("---GetController: %v, map: %#v", clusterId, m.controllerMap)
 	ctrl, ok := m.controllerMap[clusterId]
 	if !ok {
 		return nil, fmt.Errorf("Cluster controller %q not found", clusterId)

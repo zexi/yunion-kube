@@ -152,8 +152,8 @@ func (r Resource) ToGuestUpdateParams() *jsonutils.JSONDict {
 }
 
 const (
-	DefaultMilliCPURequest int64 = 100               // 0.1 core
-	DefaultMemoryRequest   int64 = 200 * 1024 * 1024 // 200 MB
+	DefaultMilliCPURequest int64 = 100              // 0.1 core
+	DefaultMemoryRequest   int64 = 64 * 1024 * 1024 // 64 MB
 )
 
 // GetNonZeroRequests returns the default resource request if none is found or what is provided on the request

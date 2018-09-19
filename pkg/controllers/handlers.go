@@ -32,12 +32,10 @@ func GetClusterId(req *http.Request) string {
 }
 
 func (f *authFactory) getKeystoneAuthenticator(clusterId string) (*auth.KeystoneAuthenticator, error) {
-	log.Errorf("-----+++ get ctrl")
 	ctrl, err := Manager.GetController(clusterId)
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("----- get ctrl")
 	return ctrl.GetKeystoneAuthenticator(), nil
 }
 
@@ -53,7 +51,6 @@ func (f *authFactory) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httperrors.NotFoundError(w, err.Error())
 		return
 	}
-	log.Errorf("=====get keystone authenticator: %s", r.URL)
 	kauth, err := f.getKeystoneAuthenticator(cluster.Id)
 	if err != nil {
 		log.Errorf("xxxxxx get authticator error: %v", err)
