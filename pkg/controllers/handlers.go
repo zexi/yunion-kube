@@ -53,6 +53,7 @@ func (f *authFactory) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	kauth, err := f.getKeystoneAuthenticator(cluster.Id)
 	if err != nil {
+		log.Errorf("xxxxxx get authticator error: %v", err)
 		httperrors.NotFoundError(w, err.Error())
 		return
 	}

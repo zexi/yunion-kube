@@ -32,7 +32,7 @@ func init() {
 	cpuMinQ, _ := resource.ParseQuantity("100m")
 
 	memDefaultQ, _ := resource.ParseQuantity("1024Mi")
-	memDefaultReqQ, _ := resource.ParseQuantity("256Mi")
+	memDefaultReqQ, _ := resource.ParseQuantity("64Mi")
 	memMaxQ, _ := resource.ParseQuantity("16Gi")
 	memMinQ, err := resource.ParseQuantity("64Mi")
 	if err != nil {

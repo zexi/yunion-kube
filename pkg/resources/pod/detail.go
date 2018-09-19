@@ -23,7 +23,8 @@ import (
 type PodDetail struct {
 	api.ObjectMeta
 	api.TypeMeta
-	PodPhase                  v1.PodPhase                                     `json:"podPhase"`
+	// More info on pod status
+	PodStatus
 	PodIP                     string                                          `json:"podIP"`
 	NodeName                  string                                          `json:"nodeName"`
 	RestartCount              int32                                           `json:"restartCount"`
@@ -31,7 +32,7 @@ type PodDetail struct {
 	Containers                []Container                                     `json:"containers"`
 	InitContainers            []Container                                     `json:"initContainers"`
 	Conditions                []common.Condition                              `json:"conditions"`
-	EventList                 common.EventList                                `json:"eventList"`
+	Events                    []common.Event                                  `json:"events"`
 	PersistentvolumeclaimList persistentvolumeclaim.PersistentVolumeClaimList `json:"persistentVolumeClaimList"`
 }
 
@@ -142,7 +143,6 @@ func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList,
 	return PodDetail{
 		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
 		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
-		PodPhase:     pod.Status.Phase,
 		PodIP:        pod.Status.PodIP,
 		RestartCount: getRestartCount(*pod),
 		QOSClass:     string(pod.Status.QOSClass),
@@ -152,8 +152,9 @@ func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList,
 		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, configMaps, secrets),
 		//Metrics:                   metrics,
 		Conditions:                getPodConditions(*pod),
-		EventList:                 *events,
+		Events:                    events.Events,
 		PersistentvolumeclaimList: *persistentVolumeClaimList,
+		PodStatus:                 getPodStatus(*pod),
 	}
 }
 
