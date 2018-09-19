@@ -28,7 +28,7 @@ type JobDetail struct {
 	PodInfo common.PodInfo `json:"podInfo"`
 
 	// Detailed information about Pods belonging to this Job.
-	PodList pod.PodList `json:"podList"`
+	PodList []pod.Pod `json:"pods"`
 
 	// Container images of the Job.
 	ContainerImages []string `json:"containerImages"`
@@ -37,13 +37,16 @@ type JobDetail struct {
 	InitContainerImages []string `json:"initContainerImages"`
 
 	// List of events related to this Job.
-	EventList common.EventList `json:"eventList"`
+	EventList []common.Event `json:"events"`
 
 	// Parallelism specifies the maximum desired number of pods the job should run at any given time.
 	Parallelism *int32 `json:"parallelism"`
 
 	// Completions specifies the desired number of successfully finished pods the job should be run with.
 	Completions *int32 `json:"completions"`
+	// JobStatus contains inferred job status based on job conditions
+	JobStatus JobStatus `json:"jobStatus"`
+	Status    string    `json:"status"`
 }
 
 func (man *SJobManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -143,16 +146,19 @@ func getJobPodInfo(client kubernetes.Interface, job *batch.Job) (*common.PodInfo
 }
 
 func toJobDetail(job *batch.Job, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) JobDetail {
+	commonJob := toJob(job, &podInfo)
 	return JobDetail{
-		ObjectMeta:          api.NewObjectMeta(job.ObjectMeta),
+		ObjectMeta:          commonJob.ObjectMeta,
 		TypeMeta:            api.NewTypeMeta(api.ResourceKindJob),
 		ContainerImages:     common.GetContainerImages(&job.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&job.Spec.Template.Spec),
 		PodInfo:             podInfo,
-		PodList:             podList,
-		EventList:           eventList,
+		PodList:             podList.Pods,
+		EventList:           eventList.Events,
 		Parallelism:         job.Spec.Parallelism,
 		Completions:         job.Spec.Completions,
+		JobStatus:           commonJob.JobStatus,
+		Status:              commonJob.Status,
 	}
 }
 
