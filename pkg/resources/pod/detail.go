@@ -16,18 +16,12 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PodDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-	// More info on pod status
-	PodStatus
-	PodIP                     string                                          `json:"podIP"`
-	NodeName                  string                                          `json:"nodeName"`
-	RestartCount              int32                                           `json:"restartCount"`
+	Pod
 	QOSClass                  string                                          `json:"qosClass"`
 	Containers                []Container                                     `json:"containers"`
 	InitContainers            []Container                                     `json:"initContainers"`
@@ -78,6 +72,7 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 	channels := &common.ResourceChannels{
 		ConfigMapList: common.GetConfigMapListChannel(client, common.NewSameNamespaceQuery(namespace)),
 		SecretList:    common.GetSecretListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		EventList:     common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	pod, err := client.CoreV1().Pods(namespace).Get(name, metaV1.GetOptions{})
@@ -96,14 +91,23 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 		return nil, err
 	}
 
+	rawEventList := <-channels.EventList.List
+	err = <-channels.EventList.Error
+	if err != nil {
+		return nil, err
+	}
+
 	eventList, err := GetEventsForPod(client, dataselect.DefaultDataSelect, pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
 
+	warnings := event.GetPodsEventWarnings(rawEventList.Items, []v1.Pod{*pod})
+	commonPod := ToPod(*pod, warnings)
+
 	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, namespace, name, dataselect.DefaultDataSelect)
 
-	podDetail := toPodDetail(pod, configMapList, secretList, eventList, persistentVolumeClaimList)
+	podDetail := toPodDetail(commonPod, pod, configMapList, secretList, eventList, persistentVolumeClaimList)
 	return &podDetail, nil
 }
 
@@ -136,17 +140,13 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList,
+func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps *v1.ConfigMapList,
 	secrets *v1.SecretList, events *common.EventList,
 	persistentVolumeClaimList *persistentvolumeclaim.PersistentVolumeClaimList,
 ) PodDetail {
 	return PodDetail{
-		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
-		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
-		PodIP:        pod.Status.PodIP,
-		RestartCount: getRestartCount(*pod),
-		QOSClass:     string(pod.Status.QOSClass),
-		NodeName:     pod.Spec.NodeName,
+		Pod:      commonPod,
+		QOSClass: string(pod.Status.QOSClass),
 		//Controller:                controller,
 		Containers:     extractContainerInfo(pod.Spec.Containers, pod, configMaps, secrets),
 		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, configMaps, secrets),
@@ -154,7 +154,6 @@ func toPodDetail(pod *v1.Pod, configMaps *v1.ConfigMapList,
 		Conditions:                getPodConditions(*pod),
 		Events:                    events.Events,
 		PersistentvolumeclaimList: *persistentVolumeClaimList,
-		PodStatus:                 getPodStatus(*pod),
 	}
 }
 

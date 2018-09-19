@@ -52,7 +52,7 @@ type Job struct {
 	api.TypeMeta
 
 	// Aggregate information about pods belonging to this Job.
-	Pods common.PodInfo `json:"pods"`
+	Pods common.PodInfo `json:"podsInfo"`
 
 	// Container images of the Job.
 	ContainerImages []string `json:"containerImages"`
@@ -62,6 +62,9 @@ type Job struct {
 
 	// number of parallel jobs defined.
 	Parallelism *int32 `json:"parallelism"`
+
+	// Completions specifies the desired number of successfully finished pods the job should be run with.
+	Completions *int32 `json:"completions"`
 
 	// JobStatus contains inferred job status based on job conditions
 	JobStatus JobStatus `json:"jobStatus"`
@@ -162,6 +165,7 @@ func toJob(job *batch.Job, podInfo *common.PodInfo) Job {
 		Pods:                *podInfo,
 		JobStatus:           jobStatus,
 		Parallelism:         job.Spec.Parallelism,
+		Completions:         job.Spec.Completions,
 		Status:              string(jobStatus.Status),
 	}
 }

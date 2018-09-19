@@ -14,7 +14,6 @@ import (
 	//hpa "yunion.io/x/yunion-kube/pkg/resources/horizontalpodautoscaler"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // RollingUpdateStrategy is behavior of a rolling update. See RollingUpdateDeployment K8s object.
@@ -40,9 +39,7 @@ type StatusInfo struct {
 
 // DeploymentDetail is a presentation layer view of Kubernetes Deployment resource.
 type DeploymentDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-
+	Deployment
 	// Detailed information about Pods belonging to this Deployment.
 	PodList []pod.Pod `json:"pods"`
 
@@ -72,12 +69,10 @@ type DeploymentDetail struct {
 	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit"`
 
 	// List of events related to this Deployment
-	EventList common.EventList `json:"eventList"`
+	EventList []common.Event `json:"events"`
 
 	// List of Horizontal Pod AutoScalers targeting this Deployment
 	//HorizontalPodAutoscalerList hpa.HorizontalPodAutoscalerList `json:"horizontalPodAutoscalerList"`
-
-	Status string `json:"status"`
 }
 
 func (man *SDeploymentManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -101,6 +96,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 			common.NewSameNamespaceQuery(namespace), options),
 		PodList: common.GetPodListChannelWithOptions(client,
 			common.NewSameNamespaceQuery(namespace), options),
+		EventList: common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	rawRs := <-channels.ReplicaSetList.List
@@ -114,6 +110,14 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 	if err != nil {
 		return nil, err
 	}
+
+	rawEvents := <-channels.EventList.List
+	err = <-channels.EventList.Error
+	if err != nil {
+		return nil, err
+	}
+
+	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items)
 
 	podList, err := GetDeploymentPods(client, dataselect.DefaultDataSelect, namespace, deploymentName)
 	if err != nil {
@@ -162,8 +166,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 	}
 
 	return &DeploymentDetail{
-		ObjectMeta:            api.NewObjectMeta(deployment.ObjectMeta),
-		TypeMeta:              api.NewTypeMeta(api.ResourceKindDeployment),
+		Deployment:            commonDeployment,
 		PodList:               podList.Pods,
 		Selector:              deployment.Spec.Selector.MatchLabels,
 		StatusInfo:            GetStatusInfo(&deployment.Status),
@@ -173,9 +176,8 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		OldReplicaSetList:     *oldReplicaSetList,
 		NewReplicaSet:         newReplicaSet,
 		RevisionHistoryLimit:  deployment.Spec.RevisionHistoryLimit,
-		EventList:             *eventList,
+		EventList:             eventList.Events,
 		//HorizontalPodAutoscalerList: *hpas,
-		Status: newReplicaSet.Pods.GetStatus(),
 	}, nil
 }
 
