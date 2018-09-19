@@ -29,6 +29,10 @@ type PodInfo struct {
 }
 
 func (info PodInfo) GetStatus() string {
+	if info.Current == 0 {
+		// delete
+		return string(api.PodPending)
+	}
 	if info.Failed > 0 {
 		return string(api.PodFailed)
 	}
@@ -41,7 +45,7 @@ func (info PodInfo) GetStatus() string {
 	if info.Running == *info.Desired {
 		return string(api.PodRunning)
 	}
-	return string(api.PodPending)
+	return string(api.PodUnknown)
 }
 
 // GetPodInfo returns aggregate information about a group of pods.

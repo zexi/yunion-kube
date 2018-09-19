@@ -14,39 +14,19 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // JobDetail is a presentation layer view of Kubernetes Job resource. This means
 // it is Job plus additional augmented data we can get from other sources
 // (like services that target the same pods).
 type JobDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Aggregate information about pods belonging to this Job.
-	PodInfo common.PodInfo `json:"podInfo"`
+	Job
 
 	// Detailed information about Pods belonging to this Job.
 	PodList []pod.Pod `json:"pods"`
 
-	// Container images of the Job.
-	ContainerImages []string `json:"containerImages"`
-
-	// Init container images of the Job.
-	InitContainerImages []string `json:"initContainerImages"`
-
 	// List of events related to this Job.
 	EventList []common.Event `json:"events"`
-
-	// Parallelism specifies the maximum desired number of pods the job should run at any given time.
-	Parallelism *int32 `json:"parallelism"`
-
-	// Completions specifies the desired number of successfully finished pods the job should be run with.
-	Completions *int32 `json:"completions"`
-	// JobStatus contains inferred job status based on job conditions
-	JobStatus JobStatus `json:"jobStatus"`
-	Status    string    `json:"status"`
 }
 
 func (man *SJobManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -74,7 +54,9 @@ func GetJobDetail(client kubernetes.Interface, namespace, name string) (*JobDeta
 		return nil, err
 	}
 
-	job := toJobDetail(jobData, *eventList, *podList, *podInfo)
+	commonJob := toJob(jobData, podInfo)
+
+	job := toJobDetail(commonJob, *eventList, *podList, *podInfo)
 	return &job, nil
 }
 
@@ -145,20 +127,11 @@ func getJobPodInfo(client kubernetes.Interface, job *batch.Job) (*common.PodInfo
 	return &podInfo, nil
 }
 
-func toJobDetail(job *batch.Job, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) JobDetail {
-	commonJob := toJob(job, &podInfo)
+func toJobDetail(job Job, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) JobDetail {
 	return JobDetail{
-		ObjectMeta:          commonJob.ObjectMeta,
-		TypeMeta:            api.NewTypeMeta(api.ResourceKindJob),
-		ContainerImages:     common.GetContainerImages(&job.Spec.Template.Spec),
-		InitContainerImages: common.GetInitContainerImages(&job.Spec.Template.Spec),
-		PodInfo:             podInfo,
-		PodList:             podList.Pods,
-		EventList:           eventList.Events,
-		Parallelism:         job.Spec.Parallelism,
-		Completions:         job.Spec.Completions,
-		JobStatus:           commonJob.JobStatus,
-		Status:              commonJob.Status,
+		Job:       job,
+		PodList:   podList.Pods,
+		EventList: eventList.Events,
 	}
 }
 

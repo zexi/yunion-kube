@@ -29,7 +29,7 @@ type StatefulSet struct {
 	api.TypeMeta
 
 	// Aggregate information about pods belonging to this Pet Set.
-	Pods common.PodInfo `json:"pods"`
+	Pods common.PodInfo `json:"podsInfo"`
 
 	// Container images of the Stateful Set.
 	ContainerImages []string `json:"containerImages"`
