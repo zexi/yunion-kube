@@ -65,6 +65,7 @@ type Job struct {
 
 	// JobStatus contains inferred job status based on job conditions
 	JobStatus JobStatus `json:"jobStatus"`
+	Status    string    `json:"status"`
 }
 
 func (man *SJobManager) List(req *common.Request) (common.ListResource, error) {
@@ -161,6 +162,7 @@ func toJob(job *batch.Job, podInfo *common.PodInfo) Job {
 		Pods:                *podInfo,
 		JobStatus:           jobStatus,
 		Parallelism:         job.Spec.Parallelism,
+		Status:              string(jobStatus.Status),
 	}
 }
 
