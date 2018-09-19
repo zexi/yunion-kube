@@ -268,13 +268,26 @@ func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data 
 	return nil
 }
 
+func ResourceManagerToApiKind(man IK8sResourceManager) string {
+	switch kw := man.Keyword(); kw {
+	case "k8s_service":
+		return "service"
+	case "k8s_node":
+		return "node"
+	case "k8s_endpoint":
+		return "endpoint"
+	default:
+		return kw
+	}
+}
+
 func doRawDelete(man IK8sResourceManager, req *common.Request, id string) error {
 	verber, err := req.GetVerberClient()
 	if err != nil {
 		return err
 	}
 
-	kind := man.Keyword()
+	kind := ResourceManagerToApiKind(man)
 	namespace := ""
 	inNamespace := man.InNamespace()
 	if inNamespace {
