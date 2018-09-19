@@ -44,7 +44,7 @@ type DeploymentDetail struct {
 	api.TypeMeta
 
 	// Detailed information about Pods belonging to this Deployment.
-	PodList []pod.Pod `json:"podList"`
+	PodList []pod.Pod `json:"pods"`
 
 	// Label selector of the service.
 	Selector map[string]string `json:"selector"`
@@ -76,6 +76,8 @@ type DeploymentDetail struct {
 
 	// List of Horizontal Pod AutoScalers targeting this Deployment
 	//HorizontalPodAutoscalerList hpa.HorizontalPodAutoscalerList `json:"horizontalPodAutoscalerList"`
+
+	Status string `json:"status"`
 }
 
 func (man *SDeploymentManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -173,6 +175,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		RevisionHistoryLimit:  deployment.Spec.RevisionHistoryLimit,
 		EventList:             *eventList,
 		//HorizontalPodAutoscalerList: *hpas,
+		Status: newReplicaSet.Pods.GetStatus(),
 	}, nil
 }
 

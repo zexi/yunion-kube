@@ -1,7 +1,11 @@
 package deployment
 
 import (
+	"encoding/json"
+	"strings"
+
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/util/regutils"
@@ -29,7 +33,12 @@ func (man *SDeploymentManager) ValidateCreateData(req *common.Request) error {
 
 func (man *SDeploymentManager) Create(req *common.Request) (interface{}, error) {
 	appSpec := AppDeploymentSpec{}
-	err := req.Data.Unmarshal(&appSpec)
+	dataStr, err := req.Data.GetString()
+	if err != nil {
+		return nil, err
+	}
+	log.Errorf("====Get string: %s", dataStr)
+	err = json.NewDecoder(strings.NewReader(dataStr)).Decode(&appSpec)
 	if err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
 	}
