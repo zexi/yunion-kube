@@ -20,11 +20,12 @@ import (
 type StatefulSetDetail struct {
 	api.ObjectMeta
 	api.TypeMeta
-	PodInfo             common.PodInfo   `json:"podInfo"`
-	PodList             pod.PodList      `json:"podList"`
-	ContainerImages     []string         `json:"containerImages"`
-	InitContainerImages []string         `json:"initContainerImages"`
-	EventList           common.EventList `json:"eventList"`
+	PodInfo             common.PodInfo `json:"podInfo"`
+	PodList             []pod.Pod      `json:"pods"`
+	ContainerImages     []string       `json:"containerImages"`
+	InitContainerImages []string       `json:"initContainerImages"`
+	EventList           []common.Event `json:"events"`
+	Status              string         `json:"status"`
 }
 
 func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -67,8 +68,9 @@ func getStatefulSetDetail(statefulSet *apps.StatefulSet, eventList common.EventL
 		ContainerImages:     common.GetContainerImages(&statefulSet.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&statefulSet.Spec.Template.Spec),
 		PodInfo:             podInfo,
-		PodList:             podList,
-		EventList:           eventList,
+		PodList:             podList.Pods,
+		EventList:           eventList.Events,
+		Status:              podInfo.GetStatus(),
 	}
 }
 
