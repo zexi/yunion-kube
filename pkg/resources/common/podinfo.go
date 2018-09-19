@@ -28,6 +28,22 @@ type PodInfo struct {
 	Warnings []Event `json:"warnings"`
 }
 
+func (info PodInfo) GetStatus() string {
+	if info.Failed > 0 {
+		return string(api.PodFailed)
+	}
+	if info.Pending > 0 {
+		return string(api.PodPending)
+	}
+	if info.Succeeded == *info.Desired {
+		return string(api.PodSucceeded)
+	}
+	if info.Running == *info.Desired {
+		return string(api.PodRunning)
+	}
+	return string(api.PodPending)
+}
+
 // GetPodInfo returns aggregate information about a group of pods.
 func GetPodInfo(current int32, desired *int32, pods []api.Pod) PodInfo {
 	result := PodInfo{
