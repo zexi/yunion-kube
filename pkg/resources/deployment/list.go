@@ -24,7 +24,7 @@ type Deployment struct {
 	api.TypeMeta
 
 	// Aggregate information about pods belonging to this deployment
-	Pods common.PodInfo `json:"pods"`
+	Pods common.PodInfo `json:"podsInfo"`
 
 	// Container images of the Deployment
 	ContainerImages []string `json:"containerImages"`

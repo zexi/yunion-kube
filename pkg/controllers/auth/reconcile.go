@@ -28,7 +28,7 @@ func init() {
 		log.Fatalf("ParseCpuQuantity err: %v", err)
 	}
 	cpuDefaultReqQ, _ := resource.ParseQuantity("200m")
-	cpuMaxQ, _ := resource.ParseQuantity("2")
+	cpuMaxQ, _ := resource.ParseQuantity("16")
 	cpuMinQ, _ := resource.ParseQuantity("100m")
 
 	memDefaultQ, _ := resource.ParseQuantity("1024Mi")
