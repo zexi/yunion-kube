@@ -12,20 +12,14 @@ import (
 	ds "yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // StatefulSetDetail is a presentation layer view of Kubernetes Stateful Set resource. This means it is Stateful
 // Set plus additional augmented data we can get from other sources (like services that target the same pods).
 type StatefulSetDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-	PodInfo             common.PodInfo `json:"podInfo"`
-	PodList             []pod.Pod      `json:"pods"`
-	ContainerImages     []string       `json:"containerImages"`
-	InitContainerImages []string       `json:"initContainerImages"`
-	EventList           []common.Event `json:"events"`
-	Status              string         `json:"status"`
+	StatefulSet
+	PodList   []pod.Pod      `json:"pods"`
+	EventList []common.Event `json:"events"`
 }
 
 func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -57,20 +51,17 @@ func GetStatefulSetDetail(client kubernetes.Interface, namespace, name string) (
 		return nil, err
 	}
 
-	ssDetail := getStatefulSetDetail(ss, *events, *podList, *podInfo)
+	commonSs := ToStatefulSet(ss, podInfo)
+
+	ssDetail := getStatefulSetDetail(commonSs, ss, *events, *podList, *podInfo)
 	return &ssDetail, nil
 }
 
-func getStatefulSetDetail(statefulSet *apps.StatefulSet, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) StatefulSetDetail {
+func getStatefulSetDetail(commonSs StatefulSet, statefulSet *apps.StatefulSet, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) StatefulSetDetail {
 	return StatefulSetDetail{
-		ObjectMeta:          api.NewObjectMeta(statefulSet.ObjectMeta),
-		TypeMeta:            api.NewTypeMeta(api.ResourceKindStatefulSet),
-		ContainerImages:     common.GetContainerImages(&statefulSet.Spec.Template.Spec),
-		InitContainerImages: common.GetInitContainerImages(&statefulSet.Spec.Template.Spec),
-		PodInfo:             podInfo,
-		PodList:             podList.Pods,
-		EventList:           eventList.Events,
-		Status:              podInfo.GetStatus(),
+		StatefulSet: commonSs,
+		PodList:     podList.Pods,
+		EventList:   eventList.Events,
 	}
 }
 
