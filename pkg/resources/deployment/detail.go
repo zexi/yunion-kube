@@ -13,6 +13,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	//hpa "yunion.io/x/yunion-kube/pkg/resources/horizontalpodautoscaler"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
 )
 
@@ -42,6 +43,8 @@ type DeploymentDetail struct {
 	Deployment
 	// Detailed information about Pods belonging to this Deployment.
 	PodList []pod.Pod `json:"pods"`
+
+	ServiceList []service.Service `json:"services"`
 
 	// Label selector of the service.
 	Selector map[string]string `json:"selector"`
@@ -97,6 +100,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		PodList: common.GetPodListChannelWithOptions(client,
 			common.NewSameNamespaceQuery(namespace), options),
 		EventList: common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace),options),
 	}
 
 	rawRs := <-channels.ReplicaSetList.List
@@ -113,6 +117,11 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 
 	rawEvents := <-channels.EventList.List
 	err = <-channels.EventList.Error
+	if err != nil {
+		return nil, err
+	}
+
+	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +177,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 	return &DeploymentDetail{
 		Deployment:            commonDeployment,
 		PodList:               podList.Pods,
+		ServiceList: svcList.Services,
 		Selector:              deployment.Spec.Selector.MatchLabels,
 		StatusInfo:            GetStatusInfo(&deployment.Status),
 		Strategy:              deployment.Spec.Strategy.Type,

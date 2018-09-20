@@ -54,15 +54,15 @@ func (man *SServiceManager) GetServiceList(client kubernetes.Interface, nsQuery 
 
 type ServiceList struct {
 	*dataselect.ListMeta
-	services []Service
+	Services []Service
 }
 
 func (l *ServiceList) Append(obj interface{}) {
-	l.services = append(l.services, ToService(obj.(v1.Service)))
+	l.Services = append(l.Services, ToService(obj.(v1.Service)))
 }
 
 func (l *ServiceList) GetResponseData() interface{} {
-	return l.services
+	return l.Services
 }
 
 func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {
@@ -74,7 +74,7 @@ func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *data
 
 	serviceList := &ServiceList{
 		ListMeta: dataselect.NewListMeta(),
-		services: make([]Service, 0),
+		Services: make([]Service, 0),
 	}
 	err = dataselect.ToResourceList(
 		serviceList,
