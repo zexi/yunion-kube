@@ -17,6 +17,10 @@ type SDeployFromFileManager struct {
 	*resources.SNamespaceResourceManager
 }
 
+func (m *SDeploymentManager) IsRawResource() bool {
+	return false
+}
+
 func init() {
 	DeploymentManager = &SDeploymentManager{
 		SNamespaceResourceManager: resources.NewNamespaceResourceManager("deployment", "deployments"),
