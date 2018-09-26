@@ -27,7 +27,7 @@ func Start() {
 	for _, cluster := range clusters {
 		err = Manager.AddController(&cluster)
 		if err != nil {
-			log.Fatalf("Add cluster %q to manager error: %v", cluster.Name, err)
+			log.Errorf("Add cluster %q to manager error: %v", cluster.Name, err)
 		}
 	}
 	helm.Start()
