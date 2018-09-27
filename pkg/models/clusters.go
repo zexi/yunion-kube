@@ -24,6 +24,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/util/sets"
+	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/pkg/util/wait"
 	yutils "yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
@@ -106,7 +107,7 @@ func (m *SClusterManager) InitializeData() error {
 			return err
 		}
 		defCluster := SCluster{}
-		defCluster.Id = "default"
+		defCluster.Id = stringutils.UUID4()
 		defCluster.Name = "default"
 		defCluster.K8sVersion = DEFAULT_K8S_VERSION
 		defCluster.Mode = DEFAULT_CLUSER_MODE
