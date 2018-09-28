@@ -103,7 +103,7 @@ func (c *TokenCacheVerify) Verify(cli *mcclient.Client, adminToken, token string
 	if err != nil {
 		return nil, fmt.Errorf("Add %s credential to cache: %#v", cred.GetTokenString(), err)
 	}
-	log.Infof("Add token: %s", cred)
+	// log.Debugf("Add token: %s", cred)
 	return cred, nil
 }
 
@@ -123,6 +123,9 @@ func newAuthManager(cli *mcclient.Client, info *AuthInfo) *authManager {
 }
 
 func (a *authManager) verify(token string) (mcclient.TokenCredential, error) {
+	if a.adminCredential == nil {
+		return nil, fmt.Errorf("No valid admin token credential")
+	}
 	cred, err := a.tokenCacheVerify.Verify(a.client, a.adminCredential.GetTokenString(), token)
 	if err != nil {
 		return nil, err

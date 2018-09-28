@@ -76,11 +76,11 @@ func (this *ImageManager) GetByName(session *mcclient.ClientSession, id string, 
 		return nil, e
 	}
 	if len(listresults.Data) == 0 {
-		return nil, httperrors.NewImageNotFoundError("Image not found")
+		return nil, httperrors.NewImageNotFoundError(id)
 	} else if len(listresults.Data) == 1 {
 		return listresults.Data[0], nil
 	} else {
-		return nil, httperrors.NewDuplicateNameError("More than 1 images matching the name")
+		return nil, httperrors.NewDuplicateNameError("image name", id)
 	}
 }
 
@@ -126,6 +126,21 @@ func (this *ImageManager) List(session *mcclient.ClientSession, params jsonutils
 		}
 	}
 	return this._list(session, path, this.KeywordPlural)
+}
+
+func (this *ImageManager) GetPrivateImageCount(s *mcclient.ClientSession, ownerId string, isAdmin bool) (int, error) {
+	params := jsonutils.NewDict()
+	params.Add(jsonutils.NewString("none"), "is_public")
+	params.Add(jsonutils.NewString(ownerId), "owner")
+	if isAdmin {
+		params.Add(jsonutils.JSONTrue, "admin")
+	}
+
+	result, err := this.List(s, params)
+	if err != nil {
+		return 0, err
+	}
+	return len(result.Data), nil
 }
 
 type ImageUsageCount struct {
@@ -421,31 +436,39 @@ func (this *ImageManager) _create(s *mcclient.ClientSession, params jsonutils.JS
 	if len(format) == 0 {
 		format, _ = params.GetString("disk_format")
 		if len(format) == 0 {
-			return nil, fmt.Errorf("Missing format")
+			return nil, httperrors.NewMissingParameterError("disk_format")
 		}
 	}
 	exists, _ := utils.InStringArray(format, []string{"qcow2", "raw", "vhd", "vmdk", "iso", "docker"})
 	if !exists {
 		return nil, fmt.Errorf("Unsupported image format %s", format)
 	}
-	osType, err := params.GetString("properties", "os_type")
-	if err != nil {
-		return nil, fmt.Errorf("Can't get os_type from params: %s", params.String())
-	}
-	exists, _ = utils.InStringArray(osType, []string{"Windows", "Linux", "Freebsd", "Android", "macOS", "VMWare"})
-	if !exists {
-		return nil, fmt.Errorf("OS type must be specified")
-	}
-	name, _ := params.GetString("name")
-	if len(name) == 0 {
-		return nil, fmt.Errorf("Missing name")
-	}
-	dupName, e := this.IsNameDuplicate(s, name)
-	if dupName {
-		return nil, fmt.Errorf("Duplicate name %s", name)
-	}
-	if e != nil {
-		return nil, fmt.Errorf("Check name duplicate error %s", e)
+	imageId, _ := params.GetString("image_id")
+	path := fmt.Sprintf("/%s", this.URLPath())
+	method := "POST"
+	if len(imageId) == 0 {
+		osType, err := params.GetString("properties", "os_type")
+		if err != nil {
+			return nil, httperrors.NewMissingParameterError("os_type")
+		}
+		exists, _ = utils.InStringArray(osType, []string{"Windows", "Linux", "Freebsd", "Android", "macOS", "VMWare"})
+		if !exists {
+			return nil, fmt.Errorf("OS type must be specified")
+		}
+		name, _ := params.GetString("name")
+		if len(name) == 0 {
+			return nil, httperrors.NewMissingParameterError("name")
+		}
+		dupName, e := this.IsNameDuplicate(s, name)
+		if dupName {
+			return nil, httperrors.NewDuplicateNameError("name", name)
+		}
+		if e != nil {
+			return nil, fmt.Errorf("Check name duplicate error %s", e)
+		}
+	} else {
+		path = fmt.Sprintf("/%s/%s", this.URLPath(), imageId)
+		method = "PUT"
 	}
 	headers, e := setImageMeta(params)
 	if e != nil {
@@ -467,8 +490,7 @@ func (this *ImageManager) _create(s *mcclient.ClientSession, params jsonutils.JS
 			headers.Add("Content-Length", fmt.Sprintf("%d", size))
 		}
 	}
-	path := fmt.Sprintf("/%s", this.URLPath())
-	resp, err := this.rawRequest(s, "POST", path, headers, body)
+	resp, err := this.rawRequest(s, method, path, headers, body)
 	_, json, err := s.ParseJSONResponse(resp, err)
 	if err != nil {
 		return nil, err
@@ -477,7 +499,29 @@ func (this *ImageManager) _create(s *mcclient.ClientSession, params jsonutils.JS
 }
 
 func (this *ImageManager) Update(s *mcclient.ClientSession, id string, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	return this._update(s, id, params, nil)
+	img, err := this.Get(s, id, nil)
+	if err != nil {
+		return nil, err
+	}
+	idstr, err := img.GetString("id")
+	if err != nil {
+		return nil, err
+	}
+	properties, _ := img.Get("properties")
+	if properties != nil {
+		propDict := properties.(*jsonutils.JSONDict)
+		propMap, _ := propDict.GetMap()
+		if propMap != nil {
+			paramsDict := params.(*jsonutils.JSONDict)
+			for k, val := range propMap {
+				if !paramsDict.Contains("properties", k) {
+					paramsDict.Add(val, "properties", k)
+				}
+			}
+		}
+	}
+
+	return this._update(s, idstr, params, nil)
 }
 
 func (this *ImageManager) _update(s *mcclient.ClientSession, id string, params jsonutils.JSONObject, body io.Reader) (jsonutils.JSONObject, error) {

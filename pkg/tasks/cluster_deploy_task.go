@@ -73,6 +73,11 @@ func (t *ClusterDeployTask) OnWaitNodesAgentStartFailed(ctx context.Context, obj
 }
 
 func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) {
-	cluster.Deploy(ctx, nodes...)
+	err := cluster.Deploy(ctx, nodes...)
+	if err != nil {
+		log.Errorf("Deploy error: %v", err)
+		t.SetFailed(ctx, cluster, fmt.Errorf("deploy error: %v", err))
+		return
+	}
 	t.SetStageComplete(ctx, nil)
 }

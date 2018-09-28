@@ -9,8 +9,8 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/yke/pkg/services"
-	"yunion.io/yke/pkg/types"
+	"yunion.io/x/yke/pkg/services"
+	"yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/libyke"
 	"yunion.io/x/yunion-kube/pkg/tunnelserver"

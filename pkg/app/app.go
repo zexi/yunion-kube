@@ -61,7 +61,6 @@ func initCloudApp() *appsrv.Application {
 
 func Run(ctx context.Context) error {
 	prepareEnv()
-	app := initCloudApp()
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
 	if db.CheckSync(options.Options.AutoSyncTable) {
@@ -82,6 +81,8 @@ func Run(ctx context.Context) error {
 	}
 
 	go RegisterDriver(scaledCtx)
+
+	app := initCloudApp()
 
 	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
 		return err

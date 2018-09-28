@@ -66,16 +66,16 @@ type SStorage struct {
 	SInfrastructure
 	SManagedResourceBase
 
-	Capacity    int                  `nullable:"false" list:"admin" update:"admin" create:"admin_required"`                            // Column(Integer, nullable=False) # capacity of disk in MB
-	Reserved    int                  `nullable:"true" default:"0" list:"admin" update:"admin"`                                         // Column(Integer, nullable=True, default=0)
-	StorageType string               `width:"32" charset:"ascii" nullable:"false" list:"admin" update:"admin" create:"admin_required"` // Column(VARCHAR(32, charset='ascii'), nullable=False)
-	MediumType  string               `width:"32" charset:"ascii" nullable:"false" list:"admin" update:"admin" create:"admin_required"` // Column(VARCHAR(32, charset='ascii'), nullable=False)
-	Cmtbound    float32              `nullable:"true" list:"admin" update:"admin"`                                                     // Column(Float, nullable=True)
-	StorageConf jsonutils.JSONObject `nullable:"true" get:"admin" update:"admin"`                                                      // = Column(JSONEncodedDict, nullable=True)
+	Capacity    int                  `nullable:"false" list:"admin" update:"admin" create:"admin_required"`                           // Column(Integer, nullable=False) # capacity of disk in MB
+	Reserved    int                  `nullable:"true" default:"0" list:"admin" update:"admin"`                                        // Column(Integer, nullable=True, default=0)
+	StorageType string               `width:"32" charset:"ascii" nullable:"false" list:"user" update:"admin" create:"admin_required"` // Column(VARCHAR(32, charset='ascii'), nullable=False)
+	MediumType  string               `width:"32" charset:"ascii" nullable:"false" list:"user" update:"admin" create:"admin_required"` // Column(VARCHAR(32, charset='ascii'), nullable=False)
+	Cmtbound    float32              `nullable:"true" list:"admin" update:"admin"`                                                    // Column(Float, nullable=True)
+	StorageConf jsonutils.JSONObject `nullable:"true" get:"admin" update:"admin"`                                                     // = Column(JSONEncodedDict, nullable=True)
 
-	ZoneId string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"`
+	ZoneId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"admin_required"`
 
-	StoragecacheId string `width:"36" charset:"ascii" nullable:"true" get:"admin"`
+	StoragecacheId string `width:"36" charset:"ascii" nullable:"true" list:"admin" get:"admin"`
 }
 
 func (manager *SStorageManager) GetContextManager() []db.IModelManager {
@@ -99,6 +99,34 @@ func (self *SStorage) GetDiskCount() int {
 
 func (self *SStorage) IsLocal() bool {
 	return self.StorageType == STORAGE_LOCAL || self.StorageType == STORAGE_BAREMETAL
+}
+
+func (manager *SStorageManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return true
+}
+
+func (self *SStorage) getMoreDetails(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
+	used := self.GetUsedCapacity(tristate.True)
+	waste := self.GetUsedCapacity(tristate.False)
+	vcapa := float32(self.GetCapacity()) * self.GetOvercommitBound()
+	extra.Add(jsonutils.NewInt(int64(used)), "used_capacity")
+	extra.Add(jsonutils.NewInt(int64(waste)), "waste_capacity")
+	extra.Add(jsonutils.NewFloat(float64(vcapa)), "virtual_capacity")
+	extra.Add(jsonutils.NewFloat(float64(vcapa-float32(used)-float32(waste))), "free_capacity")
+	if self.GetCapacity() > 0 {
+		value := float64(used * 1.0 / self.GetCapacity())
+		value = float64(int(value*100+0.5) / 100.0)
+		extra.Add(jsonutils.NewFloat(value), "commit_rate")
+	} else {
+		extra.Add(jsonutils.NewFloat(0.0), "commit_rate")
+	}
+	extra.Add(jsonutils.NewFloat(float64(self.GetOvercommitBound())), "commit_bound")
+	return extra
+}
+
+func (self *SStorage) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
+	extra := self.SEnabledStatusStandaloneResourceBase.GetCustomizeColumns(ctx, userCred, query)
+	return self.getMoreDetails(extra)
 }
 
 func (self *SStorage) GetUsedCapacity(isReady tristate.TriState) int {
@@ -664,12 +692,15 @@ func (manager *SStorageManager) ListItemFilter(ctx context.Context, q *sqlchemy.
 	}
 
 	if jsonutils.QueryBoolean(query, "usable", false) {
-		hostStorage := HoststorageManager.Query().SubQuery()
-		q = q.Join(hostStorage, sqlchemy.AND(
-			sqlchemy.Equals(hostStorage.Field("storage_id"), q.Field("id")),
-			sqlchemy.In(q.Field("status"), []string{STORAGE_ENABLED, STORAGE_ONLINE}),
-			sqlchemy.IsTrue(q.Field("enabled")),
-		))
+		hostStorageTable := HoststorageManager.Query().SubQuery()
+		hostTable := HostManager.Query().SubQuery()
+		sq := hostStorageTable.Query(hostStorageTable.Field("storage_id")).Join(hostTable,
+			sqlchemy.Equals(hostTable.Field("id"), hostStorageTable.Field("host_id"))).
+			Filter(sqlchemy.Equals(hostTable.Field("host_status"), HOST_ONLINE))
+
+		q = q.Filter(sqlchemy.In(q.Field("id"), sq)).
+			Filter(sqlchemy.In(q.Field("status"), []string{STORAGE_ENABLED, STORAGE_ONLINE})).
+			Filter(sqlchemy.IsTrue(q.Field("enabled")))
 	}
 
 	managerStr := jsonutils.GetAnyString(query, []string{"manager", "provider", "manager_id", "provider_id"})

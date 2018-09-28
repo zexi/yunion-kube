@@ -13,6 +13,7 @@ import (
 	"yunion.io/x/pkg/util/fileutils"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/util/regutils"
+	"yunion.io/x/pkg/util/sets"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
@@ -30,6 +31,7 @@ const (
 
 	SERVER_TYPE_GUEST     = "guest"
 	SERVER_TYPE_BAREMETAL = "baremetal"
+	SERVER_TYPE_CONTAINER = "container"
 
 	STATIC_ALLOC = "static"
 
@@ -99,6 +101,8 @@ type SNetwork struct {
 	ServerType string `width:"16" charset:"ascii" nullable:"true" list:"user" update:"user" create:"optional"` // Column(VARCHAR(16, charset='ascii'), nullable=True)
 
 	AllocPolicy string `width:"16" charset:"ascii" nullable:"true" get:"user" update:"user" create:"optional"` // Column(VARCHAR(16, charset='ascii'), nullable=True)
+
+	AllocTimoutSeconds int `default:"0" nullable:"true" get:"admin"`
 }
 
 func (manager *SNetworkManager) GetContextManager() []db.IModelManager {
@@ -186,7 +190,22 @@ func (self *SNetwork) getIPRange() netutils.IPV4AddrRange {
 	return netutils.NewIPV4AddrRange(start, end)
 }
 
-func (self *SNetwork) getFreeIP(addrTable map[string]bool, candidate string, allocDir IPAddlocationDirection) (string, error) {
+func isIpUsed(ipstr string, addrTable map[string]bool, recentUsedAddrTable map[string]bool) bool {
+	_, ok := addrTable[ipstr]
+	if !ok {
+		recentUsed := false
+		if recentUsedAddrTable != nil {
+			if _, ok := recentUsedAddrTable[ipstr]; ok {
+				recentUsed = true
+			}
+		}
+		return recentUsed
+	} else {
+		return true
+	}
+}
+
+func (self *SNetwork) getFreeIP(addrTable map[string]bool, recentUsedAddrTable map[string]bool, candidate string, allocDir IPAddlocationDirection) (string, error) {
 	iprange := self.getIPRange()
 	if len(candidate) > 0 {
 		candIP, err := netutils.NewIPV4Addr(candidate)
@@ -206,7 +225,7 @@ func (self *SNetwork) getFreeIP(addrTable map[string]bool, candidate string, all
 	if len(allocDir) == 0 || allocDir == IPAllocationStepdown {
 		ip, _ := netutils.NewIPV4Addr(self.GuestIpEnd)
 		for iprange.Contains(ip) {
-			if _, ok := addrTable[ip.String()]; !ok {
+			if !isIpUsed(ip.String(), addrTable, recentUsedAddrTable) {
 				return ip.String(), nil
 			}
 			ip = ip.StepDown()
@@ -217,7 +236,7 @@ func (self *SNetwork) getFreeIP(addrTable map[string]bool, candidate string, all
 			const MAX_TRIES = 5
 			for i := 0; i < MAX_TRIES; i += 1 {
 				ip := iprange.Random()
-				if _, ok := addrTable[ip.String()]; !ok {
+				if !isIpUsed(ip.String(), addrTable, recentUsedAddrTable) {
 					return ip.String(), nil
 				}
 			}
@@ -225,15 +244,16 @@ func (self *SNetwork) getFreeIP(addrTable map[string]bool, candidate string, all
 		}
 		ip, _ := netutils.NewIPV4Addr(self.GuestIpStart)
 		for iprange.Contains(ip) {
-			if _, ok := addrTable[ip.String()]; !ok {
+			if !isIpUsed(ip.String(), addrTable, recentUsedAddrTable) {
 				return ip.String(), nil
 			}
+			ip = ip.StepUp()
 		}
 	}
 	return "", httperrors.NewInsufficientResourceError("Out of IP address")
 }
 
-func (self *SNetwork) GetFreeIP(ctx context.Context, userCred mcclient.TokenCredential, addrTable map[string]bool, candidate string, allocDir IPAddlocationDirection, reserved bool) (string, error) {
+func (self *SNetwork) GetFreeIP(ctx context.Context, userCred mcclient.TokenCredential, addrTable map[string]bool, recentUsedAddrTable map[string]bool, candidate string, allocDir IPAddlocationDirection, reserved bool) (string, error) {
 	if reserved {
 		rip := ReservedipManager.GetReservedIP(self, candidate)
 		if rip == nil {
@@ -242,7 +262,7 @@ func (self *SNetwork) GetFreeIP(ctx context.Context, userCred mcclient.TokenCred
 		rip.Release(ctx, userCred, self)
 		return candidate, nil
 	} else {
-		cand, err := self.getFreeIP(addrTable, candidate, allocDir)
+		cand, err := self.getFreeIP(addrTable, recentUsedAddrTable, candidate, allocDir)
 		if err != nil {
 			return "", err
 		}
@@ -468,6 +488,8 @@ func (self *SNetwork) SyncWithCloudNetwork(userCred mcclient.TokenCredential, ex
 		self.ServerType = extNet.GetServerType()
 		self.IsPublic = extNet.GetIsPublic()
 
+		self.AllocTimoutSeconds = extNet.GetAllocTimeoutSeconds()
+
 		self.ProjectId = userCred.GetProjectId()
 		return nil
 	})
@@ -491,6 +513,8 @@ func (manager *SNetworkManager) newFromCloudNetwork(userCred mcclient.TokenCrede
 	net.GuestGateway = extNet.GetGateway()
 	net.ServerType = extNet.GetServerType()
 	net.IsPublic = extNet.GetIsPublic()
+
+	net.AllocTimoutSeconds = extNet.GetAllocTimeoutSeconds()
 
 	net.ProjectId = userCred.GetProjectId()
 
@@ -628,6 +652,9 @@ func parseNetworkInfo(userCred mcclient.TokenCredential, info jsonutils.JSONObje
 	}
 	parts := strings.Split(netStr, ":")
 	for _, p := range parts {
+		if len(p) == 0 {
+			continue
+		}
 		if regutils.MatchIP4Addr(p) {
 			netConfig.Address = p
 		} else if regutils.MatchIP6Addr(p) {
@@ -728,6 +755,30 @@ func isExitNetworkInfo(netConfig *SNetworkConfig) bool {
 	return false
 }
 
+func (self *SNetwork) getZone() *SZone {
+	wire := self.GetWire()
+	if wire != nil {
+		return wire.GetZone()
+	}
+	return nil
+}
+
+func (self *SNetwork) getVpc() *SVpc {
+	wire := self.GetWire()
+	if wire != nil {
+		return wire.getVpc()
+	}
+	return nil
+}
+
+func (self *SNetwork) getRegion() *SCloudregion {
+	wire := self.GetWire()
+	if wire != nil {
+		return wire.getRegion()
+	}
+	return nil
+}
+
 func (self *SNetwork) getMoreDetails(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	wire := self.GetWire()
 	extra.Add(jsonutils.NewString(wire.Name), "wire")
@@ -741,6 +792,34 @@ func (self *SNetwork) getMoreDetails(extra *jsonutils.JSONDict) *jsonutils.JSOND
 	extra.Add(jsonutils.NewInt(int64(self.GetBaremetalNicsCount())), "bm_vnics")
 	extra.Add(jsonutils.NewInt(int64(self.GetGroupNicsCount())), "group_vnics")
 	extra.Add(jsonutils.NewInt(int64(self.GetReservedNicsCount())), "reserve_vnics")
+
+	zone := self.getZone()
+	if zone != nil {
+		extra.Add(jsonutils.NewString(zone.GetId()), "zone_id")
+		extra.Add(jsonutils.NewString(zone.GetName()), "zone")
+		if len(zone.GetExternalId()) > 0 {
+			extra.Add(jsonutils.NewString(zone.GetExternalId()), "zone_external_id")
+		}
+	}
+
+	region := self.getRegion()
+	if region != nil {
+		extra.Add(jsonutils.NewString(region.GetId()), "region_id")
+		extra.Add(jsonutils.NewString(region.GetName()), "region")
+		if len(region.GetExternalId()) > 0 {
+			extra.Add(jsonutils.NewString(region.GetExternalId()), "region_external_id")
+		}
+	}
+
+	vpc := self.getVpc()
+	if vpc != nil {
+		extra.Add(jsonutils.NewString(vpc.GetId()), "vpc_id")
+		extra.Add(jsonutils.NewString(vpc.GetName()), "vpc")
+		if len(vpc.GetExternalId()) > 0 {
+			extra.Add(jsonutils.NewString(vpc.GetExternalId()), "vpc_external_id")
+		}
+	}
+
 	return extra
 }
 
@@ -966,7 +1045,7 @@ func (manager *SNetworkManager) ValidateCreateData(ctx context.Context, userCred
 	serverTypeStr, _ := data.GetString("server_type")
 	if len(serverTypeStr) == 0 {
 		serverTypeStr = SERVER_TYPE_GUEST
-	} else if serverTypeStr != SERVER_TYPE_GUEST && serverTypeStr != SERVER_TYPE_BAREMETAL {
+	} else if !sets.NewString(SERVER_TYPE_GUEST, SERVER_TYPE_BAREMETAL, SERVER_TYPE_CONTAINER).Has(serverTypeStr) {
 		return nil, httperrors.NewInputParameterError("Invalid server_type: %s", serverTypeStr)
 	}
 	data.Add(jsonutils.NewString(serverTypeStr), "server_type")
@@ -1203,6 +1282,24 @@ func (manager *SNetworkManager) ListItemFilter(ctx context.Context, q *sqlchemy.
 			return nil, httperrors.NewNotFoundError("VPC %s not found", vpcStr)
 		}
 		sq := WireManager.Query("id").Equals("vpc_id", vpcObj.GetId())
+		q = q.Filter(sqlchemy.In(q.Field("wire_id"), sq.SubQuery()))
+	}
+	regionStr := jsonutils.GetAnyString(query, []string{"region_id", "region", "cloudregion_id", "cloudregion"})
+	if len(regionStr) > 0 {
+		region, err := CloudregionManager.FetchByIdOrName(userCred.GetProjectId(), regionStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewResourceNotFoundError("cloud region %s not found", regionStr)
+			} else {
+				return nil, httperrors.NewGeneralError(err)
+			}
+		}
+		wires := WireManager.Query().SubQuery()
+		vpcs := VpcManager.Query().SubQuery()
+		sq := wires.Query(wires.Field("id")).
+			Join(vpcs, sqlchemy.AND(
+				sqlchemy.Equals(vpcs.Field("cloudregion_id"), region.GetId()),
+				sqlchemy.Equals(wires.Field("vpc_id"), vpcs.Field("id"))))
 		q = q.Filter(sqlchemy.In(q.Field("wire_id"), sq.SubQuery()))
 	}
 	return q, nil

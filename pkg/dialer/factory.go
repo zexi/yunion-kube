@@ -5,8 +5,6 @@ import (
 	"net"
 	"time"
 
-	"yunion.io/yke/pkg/tunnel"
-
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/remotedialer"
 	"yunion.io/x/yunion-kube/pkg/tunnelserver"
@@ -32,7 +30,7 @@ func NewFactory(apiCtx *config.ScaledContext) (dialer.Factory, error) {
 	}, nil
 }
 
-func (f *Factory) DockerDialer(clusterId, nodeId string) (tunnel.DialFunc, error) {
+func (f *Factory) DockerDialer(clusterId, nodeId string) (dialer.Dialer, error) {
 	node, err := f.NodeManager.FetchClusterNode(clusterId, nodeId)
 	if err != nil {
 		return nil, err
@@ -48,7 +46,7 @@ func (f *Factory) DockerDialer(clusterId, nodeId string) (tunnel.DialFunc, error
 	return nil, fmt.Errorf("can not build docker dialer to %s:%s", clusterId, machineName)
 }
 
-func (f *Factory) NodeDialer(clusterId, nodeId string) (tunnel.DialFunc, error) {
+func (f *Factory) NodeDialer(clusterId, nodeId string) (dialer.Dialer, error) {
 	return func(network, address string) (net.Conn, error) {
 		d, err := f.nodeDialer(clusterId, nodeId)
 		if err != nil {
@@ -58,7 +56,7 @@ func (f *Factory) NodeDialer(clusterId, nodeId string) (tunnel.DialFunc, error) 
 	}, nil
 }
 
-func (f *Factory) nodeDialer(clusterId, nodeId string) (tunnel.DialFunc, error) {
+func (f *Factory) nodeDialer(clusterId, nodeId string) (dialer.Dialer, error) {
 	node, err := f.NodeManager.FetchClusterNode(clusterId, nodeId)
 	if err != nil {
 		return nil, err
@@ -67,7 +65,7 @@ func (f *Factory) nodeDialer(clusterId, nodeId string) (tunnel.DialFunc, error) 
 
 	if f.Tunnelserver.HasSession(machineName) {
 		d := f.Tunnelserver.Dialer(machineName, 15*time.Second)
-		return tunnel.DialFunc(d), nil
+		return d, nil
 	}
 
 	return nil, fmt.Errorf("can not build node dialer to %s:%s", clusterId, machineName)

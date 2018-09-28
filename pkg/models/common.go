@@ -13,7 +13,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/utils"
-	yketypes "yunion.io/yke/pkg/types"
+	yketypes "yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )

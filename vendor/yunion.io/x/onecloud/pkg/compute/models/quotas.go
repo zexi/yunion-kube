@@ -8,6 +8,8 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
 	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/pkg/tristate"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
 
 var QuotaManager *quotas.SQuotaManager
@@ -33,6 +35,7 @@ var (
 	ErrOutOfGroup          = errors.New("out of group quota")
 	ErrOutOfSecgroup       = errors.New("out of secgroup quota")
 	ErrOutOfIsolatedDevice = errors.New("out of isolated device quota")
+	ErrOutOfSnapshot       = errors.New("out of snapshot quota")
 )
 
 type SQuota struct {
@@ -49,6 +52,7 @@ type SQuota struct {
 	Group          int
 	Secgroup       int
 	IsolatedDevice int
+	Snapshot       int
 }
 
 func (self *SQuota) FetchSystemQuota() {
@@ -65,13 +69,15 @@ func (self *SQuota) FetchSystemQuota() {
 	self.Group = options.Options.DefaultGroupQuota
 	self.Secgroup = options.Options.DefaultSecgroupQuota
 	self.IsolatedDevice = options.Options.DefaultIsolatedDeviceQuota
+	self.Snapshot = options.Options.DefaultSnapshotQuota
 }
 
 func (self *SQuota) FetchUsage(projectId string) error {
 	diskSize := totalDiskSize(projectId, tristate.None, tristate.None, false)
 	net := totalGuestNicCount(projectId, nil, false)
-	guest := totalGuestResourceCount(projectId, nil, nil, "", false, false, "")
-
+	guest := totalGuestResourceCount(projectId, nil, nil, nil, false, false, "")
+	eipUsage := ElasticipManager.TotalCount(projectId, nil, nil)
+	snapshotCount := totalSnapshotCount(projectId)
 	// XXX
 	// keypair belongs to user
 	// keypair := totalKeypairCount(projectId)
@@ -80,16 +86,17 @@ func (self *SQuota) FetchUsage(projectId string) error {
 	self.Memory = guest.TotalMemSize
 	self.Storage = diskSize
 	self.Port = net.InternalNicCount + net.InternalVirtualNicCount
-	self.Eip = 0
+	self.Eip = eipUsage.Total()
 	self.Eport = net.ExternalNicCount + net.ExternalVirtualNicCount
 	self.Bw = net.InternalBandwidth
 	self.Ebw = net.ExternalBandwidth
 	self.Keypair = 0 // keypair
-	self.Image = 0
+	s := auth.GetAdminSession("", "")
+	self.Image, _ = modules.Images.GetPrivateImageCount(s, projectId, true)
 	self.Group = 0
 	self.Secgroup = totalSecurityGroupCount(projectId)
 	self.IsolatedDevice = guest.TotalIsolatedCount
-
+	self.Snapshot = snapshotCount
 	return nil
 }
 
@@ -133,6 +140,9 @@ func (self *SQuota) IsEmpty() bool {
 	if self.IsolatedDevice > 0 {
 		return false
 	}
+	if self.Snapshot > 0 {
+		return false
+	}
 	return true
 }
 
@@ -151,6 +161,7 @@ func (self *SQuota) Add(quota quotas.IQuota) {
 	self.Group = self.Group + squota.Group
 	self.Secgroup = self.Secgroup + squota.Secgroup
 	self.IsolatedDevice = self.IsolatedDevice + squota.IsolatedDevice
+	self.Snapshot = self.Snapshot + squota.Snapshot
 }
 
 func nonNegative(val int) int {
@@ -176,6 +187,7 @@ func (self *SQuota) Sub(quota quotas.IQuota) {
 	self.Group = nonNegative(self.Group - squota.Group)
 	self.Secgroup = nonNegative(self.Secgroup - squota.Secgroup)
 	self.IsolatedDevice = nonNegative(self.IsolatedDevice - squota.IsolatedDevice)
+	self.Snapshot = nonNegative(self.Snapshot - squota.Snapshot)
 }
 
 func (self *SQuota) Update(quota quotas.IQuota) {
@@ -219,48 +231,55 @@ func (self *SQuota) Update(quota quotas.IQuota) {
 	if squota.IsolatedDevice > 0 {
 		self.IsolatedDevice = squota.IsolatedDevice
 	}
+	if squota.Snapshot > 0 {
+		self.Snapshot = squota.Snapshot
+	}
 }
 
-func (self *SQuota) Exceed(quota quotas.IQuota) error {
+func (self *SQuota) Exceed(request quotas.IQuota, quota quotas.IQuota) error {
+	sreq := request.(*SQuota)
 	squota := quota.(*SQuota)
-	if self.Cpu > squota.Cpu {
+	if sreq.Cpu > 0 && self.Cpu > squota.Cpu {
 		return ErrOutOfCPU
 	}
-	if self.Memory > squota.Memory {
+	if sreq.Memory > 0 && self.Memory > squota.Memory {
 		return ErrOutOfMemory
 	}
-	if self.Storage > squota.Storage {
+	if sreq.Storage > 0 && self.Storage > squota.Storage {
 		return ErrOutOfStorage
 	}
-	if self.Port > squota.Port {
+	if sreq.Port > 0 && self.Port > squota.Port {
 		return ErrOutOfPort
 	}
-	if self.Eip > squota.Eip {
+	if sreq.Eip > 0 && self.Eip > squota.Eip {
 		return ErrOutOfEip
 	}
-	if self.Eport > squota.Eport {
+	if sreq.Eport > 0 && self.Eport > squota.Eport {
 		return ErrOutOfEport
 	}
-	if self.Bw > squota.Bw {
+	if sreq.Bw > 0 && self.Bw > squota.Bw {
 		return ErrOutOfBw
 	}
-	if self.Ebw > squota.Ebw {
+	if sreq.Ebw > 0 && self.Ebw > squota.Ebw {
 		return ErrOutOfEbw
 	}
-	if self.Keypair > squota.Keypair {
+	if sreq.Keypair > 0 && self.Keypair > squota.Keypair {
 		return ErrOutOfKeypair
 	}
-	if self.Image > squota.Image {
+	if sreq.Image > 0 && self.Image > squota.Image {
 		return ErrOutOfImage
 	}
-	if self.Group > squota.Group {
+	if sreq.Group > 0 && self.Group > squota.Group {
 		return ErrOutOfGroup
 	}
-	if self.Secgroup > squota.Secgroup {
+	if sreq.Secgroup > 0 && self.Secgroup > squota.Secgroup {
 		return ErrOutOfSecgroup
 	}
-	if self.IsolatedDevice > squota.IsolatedDevice {
+	if sreq.IsolatedDevice > 0 && self.IsolatedDevice > squota.IsolatedDevice {
 		return ErrOutOfIsolatedDevice
+	}
+	if self.Snapshot > squota.Snapshot {
+		return ErrOutOfSnapshot
 	}
 	return nil
 }
@@ -313,6 +332,9 @@ func (self *SQuota) ToJSON(prefix string) jsonutils.JSONObject {
 	}
 	if self.IsolatedDevice > 0 {
 		ret.Add(jsonutils.NewInt(int64(self.IsolatedDevice)), keyName(prefix, "isolated_device"))
+	}
+	if self.Snapshot > 0 {
+		ret.Add(jsonutils.NewInt(int64(self.Snapshot)), keyName(prefix, "snapshot"))
 	}
 	return ret
 }

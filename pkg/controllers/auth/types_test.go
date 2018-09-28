@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"yunion.io/yunioncloud/pkg/util/sets"
+	"yunion.io/x/pkg/util/sets"
 )
 
 var testData = `

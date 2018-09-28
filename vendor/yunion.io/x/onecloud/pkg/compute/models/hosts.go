@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 
 	"yunion.io/x/jsonutils"
@@ -18,8 +19,8 @@ import (
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/cloudprovider"
+	"yunion.io/x/onecloud/pkg/compute/baremetal"
 	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -35,6 +36,7 @@ const (
 	HOST_TYPE_HYPERV     = "hyperv"     // # Microsoft Hyper-V
 	HOST_TYPE_XEN        = "xen"        // # XenServer
 	HOST_TYPE_ALIYUN     = "aliyun"
+	HOST_TYPE_AZURE      = "azure"
 
 	HOST_TYPE_DEFAULT = HOST_TYPE_HYPERVISOR
 
@@ -66,7 +68,7 @@ const (
 	HOST_STATUS_CONVERTING     = "converting"
 )
 
-var HOST_TYPES = []string{HOST_TYPE_BAREMETAL, HOST_TYPE_HYPERVISOR, HOST_TYPE_ESXI, HOST_TYPE_KUBELET, HOST_TYPE_XEN, HOST_TYPE_ALIYUN}
+var HOST_TYPES = []string{HOST_TYPE_BAREMETAL, HOST_TYPE_HYPERVISOR, HOST_TYPE_ESXI, HOST_TYPE_KUBELET, HOST_TYPE_XEN, HOST_TYPE_ALIYUN, HOST_TYPE_AZURE}
 var NIC_TYPES = []string{NIC_TYPE_IPMI, NIC_TYPE_ADMIN}
 
 type SHostManager struct {
@@ -437,11 +439,11 @@ func (self *SHost) GetFetchUrl() string {
 	return fmt.Sprintf("%s://%s:%d", managerUrl.Scheme, managerUrl.Host, port+40000)
 }
 
-func (self *SHost) GetAttachedStorages() []SStorage {
-	return self._getAttachedStorages(tristate.False, tristate.True)
+func (self *SHost) GetAttachedStorages(storageType string) []SStorage {
+	return self._getAttachedStorages(tristate.False, tristate.True, storageType)
 }
 
-func (self *SHost) _getAttachedStorages(isBaremetal tristate.TriState, enabled tristate.TriState) []SStorage {
+func (self *SHost) _getAttachedStorages(isBaremetal tristate.TriState, enabled tristate.TriState, storageType string) []SStorage {
 	storages := StorageManager.Query().SubQuery()
 	hoststorages := HoststorageManager.Query().SubQuery()
 	q := storages.Query()
@@ -456,6 +458,9 @@ func (self *SHost) _getAttachedStorages(isBaremetal tristate.TriState, enabled t
 	} else if isBaremetal.IsFalse() {
 		q = q.NotEquals("storage_type", STORAGE_BAREMETAL)
 	}
+	if len(storageType) > 0 {
+		q = q.Equals("storage_type", storageType)
+	}
 	q = q.Filter(sqlchemy.Equals(hoststorages.Field("host_id"), self.Id))
 	ret := make([]SStorage, 0)
 	err := db.FetchModelObjects(StorageManager, q, &ret)
@@ -467,7 +472,7 @@ func (self *SHost) _getAttachedStorages(isBaremetal tristate.TriState, enabled t
 }
 
 func (self *SHost) SyncAttachedStorageStatus() {
-	storages := self.GetAttachedStorages()
+	storages := self.GetAttachedStorages("")
 	if storages != nil {
 		for _, storage := range storages {
 			storage.SyncStatusWithHosts()
@@ -506,6 +511,117 @@ func (self *SHost) ClearSchedDescCache() error {
 	return HostManager.ClearSchedDescCache(self.Id)
 }
 
+func (self *SHost) GetSpec(statusCheck bool) *jsonutils.JSONDict {
+	if statusCheck {
+		if utils.IsInStringArray(self.Status, []string{BAREMETAL_INIT, BAREMETAL_PREPARE_FAIL, BAREMETAL_PREPARE}) ||
+			self.getBaremetalServer() != nil {
+			return nil
+		}
+		if self.MemSize == 0 || self.CpuCount == 0 {
+			return nil
+		}
+	}
+	spec := self.GetHardwareSpecification()
+	spec.Remove("storage_info")
+	nifs := self.GetNetInterfaces()
+	var nicCount int64
+	for _, nif := range nifs {
+		if nif.NicType != NIC_TYPE_IPMI {
+			nicCount++
+		}
+	}
+	spec.Set("nic_count", jsonutils.NewInt(nicCount))
+	manufacture, err := self.SysInfo.Get("manufacture")
+	if err != nil {
+		manufacture = jsonutils.NewString("Unknown")
+	}
+	spec.Set("manufacture", manufacture)
+	model, err := self.SysInfo.Get("model")
+	if err != nil {
+		model = jsonutils.NewString("Unknown")
+	}
+	spec.Set("model", model)
+	return spec
+}
+
+func (manager *SHostManager) GetSpecIdent(spec *jsonutils.JSONDict) []string {
+	nCpu, _ := spec.Int("cpu")
+	memSize, _ := spec.Int("mem")
+	memGB, err := utils.GetSizeGB(fmt.Sprintf("%d", memSize), "M")
+	if err != nil {
+		log.Errorf("Get mem size %d GB error: %v", memSize, err)
+	}
+	nicCount, _ := spec.Int("nic_count")
+	manufacture, _ := spec.GetString("manufacture")
+	model, _ := spec.GetString("model")
+
+	specKeys := []string{
+		fmt.Sprintf("cpu:%d", nCpu),
+		fmt.Sprintf("mem:%dG", memGB),
+		fmt.Sprintf("nic:%d", nicCount),
+		fmt.Sprintf("manufacture:%s", manufacture),
+		fmt.Sprintf("model:%s", model),
+	}
+	diskSpec, _ := spec.Get("disk")
+	if diskSpec != nil {
+		driverSpecs, _ := diskSpec.GetMap()
+		for driver, driverSpec := range driverSpecs {
+			specKeys = append(specKeys, parseDiskDriverSpec(driver, driverSpec)...)
+		}
+	}
+	sort.Strings(specKeys)
+	return specKeys
+}
+
+func parseDiskDriverSpec(driver string, spec jsonutils.JSONObject) []string {
+	ret := make([]string, 0)
+	adapterSpecs, _ := spec.GetMap()
+	for adapterKey, adapterSpec := range adapterSpecs {
+		for _, diskType := range []string{baremetal.HDD_DISK_SPEC_TYPE, baremetal.SSD_DISK_SPEC_TYPE} {
+			sizeCountMap, _ := adapterSpec.GetMap(diskType)
+			if sizeCountMap == nil {
+				continue
+			}
+			for size, count := range sizeCountMap {
+				sizeGB, _ := utils.GetSizeGB(size, "M")
+				diskKey := fmt.Sprintf("disk:%s_%s_%s_%dGx%s", driver, adapterKey, diskType, sizeGB, count)
+				ret = append(ret, diskKey)
+			}
+		}
+	}
+	return ret
+}
+
+func GetDiskSpecV2(storageInfo jsonutils.JSONObject) jsonutils.JSONObject {
+	storages := []baremetal.BaremetalStorage{}
+	err := storageInfo.Unmarshal(&storages)
+	if err != nil {
+		log.Errorf("Unmarshal to baremetal storage error: %v", err)
+		return nil
+	}
+	refStorages := func() []*baremetal.BaremetalStorage {
+		ret := make([]*baremetal.BaremetalStorage, len(storages))
+		for i, s := range storages {
+			ret[i] = &s
+		}
+		return ret
+	}()
+	diskSpec := baremetal.GetDiskSpecV2(refStorages)
+	return jsonutils.Marshal(diskSpec)
+}
+
+func (self *SHost) GetHardwareSpecification() *jsonutils.JSONDict {
+	spec := jsonutils.NewDict()
+	spec.Set("cpu", jsonutils.NewInt(int64(self.CpuCount)))
+	spec.Set("mem", jsonutils.NewInt(int64(self.MemSize)))
+	if self.StorageInfo != nil {
+		spec.Set("disk", GetDiskSpecV2(self.StorageInfo))
+		spec.Set("driver", jsonutils.NewString(self.StorageDriver))
+		spec.Set("storage_info", self.StorageInfo)
+	}
+	return spec
+}
+
 type SStorageCapacity struct {
 	Capacity  int
 	Used      int
@@ -515,7 +631,7 @@ type SStorageCapacity struct {
 
 func (self *SHost) GetAttachedStorageCapacity() SStorageCapacity {
 	ret := SStorageCapacity{}
-	storages := self.GetAttachedStorages()
+	storages := self.GetAttachedStorages("")
 	if storages != nil {
 		for _, s := range storages {
 			ret.Capacity += s.GetCapacity()
@@ -530,7 +646,8 @@ func (self *SHost) GetAttachedStorageCapacity() SStorageCapacity {
 func _getLeastUsedStorage(storages []SStorage, backends []string) *SStorage {
 	var best *SStorage
 	var bestCap int
-	for _, s := range storages {
+	for i := 0; i < len(storages); i++ {
+		s := storages[i]
 		if len(backends) > 0 {
 			in, _ := utils.InStringArray(s.StorageType, backends)
 			if !in {
@@ -559,7 +676,7 @@ func getLeastUsedStorage(storages []SStorage, backend string) *SStorage {
 }
 
 func (self *SHost) GetLeastUsedStorage(backend string) *SStorage {
-	storages := self.GetAttachedStorages()
+	storages := self.GetAttachedStorages("")
 	if storages != nil {
 		return getLeastUsedStorage(storages, backend)
 	}
@@ -1383,13 +1500,6 @@ func (self *SHost) GetIHost() (cloudprovider.ICloudHost, error) {
 		return nil, fmt.Errorf("No cloudprovide for host: %s", err)
 	}
 	ihost, err := provider.GetIHostById(self.ExternalId)
-
-	/* izone, err := self.GetIZone()
-	if err != nil {
-		return nil, fmt.Errorf("fail to find izone by id %s", err)
-	}
-	ihost, err := izone.GetIHostById(self.ExternalId)*/
-
 	if err != nil {
 		log.Errorf("fail to find ihost by id %s", err)
 		return nil, fmt.Errorf("fail to find ihost by id %s", err)
@@ -1478,12 +1588,17 @@ func (self *SHost) getMoreDetails(extra *jsonutils.JSONDict) *jsonutils.JSONDict
 	}
 	netifs := self.GetNetInterfaces()
 	if netifs != nil && len(netifs) > 0 {
-		info := make([]jsonutils.JSONObject, len(netifs))
+		nicInfos := []jsonutils.JSONObject{}
 		for i := 0; i < len(netifs); i += 1 {
-			info[i] = netifs[i].getBaremetalJsonDesc()
+			nicInfo := netifs[i].getBaremetalJsonDesc()
+			if nicInfo == nil {
+				log.Errorf("netif %s get baremetal desc failed", netifs[i].GetId())
+				continue
+			}
+			nicInfos = append(nicInfos, nicInfo)
 		}
-		extra.Add(jsonutils.NewInt(int64(len(netifs))), "nic_count")
-		extra.Add(jsonutils.NewArray(info...), "nic_info")
+		extra.Add(jsonutils.NewInt(int64(len(nicInfos))), "nic_count")
+		extra.Add(jsonutils.NewArray(nicInfos...), "nic_info")
 	}
 	schedtags := self.getSchedtags()
 	if schedtags != nil && len(schedtags) > 0 {
@@ -1530,6 +1645,21 @@ func (self *SHost) GetExtraDetails(ctx context.Context, userCred mcclient.TokenC
 	return self.getMoreDetails(extra)
 }
 
+func (self *SHost) AllowGetDetailsVnc(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return userCred.IsSystemAdmin()
+}
+
+func (self *SHost) GetDetailsVnc(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if utils.IsInStringArray(self.Status, []string{BAREMETAL_READY, BAREMETAL_RUNNING}) {
+		retval := jsonutils.NewDict()
+		retval.Set("host_id", jsonutils.NewString(self.Id))
+		zone := self.GetZone()
+		retval.Set("zone", jsonutils.NewString(zone.GetName()))
+		return retval, nil
+	}
+	return jsonutils.NewDict(), nil
+}
+
 func (manager *SHostManager) GetHostsByManagerAndRegion(managerId string, regionId string) []SHost {
 	hosts := HostManager.Query().SubQuery()
 	zones := ZoneManager.Query().SubQuery()
@@ -1546,7 +1676,7 @@ func (manager *SHostManager) GetHostsByManagerAndRegion(managerId string, region
 	return ret
 }
 
-func (self *SHost) StartImageCacheTask(ctx context.Context, userCred mcclient.TokenCredential, imageId, parentTaskId string, isForce bool) error {
+/*func (self *SHost) StartImageCacheTask(ctx context.Context, userCred mcclient.TokenCredential, imageId, parentTaskId string, isForce bool) error {
 	//Todo
 	// HostcachedimagesManager.Register(userCred, self, imageId)
 	data := jsonutils.NewDict()
@@ -1560,10 +1690,21 @@ func (self *SHost) StartImageCacheTask(ctx context.Context, userCred mcclient.To
 	}
 	task.ScheduleRun(nil)
 	return nil
-}
+}*/
 
 func (self *SHost) Request(userCred mcclient.TokenCredential, method string, url string, headers http.Header, body jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	s := auth.GetSession(userCred, "", "")
 	_, ret, err := s.JSONRequest(self.ManagerUri, "", method, url, headers, body)
 	return ret, err
+}
+
+func (self *SHost) GetLocalStoragecache() *SStoragecache {
+	localStorages := self.GetAttachedStorages(STORAGE_LOCAL)
+	for i := 0; i < len(localStorages); i += 1 {
+		sc := localStorages[i].GetStoragecache()
+		if sc != nil {
+			return sc
+		}
+	}
+	return nil
 }

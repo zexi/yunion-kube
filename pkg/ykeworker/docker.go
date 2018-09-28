@@ -11,8 +11,8 @@ import (
 	"github.com/docker/docker/client"
 
 	"yunion.io/x/log"
-	"yunion.io/yke/pkg/services"
-	yketypes "yunion.io/yke/pkg/types"
+	"yunion.io/x/yke/pkg/services"
+	yketypes "yunion.io/x/yke/pkg/types"
 	ytypes "yunion.io/x/yunion-kube/pkg/types"
 	"yunion.io/x/yunion-kube/pkg/types/slice"
 )

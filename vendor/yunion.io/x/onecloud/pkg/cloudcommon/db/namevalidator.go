@@ -7,11 +7,11 @@ import (
 	"yunion.io/x/pkg/util/stringutils"
 )
 
-func isNameUnique(manager IModelManager, ownerProjId string, name string) bool {
+func isNameUnique(manager IModelManager, owner string, name string) bool {
 	q := manager.Query()
 	q = manager.FilterByName(q, name)
 	if !globalVirtualResourceNamespace {
-		q = manager.FilterByOwner(q, ownerProjId)
+		q = manager.FilterByOwner(q, owner)
 	}
 	return q.Count() == 0
 }
@@ -22,7 +22,7 @@ func newNameValidator(manager IModelManager, ownerProjId string, name string) er
 		return err
 	}
 	if !isNameUnique(manager, ownerProjId, name) {
-		return httperrors.NewConflictError(fmt.Sprintf("duplicate name %s", name))
+		return httperrors.NewDuplicateNameError("name", name)
 	}
 	return nil
 }
@@ -44,7 +44,7 @@ func alterNameValidator(model IModel, name string) error {
 		return err
 	}
 	if !isAlterNameUnique(model, name) {
-		return httperrors.NewConflictError(fmt.Sprintf("duplicate name %s", name))
+		return httperrors.NewDuplicateNameError("name", name)
 	}
 	return nil
 }

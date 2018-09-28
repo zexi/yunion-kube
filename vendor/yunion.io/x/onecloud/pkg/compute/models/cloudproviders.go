@@ -27,6 +27,7 @@ const (
 
 	CLOUD_PROVIDER_VMWARE = "VMware"
 	CLOUD_PROVIDER_ALIYUN = "Aliyun"
+	CLOUD_PROVIDER_AZURE  = "Azure"
 )
 
 type SCloudproviderManager struct {
@@ -47,7 +48,7 @@ type SCloudprovider struct {
 	AccessUrl string `width:"64" charset:"ascii" nullable:"true" list:"admin" update:"admin" create:"admin_optional"`
 	// Hostname string `width:"64" charset:"ascii" nullable:"true"` // Column(VARCHAR(64, charset='ascii'), nullable=False)
 	// port = Column(Integer, nullable=False)
-	Account string `width:"64" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"`  // Column(VARCHAR(64, charset='ascii'), nullable=False)
+	Account string `width:"128" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"` // Column(VARCHAR(64, charset='ascii'), nullable=False)
 	Secret  string `width:"256" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"` // Column(VARCHAR(256, charset='ascii'), nullable=False)
 
 	LastSync time.Time `get:"admin" list:"admin"` // = Column(DateTime, nullable=True)
@@ -70,6 +71,11 @@ func (self *SCloudprovider) ValidateDeleteCondition(ctx context.Context) error {
 	return self.SEnabledStatusStandaloneResourceBase.ValidateDeleteCondition(ctx)
 }
 
+func (self *SCloudprovider) GetGuestCount() int {
+	sq := HostManager.Query("id").Equals("manager_id", self.Id)
+	return GuestManager.Query().In("host_id", sq).Count()
+}
+
 func (self *SCloudprovider) GetHostCount() int {
 	return HostManager.Query().Equals("manager_id", self.Id).Count()
 }
@@ -84,6 +90,10 @@ func (self *SCloudprovider) getStorageCount() int {
 
 func (self *SCloudprovider) getStoragecacheCount() int {
 	return StoragecacheManager.Query().Equals("manager_id", self.Id).Count()
+}
+
+func (self *SCloudprovider) getEipCount() int {
+	return ElasticipManager.Query().Equals("manager_id", self.Id).Count()
 }
 
 func (self *SCloudprovider) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -364,6 +374,23 @@ func (self *SCloudprovider) GetDriver() (cloudprovider.ICloudProvider, error) {
 	return cloudprovider.GetProvider(self.Id, self.Name, self.AccessUrl, self.Account, secret, self.Provider)
 }
 
+func (manager *SCloudproviderManager) AllowPerformGetSubAccounts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.IsSystemAdmin()
+}
+
+func (manager *SCloudproviderManager) PerformGetSubAccounts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	name, _ := data.GetString("name")
+	accessUrl, _ := data.GetString("access_url")
+	account, _ := data.GetString("account")
+	secret, _ := data.GetString("secret")
+	_provider, _ := data.GetString("provider")
+	if provider, err := cloudprovider.GetProvider("", name, accessUrl, account, secret, _provider); err != nil {
+		return nil, err
+	} else {
+		return provider.GetSubAccounts()
+	}
+}
+
 func (self *SCloudprovider) SaveSysInfo(info jsonutils.JSONObject) {
 	self.GetModelManager().TableSpec().Update(self, func() error {
 		self.Sysinfo = info
@@ -383,17 +410,21 @@ func (manager *SCloudproviderManager) FetchCloudproviderById(providerId string) 
 func (manager *SCloudproviderManager) FetchCloudproviderByIdOrName(providerId string) *SCloudprovider {
 	providerObj, err := manager.FetchByIdOrName("", providerId)
 	if err != nil {
-		log.Errorf("%s", err)
+		if err != sql.ErrNoRows {
+			log.Errorf("%s", err)
+		}
 		return nil
 	}
 	return providerObj.(*SCloudprovider)
 }
 
 type SCloudproviderUsage struct {
+	GuestCount        int
 	HostCount         int
 	VpcCount          int
 	StorageCount      int
 	StorageCacheCount int
+	EipCount          int
 }
 
 func (usage *SCloudproviderUsage) isEmpty() bool {
@@ -409,15 +440,20 @@ func (usage *SCloudproviderUsage) isEmpty() bool {
 	if usage.StorageCacheCount > 0 {
 		return false
 	}
+	if usage.EipCount > 0 {
+		return false
+	}
 	return true
 }
 
 func (self *SCloudprovider) getUsage() *SCloudproviderUsage {
 	usage := SCloudproviderUsage{}
+	usage.GuestCount = self.GetGuestCount()
 	usage.HostCount = self.GetHostCount()
 	usage.VpcCount = self.getVpcCount()
 	usage.StorageCount = self.getStorageCount()
 	usage.StorageCacheCount = self.getStoragecacheCount()
+	usage.EipCount = self.getEipCount()
 
 	return &usage
 }
@@ -487,4 +523,26 @@ func (manager *SCloudproviderManager) migrateVCenterInfo(vc *SVCenter) error {
 	cp.Provider = CLOUD_PROVIDER_VMWARE
 
 	return manager.TableSpec().Insert(&cp)
+}
+
+func (self *SCloudprovider) GetBalance() (float64, error) {
+	driver, err := self.GetDriver()
+	if err != nil {
+		return 0.0, err
+	}
+	return driver.GetBalance()
+}
+
+func (self *SCloudprovider) AllowGetDetailsBalance(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return userCred.IsSystemAdmin()
+}
+
+func (self *SCloudprovider) GetDetailsBalance(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	balance, err := self.GetBalance()
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewFloat(balance), "balance")
+	return ret, nil
 }

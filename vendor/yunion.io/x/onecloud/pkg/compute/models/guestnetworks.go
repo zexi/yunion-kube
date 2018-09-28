@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/rand"
+	"database/sql"
 	"fmt"
 	"io"
 	"regexp"
@@ -136,7 +137,8 @@ func (manager *SGuestnetworkManager) newGuestNetwork(ctx context.Context, userCr
 	gn.MacAddr = macAddr
 	if !virtual {
 		addrTable := network.GetUsedAddresses()
-		ipAddr, err := network.GetFreeIP(ctx, userCred, addrTable, address, allocDir, reserved)
+		recentAddrTable := manager.getRecentlyReleasedIPAddresses(network.Id, time.Duration(network.AllocTimoutSeconds)*time.Second)
+		ipAddr, err := network.GetFreeIP(ctx, userCred, addrTable, recentAddrTable, address, allocDir, reserved)
 		if err != nil {
 			return nil, err
 		}
@@ -263,9 +265,10 @@ func (self *SGuestnetwork) GetJsonDescAtHost(host *SHost) jsonutils.JSONObject {
 }
 
 func (manager *SGuestnetworkManager) GetGuestByAddress(address string) *SGuest {
-	networks := manager.Query().SubQuery()
+	networks := manager.TableSpec().Instance()
 	guests := GuestManager.Query()
 	q := guests.Join(networks, sqlchemy.AND(
+		sqlchemy.IsFalse(networks.Field("deleted")),
 		sqlchemy.Equals(networks.Field("ip_addr"), address),
 		sqlchemy.Equals(networks.Field("guest_id"), guests.Field("id")),
 	))
@@ -290,9 +293,11 @@ func (self *SGuestnetwork) ValidateUpdateData(ctx context.Context, userCred mccl
 		if err != nil {
 			return nil, fmt.Errorf("fail to fetch index %s", err)
 		}
-		q := GuestnetworkManager.Query().Equals("guest_id", self.GuestId)
-		q = q.NotEquals("network_id", self.NetworkId).Equals("idnex", index)
-		if q.Count() > 0 {
+		q := GuestnetworkManager.Query().SubQuery()
+		count := q.Query().Filter(sqlchemy.Equals(q.Field("guest_id"), self.GuestId)).
+			Filter(sqlchemy.NotEquals(q.Field("network_id"), self.NetworkId)).
+			Filter(sqlchemy.Equals(q.Field("index"), index)).Count()
+		if count > 0 {
 			return nil, fmt.Errorf("NIC Index %d has been occupied", index)
 		}
 	}
@@ -331,6 +336,22 @@ func (manager *SGuestnetworkManager) DeleteGuestNics(ctx context.Context, guest 
 		}
 	}
 	return nil
+}
+
+func (manager *SGuestnetworkManager) getGuestNicByIP(ip string) (*SGuestnetwork, error) {
+	gn := SGuestnetwork{}
+	q := manager.Query()
+	q = q.Equals("ip_addr", ip)
+	err := q.First(&gn)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Errorf("getGuestNicByIP fail %s", err)
+			return nil, err
+		}
+		return nil, nil
+	}
+	gn.SetModelManager(manager)
+	return &gn, nil
 }
 
 func (self *SGuestnetwork) LogDetachEvent(userCred mcclient.TokenCredential, guest *SGuest, network *SNetwork) {
@@ -531,4 +552,30 @@ func (self *SGuestnetwork) getJsonDescAtHost(host *SHost) jsonutils.JSONObject {
 	}
 
 	return desc
+}
+
+func (manager *SGuestnetworkManager) getRecentlyReleasedIPAddresses(networkId string, recentDuration time.Duration) map[string]bool {
+	if recentDuration == 0 {
+		return nil
+	}
+	since := time.Now().UTC().Add(-recentDuration)
+	q := manager.RawQuery("ip_addr")
+	q = q.Equals("network_id", networkId).IsTrue("deleted")
+	q = q.GT("deleted_at", since).Distinct()
+	rows, err := q.Rows()
+	if err != nil {
+		log.Errorf("GetRecentlyReleasedIPAddresses fail %s", err)
+		return nil
+	}
+	ret := make(map[string]bool)
+	for rows.Next() {
+		var ip string
+		err = rows.Scan(&ip)
+		if err != nil {
+			log.Errorf("scan error %s", err)
+		} else {
+			ret[ip] = true
+		}
+	}
+	return ret
 }
