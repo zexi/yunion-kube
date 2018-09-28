@@ -1,7 +1,7 @@
 package ykecerts
 
 import (
-	"yunion.io/yke/pkg/pki"
+	"yunion.io/x/yke/pkg/pki"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke/ykecerts"
 	"yunion.io/x/yunion-kube/pkg/models"

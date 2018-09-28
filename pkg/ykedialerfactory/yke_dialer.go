@@ -3,11 +3,12 @@ package ykedialerfactory
 import (
 	"fmt"
 	"net/http"
+	"net"
 	"strings"
 
-	"yunion.io/yke/pkg/k8s"
-	"yunion.io/yke/pkg/tunnel"
-	"yunion.io/yke/pkg/types"
+	"yunion.io/x/yke/pkg/hosts"
+	"yunion.io/x/yke/pkg/k8s"
+	"yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
 	"yunion.io/x/yunion-kube/pkg/types/slice"
@@ -18,9 +19,9 @@ type YKEDialerFactory struct {
 	Docker  bool
 }
 
-func (t *YKEDialerFactory) Build(h tunnel.HostConfig) (tunnel.DialFunc, error) {
+func (t *YKEDialerFactory) Build(h *hosts.Host) (func(network, address string) (net.Conn, error), error) {
 	if h.NodeName == "" {
-		return tunnel.SSHFactory(h)
+		return hosts.SSHFactory(h)
 	}
 
 	parts := strings.SplitN(h.NodeName, ":", 2)
