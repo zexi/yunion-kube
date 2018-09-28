@@ -27,6 +27,8 @@ import (
 	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
 
 const (
@@ -51,6 +53,9 @@ const (
 	DISK_POST_MIGRATE  = "post_migrate"
 	DISK_MIGRATING     = "migrating"
 
+	DISK_START_SNAPSHOT = "start_snapshot"
+	DISK_SNAPSHOTING    = "snapshoting"
+
 	DISK_TYPE_SYS  = "sys"
 	DISK_TYPE_SWAP = "swap"
 	DISK_TYPE_DATA = "data"
@@ -71,6 +76,8 @@ func init() {
 type SDisk struct {
 	db.SSharableVirtualResourceBase
 
+	SBillingResourceBase
+
 	DiskFormat string `width:"32" charset:"ascii" nullable:"false" default:"qcow2" list:"user"` // Column(VARCHAR(32, charset='ascii'), nullable=False, default='qcow2')
 	DiskSize   int    `nullable:"false" list:"user"`                                            // Column(Integer, nullable=False) # in MB
 	AccessPath string `width:"256" charset:"ascii" nullable:"true" get:"user"`                  // = Column(VARCHAR(256, charset='ascii'), nullable=True)
@@ -80,13 +87,14 @@ type SDisk struct {
 	StorageId string `width:"128" charset:"ascii" nullable:"false" list:"admin" create:"required"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
 
 	// # backing template id and type
-	TemplateId string `width:"128" charset:"ascii" nullable:"true" list:"user"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=True)
+	TemplateId string `width:"256" charset:"ascii" nullable:"true" list:"user"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=True)
 	// # file system
 	FsFormat string `width:"32" charset:"ascii" nullable:"true" list:"user"` // Column(VARCHAR(32, charset='ascii'), nullable=True)
 	// # disk type, OS, SWAP, DAT
 	DiskType string `width:"32" charset:"ascii" nullable:"true" list:"user"` // Column(VARCHAR(32, charset='ascii'), nullable=True)
 	// # is persistent
 	Nonpersistent bool `default:"false" list:"user"` // Column(Boolean, default=False)
+	AutoSnapshot  bool `default:"false" nullable:"true" get:"user" update:"user"`
 }
 
 func (manager *SDiskManager) GetContextManager() []db.IModelManager {
@@ -102,11 +110,16 @@ func (manager *SDiskManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQu
 	if !ok {
 		return nil, fmt.Errorf("Invalid querystring formst: %v", query)
 	}
-	if jsonutils.QueryBoolean(query, "unused", false) {
+	if query.Contains("unused") {
 		guestdisks := GuestdiskManager.Query().SubQuery()
 		sq := guestdisks.Query(guestdisks.Field("disk_id"))
-		q = q.Filter(sqlchemy.NotIn(q.Field("id"), sq))
+		if jsonutils.QueryBoolean(query, "unused", false) {
+			q = q.Filter(sqlchemy.NotIn(q.Field("id"), sq))
+		} else {
+			q = q.Filter(sqlchemy.In(q.Field("id"), sq))
+		}
 	}
+
 	storages := StorageManager.Query().SubQuery()
 	if jsonutils.QueryBoolean(query, "share", false) {
 		sq := storages.Query(storages.Field("id")).Filter(sqlchemy.NotIn(storages.Field("storage_type"), STORAGE_LOCAL_TYPES))
@@ -236,6 +249,9 @@ func (manager *SDiskManager) ValidateCreateData(ctx context.Context, userCred mc
 				if !utils.IsInStringArray(storage.Status, []string{STORAGE_ENABLED, STORAGE_ONLINE}) {
 					return nil, httperrors.NewInputParameterError("Cannot create disk with offline storage[%s]", storage.Name)
 				}
+				if len(diskConfig.Backend) == 0 {
+					diskConfig.Backend = storage.StorageType
+				}
 				if storage.StorageType != diskConfig.Backend {
 					return nil, httperrors.NewInputParameterError("Storage type[%s] not match backend %s", storage.StorageType, diskConfig.Backend)
 				}
@@ -297,7 +313,14 @@ func (self *SDisk) StartDiskCreateTask(ctx context.Context, userCred mcclient.To
 	return nil
 }
 
-func (self *SDisk) StartAllocate(host *SHost, storage *SStorage, taskId string, userCred mcclient.TokenCredential, rebuild bool, snapshot string, task taskman.ITask) error {
+func (self *SDisk) GetSnapshotCount() int {
+	q := SnapshotManager.Query()
+	count := q.Filter(sqlchemy.AND(sqlchemy.Equals(q.Field("disk_id"), self.Id),
+		sqlchemy.Equals(q.Field("fake_deleted"), false))).Count()
+	return count
+}
+
+func (self *SDisk) StartAllocate(ctx context.Context, host *SHost, storage *SStorage, taskId string, userCred mcclient.TokenCredential, rebuild bool, snapshot string, task taskman.ITask) error {
 	log.Infof("Allocating disk on host %s ...", host.GetName())
 
 	templateId := self.GetTemplateId()
@@ -326,7 +349,107 @@ func (self *SDisk) StartAllocate(host *SHost, storage *SStorage, taskId string, 
 	if rebuild {
 		content.Add(jsonutils.JSONTrue, "rebuild")
 	}
-	return host.GetHostDriver().RequestAllocateDiskOnStorage(host, storage, self, task, content)
+	return host.GetHostDriver().RequestAllocateDiskOnStorage(ctx, host, storage, self, task, content)
+}
+
+func (self *SDisk) AllowGetDetailsConvertSnapshot(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred)
+}
+
+func (self *SDisk) GetDetailsConvertSnapshot(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	deleteSnapshot := SnapshotManager.GetDiskFirstSnapshot(self.Id)
+	if deleteSnapshot == nil {
+		return nil, httperrors.NewNotFoundError("Can not get disk snapshot")
+	}
+	convertSnapshot, err := SnapshotManager.GetConvertSnapshot(deleteSnapshot)
+	if err != nil {
+		return nil, httperrors.NewBadRequestError("Get convert snapshot failed: %s", err.Error())
+	}
+	if convertSnapshot == nil {
+		return nil, httperrors.NewBadRequestError("Snapshot %s dose not have convert snapshot", deleteSnapshot.Id)
+	}
+	var FakeDelete bool
+	if deleteSnapshot.CreatedBy == MANUAL && !deleteSnapshot.FakeDeleted {
+		FakeDelete = true
+	}
+	ret := jsonutils.NewDict()
+	ret.Set("delete_snapshot", jsonutils.NewString(deleteSnapshot.Id))
+	ret.Set("convert_snapshot", jsonutils.NewString(convertSnapshot.Id))
+	ret.Set("pending_delete", jsonutils.NewBool(FakeDelete))
+	return ret, nil
+}
+
+// On disk reset, auto delete snapshots after the reset snapshot(reserve manualed snapshot)
+func (self *SDisk) CleanUpDiskSnapshots(ctx context.Context, userCred mcclient.TokenCredential, snapshot *SSnapshot) error {
+	dest := make([]SSnapshot, 0)
+	query := SnapshotManager.TableSpec().Query()
+	query.Filter(sqlchemy.Equals(query.Field("disk_id"), self.Id)).
+		GT("created_at", snapshot.CreatedAt).Asc("created_at").All(&dest)
+	if len(dest) == 0 {
+		return nil
+	}
+	convertSnapshots := jsonutils.NewArray()
+	deleteSnapshots := jsonutils.NewArray()
+	for i := 0; i < len(dest); i++ {
+		if dest[i].CreatedBy == MANUAL && !dest[i].FakeDeleted {
+			if !dest[i].OutOfChain {
+				convertSnapshots.Add(jsonutils.NewString(dest[i].Id))
+			}
+		} else {
+			deleteSnapshots.Add(jsonutils.NewString(dest[i].Id))
+		}
+	}
+	params := jsonutils.NewDict()
+	params.Set("convert_snapshots", convertSnapshots)
+	params.Set("delete_snapshots", deleteSnapshots)
+	task, err := taskman.TaskManager.NewTask(ctx, "DiskCleanUpSnapshotsTask", self, userCred, params, "", "", nil)
+	if err != nil {
+		return err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil
+}
+
+func (self *SDisk) AllowPerformDiskReset(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred)
+}
+
+func (self *SDisk) PerformDiskReset(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	snapshotId, err := data.GetString("snapshot_id")
+	if err != nil {
+		return nil, err
+	}
+	guests := self.GetGuests()
+	if len(guests) > 1 {
+		return nil, httperrors.NewBadRequestError("Disk attach muti guests")
+	} else if len(guests) == 1 {
+		if guests[0].Status != VM_READY {
+			return nil, httperrors.NewServerStatusError("Disk attached guest status must be ready")
+		}
+	}
+	iSnapshot, err := SnapshotManager.FetchById(snapshotId)
+	if err != nil {
+		return nil, httperrors.NewNotFoundError("Snapshot %s not found", snapshotId)
+	}
+	snapshot := iSnapshot.(*SSnapshot)
+	if snapshot.Status != SNAPSHOT_READY {
+		return nil, httperrors.NewBadRequestError("Cannot reset disk with snapshot in status %s", snapshot.Status)
+	}
+	self.StartResetDisk(ctx, userCred, snapshotId)
+	return nil, nil
+}
+
+func (self *SDisk) StartResetDisk(ctx context.Context, userCred mcclient.TokenCredential, snapshotId string) error {
+	params := jsonutils.NewDict()
+	params.Set("snapshot_id", jsonutils.NewString(snapshotId))
+	task, err := taskman.TaskManager.NewTask(ctx, "DiskResetTask", self, userCred, params, "", "", nil)
+	if err != nil {
+		return err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil
 }
 
 func (self *SDisk) AllowPerformResize(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -356,6 +479,94 @@ func (self *SDisk) PerformResize(ctx context.Context, userCred mcclient.TokenCre
 		}
 		return nil, self.StartDiskResizeTask(ctx, userCred, int64(size), "", &pendingUsage)
 	}
+}
+
+func (self *SDisk) GetIStorage() (cloudprovider.ICloudStorage, error) {
+	if storage := self.GetStorage(); storage == nil {
+		return nil, httperrors.NewResourceNotFoundError("fail to find storage for disk %s", self.GetName())
+	} else if provider, err := storage.GetDriver(); err != nil {
+		return nil, err
+	} else {
+		return provider.GetIStorageById(storage.GetExternalId())
+	}
+}
+
+func (self *SDisk) GetIDisk() (cloudprovider.ICloudDisk, error) {
+	if iStorage, err := self.GetIStorage(); err != nil {
+		log.Errorf("fail to find iStorage: %v", err)
+		return nil, err
+	} else {
+		return iStorage.GetIDisk(self.GetExternalId())
+	}
+}
+
+func (self *SDisk) GetZone() *SZone {
+	if storage := self.GetStorage(); storage != nil {
+		return storage.getZone()
+	}
+	return nil
+}
+
+func (self *SDisk) PrepareSaveImage(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (string, error) {
+	if zone := self.GetZone(); zone == nil {
+		return "", httperrors.NewResourceNotFoundError("No zone for this disk")
+	}
+	data.Add(jsonutils.NewString(self.DiskFormat), "disk_format")
+	name, _ := data.GetString("name")
+	s := auth.GetAdminSession(options.Options.Region, "")
+	if imageList, err := modules.Images.List(s, jsonutils.Marshal(map[string]string{"name": name, "admin": "true"})); err != nil {
+		return "", err
+	} else if imageList.Total > 0 {
+		return "", httperrors.NewConflictError("Duplicate image name %s", name)
+	}
+	quota := SQuota{Image: 1}
+	if _, err := QuotaManager.CheckQuota(ctx, userCred, userCred.GetProjectId(), &quota); err != nil {
+		return "", err
+	}
+	data.Add(jsonutils.NewInt(int64(self.DiskSize)), "virtual_size")
+	if result, err := modules.Images.Create(s, data); err != nil {
+		return "", err
+	} else if imageId, err := result.GetString("id"); err != nil {
+		return "", err
+	} else {
+		return imageId, nil
+	}
+}
+
+func (self *SDisk) AllowPerformSave(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred)
+}
+
+func (self *SDisk) PerformSave(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if self.Status != DISK_READY {
+		return nil, httperrors.NewResourceNotReadyError("Save disk when disk is READY")
+
+	}
+	if self.GetRuningGuestCount() > 0 {
+		return nil, httperrors.NewResourceNotReadyError("Save disk when not being USED")
+	}
+
+	if name, err := data.GetString("name"); err != nil || len(name) == 0 {
+		return nil, httperrors.NewInputParameterError("Image name is required")
+	}
+	kwargs := data.(*jsonutils.JSONDict)
+	if imageId, err := self.PrepareSaveImage(ctx, userCred, kwargs); err != nil {
+		return nil, err
+	} else {
+		kwargs.Add(jsonutils.NewString(imageId), "image_id")
+		return nil, self.StartDiskSaveTask(ctx, userCred, kwargs, "")
+	}
+}
+
+func (self *SDisk) StartDiskSaveTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	self.SetStatus(userCred, DISK_START_SAVE, "")
+	if task, err := taskman.TaskManager.NewTask(ctx, "DiskSaveTask", self, userCred, data, parentTaskId, "", nil); err != nil {
+		log.Errorf("Start DiskSaveTask failed:%v", err)
+		return err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil
 }
 
 func (self *SDisk) ValidateDeleteCondition(ctx context.Context) error {
@@ -393,21 +604,9 @@ func (self *SDisk) GetCloudprovider() *SCloudprovider {
 }
 
 func (self *SDisk) GetPathAtHost(host *SHost) string {
-	storage := self.GetStorage()
-	if storage.StorageType == STORAGE_RBD {
-		pool, _ := storage.StorageConf.GetString("pool")
-		monHost, _ := storage.StorageConf.GetString("mon_host")
-		key, _ := storage.StorageConf.GetString("key")
-		for _, keyword := range []string{"@", ":", "="} {
-			monHost = strings.Replace(monHost, keyword, fmt.Sprintf("\\%s", keyword), -1)
-			key = strings.Replace(key, keyword, fmt.Sprintf("\\%s", keyword), -1)
-		}
-		return fmt.Sprintf("rbd:%s/%s:mon_host=%s:key=%s", pool, self.Id, monHost, key)
-	} else if storage.StorageType == STORAGE_LOCAL || storage.StorageType == STORAGE_NAS {
-		hostStorage := host.GetHoststorageOfId(self.StorageId)
-		if hostStorage != nil {
-			return path.Join(hostStorage.MountPoint, self.Id)
-		}
+	hostStorage := host.GetHoststorageOfId(self.StorageId)
+	if hostStorage != nil {
+		return path.Join(hostStorage.MountPoint, self.Id)
 	}
 	return ""
 }
@@ -433,7 +632,7 @@ func (manager *SDiskManager) getDisksByStorage(storage *SStorage) ([]SDisk, erro
 	return disks, nil
 }
 
-func (manager *SDiskManager) syncCloudDisk(userCred mcclient.TokenCredential, vdisk cloudprovider.ICloudDisk) (*SDisk, error) {
+func (manager *SDiskManager) syncCloudDisk(ctx context.Context, userCred mcclient.TokenCredential, vdisk cloudprovider.ICloudDisk) (*SDisk, error) {
 	diskObj, err := manager.FetchByExternalId(vdisk.GetGlobalId())
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -444,13 +643,13 @@ func (manager *SDiskManager) syncCloudDisk(userCred mcclient.TokenCredential, vd
 				return nil, err
 			}
 			storage := storageObj.(*SStorage)
-			return manager.newFromCloudDisk(userCred, vdisk, storage)
+			return manager.newFromCloudDisk(ctx, userCred, vdisk, storage)
 		} else {
 			return nil, err
 		}
 	} else {
 		disk := diskObj.(*SDisk)
-		err = disk.syncWithCloudDisk(userCred, vdisk)
+		err = disk.syncWithCloudDisk(ctx, userCred, vdisk)
 		if err != nil {
 			return nil, err
 		}
@@ -490,7 +689,7 @@ func (manager *SDiskManager) SyncDisks(ctx context.Context, userCred mcclient.To
 	}
 
 	for i := 0; i < len(commondb); i += 1 {
-		err = commondb[i].syncWithCloudDisk(userCred, commonext[i])
+		err = commondb[i].syncWithCloudDisk(ctx, userCred, commonext[i])
 		if err != nil {
 			syncResult.UpdateError(err)
 		} else {
@@ -501,7 +700,7 @@ func (manager *SDiskManager) SyncDisks(ctx context.Context, userCred mcclient.To
 	}
 
 	for i := 0; i < len(added); i += 1 {
-		new, err := manager.newFromCloudDisk(userCred, added[i], storage)
+		new, err := manager.newFromCloudDisk(ctx, userCred, added[i], storage)
 		if err != nil {
 			syncResult.AddError(err)
 		} else {
@@ -514,7 +713,7 @@ func (manager *SDiskManager) SyncDisks(ctx context.Context, userCred mcclient.To
 	return localDisks, remoteDisks, syncResult
 }
 
-func (self *SDisk) syncWithCloudDisk(userCred mcclient.TokenCredential, extDisk cloudprovider.ICloudDisk) error {
+func (self *SDisk) syncWithCloudDisk(ctx context.Context, userCred mcclient.TokenCredential, extDisk cloudprovider.ICloudDisk) error {
 	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
 		extDisk.Refresh()
 		self.Name = extDisk.GetName()
@@ -529,17 +728,35 @@ func (self *SDisk) syncWithCloudDisk(userCred mcclient.TokenCredential, extDisk 
 
 		self.IsEmulated = extDisk.IsEmulated()
 
+		self.BillingType = extDisk.GetBillingType()
+		self.ExpiredAt = extDisk.GetExpiredAt()
+
 		self.ProjectId = userCred.GetProjectId()
 
 		return nil
 	})
 	if err != nil {
 		log.Errorf("syncWithCloudDisk error %s", err)
+		return err
 	}
-	return err
+
+	if metaData := extDisk.GetMetadata(); metaData != nil {
+		meta := make(map[string]string, 0)
+		if err := metaData.Unmarshal(meta); err != nil {
+			log.Errorf("Get VM Metadata error: %v", err)
+		} else {
+			for key, value := range meta {
+				if err := self.SetMetadata(ctx, key, value, userCred); err != nil {
+					log.Errorf("set disk %s mata %s => %s error: %v", self.Name, key, value, err)
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
-func (manager *SDiskManager) newFromCloudDisk(userCred mcclient.TokenCredential, extDisk cloudprovider.ICloudDisk, storage *SStorage) (*SDisk, error) {
+func (manager *SDiskManager) newFromCloudDisk(ctx context.Context, userCred mcclient.TokenCredential, extDisk cloudprovider.ICloudDisk, storage *SStorage) (*SDisk, error) {
 	disk := SDisk{}
 	disk.SetModelManager(manager)
 
@@ -557,11 +774,29 @@ func (manager *SDiskManager) newFromCloudDisk(userCred mcclient.TokenCredential,
 
 	disk.IsEmulated = extDisk.IsEmulated()
 
+	disk.BillingType = extDisk.GetBillingType()
+	disk.ExpiredAt = extDisk.GetExpiredAt()
+
 	err := manager.TableSpec().Insert(&disk)
 	if err != nil {
 		log.Errorf("newFromCloudZone fail %s", err)
 		return nil, err
 	}
+
+	if metaData := extDisk.GetMetadata(); metaData != nil {
+		meta := make(map[string]string)
+		if err := metaData.Unmarshal(meta); err != nil {
+			log.Errorf("Get VM Metadata error: %v", err)
+		} else {
+			for key, value := range meta {
+				if err := disk.SetMetadata(ctx, key, value, userCred); err != nil {
+					log.Errorf("set disk %s mata %s => %s error: %v", disk.Name, key, value, err)
+				}
+			}
+		}
+	}
+
+	db.OpsLog.LogEvent(&disk, db.ACT_SYNC_CLOUD_DISK, disk.GetShortDesc(), userCred)
 	return &disk, nil
 }
 
@@ -628,7 +863,7 @@ func parseDiskInfo(ctx context.Context, userCred mcclient.TokenCredential, info 
 	}
 
 	// default backend and medium type
-	diskConfig.Backend = STORAGE_LOCAL
+	diskConfig.Backend = "" // STORAGE_LOCAL
 	diskConfig.Medium = DISK_TYPE_HYBRID
 
 	diskStr, err := info.GetString()
@@ -638,6 +873,9 @@ func parseDiskInfo(ctx context.Context, userCred mcclient.TokenCredential, info 
 	}
 	parts := strings.Split(diskStr, ":")
 	for _, p := range parts {
+		if len(p) == 0 {
+			continue
+		}
 		if regutils.MatchSize(p) {
 			diskConfig.Size, _ = fileutils.GetSizeMb(p, 'M', 1024)
 		} else if utils.IsInStringArray(p, osprofile.FS_TYPES) {
@@ -720,6 +958,37 @@ func (self *SDisk) fetchDiskInfo(diskConfig *SDiskConfig) {
 	}
 	self.DiskFormat = diskConfig.Format
 	self.DiskSize = diskConfig.Size
+}
+
+type DiskInfo struct {
+	ImageId    string
+	Fs         string
+	MountPoint string
+	Format     string
+	Size       int64
+	StorageId  string
+	Backend    string
+	MediumType string
+	Driver     string
+	Cache      string
+}
+
+func (self *SDisk) ToDiskInfo() DiskInfo {
+	ret := DiskInfo{
+		ImageId:    self.GetTemplateId(),
+		Fs:         self.GetFsFormat(),
+		MountPoint: self.GetMountPoint(),
+		Format:     self.DiskFormat,
+		Size:       int64(self.DiskSize),
+	}
+	storage := self.GetStorage()
+	if storage == nil {
+		return ret
+	}
+	ret.StorageId = storage.Id
+	ret.Backend = storage.StorageType
+	ret.MediumType = storage.MediumType
+	return ret
 }
 
 func (self *SDisk) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -832,9 +1101,8 @@ func (self *SDisk) GetAttachedGuests() []SGuest {
 	q = q.Filter(sqlchemy.Equals(guestdisks.Field("disk_id"), self.Id))
 
 	ret := make([]SGuest, 0)
-	err := q.All(&ret)
-	if err != nil {
-		log.Errorf("%s", err)
+	if err := db.FetchModelObjects(GuestManager, q, &ret); err != nil {
+		log.Errorf("Fetch Geusts Objects %v", err)
 		return nil
 	}
 	return ret
@@ -871,6 +1139,21 @@ func (self *SDisk) GetShortDesc() *jsonutils.JSONDict {
 	storage := self.GetStorage()
 	desc.Add(jsonutils.NewString(storage.StorageType), "storage_type")
 	desc.Add(jsonutils.NewString(storage.MediumType), "medium_type")
+
+	if priceKey := self.GetMetadata("price_key", nil); len(priceKey) > 0 {
+		desc.Add(jsonutils.NewString(priceKey), "price_key")
+	}
+
+	desc.Add(jsonutils.NewString(self.GetChargeType()), "charge_type")
+
+	if hypervisor := self.GetMetadata("hypervisor", nil); len(hypervisor) > 0 {
+		desc.Add(jsonutils.NewString(hypervisor), "hypervisor")
+	}
+
+	if len(self.ExternalId) > 0 {
+		desc.Add(jsonutils.NewString(self.ExternalId), "externalId")
+	}
+
 	fs := self.GetFsFormat()
 	if len(fs) > 0 {
 		desc.Add(jsonutils.NewString(fs), "fs_format")
@@ -886,6 +1169,10 @@ func (self *SDisk) getDev() string {
 	return self.GetMetadata("dev", nil)
 }
 
+func (self *SDisk) GetMountPoint() string {
+	return self.GetMetadata("mountpoint", nil)
+}
+
 func (self *SDisk) isReady() bool {
 	return self.Status == DISK_READY
 }
@@ -894,7 +1181,7 @@ func (self *SDisk) isInit() bool {
 	return self.Status == DISK_INIT
 }
 
-func (model *SDisk) AllowPerformCancelDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+func (self *SDisk) AllowPerformCancelDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return userCred.IsSystemAdmin()
 }
 
@@ -907,7 +1194,7 @@ func (self *SDisk) PerformCancelDelete(ctx context.Context, userCred mcclient.To
 }
 
 func (manager *SDiskManager) getExpiredPendingDeleteDisks() []SDisk {
-	deadline := time.Now().Add(time.Duration(options.Options.PendingDeleteExpireSeconds) * time.Second)
+	deadline := time.Now().Add(time.Duration(options.Options.PendingDeleteExpireSeconds*-1) * time.Second)
 
 	q := manager.Query()
 	q = q.IsTrue("pending_deleted").LT("pending_deleted_at", deadline).Limit(options.Options.PendingDeleteMaxCleanBatchSize)
@@ -929,5 +1216,45 @@ func (manager *SDiskManager) CleanPendingDeleteDisks(ctx context.Context, userCr
 	}
 	for i := 0; i < len(disks); i += 1 {
 		disks[i].StartDiskDeleteTask(ctx, userCred, "", false)
+	}
+}
+
+func (manager *SDiskManager) getAutoSnapshotDisks() []SDisk {
+	q := manager.Query().SubQuery()
+	dest := make([]SDisk, 0)
+	err := q.Query().Filter(sqlchemy.Equals(q.Field("auto_snapshot"), true)).All(&dest)
+	if err != nil {
+		return nil
+	}
+	return dest
+}
+
+func (manager *SDiskManager) AutoDiskSnapshot(ctx context.Context, userCred mcclient.TokenCredential) {
+	disks := manager.getAutoSnapshotDisks()
+	if disks == nil {
+		return
+	}
+	for _, disk := range disks {
+		snapCount := disk.GetSnapshotCount()
+		if snapCount >= options.Options.DefaultMaxSnapshotCount {
+			continue
+		}
+		guests := disk.GetGuests()
+		if guests == nil || len(guests) > 1 {
+			log.Errorln("Disk %s not attach or attached more than one guest", disk.Id)
+			continue
+		}
+		if !utils.IsInStringArray(guests[0].Status, []string{VM_RUNNING, VM_READY}) {
+			log.Errorf("Guest(%s) in status(%s) cannot do snapshot action", guests[0].Id, guests[0].Status)
+			continue
+		}
+		// name
+		name := guests[0].Name + time.Now().Format("2006-01-02#15:04:05")
+		snap, err := SnapshotManager.CreateSnapshot(ctx, userCred, AUTO, disk.Id, guests[0].Id, "", name)
+		if err != nil {
+			log.Errorln(err)
+			continue
+		}
+		guests[0].StartDiskSnapshot(ctx, userCred, disk.Id, snap.Id)
 	}
 }

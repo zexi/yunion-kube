@@ -12,9 +12,9 @@ import (
 type SResourceBase struct {
 	SModelBase
 
-	CreatedAt     time.Time `nullable:"false" created_at:"true" get:"user"`
-	UpdatedAt     time.Time `nullable:"false" updated_at:"true"`
-	UpdateVersion int       `default:"0" nullable:"false" auto_version:"true"`
+	CreatedAt     time.Time `nullable:"false" created_at:"true" get:"user" list:"user"`
+	UpdatedAt     time.Time `nullable:"false" updated_at:"true" list:"user"`
+	UpdateVersion int       `default:"0" nullable:"false" auto_version:"true" list:"user"`
 	DeletedAt     time.Time ``
 	Deleted       bool      `nullable:"false" default:"false"`
 }
@@ -29,6 +29,10 @@ func NewResourceBaseManager(dt interface{}, tableName string, keyword string, ke
 
 func (manager *SResourceBaseManager) Query(fields ...string) *sqlchemy.SQuery {
 	return manager.SModelBaseManager.Query(fields...).IsFalse("deleted")
+}
+
+func (manager *SResourceBaseManager) RawQuery(fields ...string) *sqlchemy.SQuery {
+	return manager.SModelBaseManager.Query(fields...)
 }
 
 func CanDelete(model IModel, ctx context.Context) bool {

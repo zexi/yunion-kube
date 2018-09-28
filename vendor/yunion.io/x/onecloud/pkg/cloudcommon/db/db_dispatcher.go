@@ -21,6 +21,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/onecloud/pkg/util/httputils"
+	"yunion.io/x/onecloud/pkg/util/logclient"
 )
 
 type DBModelDispatcher struct {
@@ -52,33 +53,11 @@ func (dispatcher *DBModelDispatcher) ContextKeywordPlural() []string {
 	return nil
 }
 
-/*
-const (
-	AUTH_TOKEN = appctx.AppContextKey("X_AUTH_TOKEN")
-)
-*/
-
 func (dispatcher *DBModelDispatcher) Filter(f appsrv.FilterHandler) appsrv.FilterHandler {
 	return auth.Authenticate(f)
-	/*return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-		tokenStr := r.Header.Get("X-Auth-Token")
-		if len(tokenStr) == 0 {
-			httperrors.UnauthorizedError(w, "Unauthorized")
-			return
-		}
-		token, err := auth.Verify(tokenStr)
-		if err != nil {
-			log.Errorf("Verify token failed: %s", err)
-			httperrors.UnauthorizedError(w, "InvalidToken")
-			return
-		}
-		ctx = context.WithValue(ctx, AUTH_TOKEN, token)
-		f(ctx, w, r)
-	} */
 }
 
 func fetchUserCredential(ctx context.Context) mcclient.TokenCredential {
-	// token, ok := ctx.Value(AUTH_TOKEN).(mcclient.TokenCredential)
 	token := auth.FetchUserCredential(ctx)
 	if token == nil {
 		log.Fatalf("user token credential not found?")
@@ -251,6 +230,35 @@ func applyListItemsGeneralFilters(manager IModelManager, q *sqlchemy.SQuery,
 	return q, nil
 }
 
+func applyListItemsGeneralJointFilters(manager IModelManager, q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential, jointFilters []string, filterAny bool) (*sqlchemy.SQuery, error) {
+	for _, f := range jointFilters {
+		jfc := filterclause.ParseJointFilterClause(f)
+		if jfc != nil {
+			jointModelManager := GetModelManager(jfc.GetJointModelName())
+			schFields := searchFields(jointModelManager, userCred)
+			if ok, _ := utils.InStringArray(jfc.GetField(), schFields); ok {
+				sq := jointModelManager.Query(jfc.RelatedKey)
+				cond := jfc.GetJointFilter(sq)
+				if cond != nil {
+					sq = sq.Filter(cond)
+					if filterAny {
+						q = q.Filter(sqlchemy.OR(sqlchemy.In(q.Field(jfc.OriginKey), sq)))
+					} else {
+						q = q.Filter(sqlchemy.AND(sqlchemy.In(q.Field(jfc.OriginKey), sq)))
+					}
+				}
+			}
+		}
+	}
+	return q, nil
+}
+
+func ListItemQueryFilters(manager IModelManager, ctx context.Context, q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	return listItemQueryFilters(manager, ctx, q, userCred, query)
+}
+
 func listItemQueryFilters(manager IModelManager, ctx context.Context, q *sqlchemy.SQuery,
 	userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
 
@@ -272,10 +280,14 @@ func listItemQueryFilters(manager IModelManager, ctx context.Context, q *sqlchem
 			return nil, err
 		}
 	}
+	filterAny, _ := query.Bool("filter_any")
 	filters := jsonutils.GetQueryStringArray(query, "filter")
 	if len(filters) > 0 {
-		filterAny, _ := query.Bool("filter_any")
 		q, err = applyListItemsGeneralFilters(manager, q, userCred, filters, filterAny)
+	}
+	jointFilter := jsonutils.GetQueryStringArray(query, "joint_filter")
+	if len(jointFilter) > 0 {
+		q, _ = applyListItemsGeneralJointFilters(manager, q, userCred, jointFilter, filterAny)
 	}
 	return q, nil
 }
@@ -285,10 +297,11 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 	if err != nil {
 		return nil, err
 	}
-	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
 	listF := listFields(manager, userCred)
-	if len(fieldFilter) > 0 && userCred.IsSystemAdmin() { // only sysadmin can extend list Fields
-		listF = append(listF, fieldFilter...)
+	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
+	if len(fieldFilter) > 0 && userCred.IsSystemAdmin() {
+		// only sysadmin can specify list Fields
+		listF = fieldFilter
 	}
 	showDetails := false
 	showDetailsJson, _ := query.Get("details")
@@ -326,9 +339,6 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 				jsonDict.Update(extraDict)
 			}
 			jsonDict = getModelExtraDetails(item, ctx, jsonDict)
-		}
-		if len(fieldFilter) > 0 {
-			jsonDict = jsonDict.CopyIncludes(fieldFilter...)
 		}
 		results = append(results, jsonDict)
 	}
@@ -524,7 +534,7 @@ func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, pr
 }
 
 func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	log.Debugf("Get %s", idStr)
+	// log.Debugf("Get %s", idStr)
 	userCred := fetchUserCredential(ctx)
 
 	data, err := dispatcher.tryGetModelProperty(ctx, idStr, query)
@@ -541,7 +551,7 @@ func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, quer
 	} else if err != nil {
 		return nil, err
 	}
-	log.Debugf("Get found %s", model)
+	// log.Debugf("Get found %s", model)
 	if !model.AllowGetDetails(ctx, userCred, query) {
 		return nil, httperrors.NewForbiddenError("Not allow to get details")
 	}
@@ -740,6 +750,7 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 		return nil, httperrors.NewGeneralError(err)
 	}
 	OpsLog.LogEvent(model, ACT_CREATE, model.GetShortDesc(), userCred)
+	logclient.AddActionLog(model, logclient.ACT_CREATE, "", userCred, true)
 	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{model}, userCred, query, data)
 	return getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
 }
@@ -948,21 +959,19 @@ func objectPerformAction(dispatcher *DBModelDispatcher, modelValue reflect.Value
 }
 
 func updateItem(manager IModelManager, item IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !item.AllowUpdateItem(ctx, userCred) {
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("Not allow to update item"))
-	}
-
 	var err error
 
 	err = item.ValidateUpdateCondition(ctx)
 
 	if err != nil {
 		log.Errorf("validate update condition error: %s", err)
+		logclient.AddActionLog(item, logclient.ACT_UPDATE, err.Error(), userCred, false)
 		return nil, httperrors.NewGeneralError(err)
 	}
 
 	dataDict, ok := data.(*jsonutils.JSONDict)
 	if !ok {
+		logclient.AddActionLog(item, logclient.ACT_UPDATE, "Invalid data JSONObject", userCred, false)
 		return nil, httperrors.NewInternalServerError("Invalid data JSONObject")
 	}
 
@@ -970,22 +979,26 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 	if len(name) > 0 {
 		err = alterNameValidator(item, name)
 		if err != nil {
+			logclient.AddActionLog(item, logclient.ACT_UPDATE, err.Error(), userCred, false)
 			return nil, err
 		}
 	}
 
 	dataDict, err = item.ValidateUpdateData(ctx, userCred, query, dataDict)
 	if err != nil {
-		log.Errorf("validate update data error: %s", err)
+		errMsg := fmt.Sprintf("validate update data error: %s", err)
+		log.Errorf(errMsg)
+		logclient.AddActionLog(item, logclient.ACT_UPDATE, errMsg, userCred, false)
 		return nil, httperrors.NewGeneralError(err)
 	}
 	item.PreUpdate(ctx, userCred, query, dataDict)
-
 	diff, err := manager.TableSpec().Update(item, func() error {
 		filterData := dataDict.CopyIncludes(updateFields(manager, userCred)...)
 		err = filterData.Unmarshal(item)
 		if err != nil {
-			log.Errorf("unmarshal fail: %s", err)
+			errMsg := fmt.Sprintf("unmarshal fail: %s", err)
+			logclient.AddActionLog(item, logclient.ACT_UPDATE, errMsg, userCred, false)
+			log.Errorf(errMsg)
 			return httperrors.NewGeneralError(err)
 		}
 		return nil
@@ -999,7 +1012,10 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 		diffStr := sqlchemy.UpdateDiffString(diff)
 		if len(diffStr) > 0 {
 			OpsLog.LogEvent(item, ACT_UPDATE, diffStr, userCred)
+			logclient.AddActionLog(item, logclient.ACT_UPDATE, diffStr, userCred, true)
 		}
+	} else {
+		logclient.AddActionLog(item, logclient.ACT_UPDATE, "", userCred, true)
 	}
 	return getItemDetails(manager, item, ctx, userCred, query)
 }
@@ -1012,6 +1028,10 @@ func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, q
 			dispatcher.modelManager.Keyword(), idStr))
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
+	}
+
+	if !model.AllowUpdateItem(ctx, userCred) {
+		return nil, httperrors.NewForbiddenError(fmt.Sprintf("Not allow to update item"))
 	}
 
 	lockman.LockObject(ctx, model)
@@ -1027,10 +1047,13 @@ func DeleteModel(ctx context.Context, userCred mcclient.TokenCredential, item IM
 		return item.MarkDelete()
 	})
 	if err != nil {
-		log.Errorf("save update error %s", err)
+		msg := fmt.Sprintf("save update error %s", err)
+		log.Errorf(msg)
+		logclient.AddActionLog(item, logclient.ACT_DELETE, msg, userCred, false)
 		return httperrors.NewGeneralError(err)
 	}
 	OpsLog.LogEvent(item, ACT_DELETE, item.GetShortDesc(), userCred)
+	logclient.AddActionLog(item, logclient.ACT_DELETE, item.GetShortDesc(), userCred, true)
 	return nil
 }
 
@@ -1085,7 +1108,9 @@ func (dispatcher *DBModelDispatcher) Delete(ctx context.Context, idstr string, q
 		return nil, httperrors.NewGeneralError(err)
 	}
 	log.Debugf("Delete %s", model.GetShortDesc())
+
 	lockman.LockObject(ctx, model)
 	defer lockman.ReleaseObject(ctx, model)
+
 	return deleteItem(dispatcher.modelManager, model, ctx, userCred, query, data)
 }

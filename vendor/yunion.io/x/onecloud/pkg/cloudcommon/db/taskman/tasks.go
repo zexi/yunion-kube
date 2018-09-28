@@ -87,7 +87,7 @@ func (manager *STaskManager) FilterByName(q *sqlchemy.SQuery, name string) *sqlc
 	return q
 }
 
-func (manager *STaskManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
+func (manager *STaskManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
 	return q
 }
 
@@ -289,20 +289,21 @@ func (manager *STaskManager) execTask(taskId string, data jsonutils.JSONObject) 
 	}
 }
 
-func execITask(taskValue reflect.Value, task *STask, data jsonutils.JSONObject, isMulti bool) {
+func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject, isMulti bool) {
 	var err error
 	ctxData := task.GetRequestContext()
 	ctx := ctxData.GetContext()
 
 	taskFailed := false
 
+	data := odata
 	if data != nil {
 		taskStatus, _ := data.GetString("__status__")
 		if len(taskStatus) > 0 && taskStatus != "OK" {
 			taskFailed = true
 			data, err = data.Get("__reason__")
 			if err != nil {
-				data = jsonutils.NewString("Task failed due to unknown remote errors!")
+				data = jsonutils.NewString(fmt.Sprintf("Task failed due to unknown remote errors! %s", odata))
 			}
 		}
 	} else {
@@ -328,7 +329,13 @@ func execITask(taskValue reflect.Value, task *STask, data jsonutils.JSONObject, 
 
 		if !funcValue.IsValid() || funcValue.IsNil() {
 			msg := fmt.Sprintf("Stage %s not found", stageName)
-			log.Errorf(msg)
+			if taskFailed {
+				// failed handler is optional, ignore the error
+				log.Warningf(msg)
+				msg, _ = data.GetString()
+			} else {
+				log.Errorf(msg)
+			}
 			task.SetStageFailed(ctx, msg)
 			task.SaveRequestContext(&ctxData)
 			return
@@ -395,7 +402,7 @@ func execITask(taskValue reflect.Value, task *STask, data jsonutils.JSONObject, 
 
 	params[2] = reflect.ValueOf(data)
 
-	log.Debugf("Call %s: %s with %s", stageName, funcValue, params)
+	log.Debugf("Call %s %s: %s with %s", task.TaskName, stageName, funcValue, params)
 
 	funcValue.Call(params)
 

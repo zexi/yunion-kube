@@ -13,6 +13,7 @@ type ICloudProviderFactory interface {
 }
 
 type ICloudProvider interface {
+	GetSubAccounts() (jsonutils.JSONObject, error)
 	GetId() string
 	GetName() string
 	GetIRegions() []ICloudRegion
@@ -25,6 +26,8 @@ type ICloudProvider interface {
 	GetIVpcById(id string) (ICloudVpc, error)
 	GetIStorageById(id string) (ICloudStorage, error)
 	GetIStoragecacheById(id string) (ICloudStoragecache, error)
+
+	GetBalance() (float64, error)
 }
 
 var providerTable map[string]ICloudProviderFactory

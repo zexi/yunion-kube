@@ -31,7 +31,7 @@ type SVirtualResourceBase struct {
 
 	ProjectId string `name:"tenant_id" width:"128" charset:"ascii" nullable:"false" index:"true" list:"admin"`
 
-	IsSystem bool `nullable:"true" default:"false" list:"admin"`
+	IsSystem bool `nullable:"true" default:"false" list:"admin" create:"optional"`
 
 	PendingDeletedAt time.Time ``
 	PendingDeleted   bool      `nullable:"false" default:"false" index:"true" get:"admin"`
@@ -49,8 +49,8 @@ func (model *SVirtualResourceBase) GetOwnerProjectId() string {
 	return model.ProjectId
 }
 
-func (manager *SVirtualResourceBaseManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
-	q = q.Equals("tenant_id", ownerProjId)
+func (manager *SVirtualResourceBaseManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
+	q = q.Equals("tenant_id", owner)
 	q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("pending_deleted")), sqlchemy.IsFalse(q.Field("pending_deleted"))))
 	q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
 	return q
@@ -161,19 +161,27 @@ func (model *SVirtualResourceBase) AllowPerformMetadata(ctx context.Context, use
 }
 
 func (model *SVirtualResourceBase) GetTenantCache(ctx context.Context) (*STenant, error) {
-	log.Debugf("Get tenant by Id %s", model.ProjectId)
+	// log.Debugf("Get tenant by Id %s", model.ProjectId)
 	return TenantCacheManager.FetchTenantById(ctx, model.ProjectId)
 }
 
 func (model *SVirtualResourceBase) getMoreDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	if userCred.IsSystemAdmin() {
-		log.Debugf("GetCustomizeColumns")
+		// log.Debugf("GetCustomizeColumns")
 		tobj, err := model.GetTenantCache(ctx)
 		if err == nil {
-			log.Debugf("GetTenantFromCache %s", jsonutils.Marshal(tobj))
+			// log.Debugf("GetTenantFromCache %s", jsonutils.Marshal(tobj))
 			extra.Add(jsonutils.NewString(tobj.GetName()), "tenant")
 		} else {
 			log.Errorf("GetTenantCache fail %s", err)
+		}
+	}
+	admin, _ := query.GetString("admin")
+	if utils.ToBool(admin) { // admin
+		pendingDelete, _ := query.GetString("pending_delete")
+		pendingDeleteLower := strings.ToLower(pendingDelete)
+		if pendingDeleteLower == "all" || pendingDeleteLower == "any" {
+			extra.Set("pending_deleted", jsonutils.NewBool(model.PendingDeleted))
 		}
 	}
 	return extra
@@ -206,7 +214,7 @@ func (model *SVirtualResourceBase) PerformChangeOwner(ctx context.Context, userC
 	q = q.Equals("tenant_id", tobj.GetId())
 	q = q.NotEquals("id", model.GetId())
 	if q.Count() > 0 {
-		return nil, httperrors.NewConflictError(fmt.Sprintf("duplicate name %s", model.GetName()))
+		return nil, httperrors.NewDuplicateNameError("name", model.GetName())
 	}
 	former, _ := TenantCacheManager.FetchTenantById(ctx, model.ProjectId)
 	if former == nil {
@@ -282,8 +290,10 @@ func (model *SVirtualResourceBase) VirtualModelManager() IVirtualModelManager {
 
 func (model *SVirtualResourceBase) CancelPendingDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
 	ownerProjId := model.GetOwnerProjectId()
+
 	lockman.LockClass(ctx, model.GetModelManager(), ownerProjId)
 	defer lockman.ReleaseClass(ctx, model.GetModelManager(), ownerProjId)
+
 	_, err := model.GetModelManager().TableSpec().Update(model, func() error {
 		model.Name = GenerateName(model.GetModelManager(), ownerProjId, model.Name)
 		model.PendingDeleted = false

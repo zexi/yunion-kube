@@ -167,8 +167,11 @@ const (
 
 func (this *ArgumentParser) addStructArgument(tp reflect.Type, val reflect.Value) error {
 	for i := 0; i < tp.NumField(); i++ {
-		f := tp.Field(i)
 		v := val.Field(i)
+		if !v.CanSet() {
+			continue
+		}
+		f := tp.Field(i)
 		if f.Type.Kind() == reflect.Struct {
 			e := this.addStructArgument(f.Type, v)
 			if e != nil {
@@ -423,8 +426,32 @@ func (this *ArgumentParser) Options() interface{} {
 	return this.target
 }
 
+func (this *SingleArgument) valueIsBool() bool {
+	rv := this.value
+	if rv.Kind() == reflect.Bool {
+		return true
+	}
+
+	if rv.Kind() == reflect.Ptr && rv.Type().Elem().Kind() == reflect.Bool {
+		return true
+	}
+	return false
+}
+
+func (this *SingleArgument) defaultBoolValue() bool {
+	rv := this.defValue
+	if rv.Kind() == reflect.Bool {
+		return rv.Bool()
+	}
+
+	if rv.Kind() == reflect.Ptr && rv.Type().Elem().Kind() == reflect.Bool {
+		return rv.Elem().Bool()
+	}
+	panic("expecting bool or *bool type: got " + rv.Type().String())
+}
+
 func (this *SingleArgument) NeedData() bool {
-	if this.value.Kind() == reflect.Bool {
+	if this.valueIsBool() {
 		return false
 	} else {
 		return true
@@ -523,7 +550,18 @@ func (this *SingleArgument) InChoices(val string) bool {
 
 func (this *SingleArgument) SetValue(val string) error {
 	if !this.InChoices(val) {
-		return fmt.Errorf("Unknown argument %s for %s%s", val, this.token, this.MetaVar())
+		cands := FindSimilar(val, this.choices, -1, 0.5)
+		if len(cands) > 3 {
+			cands = cands[:3]
+		}
+		msg := fmt.Sprintf("Unknown argument '%s' for %s", val, this.token) //, this.MetaVar())
+		if len(cands) > 0 {
+			for i := 0; i < len(cands); i += 1 {
+				cands[i] = fmt.Sprintf("'%s'", cands[i])
+			}
+			msg = fmt.Sprintf("%s, did you mean %s?", msg, ChoicesString(cands))
+		}
+		return fmt.Errorf(msg)
 	}
 	e := gotypes.SetValue(this.value, val)
 	if e != nil {
@@ -539,12 +577,14 @@ func (this *SingleArgument) Reset() {
 }
 
 func (this *SingleArgument) DoAction() error {
-	if this.value.Type() == gotypes.BoolType {
+	if this.valueIsBool() {
+		var v bool
 		if this.useDefault {
-			this.value.SetBool(!this.defValue.Bool())
+			v = !this.defaultBoolValue()
 		} else {
-			this.value.SetBool(true)
+			v = true
 		}
+		gotypes.SetValue(this.value, fmt.Sprintf("%t", v))
 		this.isSet = true
 	}
 	return nil
@@ -787,10 +827,6 @@ func (this *ArgumentParser) reset() {
 	}
 }
 
-func unquote(str string) string {
-	return utils.Unquote(str)
-}
-
 func (this *ArgumentParser) ParseArgs(args []string, ignore_unknown bool) error {
 	var pos_idx int = 0
 	var arg Argument = nil
@@ -800,14 +836,13 @@ func (this *ArgumentParser) ParseArgs(args []string, ignore_unknown bool) error 
 	this.reset()
 
 	for i := 0; i < len(args) && err == nil; i++ {
-		argStr = unquote(args[i])
-		// log.Debugf("%s => %s", args[i], argStr)
+		argStr = args[i]
 		if strings.HasPrefix(argStr, "-") {
 			arg = this.findOptionalArgument(strings.TrimLeft(argStr, "-"))
 			if arg != nil {
 				if arg.NeedData() {
 					if i+1 < len(args) {
-						err = arg.SetValue(unquote(args[i+1]))
+						err = arg.SetValue(args[i+1])
 						if err != nil {
 							break
 						}
@@ -848,7 +883,7 @@ func (this *ArgumentParser) ParseArgs(args []string, ignore_unknown bool) error 
 					break
 				}
 				if arg.IsSubcommand() {
-					var subarg *SubcommandArgument = arg.(*SubcommandArgument)
+					subarg := arg.(*SubcommandArgument)
 					var subparser = subarg.GetSubParser()
 					err = subparser.ParseArgs(args[i+1:], ignore_unknown)
 					break
