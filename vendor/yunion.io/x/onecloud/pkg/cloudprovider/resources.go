@@ -18,6 +18,12 @@ type ICloudResource interface {
 	Refresh() error
 
 	IsEmulated() bool
+	GetMetadata() *jsonutils.JSONDict
+}
+
+type IBillingResource interface {
+	GetBillingType() string
+	GetExpiredAt() time.Time
 }
 
 type ICloudRegion interface {
@@ -28,7 +34,10 @@ type ICloudRegion interface {
 
 	GetIZones() ([]ICloudZone, error)
 	GetIVpcs() ([]ICloudVpc, error)
+	GetIEips() ([]ICloudEIP, error)
+	GetISnapshots() ([]ICloudSnapshot, error)
 
+	GetISnapshotById(snapshotId string) (ICloudSnapshot, error)
 	GetIZoneById(id string) (ICloudZone, error)
 	GetIVpcById(id string) (ICloudVpc, error)
 	GetIHostById(id string) (ICloudHost, error)
@@ -36,6 +45,10 @@ type ICloudRegion interface {
 	GetIStoragecacheById(id string) (ICloudStoragecache, error)
 
 	CreateIVpc(name string, desc string, cidr string) (ICloudVpc, error)
+
+	CreateEIP(name string, bwMbps int, chargeType string) (ICloudEIP, error)
+
+	GetIEipById(id string) (ICloudEIP, error)
 
 	GetProvider() string
 }
@@ -55,6 +68,7 @@ type ICloudZone interface {
 type ICloudImage interface {
 	ICloudResource
 
+	Delete() error
 	GetIStoragecache() ICloudStoragecache
 }
 
@@ -65,7 +79,11 @@ type ICloudStoragecache interface {
 
 	GetManagerId() string
 
-	UploadImage(userCred mcclient.TokenCredential, imageId string, extId string, isForce bool) (string, error)
+	CreateIImage(snapshotId, imageName, osType, imageDesc string) (ICloudImage, error)
+
+	DownloadImage(userCred mcclient.TokenCredential, imageId string, extId string) (jsonutils.JSONObject, error)
+
+	UploadImage(userCred mcclient.TokenCredential, imageId string, osArch, osType, osDist string, extId string, isForce bool) (string, error)
 }
 
 type ICloudStorage interface {
@@ -117,11 +135,12 @@ type ICloudHost interface {
 	GetManagerId() string
 
 	CreateVM(name string, imgId string, sysDiskSize int, cpu int, memMB int, vswitchId string, ipAddr string, desc string,
-		passwd string, storageType string, diskSizes []int, publicKey string) (ICloudVM, error)
+		passwd string, storageType string, diskSizes []int, publicKey string, extSecGrpId string) (ICloudVM, error)
 }
 
 type ICloudVM interface {
 	ICloudResource
+	IBillingResource
 
 	GetCreateTime() time.Time
 	GetIHost() ICloudHost
@@ -129,7 +148,7 @@ type ICloudVM interface {
 	GetIDisks() ([]ICloudDisk, error)
 	GetINics() ([]ICloudNic, error)
 
-	GetEIP() ICloudEIP
+	GetIEIP() (ICloudEIP, error)
 
 	// GetStatus() string
 	// GetRemoteStatus() string
@@ -154,11 +173,15 @@ type ICloudVM interface {
 	DeleteVM() error
 
 	UpdateVM(name string) error
-	RebuildRoot(imageId string) error
-	DeployVM(resetPassword bool, keypair string, deleteKeypair bool) error
-	ChangeConfig(instanceId string,ncpu int, vmem int) error
+
+	RebuildRoot(imageId string, passwd string, publicKey string, sysSizeGB int) (string, error)
+
+	DeployVM(name string, password string, publicKey string, deleteKeypair bool, description string) error
+
+	ChangeConfig(instanceId string, ncpu int, vmem int) error
 	GetVNCInfo() (jsonutils.JSONObject, error)
 	AttachDisk(diskId string) error
+	DetachDisk(diskId string) error
 }
 
 type ICloudNic interface {
@@ -169,9 +192,25 @@ type ICloudNic interface {
 }
 
 type ICloudEIP interface {
-	GetIP() string
-	GetAllocationId() string
-	GetChargeType() string
+	ICloudResource
+
+	GetIpAddr() string
+	GetMode() string
+	GetAssociationType() string
+	GetAssociationExternalId() string
+
+	GetBandwidth() int
+
+	GetInternetChargeType() string
+
+	GetManagerId() string
+
+	Delete() error
+
+	Associate(instanceId string) error
+	Dissociate() error
+
+	ChangeBandwidth(bw int) error
 }
 
 type ICloudSecurityGroup interface {
@@ -182,6 +221,7 @@ type ICloudSecurityGroup interface {
 
 type ICloudDisk interface {
 	ICloudResource
+	IBillingResource
 
 	GetIStorge() ICloudStorage
 
@@ -199,7 +239,21 @@ type ICloudDisk interface {
 	GetMountpoint() string
 	Delete() error
 
+	CreateISnapshot(name string, desc string) (ICloudSnapshot, error)
+	GetISnapshot(idStr string) (ICloudSnapshot, error)
+	GetISnapshots() ([]ICloudSnapshot, error)
+
 	Resize(newSize int64) error
+	Reset(snapshotId string) error
+}
+
+type ICloudSnapshot interface {
+	ICloudResource
+	GetManagerId() string
+	GetSize() int32
+	GetDiskId() string
+	Delete() error
+	GetRegionId() string
 }
 
 type ICloudVpc interface {
@@ -217,6 +271,8 @@ type ICloudVpc interface {
 	Delete() error
 
 	GetIWireById(wireId string) (ICloudWire, error)
+
+	SyncSecurityGroup(secgroupId string, name string, rules []secrules.SecurityRule) (string, error)
 }
 
 type ICloudWire interface {
@@ -244,4 +300,6 @@ type ICloudNetwork interface {
 	GetIsPublic() bool
 
 	Delete() error
+
+	GetAllocTimeoutSeconds() int
 }

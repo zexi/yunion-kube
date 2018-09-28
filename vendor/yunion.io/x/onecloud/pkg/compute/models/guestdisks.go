@@ -78,6 +78,7 @@ func (self *SGuestdisk) getExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSOND
 	disk := self.GetDisk()
 	extra.Add(jsonutils.NewInt(int64(disk.DiskSize)), "disk_size")
 	extra.Add(jsonutils.NewString(disk.Status), "status")
+	extra.Add(jsonutils.NewString(disk.DiskType), "disk_type")
 	return extra
 }
 
@@ -136,7 +137,8 @@ func (self *SGuestdisk) GetJsonDescAtHost(host *SHost) jsonutils.JSONObject {
 			desc.Add(jsonutils.NewString(storagecacheimg.Path), "image_path")
 		}
 	}
-	if host.HostType == HOST_TYPE_HYPERVISOR && disk.IsLocal() {
+	storage := disk.GetStorage()
+	if host.HostType == HOST_TYPE_HYPERVISOR && disk.IsLocal() || (storage != nil && storage.StorageType == STORAGE_RBD) {
 		desc.Add(jsonutils.NewString(disk.StorageId), "storage_id")
 		localpath := disk.GetPathAtHost(host)
 		if len(localpath) == 0 {
@@ -209,4 +211,15 @@ func (self *SGuestdisk) Delete(ctx context.Context, userCred mcclient.TokenCrede
 
 func (self *SGuestdisk) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {
 	return db.DetachJoint(ctx, userCred, self)
+}
+
+func (self *SGuestdisk) ToDiskInfo() DiskInfo {
+	disk := self.GetDisk()
+	if disk == nil {
+		return DiskInfo{}
+	}
+	info := disk.ToDiskInfo()
+	info.Driver = self.Driver
+	info.Cache = self.CacheMode
+	return info
 }

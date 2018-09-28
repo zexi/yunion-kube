@@ -27,10 +27,9 @@ import (
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/pkg/util/wait"
 	yutils "yunion.io/x/pkg/utils"
-	"yunion.io/x/sqlchemy"
-	ykecluster "yunion.io/yke/pkg/cluster"
-	ykek8s "yunion.io/yke/pkg/k8s"
-	yketypes "yunion.io/yke/pkg/types"
+	ykecluster "yunion.io/x/yke/pkg/cluster"
+	ykek8s "yunion.io/x/yke/pkg/k8s"
+	yketypes "yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
@@ -256,7 +255,7 @@ func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*S
 
 func (m *SClusterManager) GetInternalClusters() ([]SCluster, error) {
 	q := ClusterManager.Query()
-	q = q.Filter(sqlchemy.Equals(q.Field("mode"), CLUSTER_MODE_INTERNAL))
+	q = q.Equals("mode", CLUSTER_MODE_INTERNAL)
 
 	ret := []SCluster{}
 	err := q.All(&ret)

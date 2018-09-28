@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/util/reflectutils"
 	"yunion.io/x/pkg/utils"
 )
@@ -20,7 +21,6 @@ func (ts *STableSpec) prepareUpdate(dt interface{}) (*SUpdateSession, error) {
 	if reflect.ValueOf(dt).Kind() != reflect.Ptr {
 		return nil, fmt.Errorf("Update input must be a Pointer")
 	}
-	dataType := reflect.TypeOf(dt).Elem()
 	dataValue := reflect.ValueOf(dt).Elem()
 	fields := reflectutils.FetchStructFieldNameValueInterfaces(dataValue) //  fetchStructFieldNameValue(dataType, dataValue)
 
@@ -28,7 +28,10 @@ func (ts *STableSpec) prepareUpdate(dt interface{}) (*SUpdateSession, error) {
 	zeroKeyIndex := make([]string, 0)
 	for _, c := range ts.columns {
 		k := c.Name()
-		ov := fields[k]
+		ov, ok := fields[k]
+		if !ok {
+			continue
+		}
 		if c.IsPrimary() && c.IsZero(ov) {
 			zeroPrimary = append(zeroPrimary, k)
 		} else if c.IsKeyIndex() && c.IsZero(ov) {
@@ -41,8 +44,7 @@ func (ts *STableSpec) prepareUpdate(dt interface{}) (*SUpdateSession, error) {
 			strings.Join(zeroPrimary, ","), strings.Join(zeroKeyIndex, ","))
 	}
 
-	originValue := reflect.Indirect(reflect.New(dataType))
-	originValue.Set(dataValue)
+	originValue := gotypes.DeepCopyRv(dataValue)
 	us := SUpdateSession{oValue: originValue, tableSpec: ts}
 	return &us, nil
 }
@@ -81,7 +83,10 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 	setters := make(map[string]SUpdateDiff)
 	for _, c := range us.tableSpec.columns {
 		k := c.Name()
-		of := ofields[k]
+		of, ok := ofields[k]
+		if !ok {
+			continue
+		}
 		nf := fields[k]
 		if c.IsPrimary() && !c.IsZero(of) { // skip update primary key
 			primaries[k] = of
@@ -127,7 +132,7 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 		buf.WriteString(fmt.Sprintf(", `%s` = `%s` + 1", versionField, versionField))
 	}
 	for _, updatedField := range updatedFields {
-		buf.WriteString(fmt.Sprintf(", `%s` = NOW()", updatedField))
+		buf.WriteString(fmt.Sprintf(", `%s` = UTC_TIMESTAMP()", updatedField))
 	}
 	buf.WriteString(" WHERE ")
 	first = true

@@ -75,10 +75,13 @@ func NewJSONClientError(err error) *httputils.JSONClientError {
 	log.Errorf("Handle error: %#v", err)
 	statusCode := http.StatusInternalServerError
 	statusError, ok := err.(*errors.StatusError)
+	var title string
+	var msg string
 	if ok && statusError.Status().Code > 0 {
 		statusCode = int(statusError.Status().Code)
+		title = statusError.Status().Kind
 	}
-	return httperrors.NewJsonClientError(statusCode, "", err.Error())
+	return httperrors.NewJsonClientError(statusCode, title, msg, httputils.Error{})
 }
 
 func GeneralServerError(w http.ResponseWriter, err error) {

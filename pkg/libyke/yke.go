@@ -5,12 +5,11 @@ import (
 
 	dtypes "github.com/docker/docker/api/types"
 
-	"yunion.io/yke/pkg/cluster"
-	"yunion.io/yke/pkg/hosts"
-	"yunion.io/yke/pkg/k8s"
-	"yunion.io/yke/pkg/pki"
-	"yunion.io/yke/pkg/tunnel"
-	"yunion.io/yke/pkg/types"
+	"yunion.io/x/yke/pkg/cluster"
+	"yunion.io/x/yke/pkg/hosts"
+	"yunion.io/x/yke/pkg/k8s"
+	"yunion.io/x/yke/pkg/pki"
+	"yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 	"yunion.io/x/yunion-kube/pkg/utils/convert"
@@ -35,7 +34,7 @@ func (*yke) RegenerateEtcdCertificate(crtMap map[string]pki.CertificatePKI, etcd
 		cluster.KubernetesServiceIP)
 }
 
-func (*yke) ParseCluster(clusterName string, config *types.KubernetesEngineConfig, dockerDialerFactory, localConnDialerFactory tunnel.DialerFactory, k8sWrapTransport k8s.WrapTransport) (*cluster.Cluster, error) {
+func (*yke) ParseCluster(clusterName string, config *types.KubernetesEngineConfig, dockerDialerFactory, localConnDialerFactory hosts.DialerFactory, k8sWrapTransport k8s.WrapTransport) (*cluster.Cluster, error) {
 	clusterFilePath := clusterName + "-cluster.yaml"
 	if clusterName == "local" {
 		clusterFilePath = ""
@@ -47,7 +46,7 @@ func (*yke) ParseCluster(clusterName string, config *types.KubernetesEngineConfi
 }
 
 func (*yke) GeneratePlan(ctx context.Context, config *types.KubernetesEngineConfig, dockerInfo map[string]dtypes.Info) (types.Plan, error) {
-	return cluster.GeneratePlan(ctx, config)
+	return cluster.GeneratePlan(ctx, config, dockerInfo)
 }
 
 func GetDockerInfo(node *apis.Node) (map[string]dtypes.Info, error) {

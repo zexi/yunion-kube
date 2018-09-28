@@ -5,7 +5,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"yunion.io/yke/pkg/types"
+	"yunion.io/x/yke/pkg/types"
 )
 
 func ConvertToYkeConfig(config string) (*types.KubernetesEngineConfig, error) {

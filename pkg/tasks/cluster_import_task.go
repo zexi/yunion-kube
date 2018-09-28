@@ -10,7 +10,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	ykecluster "yunion.io/yke/pkg/cluster"
+	ykecluster "yunion.io/x/yke/pkg/cluster"
 
 	"yunion.io/x/yunion-kube/pkg/models"
 )

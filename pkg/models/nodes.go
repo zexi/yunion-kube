@@ -18,8 +18,8 @@ import (
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/util/sets"
 	"yunion.io/x/sqlchemy"
-	ykehosts "yunion.io/yke/pkg/hosts"
-	yketypes "yunion.io/yke/pkg/types"
+	ykehosts "yunion.io/x/yke/pkg/hosts"
+	yketypes "yunion.io/x/yke/pkg/types"
 
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/x/yunion-kube/pkg/types/apis"

@@ -16,6 +16,22 @@ type SFilterClause struct {
 	params   []string
 }
 
+// "guestnetworks.guest_id(id).ip_addr.equals(10.168.222.232)"
+type SJointFilterClause struct {
+	SFilterClause
+	JointModel string
+	RelatedKey string
+	OriginKey  string
+}
+
+func (jfc *SJointFilterClause) GetJointFilter(q *sqlchemy.SQuery) sqlchemy.ICondition {
+	return jfc.QueryCondition(q)
+}
+
+func (jfc *SJointFilterClause) GetJointModelName() string {
+	return jfc.JointModel[:len(jfc.JointModel)-1]
+}
+
 func (fc *SFilterClause) QueryCondition(q *sqlchemy.SQuery) sqlchemy.ICondition {
 	field := q.Field(fc.field)
 	if field == nil {
@@ -29,6 +45,14 @@ func (fc *SFilterClause) QueryCondition(q *sqlchemy.SQuery) sqlchemy.ICondition 
 		return sqlchemy.NotIn(field, fc.params)
 	case "between":
 		return sqlchemy.Between(field, fc.params[0], fc.params[1])
+	case "ge":
+		return sqlchemy.GE(field, fc.params[0])
+	case "gt":
+		return sqlchemy.GT(field, fc.params[0])
+	case "le":
+		return sqlchemy.LE(field, fc.params[0])
+	case "lt":
+		return sqlchemy.LT(field, fc.params[0])
 	case "like":
 		return sqlchemy.Like(field, fc.params[0])
 	case "contains":
@@ -63,11 +87,13 @@ func (fc *SFilterClause) String() string {
 }
 
 var (
-	filterClausePattern *regexp.Regexp
+	filterClausePattern      *regexp.Regexp
+	jointFilterClausePattern *regexp.Regexp
 )
 
 func init() {
 	filterClausePattern = regexp.MustCompile(`^(\w+)\.(\w+)\((.*)\)`)
+	jointFilterClausePattern = regexp.MustCompile(`^(\w+)\.(\w+)\((\w+)\).(\w+)\.(\w+)\((.*)\)`)
 }
 
 func ParseFilterClause(filter string) *SFilterClause {
@@ -78,4 +104,23 @@ func ParseFilterClause(filter string) *SFilterClause {
 	params := utils.FindWords([]byte(matches[3]), 0)
 	fc := SFilterClause{field: matches[1], funcName: matches[2], params: params}
 	return &fc
+}
+
+func ParseJointFilterClause(jointFilter string) *SJointFilterClause {
+	matches := jointFilterClausePattern.FindStringSubmatch(jointFilter)
+	if matches == nil {
+		return nil
+	}
+	params := utils.FindWords([]byte(matches[6]), 0)
+	jfc := SJointFilterClause{
+		SFilterClause: SFilterClause{
+			field:    matches[4],
+			funcName: matches[5],
+			params:   params,
+		},
+		JointModel: matches[1],
+		RelatedKey: matches[2],
+		OriginKey:  matches[3],
+	}
+	return &jfc
 }

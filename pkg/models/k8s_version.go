@@ -4,30 +4,28 @@ import (
 	"fmt"
 
 	"yunion.io/x/pkg/util/sets"
-
-	yketypes "yunion.io/yke/pkg/types"
 )
 
 const (
-	K8S_V1_8_10         = "v1.8.10"
-	K8S_V1_9_5          = "v1.9.5"
-	K8S_V1_10_0         = "v1.10.0"
-	DEFAULT_K8S_VERSION = K8S_V1_10_0
+	K8S_V1_10_5         = "v1.10.5"
+	K8S_V1_11_2         = "v1.11.2"
+	DEFAULT_K8S_VERSION = K8S_V1_10_5
+
+	YKE_K8S_V1_10_5 = "v1.10.5-rancher1-2"
+	YKE_K8S_V1_11_2 = "v1.11.2-rancher1-1"
 )
 
 var (
-	SupportVersions = sets.NewString(K8S_V1_8_10, K8S_V1_9_5, K8S_V1_10_0)
+	SupportVersions = sets.NewString(K8S_V1_10_5, K8S_V1_11_2)
 
 	K8sYKEVersionMap = ykeVersionMap{
-		K8S_V1_8_10: yketypes.K8sV18,
-		K8S_V1_9_5:  yketypes.K8sV19,
-		K8S_V1_10_0: yketypes.K8sV110,
+		K8S_V1_10_5: YKE_K8S_V1_10_5,
+		K8S_V1_11_2: YKE_K8S_V1_11_2,
 	}
 
 	YKEK8sVersionMap = map[string]string{
-		yketypes.K8sV18:  K8S_V1_8_10,
-		yketypes.K8sV19:  K8S_V1_9_5,
-		yketypes.K8sV110: K8S_V1_10_0,
+		YKE_K8S_V1_10_5: K8S_V1_10_5,
+		YKE_K8S_V1_11_2: K8S_V1_11_2,
 	}
 )
 

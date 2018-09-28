@@ -7,14 +7,15 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/util/compare"
+	"yunion.io/x/pkg/util/netutils"
+	"yunion.io/x/sqlchemy"
+
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/cloudprovider"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/util/compare"
-	"yunion.io/x/pkg/util/netutils"
-	"yunion.io/x/sqlchemy"
 )
 
 const (
@@ -123,7 +124,12 @@ func (self *SVpc) getMoreDetails(extra *jsonutils.JSONDict) *jsonutils.JSONDict 
 	extra.Add(jsonutils.NewInt(int64(self.GetWireCount())), "wire_count")
 	extra.Add(jsonutils.NewInt(int64(self.GetNetworkCount())), "network_count")
 	region := self.GetRegion()
-	extra.Add(jsonutils.NewString(region.GetName()), "region")
+	if region != nil {
+		extra.Add(jsonutils.NewString(region.GetName()), "region")
+		if len(region.GetExternalId()) > 0 {
+			extra.Add(jsonutils.NewString(region.GetExternalId()), "region_external_id")
+		}
+	}
 	return extra
 }
 

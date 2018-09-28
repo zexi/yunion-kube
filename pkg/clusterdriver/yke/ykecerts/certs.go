@@ -9,7 +9,7 @@ import (
 
 	"k8s.io/client-go/util/cert"
 
-	"yunion.io/yke/pkg/pki"
+	"yunion.io/x/yke/pkg/pki"
 )
 
 type savedCertificatePKI struct {

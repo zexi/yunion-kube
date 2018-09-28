@@ -16,13 +16,12 @@ import (
 	"k8s.io/client-go/rest"
 
 	"yunion.io/x/log"
-	"yunion.io/yke/cmd"
-	"yunion.io/yke/pkg/hosts"
-	"yunion.io/yke/pkg/k8s"
-	"yunion.io/yke/pkg/pki"
-	"yunion.io/yke/pkg/services"
-	"yunion.io/yke/pkg/tunnel"
-	yketypes "yunion.io/yke/pkg/types"
+	"yunion.io/x/yke/cmd"
+	"yunion.io/x/yke/pkg/hosts"
+	"yunion.io/x/yke/pkg/k8s"
+	"yunion.io/x/yke/pkg/pki"
+	"yunion.io/x/yke/pkg/services"
+	yketypes "yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke/ykecerts"
@@ -42,8 +41,8 @@ func NewDriver() types.Driver {
 type WrapTransportFactory func(config *yketypes.KubernetesEngineConfig) k8s.WrapTransport
 
 type Driver struct {
-	DockerDialer         tunnel.DialerFactory
-	LocalDialer          tunnel.DialerFactory
+	DockerDialer         hosts.DialerFactory
+	LocalDialer          hosts.DialerFactory
 	WrapTransportFactory WrapTransportFactory
 }
 
@@ -275,7 +274,7 @@ func (d *Driver) RemoveNode(ctx context.Context, opts *types.DriverOptions) erro
 	if err != nil {
 		return err
 	}
-	err = host.TunnelUp(ctx, d.DockerDialer)
+	err = host.TunnelUp(ctx, d.DockerDialer, "")
 	if err != nil {
 		return fmt.Errorf("Tunnel host: %v", err)
 	}
@@ -317,7 +316,7 @@ func kubeConfig(stateDir string) string {
 func clusterUp(
 	ctx context.Context,
 	ykeConfig *yketypes.KubernetesEngineConfig,
-	dockerDialerFactory, localConnDialerFactory tunnel.DialerFactory,
+	dockerDialerFactory, localConnDialerFactory hosts.DialerFactory,
 	k8sWrapTransport k8s.WrapTransport,
 	local bool, configDir string, updateOnly, disablePortCheck bool) (string, string, string, string, map[string]pki.CertificatePKI, error) {
 	log.Errorf("=====clusterup configDir: %q", configDir)

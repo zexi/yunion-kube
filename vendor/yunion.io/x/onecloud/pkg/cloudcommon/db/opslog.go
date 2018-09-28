@@ -10,6 +10,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/logclient"
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/sqlchemy"
 )
@@ -58,6 +59,9 @@ const (
 	ACT_SNAPSHOT_DELETE      = "snapshot_del"
 	ACT_SNAPSHOT_DELETE_FAIL = "snapshot_del_fail"
 	ACT_SNAPSHOT_UNLINK      = "snapshot_unlink"
+
+	ACT_DISK_CLEAN_UP_SNAPSHOTS      = "disk_clean_up_snapshots"
+	ACT_DISK_CLEAN_UP_SNAPSHOTS_FAIL = "disk_clean_up_snapshots_fail"
 
 	ACT_ALLOCATING    = "allocating"
 	ACT_ALLOCATE      = "allocate"
@@ -113,6 +117,9 @@ const (
 	ACT_UNCACHE_IMAGE_FAIL = "uncache_image_fail"
 	ACT_UNCACHED_IMAGE     = "uncached_image"
 
+	ACT_SYNC_CLOUD_DISK   = "sync_cloud_disk"
+	ACT_SYNC_CLOUD_SERVER = "sync_cloud_server"
+
 	ACT_SPLIT = "net_split"
 
 	ACT_PENDING_DELETE = "pending_delete"
@@ -129,6 +136,8 @@ const (
 	ACT_GUEST_ATTACH_ISOLATED_DEVICE_FAIL = "guest_attach_isolated_deivce_fail"
 	ACT_GUEST_DETACH_ISOLATED_DEVICE      = "guest_detach_isolated_deivce"
 	ACT_GUEST_DETACH_ISOLATED_DEVICE_FAIL = "guest_detach_isolated_deivce_fail"
+
+	ACT_CHANGE_BANDWIDTH = "eip_change_bandwidth"
 )
 
 type SOpsLogManager struct {
@@ -302,6 +311,7 @@ func (manager *SOpsLogManager) SyncOwner(m IModel, former *STenant, userCred mcc
 	notes.Add(jsonutils.NewString(former.GetId()), "former_project_id")
 	notes.Add(jsonutils.NewString(former.GetName()), "form_project")
 	manager.LogEvent(m, ACT_CHANGE_OWNER, notes, userCred)
+	logclient.AddActionLog(m, logclient.ACT_CHANGE_OWNER, nil, userCred, true)
 }
 
 func (manager *SOpsLogManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -342,9 +352,9 @@ func (self *SOpsLogManager) FilterByName(q *sqlchemy.SQuery, name string) *sqlch
 	return q
 }
 
-func (self *SOpsLogManager) FilterByOwner(q *sqlchemy.SQuery, ownerProjId string) *sqlchemy.SQuery {
-	if len(ownerProjId) > 0 {
-		return q.Equals("owner_project_id", ownerProjId)
+func (self *SOpsLogManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
+	if len(owner) > 0 {
+		return q.Equals("owner_project_id", owner)
 	} else {
 		return q
 	}
