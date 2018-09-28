@@ -51,10 +51,12 @@ func initCloudApp() *appsrv.Application {
 	app := cloudcommon.InitApp(&options.Options.Options)
 	InitHandlers(app)
 
-	cloudcommon.InitAuth(&options.Options.Options, func() {
-		log.Infof("Auth complete, start controllers.")
-		controllers.Start()
-	})
+	go func() {
+		cloudcommon.InitAuth(&options.Options.Options, func() {
+			log.Infof("Auth complete, start controllers.")
+			controllers.Start()
+		})
+	}()
 
 	return app
 }
