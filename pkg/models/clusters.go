@@ -1033,8 +1033,8 @@ func getClusterYkeImportInfo(ykeConf *yketypes.KubernetesEngineConfig, kubeConf 
 	imageVersion := strings.Split(k8sImage, ":")[1]
 	version, ok := YKEK8sVersionMap[imageVersion]
 	if !ok {
-		err = fmt.Errorf("Not support k8s version: %q", imageVersion)
-		return
+		version = DEFAULT_K8S_VERSION
+		log.Warningf("Not found support k8s image version: %q, use: %q", imageVersion, version)
 	}
 	cidr := ykeConf.Services.KubeAPI.ServiceClusterIPRange
 	if cidr == "" {
