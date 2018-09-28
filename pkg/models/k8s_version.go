@@ -9,7 +9,7 @@ import (
 const (
 	K8S_V1_10_5         = "v1.10.5"
 	K8S_V1_11_2         = "v1.11.2"
-	DEFAULT_K8S_VERSION = K8S_V1_10_5
+	DEFAULT_K8S_VERSION = K8S_V1_11_2
 
 	YKE_K8S_V1_10_5 = "v1.10.5-rancher1-2"
 	YKE_K8S_V1_11_2 = "v1.11.2-rancher1-1"
