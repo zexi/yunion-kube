@@ -113,6 +113,10 @@ func (t *ClusterDeleteNodesTask) doDelete(ctx context.Context, cluster *models.S
 		if err != nil {
 			return err
 		}
+		err = removeNodeFromContainerSchedtag(node)
+		if err != nil {
+			log.Warningf("Remove node %s from container schedtag error: %v", node.Name, err)
+		}
 	}
 
 	for _, node := range nodes {
@@ -147,4 +151,13 @@ func removeCloudContainers(node *models.SNode) error {
 	params.Add(jsonutils.JSONTrue, "override_pending_delete")
 	cloudmod.Servers.BatchDeleteWithParam(session, srvIds, params, nil)
 	return nil
+}
+
+func removeNodeFromContainerSchedtag(node *models.SNode) error {
+	session, err := models.GetAdminSession()
+	if err != nil {
+		return err
+	}
+	_, err = cloudmod.Schedtaghosts.Detach(session, CONTAINER_SCHED_TAG, node.Name)
+	return err
 }
