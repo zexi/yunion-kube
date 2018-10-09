@@ -5,13 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/client-go/kubernetes"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/util/wait"
-	"k8s.io/apiserver/pkg/authentication/user"
-	"k8s.io/client-go/kubernetes"
 
 	o "yunion.io/x/yunion-kube/pkg/options"
 )
@@ -28,7 +29,7 @@ type KeystoneAuthenticator struct {
 }
 
 // NewKeystoneAuthenticator returns a password authenticator that validates credentials using keystone
-func NewKeystoneAuthenticator(k8sCli kubernetes.Interface) (*KeystoneAuthenticator, error) {
+func NewKeystoneAuthenticator(k8sCli kubernetes.Interface, stopCh chan struct{}) (*KeystoneAuthenticator, error) {
 	k := &KeystoneAuthenticator{
 		roleAssignmentsLock: new(sync.Mutex),
 	}
@@ -40,14 +41,14 @@ func NewKeystoneAuthenticator(k8sCli kubernetes.Interface) (*KeystoneAuthenticat
 	reconciler := NewReconciler(k, k8sCli)
 	k.reconciler = reconciler
 
-	go wait.Forever(func() {
+	go wait.Until(func() {
 		err := k.ResetRoleAssignments()
 		if err != nil {
 			log.Errorf("ResetRoleAssignments error: %v", err)
 			return
 		}
 		log.Infof("ResetRoleAssignments success.")
-	}, roleAssignmentsResetPeriod)
+	}, roleAssignmentsResetPeriod, stopCh)
 	return k, nil
 }
 

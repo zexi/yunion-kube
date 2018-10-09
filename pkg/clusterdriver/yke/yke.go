@@ -20,7 +20,6 @@ import (
 	"yunion.io/x/yke/pkg/hosts"
 	"yunion.io/x/yke/pkg/k8s"
 	"yunion.io/x/yke/pkg/pki"
-	"yunion.io/x/yke/pkg/services"
 	yketypes "yunion.io/x/yke/pkg/types"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/types"
@@ -266,26 +265,6 @@ func getHost(driverOptions *types.DriverOptions) (*hosts.Host, error) {
 		return nil, err
 	}
 	return &host, nil
-}
-
-// RemoveNode from the cluster
-func (d *Driver) RemoveNode(ctx context.Context, opts *types.DriverOptions) error {
-	host, err := getHost(opts)
-	if err != nil {
-		return err
-	}
-	err = host.TunnelUp(ctx, d.DockerDialer, "")
-	if err != nil {
-		return fmt.Errorf("Tunnel host: %v", err)
-	}
-
-	if host.IsWorker {
-		err = services.RemoveWorkerPlane(ctx, []*hosts.Host{host}, true)
-		if err != nil {
-			return fmt.Errorf("Remove worker components: %v", err)
-		}
-	}
-	return host.CleanUpAll(ctx, "alpine:latest", nil, false)
 }
 
 func (d *Driver) restore(info *types.ClusterInfo) (string, error) {

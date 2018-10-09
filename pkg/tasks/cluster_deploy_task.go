@@ -10,6 +10,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
+	"yunion.io/x/yunion-kube/pkg/controllers"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
 
@@ -26,7 +27,6 @@ func (t *ClusterDeployTask) getPendingDeployNodes() ([]*models.SNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("==============Get nodeIds: %v", nodeIds)
 	ret := make([]*models.SNode, len(nodeIds))
 	for i, idObj := range nodeIds {
 		id, _ := idObj.GetString()
@@ -68,16 +68,22 @@ func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IS
 }
 
 func (t *ClusterDeployTask) OnWaitNodesAgentStartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	log.Errorf("============callback failed: %s", data)
 	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnWaitNodesAgentStart: %s", data))
 }
 
 func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) {
-	err := cluster.Deploy(ctx, nodes...)
+	postDeployFunc := func() {
+		err := controllers.Manager.AddController(cluster)
+		if err != nil {
+			log.Errorf("Start controller of cluster %q error: %v", cluster.Name, err)
+		}
+	}
+	err := cluster.Deploy(ctx, postDeployFunc, nodes...)
 	if err != nil {
 		log.Errorf("Deploy error: %v", err)
 		t.SetFailed(ctx, cluster, fmt.Errorf("deploy error: %v", err))
 		return
 	}
+
 	t.SetStageComplete(ctx, nil)
 }
