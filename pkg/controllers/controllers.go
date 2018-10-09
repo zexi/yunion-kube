@@ -25,6 +25,10 @@ func Start() {
 		log.Errorf("Get internal clusters: %v", err)
 	}
 	for _, cluster := range clusters {
+		if cluster.ApiEndpoint == "" || cluster.Status == models.CLUSTER_STATUS_INIT {
+			log.Warningf("Empty cluster %q, skip it", cluster.Name)
+			continue
+		}
 		err = Manager.AddController(&cluster)
 		if err != nil {
 			log.Errorf("Add cluster %q to manager error: %v", cluster.Name, err)
@@ -66,17 +70,29 @@ func (m *SControllerManager) AddController(cluster *models.SCluster) error {
 	return nil
 }
 
+func (m *SControllerManager) RemoveController(cluster *models.SCluster) error {
+	controller, err := m.GetController(cluster.Id)
+	if err != nil {
+		return fmt.Errorf("Not found controller by id: %q, cluster name: %q", cluster.Id, cluster.Name)
+	}
+	close(controller.stopCh)
+	delete(m.controllerMap, cluster.Id)
+	return nil
+}
+
 type SClusterController struct {
 	clusterId             string
 	clusterName           string
 	keystoneAuthenticator *auth.KeystoneAuthenticator
 	syncController        *synccontroller.SyncController
+	stopCh                chan struct{}
 }
 
 func newClusterController(cluster *models.SCluster) (*SClusterController, error) {
 	ctrl := &SClusterController{
 		clusterId:   cluster.Id,
 		clusterName: cluster.Name,
+		stopCh:      make(chan struct{}),
 	}
 
 	k8sCli, err := cluster.GetK8sClient()
@@ -84,20 +100,20 @@ func newClusterController(cluster *models.SCluster) (*SClusterController, error)
 		return nil, err
 	}
 
-	err = ctrl.RunKeystoneAuthenticator(k8sCli)
+	err = ctrl.RunKeystoneAuthenticator(k8sCli, ctrl.stopCh)
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
-		ctrl.RunSyncController(k8sCli)
+		ctrl.RunSyncController(k8sCli, ctrl.stopCh)
 	}()
 
 	return ctrl, nil
 }
 
-func (c *SClusterController) RunKeystoneAuthenticator(k8sCli *kubernetes.Clientset) error {
-	kauth, err := auth.NewKeystoneAuthenticator(k8sCli)
+func (c *SClusterController) RunKeystoneAuthenticator(k8sCli *kubernetes.Clientset, stopCh chan struct{}) error {
+	kauth, err := auth.NewKeystoneAuthenticator(k8sCli, stopCh)
 	if err != nil {
 		return err
 	}
@@ -105,9 +121,10 @@ func (c *SClusterController) RunKeystoneAuthenticator(k8sCli *kubernetes.Clients
 	return nil
 }
 
-func (c *SClusterController) RunSyncController(k8sCli *kubernetes.Clientset) {
+func (c *SClusterController) RunSyncController(k8sCli *kubernetes.Clientset, stopCh chan struct{}) {
 	c.syncController = synccontroller.NewSyncController(k8sCli, synccontroller.SyncOptions{
 		ResyncPeriod: time.Duration(5 * time.Minute),
+		StopCh:       stopCh,
 	})
 	c.syncController.Run()
 }

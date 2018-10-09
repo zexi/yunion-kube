@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -474,14 +473,23 @@ func (n *SNode) PerformPurge(ctx context.Context, userCred mcclient.TokenCredent
 }
 
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
-	//cluster, err := n.GetCluster()
-	//if err != nil {
-	//return err
-	//}
-	//if sets.NewString(CLUSTER_CREATING, CLUSTER_POST_CHECK, CLUSTER_UPDATING).Has(cluster.Status) {
-	//return fmt.Errorf("Can't delete node when cluster %q status is %q", cluster.Name, cluster.Status)
-	//}
-	//return nil
+	cluster, err := n.GetCluster()
+	if err != nil {
+		return err
+	}
+	if sets.NewString(CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_CREATING, CLUSTER_STATUS_DEPLOY).Has(cluster.Status) {
+		return httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", cluster.Status))
+	}
+
+	oldNodes, err := cluster.GetNodes()
+	if err != nil {
+		return err
+	}
+
+	if strings.Contains(cluster.ApiEndpoint, n.Address) && len(oldNodes) != 1 {
+		return httperrors.NewInputParameterError("First control node %q must deleted at last", n.Name)
+	}
+
 	return n.SStatusStandaloneResourceBase.ValidateDeleteCondition(ctx)
 }
 
@@ -511,17 +519,16 @@ func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 }
 
 func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+
 	return n.StartDeleteNodeTask(ctx, userCred, "", data)
 }
 
 func (n *SNode) StartDeleteNodeTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string, data jsonutils.JSONObject) error {
-	n.SetStatus(userCred, NODE_STATUS_DELETING, "")
-	task, err := taskman.TaskManager.NewTask(ctx, "NodeDeleteTask", n, userCred, nil, parentTaskId, "", nil)
+	cluster, err := n.GetCluster()
 	if err != nil {
 		return err
 	}
-	task.ScheduleRun(nil)
-	return nil
+	return cluster.StartClusterDeleteNodesTask(ctx, userCred, FetchClusterDeployTaskData([]*SNode{n}), "")
 }
 
 func (n *SNode) ToYKEHost() *ykehosts.Host {
@@ -541,23 +548,6 @@ func (n *SNode) GetDriver() (drivertypes.Driver, error) {
 		return nil, err
 	}
 	return cluster.ClusterDriver(), nil
-}
-
-func (n *SNode) CleanUpComponents(ctx context.Context, data jsonutils.JSONObject) error {
-	host := n.ToYKEHost()
-	hostBytes, err := json.Marshal(host)
-	if err != nil {
-		return err
-	}
-	opts := &drivertypes.DriverOptions{
-		StringOptions: map[string]string{"host": string(hostBytes)},
-	}
-
-	driver, err := n.GetDriver()
-	if err != nil {
-		return err
-	}
-	return driver.RemoveNode(ctx, opts)
 }
 
 func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) *yketypes.KubernetesEngineConfig {

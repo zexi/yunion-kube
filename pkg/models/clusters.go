@@ -445,7 +445,30 @@ func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
 	go run()
 }
 
-func (c *SCluster) Deploy(ctx context.Context, pendingNodes ...*SNode) error {
+func (c *SCluster) SyncUpdate(ctx context.Context) error {
+	ykeConfStr := c.YkeConfig
+	opts := &drivertypes.DriverOptions{
+		StringOptions: map[string]string{"ykeConfig": ykeConfStr},
+	}
+	driver := c.ClusterDriver()
+	clusterInfo := c.ToInfo()
+	c.SetStatus(GetAdminCred(), CLUSTER_STATUS_UPDATING, "from sync update")
+	info, err := driver.Update(context.Background(), opts, clusterInfo)
+	if err != nil {
+		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_ERROR, err.Error())
+		return err
+	}
+	if info != nil {
+		err = c.saveClusterInfo(info)
+		if err != nil {
+			log.Errorf("Save cluster info after update error: %v", err)
+			return err
+		}
+	}
+	return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
+}
+
+func (c *SCluster) Deploy(ctx context.Context, callback func(), pendingNodes ...*SNode) error {
 	ykeConf, err := ClusterManager.GetDeployConfig(c, pendingNodes...)
 	if err != nil {
 		return err
@@ -491,11 +514,19 @@ func (c *SCluster) Deploy(ctx context.Context, pendingNodes ...*SNode) error {
 			}
 		}
 		setNodesStatus(pendingNodes, NODE_STATUS_RUNNING)
-		return c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
+		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_RUNNING, "")
+		if callback != nil {
+			callback()
+		}
+		return nil
 	}
 
 	c.backoffTryRun(deployF, 1)
 	return nil
+}
+
+func SetNodesStatus(nodes []*SNode, status string) error {
+	return setNodesStatus(nodes, status)
 }
 
 func setNodesStatus(nodes []*SNode, status string) error {
@@ -567,8 +598,7 @@ func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.TokenCredential) error {
 	deleteF := func() (err error) {
 		log.Infof("Deleting cluster [%s]", c.Name)
-		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
-		err = c.ClusterDriver().Remove(context.Background(), c.ToInfo())
+		err = c.RemoveCluster(ctx)
 		if err != nil {
 			log.Errorf("Delete cluster error: %v", err)
 			return
@@ -578,6 +608,22 @@ func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.Tok
 
 	c.backoffTryRun(deleteF, 3)
 	return nil
+}
+
+func (c *SCluster) RemoveCluster(ctx context.Context) error {
+	c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
+	err := c.ClusterDriver().Remove(ctx, c.ToInfo())
+	if err != nil {
+		return fmt.Errorf("Remove cluster error: %v", err)
+	}
+
+	if c.Name == "default" {
+		// clear cluster info
+		c.saveClusterInfo(&drivertypes.ClusterInfo{})
+		c.SetStatus(GetAdminCred(), CLUSTER_STATUS_INIT, "")
+		return nil
+	}
+	return c.RealDelete(ctx, GetAdminCred())
 }
 
 func (c *SCluster) ClusterDriver() drivertypes.Driver {
@@ -1145,6 +1191,9 @@ func (c *SCluster) AllowPerformAddNodes(ctx context.Context, userCred mcclient.T
 }
 
 func (c *SCluster) validateAddNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (nodes []*SNode, err error) {
+	if sets.NewString(CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_CREATING, CLUSTER_STATUS_DEPLOY).Has(c.Status) {
+		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
+	}
 	nodesData, err := data.Get("nodes")
 	if err != nil {
 		err = httperrors.NewInputParameterError("Found nodes data: %v", err)
@@ -1193,4 +1242,66 @@ func (c *SCluster) PerformAddNodes(ctx context.Context, userCred mcclient.TokenC
 	}
 	c.StartClusterDeployTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
 	return nil, nil
+}
+
+func (c *SCluster) AllowPerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
+	if sets.NewString(CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_CREATING, CLUSTER_STATUS_DEPLOY).Has(c.Status) {
+		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
+	}
+	nodesData, err := data.GetArray("nodes")
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Found nodes data: %v", err)
+	}
+	nodes := []*SNode{}
+	for _, obj := range nodesData {
+		id, err := obj.GetString()
+		if err != nil {
+			if err != nil {
+				return nil, err
+			}
+		}
+		nodeObj, err := NodeManager.FetchByIdOrName("", id)
+		if err != nil {
+			return nil, httperrors.NewInputParameterError("Not found node by id: %s", id)
+		}
+		nodes = append(nodes, nodeObj.(*SNode))
+	}
+
+	if len(nodes) == 0 {
+		return nil, httperrors.NewInputParameterError("Empty nodes id provided")
+	}
+
+	oldNodes, err := c.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, node := range nodes {
+		if strings.Contains(c.ApiEndpoint, node.Address) && len(nodes) != len(oldNodes) {
+			return nil, httperrors.NewInputParameterError("First control node %q must deleted at last", node.Name)
+		}
+	}
+	return nodes, nil
+}
+
+func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	nodes, err := c.validateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
+	if err != nil {
+		return nil, err
+	}
+	c.StartClusterDeleteNodesTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
+	return nil, nil
+}
+
+func (c *SCluster) StartClusterDeleteNodesTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteNodesTask", c, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
