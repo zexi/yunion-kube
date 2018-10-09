@@ -17,9 +17,6 @@ type Driver interface {
 	// Remove the cluster
 	Remove(ctx context.Context, info *ClusterInfo) error
 
-	// RemoveNode remove node from the cluster
-	RemoveNode(ctx context.Context, opts *DriverOptions) error
-
 	// GetK8sRestConfig return kubernetes rest api connection config
 	GetK8sRestConfig(info *ClusterInfo) (*rest.Config, error)
 }

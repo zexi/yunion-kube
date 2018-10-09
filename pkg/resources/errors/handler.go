@@ -79,7 +79,8 @@ func NewJSONClientError(err error) *httputils.JSONClientError {
 	var msg string
 	if ok && statusError.Status().Code > 0 {
 		statusCode = int(statusError.Status().Code)
-		title = statusError.Status().Kind
+		title = string(statusError.Status().Reason)
+		msg = statusError.Status().Message
 	}
 	return httperrors.NewJsonClientError(statusCode, title, msg, httputils.Error{})
 }

@@ -24,6 +24,7 @@ var NamespaceAll = api.NamespaceAll
 type SyncOptions struct {
 	ResyncPeriod time.Duration
 	Selector     labels.Selector
+	StopCh       chan struct{}
 }
 
 type SyncController struct {
@@ -39,7 +40,7 @@ func NewSyncController(k8sCli *kubernetes.Clientset, opts SyncOptions) *SyncCont
 	c := &SyncController{
 		client:   k8sCli,
 		selector: opts.Selector,
-		stopCh:   make(chan struct{}),
+		stopCh:   opts.StopCh,
 	}
 
 	c.podLister, c.podController = cache.NewIndexerInformer(
@@ -184,6 +185,9 @@ func GetPodNonZeroRequests(pod *api.Pod) *Resource {
 }
 
 func (c *SyncController) updateCloudGuest(pod *api.Pod) error {
+	if pod.Spec.HostNetwork {
+		return nil
+	}
 	resource := GetPodNonZeroRequests(pod)
 	session, err := models.GetAdminSession()
 	if err != nil {
