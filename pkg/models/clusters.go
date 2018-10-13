@@ -66,7 +66,7 @@ const (
 	CLUSTER_MODE_INTERNAL = "internal"
 
 	DEFAULT_CLUSER_MODE              = CLUSTER_MODE_INTERNAL
-	DEFAULT_CLUSER_CIDR              = "10.42.0.0/16"
+	DEFAULT_CLUSER_CIDR              = "10.43.0.0/16"
 	DEFAULT_SERVICE_CLUSTER_IP_RANGE = "10.43.0.0/16"
 	DEFAULT_CLUSTER_DOMAIN           = "cluster.local"
 	DEFAULT_INFRA_CONTAINER_IMAGE    = "yunion/pause-amd64:3.0"
@@ -122,7 +122,7 @@ func (m *SClusterManager) InitializeData() error {
 		}
 	} else {
 		c := cluster.(*SCluster)
-		if c.ClusterCidr == DEFAULT_SERVICE_CLUSTER_IP_RANGE {
+		if c.ClusterCidr != DEFAULT_SERVICE_CLUSTER_IP_RANGE {
 			_, err = cluster.GetModelManager().TableSpec().Update(c, func() error {
 				c.ClusterCidr = DEFAULT_CLUSER_CIDR
 				return nil
