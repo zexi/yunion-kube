@@ -65,10 +65,11 @@ const (
 
 	CLUSTER_MODE_INTERNAL = "internal"
 
-	DEFAULT_CLUSER_MODE           = CLUSTER_MODE_INTERNAL
-	DEFAULT_CLUSER_CIDR           = "10.43.0.0/16"
-	DEFAULT_CLUSTER_DOMAIN        = "cluster.local"
-	DEFAULT_INFRA_CONTAINER_IMAGE = "yunion/pause-amd64:3.0"
+	DEFAULT_CLUSER_MODE              = CLUSTER_MODE_INTERNAL
+	DEFAULT_CLUSER_CIDR              = "10.42.0.0/16"
+	DEFAULT_SERVICE_CLUSTER_IP_RANGE = "10.43.0.0/16"
+	DEFAULT_CLUSTER_DOMAIN           = "cluster.local"
+	DEFAULT_INFRA_CONTAINER_IMAGE    = "yunion/pause-amd64:3.0"
 
 	K8S_PROXY_URL_PREFIX    = "/k8s/clusters/"
 	K8S_AUTH_WEBHOOK_PREFIX = "/k8s/auth/"
@@ -100,7 +101,7 @@ type SCluster struct {
 
 func (m *SClusterManager) InitializeData() error {
 	// check if default cluster exists
-	_, err := m.FetchByIdOrName("", "default")
+	cluster, err := m.FetchByIdOrName("", "default")
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return err
@@ -112,11 +113,21 @@ func (m *SClusterManager) InitializeData() error {
 		defCluster.Mode = DEFAULT_CLUSER_MODE
 		defCluster.ClusterCidr = DEFAULT_CLUSER_CIDR
 		defCluster.ClusterDomain = DEFAULT_CLUSTER_DOMAIN
+		//defCluster.ServiceClusterIPRange = DEFAULT_SERVICE_CLUSTER_IP_RANGE
 		defCluster.InfraContainerImage = DEFAULT_INFRA_CONTAINER_IMAGE
 		defCluster.Status = CLUSTER_STATUS_INIT
 		err = m.TableSpec().Insert(&defCluster)
 		if err != nil {
 			return fmt.Errorf("Insert default cluster error: %v", err)
+		}
+	} else {
+		c := cluster.(*SCluster)
+		if c.ClusterCidr == DEFAULT_SERVICE_CLUSTER_IP_RANGE {
+			_, err = cluster.GetModelManager().TableSpec().Update(c, func() error {
+				c.ClusterCidr = DEFAULT_CLUSER_CIDR
+				return nil
+			})
+			return err
 		}
 	}
 	return nil
@@ -730,8 +741,8 @@ func (c *SCluster) GetClusterCIDR() string {
 }
 
 func (c *SCluster) GetServiceClusterIPRange() string {
-	// TODO: different from c.ClusterCidr
-	return c.GetClusterCIDR()
+	//return c.ServiceClusterIPRange
+	return DEFAULT_SERVICE_CLUSTER_IP_RANGE
 }
 
 func (c *SCluster) GetClusterDomain() string {
@@ -761,6 +772,9 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
 				"authentication-token-webhook-config-file": "/etc/kubernetes/webhook.kubeconfig",
+				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+				//"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
+				"runtime-config": "storage.k8s.io/v1alpha1=true",
 			},
 		},
 		PodSecurityPolicy:     false,
@@ -768,13 +782,25 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 	}
 
 	config.KubeController = yketypes.KubeControllerService{
-		BaseService:           yketypes.BaseService{Image: images.Kubernetes},
+		BaseService: yketypes.BaseService{
+			Image: images.Kubernetes,
+			ExtraArgs: map[string]string{
+				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+				//"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
+				//"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true",
+			},
+		},
 		ServiceClusterIPRange: c.GetServiceClusterIPRange(),
 		ClusterCIDR:           c.GetClusterCIDR(),
 	}
 
 	config.Scheduler = yketypes.SchedulerService{
-		BaseService: yketypes.BaseService{Image: images.Kubernetes},
+		BaseService: yketypes.BaseService{
+			Image: images.Kubernetes,
+			ExtraArgs: map[string]string{
+				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+			},
+		},
 	}
 
 	infraContainerImage := c.InfraContainerImage
@@ -787,6 +813,9 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
 				"read-only-port": "10255",
+				//"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
+				//"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
 			},
 		},
 		ClusterDomain:       c.GetClusterDomain(),
@@ -1060,11 +1089,12 @@ func (v *clusterImportValidator) do() (
 
 type ykeImportInfo struct {
 	// info from YKE config
-	Version    string
-	Mode       string
-	CIDR       string
-	Domain     string
-	InfraImage string
+	Version        string
+	Mode           string
+	CIDR           string
+	ServiceIPRange string
+	Domain         string
+	InfraImage     string
 
 	// info from Kube config
 	ApiEndpoint       string
@@ -1082,10 +1112,14 @@ func getClusterYkeImportInfo(ykeConf *yketypes.KubernetesEngineConfig, kubeConf 
 		version = DEFAULT_K8S_VERSION
 		log.Warningf("Not found support k8s image version: %q, use: %q", imageVersion, version)
 	}
-	cidr := ykeConf.Services.KubeAPI.ServiceClusterIPRange
+	cidr := ykeConf.Services.KubeController.ClusterCIDR
 	if cidr == "" {
 		cidr = DEFAULT_CLUSER_CIDR
 	}
+	//serviceCIDR := ykeConf.Services.KubeAPI.ServiceClusterIPRange
+	//if serviceCIDR == "" {
+	serviceCIDR := DEFAULT_SERVICE_CLUSTER_IP_RANGE
+	//}
 	domain := ykeConf.Services.Kubelet.ClusterDomain
 	if domain == "" {
 		domain = DEFAULT_CLUSTER_DOMAIN
@@ -1099,6 +1133,7 @@ func getClusterYkeImportInfo(ykeConf *yketypes.KubernetesEngineConfig, kubeConf 
 		Version:           version,
 		Mode:              DEFAULT_CLUSER_MODE,
 		CIDR:              cidr,
+		ServiceIPRange:    serviceCIDR,
 		Domain:            domain,
 		InfraImage:        infraImage,
 		ApiEndpoint:       kubeConf.Host,
@@ -1118,6 +1153,7 @@ func setClusterInfoFromImport(c *SCluster, ykeConf *yketypes.KubernetesEngineCon
 		c.Mode = info.Mode
 		c.K8sVersion = info.Version
 		c.ClusterCidr = info.CIDR
+		//c.ServiceClusterIPRange = info.ServiceIPRange
 		c.ClusterDomain = info.Domain
 		c.InfraContainerImage = info.InfraImage
 		c.ApiEndpoint = info.ApiEndpoint
