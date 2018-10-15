@@ -9,7 +9,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/pkg/util/runtime"
@@ -47,24 +46,14 @@ func prepareEnv() {
 	runtime.ReallyCrash = false
 }
 
-func initCloudApp() *appsrv.Application {
-	app := cloudcommon.InitApp(&options.Options.Options)
-	InitHandlers(app)
-
-	go func() {
-		cloudcommon.InitAuth(&options.Options.Options, func() {
-			log.Infof("Auth complete, start controllers.")
-			controllers.Start()
-		})
-	}()
-
-	return app
-}
-
 func Run(ctx context.Context) error {
 	prepareEnv()
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
+
+	app := cloudcommon.InitApp(&options.Options.Options)
+	InitHandlers(app)
+
 	if db.CheckSync(options.Options.AutoSyncTable) {
 		err := models.InitDB()
 		if err != nil {
@@ -84,7 +73,10 @@ func Run(ctx context.Context) error {
 
 	go RegisterDriver(scaledCtx)
 
-	app := initCloudApp()
+	cloudcommon.InitAuth(&options.Options.Options, func() {
+		log.Infof("Auth complete, start controllers.")
+		controllers.Start()
+	})
 
 	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
 		return err
