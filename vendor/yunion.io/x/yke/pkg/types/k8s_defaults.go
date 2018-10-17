@@ -29,7 +29,7 @@ var (
 		"v1.12": {
 			KubeAPI: map[string]string{
 				"tls-cipher-suites":        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
-				"enable-admission-plugins": "ServiceAccount,NamespaceLifecycle,LimitRanger,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds",
+				"enable-admission-plugins": "ServiceAccount,NamespaceLifecycle,LimitRanger,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds,Initializers",
 			},
 			Kubelet: map[string]string{
 				"tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
@@ -39,7 +39,7 @@ var (
 		"v1.11": {
 			KubeAPI: map[string]string{
 				"tls-cipher-suites":        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
-				"enable-admission-plugins": "ServiceAccount,NamespaceLifecycle,LimitRanger,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds",
+				"enable-admission-plugins": "ServiceAccount,NamespaceLifecycle,LimitRanger,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds,Initializers",
 			},
 			Kubelet: map[string]string{
 				"tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
@@ -49,7 +49,7 @@ var (
 			KubeAPI: map[string]string{
 				"tls-cipher-suites":        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
 				"endpoint-reconciler-type": "lease",
-				"enable-admission-plugins": "ServiceAccount,NamespaceLifecycle,LimitRanger,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds",
+				"enable-admission-plugins": "ServiceAccount,NamespaceLifecycle,LimitRanger,PersistentVolumeLabel,DefaultStorageClass,ResourceQuota,DefaultTolerationSeconds,Initializers",
 			},
 			Kubelet: map[string]string{
 				"tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305",
@@ -71,6 +71,8 @@ var (
 			KubeDNSAutoscaler:         m("gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.0.0"),
 			YunionCNI:                 m("yunion/cni:v2.1.0"),
 			YunionCSI:                 m("yunion/csi-plugin:v0.3.0"),
+			LXCFS:                     m("zexi/lxcfs:cpu-view"),
+			LXCFSInitializer:          m("zexi/lxcfs-initializer:0.0.3"),
 			PodInfraContainer:         m("gcr.io/google_containers/pause-amd64:3.1"),
 			Ingress:                   m("rancher/nginx-ingress-controller:0.16.2-rancher1"),
 			IngressBackend:            m("k8s.gcr.io/defaultbackend:1.4"),
@@ -89,6 +91,8 @@ var (
 			KubeDNSAutoscaler:         m("gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.0.0"),
 			YunionCNI:                 m("yunion/cni:v2.1.0"),
 			YunionCSI:                 m("yunion/csi-plugin:v0.3.0"),
+			LXCFS:                     m("zexi/lxcfs:cpu-view"),
+			LXCFSInitializer:          m("zexi/lxcfs-initializer:0.0.3"),
 			PodInfraContainer:         m("gcr.io/google_containers/pause-amd64:3.1"),
 			Ingress:                   m("rancher/nginx-ingress-controller:0.16.2-rancher1"),
 			IngressBackend:            m("k8s.gcr.io/defaultbackend:1.4"),
@@ -107,6 +111,8 @@ var (
 			KubeDNSAutoscaler:         m("gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.0.0"),
 			YunionCNI:                 m("yunion/cni:v2.1.0"),
 			YunionCSI:                 m("yunion/csi-plugin:v0.3.0"),
+			LXCFS:                     m("zexi/lxcfs:cpu-view"),
+			LXCFSInitializer:          m("zexi/lxcfs-initializer:0.0.3"),
 			PodInfraContainer:         m("gcr.io/google_containers/pause-amd64:3.1"),
 			Ingress:                   m("rancher/nginx-ingress-controller:0.16.2-rancher1"),
 			IngressBackend:            m("k8s.gcr.io/defaultbackend:1.4"),
