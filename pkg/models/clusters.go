@@ -815,8 +815,7 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 			ExtraArgs: map[string]string{
 				"read-only-port": "10255",
 				//"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
-				//"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
-				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true",
 			},
 		},
 		ClusterDomain:       c.GetClusterDomain(),
