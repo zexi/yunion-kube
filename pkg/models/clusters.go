@@ -775,7 +775,7 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
 				//"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
 
-				"runtime-config": "storage.k8s.io/v1alpha1=true,admissionregistration.k8s.io/v1alpha1=true",
+				"runtime-config": "storage.k8s.io/v1alpha1=true,admissionregistration.k8s.io/v1alpha1=true,settings.k8s.io/v1alpha1=true",
 			},
 		},
 		PodSecurityPolicy:     false,
