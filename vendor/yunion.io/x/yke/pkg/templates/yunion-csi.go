@@ -87,14 +87,14 @@ spec:
       hostNetwork: true
       containers:
         - name: csi-yunionplugin-attacher
-          image: quay.io/k8scsi/csi-attacher:v0.4.0
+          image: {{.CSIAttacher}}
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
           env:
             - name: ADDRESS
               value: /var/lib/kubelet/plugins/csi-yunionplugin/csi.sock
-          imagePullPolicy: "IfNotPresent"
+          imagePullPolicy: "Always"
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/kubelet/plugins/csi-yunionplugin
@@ -187,16 +187,17 @@ spec:
       hostNetwork: true
       containers:
         - name: csi-provisioner
-          image: quay.io/k8scsi/csi-provisioner:v0.4.0
+          image: {{.CSIProvisioner}}
           args:
             - "--provisioner=csi-yunionplugin"
             - "--csi-address=$(ADDRESS)"
             - "--v=5"
             - "--connection-timeout=30s"
+            - "--feature-gates=Topology=true"
           env:
             - name: ADDRESS
               value: /var/lib/kubelet/plugins/csi-yunionplugin/csi.sock
-          imagePullPolicy: "IfNotPresent"
+          imagePullPolicy: "Always"
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/kubelet/plugins/csi-yunionplugin
@@ -275,7 +276,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: driver-registrar
-          image: quay.io/k8scsi/driver-registrar:v0.4.0
+          image: {{.CSIRegistrar}}
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
