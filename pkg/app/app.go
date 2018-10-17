@@ -75,7 +75,9 @@ func Run(ctx context.Context) error {
 
 	cloudcommon.InitAuth(&options.Options.Options, func() {
 		log.Infof("Auth complete, start controllers.")
-		controllers.Start()
+		go func() {
+			controllers.Start()
+		}()
 	})
 
 	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
