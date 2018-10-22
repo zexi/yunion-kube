@@ -131,7 +131,7 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	//defer d.cleanup(stateDir)
 
 	certsStr := ""
-	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
+	apiURL, caCrt, clientCert, clientKey, certs, err := clusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
 		d.wrapTransport(ykeConfig), false, stateDir, false, false)
 	if err == nil {
 		certsStr, err = ykecerts.ToString(certs)
@@ -299,6 +299,8 @@ func clusterUp(
 	k8sWrapTransport k8s.WrapTransport,
 	local bool, configDir string, updateOnly, disablePortCheck bool) (string, string, string, string, map[string]pki.CertificatePKI, error) {
 	log.Errorf("=====clusterup configDir: %q", configDir)
+	// enable lxcfs init plugin by default
+	ctx = context.WithValue(ctx, "enable-lxcfs", true)
 	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, ykeConfig, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport, local, configDir, updateOnly, disablePortCheck)
 	if err != nil {
 		log.Warningf("cluster up error: %v", err)
