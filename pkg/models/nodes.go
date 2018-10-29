@@ -520,6 +520,7 @@ func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 
 func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 
+	n.SetStatus(GetAdminCred(), NODE_STATUS_DELETING, "")
 	return n.StartDeleteNodeTask(ctx, userCred, "", data)
 }
 

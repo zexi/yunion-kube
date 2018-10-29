@@ -536,6 +536,25 @@ func (c *SCluster) Deploy(ctx context.Context, callback func(), pendingNodes ...
 	return nil
 }
 
+func SetNodesStatusByJson(data *jsonutils.JSONDict, status string) error {
+	nodes, err := data.GetArray(NODES_DEPLOY_IDS_KEY)
+	if err != nil {
+		return err
+	}
+	for _, nodeId := range nodes {
+		nodeIdStr, _ := nodeId.GetString()
+		node, err := NodeManager.FetchNodeById(nodeIdStr)
+		if err != nil {
+			return err
+		}
+		err = node.SetStatus(GetAdminCred(), status, "")
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
 func SetNodesStatus(nodes []*SNode, status string) error {
 	return setNodesStatus(nodes, status)
 }
@@ -544,6 +563,9 @@ func setNodesStatus(nodes []*SNode, status string) error {
 	var err error
 	for _, node := range nodes {
 		err = node.SetStatus(GetAdminCred(), status, "")
+		if err != nil {
+			return err
+		}
 	}
 	return err
 }
@@ -603,6 +625,7 @@ func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 		log.Debugf("No nodes belongs to cluster %q", c.Name)
 		return c.RealDelete(ctx, userCred)
 	}
+	c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
 	return c.startRemoveCluster(ctx, userCred)
 }
 
@@ -622,7 +645,6 @@ func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.Tok
 }
 
 func (c *SCluster) RemoveCluster(ctx context.Context) error {
-	c.SetStatus(GetAdminCred(), CLUSTER_STATUS_DELETING, "")
 	err := c.ClusterDriver().Remove(ctx, c.ToInfo())
 	if err != nil {
 		return fmt.Errorf("Remove cluster error: %v", err)
@@ -644,6 +666,29 @@ func (c *SCluster) ClusterDriver() drivertypes.Driver {
 
 func (c *SCluster) GetYKEAuthzConfig() yketypes.AuthzConfig {
 	return yketypes.AuthzConfig{Mode: ykecluster.DefaultAuthorizationMode}
+}
+
+func (c *SCluster) GetYunionConfig() yketypes.YunionConfig {
+	session, err := GetAdminSession()
+	if err != nil {
+		log.Errorf("Get admin session error: %v", err)
+	}
+	influxdbUrl, err := session.GetServiceURL("influxdb", "internalURL")
+	if err != nil {
+		log.Errorf("Get internal influxdb endpoint error: %v", err)
+	}
+	o := options.Options
+	return yketypes.YunionConfig{
+		AuthURL:        o.AuthURL,
+		AdminUser:      o.AdminUser,
+		AdminPassword:  o.AdminPassword,
+		AdminProject:   o.AdminProject,
+		Region:         o.Region,
+		KubeCluster:    c.Name,
+		HostBridge:     "br0",
+		InfluxdbUrl:    influxdbUrl,
+		DockerGraphDir: DEFAULT_DOCKER_GRAPH_DIR,
+	}
 }
 
 func (c *SCluster) GetYKENetworkConfig() yketypes.NetworkConfig {
@@ -839,6 +884,7 @@ func (c *SCluster) NewYKEConfig() (yketypes.KubernetesEngineConfig, error) {
 	conf.SystemImages = *systemImages
 	conf.Authorization = c.GetYKEAuthzConfig()
 	conf.Network = c.GetYKENetworkConfig()
+	conf.YunionConfig = c.GetYunionConfig()
 	conf.Services, err = c.GetYKEServicesConfig(conf.SystemImages)
 	if err != nil {
 		return conf, err
@@ -1334,6 +1380,10 @@ func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.Tok
 }
 
 func (c *SCluster) StartClusterDeleteNodesTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	err := SetNodesStatusByJson(data, NODE_STATUS_DELETING)
+	if err != nil {
+		return err
+	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteNodesTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err

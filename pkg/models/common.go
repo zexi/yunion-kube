@@ -28,8 +28,8 @@ const (
 const (
 	DEFAULT_DOCKER_GRAPH_DIR = "/opt/docker"
 
-	DEFAULT_DOCKER_REGISTRY_MIRROR1 = "http://hub-mirror.c.163.com"
-	DEFAULT_DOCKER_REGISTRY_MIRROR2 = "https://docker.mirrors.ustc.edu.cn"
+	DEFAULT_DOCKER_REGISTRY_MIRROR1 = "https://lje6zxpk.mirror.aliyuncs.com"
+	DEFAULT_DOCKER_REGISTRY_MIRROR2 = "https://lms7sxqp.mirror.aliyuncs.com"
 	DEFAULT_DOCKER_REGISTRY_MIRROR3 = "https://registry.docker-cn.com"
 )
 
