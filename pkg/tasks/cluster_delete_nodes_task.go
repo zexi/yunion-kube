@@ -47,11 +47,11 @@ func (t *ClusterDeleteNodesTask) OnInit(ctx context.Context, obj db.IStandaloneM
 		t.SetFailed(ctx, cluster, err)
 		return
 	}
-	t.SetStage("OnWaitNodesAgentStart", nil)
-	t.StartNodesAgent(ctx, cluster, nodes, data)
+	t.SetStage("OnWaitNodesAgentRestart", nil)
+	t.RestartNodesAgent(ctx, cluster, nodes, data)
 }
 
-func (t *ClusterDeleteNodesTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+func (t *ClusterDeleteNodesTask) OnWaitNodesAgentRestart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
 	nodes, err := t.getDeleteNodes()
 	if err != nil {
@@ -71,7 +71,12 @@ func (t *ClusterDeleteNodesTask) OnWaitNodesAgentStart(ctx context.Context, obj 
 		models.SetNodesStatus(nodes, models.NODE_STATUS_ERROR)
 		return
 	}
+
 	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterDeleteNodesTask) OnWaitNodesAgentRestartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnWaitNodesAgentReStart: %s", data))
 }
 
 func (t *ClusterDeleteNodesTask) doDelete(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) error {

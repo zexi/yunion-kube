@@ -520,6 +520,7 @@ func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 
 func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 
+	n.SetStatus(GetAdminCred(), NODE_STATUS_DELETING, "")
 	return n.StartDeleteNodeTask(ctx, userCred, "", data)
 }
 
@@ -659,6 +660,24 @@ func (n *SNode) StartAgentOnHost(ctx context.Context, userCred mcclient.TokenCre
 		log.Errorf("Start agent start task error: %v", err)
 		n.SetStatus(userCred, NODE_STATUS_ERROR, err.Error())
 	}
+}
+
+func (n *SNode) StartAgentRestartTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "NodeRestartAgentTask", n, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (n *SNode) StartAgentStopTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "NodeStopAgentTask", n, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (n *SNode) AllowGetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {

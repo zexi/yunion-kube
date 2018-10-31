@@ -79,6 +79,9 @@ var (
 			Ingress:                   m("rancher/nginx-ingress-controller:0.16.2-rancher1"),
 			IngressBackend:            m("k8s.gcr.io/defaultbackend:1.4"),
 			MetricsServer:             m("gcr.io/google_containers/metrics-server-amd64:v0.2.1"),
+			Tiller:                    m("yunion/tiller:v2.9.1"),
+			Heapster:                  m("yunion/heapster-amd64:v1.5.4"),
+			YunionCloudMonitor:        m("yunion/cloudmon:latest"),
 		},
 		"v1.11.3-rancher1-1": {
 			Etcd:                      m("quay.io/coreos/etcd:v3.2.18"),
@@ -101,6 +104,9 @@ var (
 			Ingress:                   m("rancher/nginx-ingress-controller:0.16.2-rancher1"),
 			IngressBackend:            m("k8s.gcr.io/defaultbackend:1.4"),
 			MetricsServer:             m("gcr.io/google_containers/metrics-server-amd64:v0.2.1"),
+			Tiller:                    m("yunion/tiller:v2.9.1"),
+			Heapster:                  m("yunion/heapster-amd64:v1.5.4"),
+			YunionCloudMonitor:        m("yunion/cloudmon:latest"),
 		},
 		"v1.12.0-rancher1-1": {
 			Etcd:                      m("quay.io/coreos/etcd:v3.2.24"),
@@ -123,6 +129,9 @@ var (
 			Ingress:                   m("rancher/nginx-ingress-controller:0.16.2-rancher1"),
 			IngressBackend:            m("k8s.gcr.io/defaultbackend:1.4"),
 			MetricsServer:             m("gcr.io/google_containers/metrics-server-amd64:v0.3.1"),
+			Tiller:                    m("yunion/tiller:v2.9.1"),
+			Heapster:                  m("yunion/heapster-amd64:v1.5.4"),
+			YunionCloudMonitor:        m("yunion/cloudmon:latest"),
 		},
 	}
 )
@@ -145,7 +154,7 @@ func init() {
 			continue
 		}
 
-		longName := "rancher/hyperkube:" + version
+		longName := fmt.Sprintf("%s/hyperkube:%s", image.YunionMirror, version)
 		if !strings.HasPrefix(longName, images.Kubernetes) {
 			panic(fmt.Sprintf("For K8s version %q, the Kubernetes image tag should be a substring of %q, currently it is %q", version, version, images.Kubernetes))
 		}
