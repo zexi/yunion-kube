@@ -30,6 +30,9 @@ const (
 	IngressAddonJobName            = "yke-ingress-controller-deploy-job"
 	IngressAddonDeleteJobName      = "yke-ingress-controller-delete-job"
 	MetricsServerAddonResourceName = "yke-metrics-addon"
+	TillerAddonResourceName        = "yke-tiller-addon"
+	HeapsterAddonResourceName      = "yke-heapster-addon"
+	YunionCloudMonResourceName     = "yke-yunion-cloudmon-addon"
 )
 
 type ingressOptions struct {
@@ -65,6 +68,26 @@ type YunionLXCFSOptions struct {
 	LXCFSInitImage string
 }
 
+type TillerOptions struct {
+	TillerImage string
+}
+
+type HeapsterOptions struct {
+	HeapsterImage string
+	InfluxdbUrl   string
+}
+
+type YunionCloudMonOptions struct {
+	YunionAuthURL           string
+	YunionDomain            string
+	YunionAdminUser         string
+	YunionAdminPasswd       string
+	YunionAdminProject      string
+	YunionRegion            string
+	InfluxdbUrl             string
+	YunionCloudMonitorImage string
+}
+
 type addonError struct {
 	err        error
 	isCritical bool
@@ -89,23 +112,21 @@ func (c *Cluster) deployK8sAddOns(ctx context.Context) error {
 			log.Warningf("Failed to deploy addon execute job [%s]: %v", MetricsServerAddonResourceName, err)
 		}
 	}
-	if err := c.deployIngress(ctx); err != nil {
-		if err, ok := err.(*addonError); ok && err.isCritical {
-			return err
+
+	for key, df := range map[string]func(ctx context.Context) error{
+		IngressAddonResourceName:     c.deployIngress,
+		YunionCSIAddonResourceName:   c.deployYunionCSI,
+		YunionLXCFSAddonResourceName: c.deployYunionLXCFS,
+		TillerAddonResourceName:      c.deployTiller,
+		HeapsterAddonResourceName:    c.deployHeapster,
+		YunionCloudMonResourceName:   c.deployYunionCloudMon,
+	} {
+		if err := df(ctx); err != nil {
+			if err, ok := err.(*addonError); ok && err.isCritical {
+				return err
+			}
+			log.Warningf("Failed to deploy addon execute job [%s]: %v", key, err)
 		}
-		log.Warningf("Failed to deploy addon execute job [%s]: %v", IngressAddonResourceName, err)
-	}
-	if err := c.deployYunionCSI(ctx); err != nil {
-		if err, ok := err.(*addonError); ok && err.isCritical {
-			return err
-		}
-		log.Warningf("Failed to deploy addon execute job [%s]: %v", YunionCSIAddonResourceName, err)
-	}
-	if err := c.deployYunionLXCFS(ctx); err != nil {
-		if err, ok := err.(*addonError); ok && err.isCritical {
-			return err
-		}
-		log.Warningf("Failed to deploy addon execute job [%s]: %v", YunionLXCFSAddonResourceName, err)
 	}
 	return nil
 }
@@ -422,11 +443,11 @@ func (c *Cluster) deployYunionCSI(ctx context.Context) error {
 	log.Infof("[addons] Setting up Yunion CSI plugin")
 	// TODO: make yunion auth info options to global options
 	csiConfig := YunionCSIOptions{
-		YunionAuthURL:      c.Network.Options[YunionAuthURL],
-		YunionAdminUser:    c.Network.Options[YunionAdminUser],
-		YunionAdminPasswd:  c.Network.Options[YunionAdminPasswd],
-		YunionAdminProject: c.Network.Options[YunionAdminProject],
-		YunionRegion:       c.Network.Options[YunionRegion],
+		YunionAuthURL:      c.YunionConfig.AuthURL,
+		YunionAdminUser:    c.YunionConfig.AdminUser,
+		YunionAdminPasswd:  c.YunionConfig.AdminPassword,
+		YunionAdminProject: c.YunionConfig.AdminProject,
+		YunionRegion:       c.YunionConfig.Region,
 		CSIAttacher:        c.SystemImages.CSIAttacher,
 		CSIProvisioner:     c.SystemImages.CSIProvisioner,
 		CSIRegistrar:       c.SystemImages.CSIRegistrar,
@@ -459,5 +480,61 @@ func (c *Cluster) deployYunionLXCFS(ctx context.Context) error {
 		return err
 	}
 	log.Infof("[addons] YunionLXCFS deployed successfully...")
+	return nil
+}
+
+func (c *Cluster) deployTiller(ctx context.Context) error {
+	log.Infof("[addons] setting up helm tiller plugin")
+	config := TillerOptions{
+		TillerImage: c.SystemImages.Tiller,
+	}
+	yaml, err := addons.GetTillerManifest(config)
+	if err != nil {
+		return err
+	}
+	if err := c.doAddonDeployAsync(ctx, yaml, TillerAddonResourceName, false); err != nil {
+		return err
+	}
+	log.Infof("[addons] Tiller deployed successfully...")
+	return nil
+}
+
+func (c *Cluster) deployHeapster(ctx context.Context) error {
+	log.Infof("[addons] setting up heapster plugin")
+	config := HeapsterOptions{
+		HeapsterImage: c.SystemImages.Heapster,
+		InfluxdbUrl:   c.YunionConfig.InfluxdbUrl,
+	}
+	yaml, err := addons.GetHeapsterManifest(config)
+	if err != nil {
+		return err
+	}
+	if err := c.doAddonDeployAsync(ctx, yaml, HeapsterAddonResourceName, false); err != nil {
+		return err
+	}
+	log.Infof("[addons] Heapster deployed successfully...")
+	return nil
+}
+
+func (c *Cluster) deployYunionCloudMon(ctx context.Context) error {
+	log.Infof("[addons] setting up yunion cloud monitor plugin")
+	config := YunionCloudMonOptions{
+		YunionAuthURL:           c.YunionConfig.AuthURL,
+		YunionDomain:            "Default",
+		YunionAdminUser:         c.YunionConfig.AdminUser,
+		YunionAdminPasswd:       c.YunionConfig.AdminPassword,
+		YunionAdminProject:      c.YunionConfig.AdminProject,
+		YunionRegion:            c.YunionConfig.Region,
+		YunionCloudMonitorImage: c.SystemImages.YunionCloudMonitor,
+		InfluxdbUrl:             c.YunionConfig.InfluxdbUrl,
+	}
+	yaml, err := addons.GetYunionCloudMoniotrManifest(config)
+	if err != nil {
+		return err
+	}
+	if err := c.doAddonDeployAsync(ctx, yaml, YunionCloudMonResourceName, false); err != nil {
+		return err
+	}
+	log.Infof("[addons] Yunion cloud monitor deployed successfully...")
 	return nil
 }
