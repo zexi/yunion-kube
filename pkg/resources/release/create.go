@@ -34,6 +34,10 @@ func generateName(nameTemplate string) (string, error) {
 	return b.String(), nil
 }
 
+func GenerateName(nameTemplate string) (string, error) {
+	return generateName(nameTemplate)
+}
+
 type CreateUpdateReleaseRequest struct {
 	ChartName   string   `json:"chart_name"`
 	Namespace   string   `json:"namespace"`
