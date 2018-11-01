@@ -13,7 +13,7 @@ type SMeterAppManager struct {
 func init() {
 	MeterAppManager = &SMeterAppManager{}
 
-	MeterAppManager.SReleaseAppManager = releaseapp.NewReleaseAppManager(MeterAppManager, "meter", "meters")
+	MeterAppManager.SReleaseAppManager = releaseapp.NewReleaseAppManager(MeterAppManager, "app_meter", "app_meters")
 }
 
 func (man *SMeterAppManager) GetConfigSets() releaseapp.ConfigSets {

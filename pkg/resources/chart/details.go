@@ -1,9 +1,9 @@
 package chart
 
 import (
-	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
+	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 )
 
 func (man *SChartManager) Show(repoName, chartName, version string) (interface{}, error) {
-	return cache.ChartShowDetails(repoName, chartName, version)
+	return helmdata.ChartShowDetails(repoName, chartName, version)
 }

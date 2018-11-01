@@ -3,10 +3,8 @@ package releaseapp
 import (
 	"fmt"
 
-	"yunion.io/x/jsonutils"
-
 	"yunion.io/x/yunion-kube/pkg/options"
-	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
 )
 
@@ -20,9 +18,9 @@ type SReleaseAppManager struct {
 }
 
 func NewReleaseAppManager(hooker IReleaseAppHooker, keyword, keywordPlural string) *SReleaseAppManager {
-	return &SReleaseAppManage{
+	return &SReleaseAppManager{
 		SReleaseManager: &release.SReleaseManager{
-			SNamespaceResourceManage: resources.NewNamespaceResourceManager(keyword, keywordPlural),
+			SNamespaceResourceManager: resources.NewNamespaceResourceManager(keyword, keywordPlural),
 		},
 		hooker: hooker,
 	}

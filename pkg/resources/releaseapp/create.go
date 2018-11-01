@@ -21,11 +21,16 @@ func NewCreateReleaseAppRequest(data jsonutils.JSONObject) (*CreateReleaseAppReq
 	}, nil
 }
 
+func (r *CreateReleaseAppRequest) ToData() *release.CreateUpdateReleaseRequest {
+	return r.CreateUpdateReleaseRequest
+}
+
 func (r *CreateReleaseAppRequest) IsSetsEmpty() bool {
 	return len(r.Sets) == 0
 }
 
 func (app *SReleaseAppManager) ValidateCreateData(req *common.Request) error {
+	data := req.Data
 	ns, _ := data.GetString("namespace")
 	if ns == "" {
 		data.Set("namespace", jsonutils.NewString(req.GetDefaultNamespace()))
@@ -54,5 +59,5 @@ func (man *SReleaseAppManager) Create(req *common.Request) (interface{}, error) 
 		return nil, err
 	}
 	defer cli.Close()
-	return release.ReleaseCreate(cli, createOpt)
+	return release.ReleaseCreate(cli, createOpt.ToData())
 }
