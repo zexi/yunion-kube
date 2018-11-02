@@ -33,7 +33,11 @@ type SyncController struct {
 
 	podController cache.Controller
 	podLister     cache.Indexer
-	stopCh        chan struct{}
+
+	svcController cache.Controller
+	svcLister     cache.Indexer
+
+	stopCh chan struct{}
 }
 
 func NewSyncController(k8sCli *kubernetes.Clientset, opts SyncOptions) *SyncController {
@@ -42,6 +46,21 @@ func NewSyncController(k8sCli *kubernetes.Clientset, opts SyncOptions) *SyncCont
 		selector: opts.Selector,
 		stopCh:   opts.StopCh,
 	}
+
+	c.svcLister, c.svcController = cache.NewIndexerInformer(
+		&cache.ListWatch{
+			ListFunc:  serviceListFunc(c.client, NamespaceAll, c.selector),
+			WatchFunc: serviceListFunc(c.client, NamespaceAll, c.selector),
+		},
+		&api.Service{},
+		opts.ResyncPeriod,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.serviceAdd,
+			UpdateFunc: c.serviceUpdate,
+			DeleteFunc: c.serviceDelete,
+		},
+		cache.Indexers{},
+	)
 
 	c.podLister, c.podController = cache.NewIndexerInformer(
 		&cache.ListWatch{
@@ -114,6 +133,13 @@ func (c *SyncController) sendPodUpdates(oldPod, newPod *api.Pod) {
 	err := c.updateCloudGuest(pod)
 	if err != nil {
 		log.Errorf("Update cloud guest error: %v", err)
+	}
+}
+
+func (c *SyncController) sendServiceUpdates(oldSvc, newSvc *api.Service) {
+	if oldSvc != nil && newSvc != nil && (oldSvc.GetResourceVersion() == newSvc.GetResourceVersion()) {
+		log.Debugf("Service %s.%s metadata not change, skip update", oldSvc.GetName(), oldSvc.GetNamespace())
+		return
 	}
 }
 
@@ -200,4 +226,10 @@ func (c *SyncController) updateCloudGuest(pod *api.Pod) error {
 	}
 	log.Debugf("Update guest: %s", obj)
 	return nil
+}
+
+func (c *SyncController) updateCloudServiceEndpoint(svc *api.Service) error {
+	if !shouldAddServiceToCloud(svc) {
+		return nil
+	}
 }
