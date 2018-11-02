@@ -12,11 +12,11 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
-	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/chart"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
 const (
@@ -77,10 +77,10 @@ func handleHelmTillerInstall(ctx context.Context, w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusCreated)
 }
 
-func getQuery(ctx context.Context, w http.ResponseWriter, r *http.Request) (*cache.ChartQuery, *dataselect.DataSelectQuery, error) {
+func getQuery(ctx context.Context, w http.ResponseWriter, r *http.Request) (*helmtypes.ChartQuery, *dataselect.DataSelectQuery, error) {
 	_, query, _ := _fetchEnv(ctx, w, r)
 	dsq := common.NewDataSelectQuery(query)
-	var cq cache.ChartQuery
+	var cq helmtypes.ChartQuery
 	err := query.Unmarshal(&cq)
 	if err != nil {
 		return nil, nil, err

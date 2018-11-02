@@ -2,18 +2,25 @@ package models
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 
 	"k8s.io/helm/pkg/repo"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/sqlchemy"
 
-	repobackend "yunion.io/x/yunion-kube/pkg/helm/data/cache/repo"
+	repobackend "yunion.io/x/yunion-kube/pkg/helm/data"
+	"yunion.io/x/yunion-kube/pkg/options"
+)
+
+const (
+	YUNION_REPO_NAME = "yunion"
 )
 
 type SRepoManager struct {
@@ -25,6 +32,25 @@ var RepoManager *SRepoManager
 
 func init() {
 	RepoManager = &SRepoManager{SStandaloneResourceBaseManager: db.NewStandaloneResourceBaseManager(SRepo{}, "repos_tbl", "repo", "repos")}
+}
+
+func (m *SRepoManager) InitializeData() error {
+	// check if default repo exists
+	_, err := m.FetchByIdOrName("", YUNION_REPO_NAME)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return err
+		}
+		defRepo := SRepo{}
+		defRepo.Id = stringutils.UUID4()
+		defRepo.Name = YUNION_REPO_NAME
+		defRepo.Url = options.Options.YunionChartRepo
+		err = m.TableSpec().Insert(&defRepo)
+		if err != nil {
+			return fmt.Errorf("Insert default repo error: %v", err)
+		}
+	}
+	return nil
 }
 
 type SRepo struct {
@@ -52,22 +78,16 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 	if url == "" {
 		return nil, httperrors.NewInputParameterError("Missing repo url")
 	}
-	return man.SStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
-}
+	entry := &repo.Entry{
+		Name: name,
+		URL:  url,
+	}
+	err := repobackend.RepoBackendManager.Add(entry)
+	if err != nil {
+		return nil, err
+	}
 
-func (man *SRepoManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	repos := make([]*SRepo, len(items))
-	for i, t := range items {
-		repos[i] = t.(*SRepo)
-	}
-	for _, r := range repos {
-		go func() {
-			err := r.AddToBackend()
-			if err != nil {
-				log.Errorf("Add repo to backend: %v", err)
-			}
-		}()
-	}
+	return man.SStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
 
 func (man *SRepoManager) FetchRepoById(id string) (*SRepo, error) {
@@ -101,7 +121,7 @@ func (r *SRepo) ToEntry() *repo.Entry {
 }
 
 func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	err := repobackend.BackendManager.Delete(r.Name)
+	err := repobackend.RepoBackendManager.Delete(r.Name)
 	_, ok := err.(repobackend.ErrorRepoNotFound)
 	if err != nil && !ok {
 		return err
@@ -110,7 +130,7 @@ func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) e
 }
 
 func (r *SRepo) AddToBackend() error {
-	err := repobackend.BackendManager.Add(r.ToEntry())
+	err := repobackend.RepoBackendManager.Add(r.ToEntry())
 	return err
 }
 
@@ -123,5 +143,5 @@ func (r *SRepo) PerformSync(ctx context.Context, userCred mcclient.TokenCredenti
 }
 
 func (r *SRepo) DoSync() error {
-	return repobackend.BackendManager.Update(r.Name)
+	return repobackend.RepoBackendManager.Update(r.Name)
 }

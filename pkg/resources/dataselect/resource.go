@@ -8,7 +8,7 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/helm/pkg/proto/hapi/release"
 
-	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
+	"yunion.io/x/yunion-kube/pkg/helm/data"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -193,13 +193,13 @@ func (cell HelmReleaseDataCell) GetProperty(name PropertyName) ComparableValue {
 }
 
 type ChartDataCell struct {
-	Chart *cache.ChartResult
+	Chart *data.ChartResult
 }
 
 func NewChartDataCell(obj interface{}) (DataCell, error) {
-	chart, ok := obj.(*cache.ChartResult)
+	chart, ok := obj.(*data.ChartResult)
 	if !ok {
-		return nil, fmt.Errorf("Object %#v not *cache.ChartResult", obj)
+		return nil, fmt.Errorf("Object %#v not *data.ChartResult", obj)
 	}
 	return ChartDataCell{Chart: chart}, nil
 }

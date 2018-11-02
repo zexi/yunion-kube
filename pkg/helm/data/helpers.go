@@ -1,4 +1,4 @@
-package cache
+package data
 
 import (
 	"archive/tar"
@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/Masterminds/semver"
@@ -106,6 +107,19 @@ func downloadFile(url string) ([]byte, error) {
 	return rawContent, nil
 }
 
+func newChartTGZReader(chartPath string) ([]byte, error) {
+	f, err := os.Open(chartPath)
+	if err != nil {
+		return nil, err
+	}
+	gzf, err := gzip.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	rawContent, _ := ioutil.ReadAll(gzf)
+	return rawContent, nil
+}
+
 // getChartFile Download file from chart repository
 func getChartFile(file []byte, fileName string) (string, error) {
 	tarReader := tar.NewReader(bytes.NewReader(file))
@@ -129,8 +143,8 @@ func getChartFile(file []byte, fileName string) (string, error) {
 	return "", nil
 }
 
-func getChartOption(file []byte) (*SpotguideFile, error) {
-	so := &SpotguideFile{}
+func getChartOption(file []byte) (*helm.SpotguideFile, error) {
+	so := &helm.SpotguideFile{}
 	tarReader := tar.NewReader(bytes.NewReader(file))
 	for {
 		header, err := tarReader.Next()
