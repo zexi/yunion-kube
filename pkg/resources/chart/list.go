@@ -3,16 +3,17 @@ package chart
 import (
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/helm/data/cache"
+	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
 type Chart struct {
-	*cache.ChartResult
+	*helmdata.ChartResult
 }
 
-func ToChart(ret *cache.ChartResult) Chart {
+func ToChart(ret *helmdata.ChartResult) Chart {
 	return Chart{ret}
 }
 
@@ -26,11 +27,11 @@ func (l *ChartList) GetResponseData() interface{} {
 }
 
 func (l *ChartList) Append(obj interface{}) {
-	l.Charts = append(l.Charts, ToChart(obj.(*cache.ChartResult)))
+	l.Charts = append(l.Charts, ToChart(obj.(*helmdata.ChartResult)))
 }
 
-func (man *SChartManager) List(query *cache.ChartQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	list, err := cache.ChartsList(query)
+func (man *SChartManager) List(query *helmtypes.ChartQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	list, err := helmdata.ChartsList(query)
 	if err != nil {
 		return nil, err
 	}

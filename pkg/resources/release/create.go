@@ -16,8 +16,8 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
-	controller "yunion.io/x/yunion-kube/pkg/controllers/helm"
 	"yunion.io/x/yunion-kube/pkg/helm/client"
+	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
@@ -32,6 +32,10 @@ func generateName(nameTemplate string) (string, error) {
 		return "", err
 	}
 	return b.String(), nil
+}
+
+func GenerateName(nameTemplate string) (string, error) {
+	return generateName(nameTemplate)
 }
 
 type CreateUpdateReleaseRequest struct {
@@ -206,7 +210,7 @@ func ReleaseCreate(helmclient *client.HelmTunnelClient, opt *CreateUpdateRelease
 		return nil, fmt.Errorf("Illegal chart name: %q", opt.ChartName)
 	}
 	repoName, chartName := segs[0], segs[1]
-	pkg, err := controller.ChartController.ChartFromRepo(repoName, chartName)
+	pkg, err := helmdata.ChartFromRepo(repoName, chartName, opt.Version)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -21,6 +23,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
+	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
 	"yunion.io/x/yunion-kube/pkg/resources/secret"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
@@ -76,6 +79,15 @@ func InitHandlers(app *appsrv.Application) {
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddResourceDispatcher(apiPrefix, app, handler)
+	}
+
+	helmAppPrefix := fmt.Sprintf("%s/releaseapps", apiPrefix)
+
+	for _, man := range []k8s.IK8sResourceManager{
+		meter.MeterAppManager,
+	} {
+		handler := k8s.NewK8sResourceHandler(man)
+		k8s.AddResourceDispatcher(helmAppPrefix, app, handler)
 	}
 
 	k8s.AddHelmDispatcher(apiPrefix, app)

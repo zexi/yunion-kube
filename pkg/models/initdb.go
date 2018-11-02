@@ -9,6 +9,7 @@ import (
 func InitDB() error {
 	for _, manager := range []db.IModelManager{
 		ClusterManager,
+		RepoManager,
 	} {
 		err := manager.InitializeData()
 		if err != nil {
