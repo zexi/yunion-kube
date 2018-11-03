@@ -33,7 +33,11 @@ type SyncController struct {
 
 	podController cache.Controller
 	podLister     cache.Indexer
-	stopCh        chan struct{}
+
+	svcController cache.Controller
+	svcLister     cache.Indexer
+
+	stopCh chan struct{}
 }
 
 func NewSyncController(k8sCli *kubernetes.Clientset, opts SyncOptions) *SyncController {
@@ -42,6 +46,21 @@ func NewSyncController(k8sCli *kubernetes.Clientset, opts SyncOptions) *SyncCont
 		selector: opts.Selector,
 		stopCh:   opts.StopCh,
 	}
+
+	c.svcLister, c.svcController = cache.NewIndexerInformer(
+		&cache.ListWatch{
+			ListFunc:  serviceListFunc(c.client, NamespaceAll, c.selector),
+			WatchFunc: serviceWatchFunc(c.client, NamespaceAll, c.selector),
+		},
+		&api.Service{},
+		opts.ResyncPeriod,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.serviceAdd,
+			UpdateFunc: c.serviceUpdate,
+			DeleteFunc: c.serviceDelete,
+		},
+		cache.Indexers{},
+	)
 
 	c.podLister, c.podController = cache.NewIndexerInformer(
 		&cache.ListWatch{
@@ -65,7 +84,7 @@ func podListFunc(c *kubernetes.Clientset, ns string, s labels.Selector) func(met
 		if s != nil {
 			opts.LabelSelector = s.String()
 		}
-		pods, err := c.Core().Pods(ns).List(opts)
+		pods, err := c.CoreV1().Pods(ns).List(opts)
 		if err != nil {
 			return nil, err
 		}
@@ -79,6 +98,32 @@ func podWatchFunc(c *kubernetes.Clientset, ns string, s labels.Selector) func(me
 			opts.LabelSelector = s.String()
 		}
 		w, err := c.CoreV1().Pods(ns).Watch(opts)
+		if err != nil {
+			return nil, err
+		}
+		return w, err
+	}
+}
+
+func serviceListFunc(c *kubernetes.Clientset, ns string, s labels.Selector) func(meta.ListOptions) (runtime.Object, error) {
+	return func(opts meta.ListOptions) (runtime.Object, error) {
+		if s != nil {
+			opts.LabelSelector = s.String()
+		}
+		svcs, err := c.CoreV1().Services(ns).List(opts)
+		if err != nil {
+			return nil, err
+		}
+		return svcs, err
+	}
+}
+
+func serviceWatchFunc(c *kubernetes.Clientset, ns string, s labels.Selector) func(options meta.ListOptions) (watch.Interface, error) {
+	return func(options meta.ListOptions) (watch.Interface, error) {
+		if s != nil {
+			options.LabelSelector = s.String()
+		}
+		w, err := c.CoreV1().Services(ns).Watch(options)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +148,7 @@ func (c *SyncController) podDelete(obj interface{}) {
 func (c *SyncController) sendPodUpdates(oldPod, newPod *api.Pod) {
 	//log.Infof("sendPodUpdates, oldPod: %#v, newPod: %#v", oldPod, newPod)
 	if oldPod != nil && newPod != nil && (oldPod.GetResourceVersion() == newPod.GetResourceVersion()) {
-		log.Debugf("pod %s/%s metadata not change, skip update", oldPod.GetNamespace(), oldPod.GetName())
+		log.V(10).Debugf("pod %s/%s metadata not change, skip update", oldPod.GetNamespace(), oldPod.GetName())
 		return
 	}
 	pod := newPod
@@ -117,10 +162,43 @@ func (c *SyncController) sendPodUpdates(oldPod, newPod *api.Pod) {
 	}
 }
 
+func (c *SyncController) serviceAdd(obj interface{}) {
+	c.sendServiceUpdates(nil, obj.(*api.Service))
+}
+
+func (c *SyncController) serviceUpdate(oldObj, newObj interface{}) {
+	c.sendServiceUpdates(oldObj.(*api.Service), newObj.(*api.Service))
+}
+
+func (c *SyncController) serviceDelete(obj interface{}) {
+	err := c.deleteCloudEndpoint(obj.(*api.Service))
+	if err != nil {
+		log.Errorf("Delete cloud endpoint error: %v", err)
+	}
+}
+
+func (c *SyncController) sendServiceUpdates(oldSvc, newSvc *api.Service) {
+	if oldSvc != nil && newSvc != nil && (oldSvc.GetResourceVersion() == newSvc.GetResourceVersion()) {
+		log.V(10).Debugf("Service %s.%s metadata not change, skip update", oldSvc.GetName(), oldSvc.GetNamespace())
+		return
+	}
+	svc := newSvc
+	if svc == nil {
+		svc = oldSvc
+	}
+	err := c.updateCloudServiceEndpoint(svc)
+	if err != nil {
+		log.Errorf("Update cloud endpoint error: %v", err)
+	}
+}
+
 // Run starts the controller
 func (c *SyncController) Run() {
 	if c.podController != nil {
 		go c.podController.Run(c.stopCh)
+	}
+	if c.svcController != nil {
+		go c.svcController.Run(c.stopCh)
 	}
 	<-c.stopCh
 }
@@ -200,4 +278,18 @@ func (c *SyncController) updateCloudGuest(pod *api.Pod) error {
 	}
 	log.Debugf("Update guest: %s", obj)
 	return nil
+}
+
+func (c *SyncController) updateCloudServiceEndpoint(svc *api.Service) error {
+	if !shouldAddServiceToCloud(svc) {
+		return nil
+	}
+	return createOrUpdateCloudEndpointByService(svc)
+}
+
+func (c *SyncController) deleteCloudEndpoint(svc *api.Service) error {
+	if !shouldAddServiceToCloud(svc) {
+		return nil
+	}
+	return deleteCloudEndpointByService(svc)
 }
