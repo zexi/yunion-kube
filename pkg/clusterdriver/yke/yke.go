@@ -298,9 +298,6 @@ func clusterUp(
 	dockerDialerFactory, localConnDialerFactory hosts.DialerFactory,
 	k8sWrapTransport k8s.WrapTransport,
 	local bool, configDir string, updateOnly, disablePortCheck bool) (string, string, string, string, map[string]pki.CertificatePKI, error) {
-	log.Errorf("=====clusterup configDir: %q", configDir)
-	// enable lxcfs init plugin by default
-	ctx = context.WithValue(ctx, "enable-lxcfs", true)
 	apiURL, caCrt, clientCert, clientKey, certs, err := cmd.ClusterUp(ctx, ykeConfig, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport, local, configDir, updateOnly, disablePortCheck)
 	if err != nil {
 		log.Warningf("cluster up error: %v", err)

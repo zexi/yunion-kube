@@ -1439,7 +1439,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:b4cc75714b28b251ef9131d0d4b4070461784547a7d926d85d107cc8c199aca4"
+  digest = "1:418c07949add8e99af92767909c60ac3c7b4b1212811f1759e19b33f512f61fe"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1458,7 +1458,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "efe1decfa86a2fef72ee95fbd2d77746e4bad907"
+  revision = "b03a4937efa96e3550dd70643fc4847bac97402f"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1478,6 +1478,7 @@
     "gopkg.in/urfave/cli.v1",
     "gopkg.in/urfave/cli.v1/altsrc",
     "gopkg.in/yaml.v2",
+    "k8s.io/api/admissionregistration/v1alpha1",
     "k8s.io/api/apps/v1beta2",
     "k8s.io/api/autoscaling/v1",
     "k8s.io/api/batch/v1",
@@ -1500,6 +1501,7 @@
     "k8s.io/apimachinery/pkg/util/intstr",
     "k8s.io/apimachinery/pkg/util/proxy",
     "k8s.io/apimachinery/pkg/util/rand",
+    "k8s.io/apimachinery/pkg/util/strategicpatch",
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apiserver/pkg/authentication/authenticator",
@@ -1524,6 +1526,7 @@
     "k8s.io/helm/pkg/proto/hapi/chart",
     "k8s.io/helm/pkg/proto/hapi/release",
     "k8s.io/helm/pkg/proto/hapi/services",
+    "k8s.io/helm/pkg/provenance",
     "k8s.io/helm/pkg/repo",
     "k8s.io/helm/pkg/strvals",
     "yunion.io/x/jsonutils",
