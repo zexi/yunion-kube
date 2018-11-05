@@ -16,7 +16,14 @@ func init() {
 	MeterAppManager.SReleaseAppManager = releaseapp.NewReleaseAppManager(MeterAppManager, "app_meter", "app_meters")
 }
 
+func (man *SMeterAppManager) GetReleaseName() string {
+	return "meter"
+}
+
+func (man *SMeterAppManager) GetChartName() string {
+	return releaseapp.NewYunionRepoChartName("meter")
+}
+
 func (man *SMeterAppManager) GetConfigSets() releaseapp.ConfigSets {
-	globalSets := releaseapp.GetYunionGlobalConfigSets()
-	return globalSets
+	return releaseapp.GetYunionGlobalConfigSets()
 }

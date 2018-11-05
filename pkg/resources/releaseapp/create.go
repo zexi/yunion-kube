@@ -37,11 +37,13 @@ func (app *SReleaseAppManager) ValidateCreateData(req *common.Request) error {
 	}
 	name, _ := data.GetString("release_name")
 	if name == "" {
-		name, err := release.GenerateName("")
-		if err != nil {
-			return err
-		}
+		name = app.hooker.GetReleaseName()
 		data.Set("release_name", jsonutils.NewString(name))
+	}
+	chartName, _ := data.GetString("chart_name")
+	if chartName == "" {
+		chartName = app.hooker.GetChartName()
+		data.Set("chart_name", jsonutils.NewString(chartName))
 	}
 	return nil
 }
