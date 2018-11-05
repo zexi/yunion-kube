@@ -9,6 +9,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/controllers/auth"
 	"yunion.io/x/yunion-kube/pkg/controllers/helm"
+	lxcfscontroller "yunion.io/x/yunion-kube/pkg/controllers/lxcfs"
 	synccontroller "yunion.io/x/yunion-kube/pkg/controllers/sync"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
@@ -85,6 +86,7 @@ type SClusterController struct {
 	clusterName           string
 	keystoneAuthenticator *auth.KeystoneAuthenticator
 	syncController        *synccontroller.SyncController
+	lxcfsController       *lxcfscontroller.LxcfsInitializeController
 	stopCh                chan struct{}
 }
 
@@ -105,9 +107,17 @@ func newClusterController(cluster *models.SCluster) (*SClusterController, error)
 		return nil, err
 	}
 
-	go func() {
-		ctrl.RunSyncController(k8sCli, ctrl.stopCh)
-	}()
+	controllerFuncs := []func(*kubernetes.Clientset, chan struct{}){
+		ctrl.RunSyncController,
+		ctrl.RunLxcfsController,
+	}
+
+	for i := range controllerFuncs {
+		idx := i
+		go func() {
+			controllerFuncs[idx](k8sCli, ctrl.stopCh)
+		}()
+	}
 
 	return ctrl, nil
 }
@@ -127,6 +137,11 @@ func (c *SClusterController) RunSyncController(k8sCli *kubernetes.Clientset, sto
 		StopCh:       stopCh,
 	})
 	c.syncController.Run()
+}
+
+func (c *SClusterController) RunLxcfsController(k8sCli *kubernetes.Clientset, stopCh chan struct{}) {
+	c.lxcfsController = lxcfscontroller.NewLxcfsInitializeController(k8sCli, stopCh)
+	c.lxcfsController.Run()
 }
 
 func (c *SClusterController) GetKeystoneAuthenticator() *auth.KeystoneAuthenticator {
