@@ -3,12 +3,21 @@ package releaseapp
 import (
 	"fmt"
 
+	"yunion.io/x/log"
+
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
 )
 
+const (
+	INFLUXDB_DB_CONF_KEY = "global.influxdb.database"
+)
+
 type IReleaseAppHooker interface {
+	GetReleaseName() string
+	GetChartName() string
 	GetConfigSets() ConfigSets
 }
 
@@ -40,6 +49,18 @@ func (s ConfigSets) ToSets() []string {
 	return ret
 }
 
+func (s ConfigSets) add(key, val string) ConfigSets {
+	s[key] = val
+	return s
+}
+
+func (s ConfigSets) Add(conf ConfigSets) ConfigSets {
+	for k, v := range conf {
+		s = s.add(k, v)
+	}
+	return s
+}
+
 func GetYunionGlobalConfigSets() ConfigSets {
 	o := options.Options
 	return map[string]string{
@@ -50,4 +71,22 @@ func GetYunionGlobalConfigSets() ConfigSets {
 		"global.yunion.auth.project":  o.AdminProject,
 		"global.yunion.auth.region":   o.Region,
 	}
+}
+
+func GetYunionInfluxdbGlobalConfigSets() ConfigSets {
+	conf := make(map[string]string)
+	session, err := models.GetAdminSession()
+	if err != nil {
+		log.Errorf("Get admin session error: %v", err)
+		return conf
+	}
+	influxdbUrl, _ := session.GetServiceURL("influxdb", "internalURL")
+	conf = map[string]string{
+		"global.influxdb.url": influxdbUrl,
+	}
+	return GetYunionGlobalConfigSets().Add(conf)
+}
+
+func NewYunionRepoChartName(chartName string) string {
+	return fmt.Sprintf("%s/%s", models.YUNION_REPO_NAME, chartName)
 }
