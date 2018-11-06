@@ -89,14 +89,7 @@ func RoleAssignmentQuery(userID string) jsonutils.JSONObject {
 }
 
 func (r *Reconciler) GetRoleAssignments(userID string) (ret RoleAssignments, err error) {
-	ras := r.keystone.GetRoleAssignments()
-	ret = make([]RoleAssignment, 0)
-	for _, ra := range ras {
-		if ra.User.ID == userID {
-			ret = append(ret, ra)
-		}
-	}
-	return ret, nil
+	return r.keystone.GetRoleAssignments(userID)
 }
 
 func (r *Reconciler) GetUserProjects(userID string) ([]string, error) {
