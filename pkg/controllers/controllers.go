@@ -100,10 +100,7 @@ func newClusterController(cluster *models.SCluster) (*SClusterController, error)
 		return nil, err
 	}
 
-	err = ctrl.RunKeystoneAuthenticator(k8sCli, ctrl.stopCh)
-	if err != nil {
-		return nil, err
-	}
+	ctrl.RunKeystoneAuthenticator(k8sCli, ctrl.stopCh)
 
 	go func() {
 		ctrl.RunSyncController(k8sCli, ctrl.stopCh)
@@ -112,13 +109,8 @@ func newClusterController(cluster *models.SCluster) (*SClusterController, error)
 	return ctrl, nil
 }
 
-func (c *SClusterController) RunKeystoneAuthenticator(k8sCli *kubernetes.Clientset, stopCh chan struct{}) error {
-	kauth, err := auth.NewKeystoneAuthenticator(k8sCli, stopCh)
-	if err != nil {
-		return err
-	}
-	c.keystoneAuthenticator = kauth
-	return nil
+func (c *SClusterController) RunKeystoneAuthenticator(k8sCli *kubernetes.Clientset, stopCh chan struct{}) {
+	c.keystoneAuthenticator = auth.NewKeystoneAuthenticator(k8sCli, stopCh)
 }
 
 func (c *SClusterController) RunSyncController(k8sCli *kubernetes.Clientset, stopCh chan struct{}) {
