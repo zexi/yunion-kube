@@ -1439,7 +1439,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:418c07949add8e99af92767909c60ac3c7b4b1212811f1759e19b33f512f61fe"
+  digest = "1:f2e7b9b0dfb32dbaf5f44d7287e5c00bf2f0945ffa19af337ba537ee57a4b096"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1458,7 +1458,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "b03a4937efa96e3550dd70643fc4847bac97402f"
+  revision = "25b7d23f38c3e5b468a09d266979bd976acb3bca"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1543,6 +1543,7 @@
     "yunion.io/x/onecloud/pkg/mcclient/auth",
     "yunion.io/x/onecloud/pkg/mcclient/modules",
     "yunion.io/x/onecloud/pkg/util/httputils",
+    "yunion.io/x/pkg/util/cache",
     "yunion.io/x/pkg/util/errors",
     "yunion.io/x/pkg/util/regutils",
     "yunion.io/x/pkg/util/runtime",
