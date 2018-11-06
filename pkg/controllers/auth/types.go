@@ -20,6 +20,7 @@ const (
 	MemberKeystoneRole       = "_member_"
 	AdminKeystoneRole        = "admin"
 	SystemKeystoneRole       = "system"
+	SystemProject            = "system"
 	ProjectOwnerKeystoneRole = "project_owner"
 	RoleAssignmentManager    = "role_assignments"
 )
@@ -111,8 +112,8 @@ func (r RoleAssignments) ProjectIDs() []string {
 	return ret
 }
 
-func (r RoleAssignments) RoleInProject(project string) string {
-	return r.GetStringField(func(r RoleAssignment) string {
+func (r RoleAssignments) RolesInProject(project string) []string {
+	return r.GetStringFields(func(r RoleAssignment) string {
 		if r.Scope.Project.Name == project {
 			return r.Role.Name
 		}
