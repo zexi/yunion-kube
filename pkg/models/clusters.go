@@ -819,7 +819,6 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 				"authentication-token-webhook-config-file": "/etc/kubernetes/webhook.kubeconfig",
 				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
 				//"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
-
 				"runtime-config": "storage.k8s.io/v1alpha1=true,admissionregistration.k8s.io/v1alpha1=true,settings.k8s.io/v1alpha1=true",
 			},
 		},
@@ -832,8 +831,6 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
 				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
-				//"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
-				//"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true",
 			},
 		},
 		ServiceClusterIPRange: c.GetServiceClusterIPRange(),
@@ -859,8 +856,8 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
 				"read-only-port": "10255",
-				//"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,CSINodeInfo=true,CSIDriverRegistry=true",
-				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true",
+				"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true",
+				"eviction-hard":  "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
 			},
 		},
 		ClusterDomain:       c.GetClusterDomain(),
