@@ -81,6 +81,8 @@ func NewJSONClientError(err error) *httputils.JSONClientError {
 		statusCode = int(statusError.Status().Code)
 		title = string(statusError.Status().Reason)
 		msg = statusError.Status().Message
+	} else {
+		return httperrors.NewInternalServerError(err.Error())
 	}
 	return httperrors.NewJsonClientError(statusCode, title, msg, httputils.Error{})
 }
