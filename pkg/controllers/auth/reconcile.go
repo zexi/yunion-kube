@@ -100,12 +100,12 @@ func (r *Reconciler) GetUserProjects(userID string) ([]string, error) {
 	return ras.Projects().List(), nil
 }
 
-func (r *Reconciler) GetUserRole(userID, project string) (string, error) {
+func (r *Reconciler) GetUserRoles(userID, project string) ([]string, error) {
 	ras, err := r.GetRoleAssignments(userID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return ras.RoleInProject(project), nil
+	return ras.RolesInProject(project), nil
 }
 
 func Parallelize(execF func(string) error, args ...string) error {
@@ -296,8 +296,8 @@ func (r *Reconciler) EnsureNamespaces(projects ...string) error {
 func (r *Reconciler) EnsureUserProjectsRBAC(userName, userID string, ras RoleAssignments, projects ...string) error {
 	rbacRoleName := fmt.Sprintf("%s:%s", userName, userID)
 	return Parallelize(func(project string) error {
-		role := ras.RoleInProject(project)
-		if AdminUserRoleSets.Has(role) {
+		roles := ras.RolesInProject(project)
+		if project == SystemProject && AdminUserRoleSets.HasAny(roles...) {
 			name := fmt.Sprintf("%s:%s", AdminRolebindingPrefix, rbacRoleName)
 			return r.EnsureClusterRoleBinding(name, userName)
 		}
