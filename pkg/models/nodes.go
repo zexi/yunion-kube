@@ -138,7 +138,7 @@ func validateHost(ctx context.Context, m *SNodeManager, userCred mcclient.TokenC
 		name = cloudHost.Name
 		data.Set("name", jsonutils.NewString(name))
 	}
-	n, _ := NodeManager.FetchByIdOrName("", name)
+	n, _ := NodeManager.FetchByIdOrName(userCred, name)
 	if n != nil {
 		return "", httperrors.NewInputParameterError("Node name %q duplicate", name)
 	}
@@ -207,7 +207,7 @@ func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient
 	if clusterIdent == "" {
 		return nil, httperrors.NewInputParameterError("Cluster must specified")
 	}
-	cluster, err := ClusterManager.FetchClusterByIdOrName(ownerId, clusterIdent)
+	cluster, err := ClusterManager.FetchClusterByIdOrName(userCred, clusterIdent)
 	if err != nil {
 		return nil, httperrors.NewInputParameterError("Cluster %q found error: %v", clusterIdent, err)
 	}
@@ -249,7 +249,7 @@ func (m *SNodeManager) OnCreateComplete(ctx context.Context, items []db.IModel, 
 	for _, n := range nodes {
 		TaskManager().Run(func() {
 			n.StartAgentOnHost(ctx, userCred, query, data)
-		}, nil)
+		}, nil, nil)
 	}
 }
 
