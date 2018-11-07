@@ -36,7 +36,7 @@ func init() {
 
 func (m *SRepoManager) InitializeData() error {
 	// check if default repo exists
-	_, err := m.FetchByIdOrName("", YUNION_REPO_NAME)
+	_, err := m.FetchByIdOrName(nil, YUNION_REPO_NAME)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return err
@@ -98,8 +98,8 @@ func (man *SRepoManager) FetchRepoById(id string) (*SRepo, error) {
 	return repo.(*SRepo), nil
 }
 
-func (man *SRepoManager) FetchRepoByIdOrName(ownerProjId, ident string) (*SRepo, error) {
-	repo, err := man.FetchByIdOrName(ownerProjId, ident)
+func (man *SRepoManager) FetchRepoByIdOrName(userCred mcclient.IIdentityProvider, ident string) (*SRepo, error) {
+	repo, err := man.FetchByIdOrName(userCred, ident)
 	if err != nil {
 		return nil, err
 	}

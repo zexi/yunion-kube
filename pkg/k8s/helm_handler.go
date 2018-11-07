@@ -115,7 +115,7 @@ func chartShowHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	}
 	chartName := params["<name>"]
 	userCred := getUserCredential(ctx)
-	repo, err := models.RepoManager.FetchRepoByIdOrName(userCred.GetProjectId(), repoName)
+	repo, err := models.RepoManager.FetchRepoByIdOrName(userCred, repoName)
 	if err != nil {
 		httperrors.GeneralServerError(w, err)
 		return

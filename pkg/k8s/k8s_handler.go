@@ -105,7 +105,7 @@ func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredenti
 	if clusterId == "" {
 		clusterId = "default"
 	}
-	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred.GetProjectId(), clusterId)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred, clusterId)
 	if err != nil {
 		return nil, err
 	}

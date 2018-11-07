@@ -97,4 +97,13 @@ func InitHandlers(app *appsrv.Application) {
 	k8s.AddHelmDispatcher(apiPrefix, app)
 	k8s.AddRawResourceDispatcher(apiPrefix, app)
 	k8s.AddMiscDispatcher(apiPrefix, app)
+	addDefaultHandler(apiPrefix, app)
+}
+
+func addDefaultHandler(apiPrefix string, app *appsrv.Application) {
+	app.AddHandler("GET", fmt.Sprintf("%s/version", apiPrefix), appsrv.VersionHandler)
+	app.AddHandler("GET", fmt.Sprintf("%s/stats", apiPrefix), appsrv.StatisticHandler)
+	app.AddHandler("POST", fmt.Sprintf("%s/ping", apiPrefix), appsrv.PingHandler)
+	app.AddHandler("GET", fmt.Sprintf("%s/ping", apiPrefix), appsrv.PingHandler)
+	app.AddHandler("GET", fmt.Sprintf("%s/worker_stats", apiPrefix), appsrv.WorkerStatsHandler)
 }

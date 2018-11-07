@@ -684,6 +684,18 @@
   revision = "d188e65d659ef53fcdb0691c12f1bba64928b649"
 
 [[projects]]
+  branch = "master"
+  digest = "1:119cf7d2c3bc4a3c675e8c30cadf00c8c2ab34a20ba373211dd3a7d66f3e5f32"
+  name = "github.com/tredoe/osutil"
+  packages = [
+    "user/crypt",
+    "user/crypt/common",
+    "user/crypt/sha512_crypt",
+  ]
+  pruneopts = "UT"
+  revision = "7d3ee1afa71c90fd1514c8f557ae6c5f414208eb"
+
+[[projects]]
   digest = "1:98e5cda86f67cd1ac95389d98670b66dea8cae480fe6292b83bccccfe60b4106"
   name = "github.com/ugorji/go"
   packages = ["codec"]
@@ -1359,39 +1371,45 @@
   revision = "5185c49f6d361f61e561fbccba1bedcc7c62748b"
 
 [[projects]]
-  branch = "release/2.2.0"
-  digest = "1:a5e075456c5287c815c584447323e089d19203679ce6ba15a16fac8cf181314f"
+  branch = "release/2.3.0"
+  digest = "1:f3960f2d17c4e69c74c9602e4d62d34976d316eebdf51965a3f588025d2aafe1"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
     "pkg/appsrv",
     "pkg/appsrv/dispatcher",
     "pkg/cloudcommon",
+    "pkg/cloudcommon/consts",
     "pkg/cloudcommon/db",
     "pkg/cloudcommon/db/lockman",
     "pkg/cloudcommon/db/quotas",
     "pkg/cloudcommon/db/taskman",
     "pkg/cloudcommon/notifyclient",
+    "pkg/cloudcommon/policy",
+    "pkg/cloudcommon/validators",
     "pkg/cloudprovider",
     "pkg/compute/baremetal",
     "pkg/compute/models",
     "pkg/compute/options",
+    "pkg/compute/sshkeys",
     "pkg/httperrors",
     "pkg/mcclient",
     "pkg/mcclient/auth",
     "pkg/mcclient/modules",
     "pkg/proxy",
+    "pkg/util/conditionparser",
     "pkg/util/httputils",
     "pkg/util/imagetools",
     "pkg/util/logclient",
+    "pkg/util/rbacutils",
     "pkg/util/seclib2",
   ]
   pruneopts = "UT"
-  revision = "5f6033fcaec9feca24f9881a9314b392fc69adc6"
+  revision = "89cfced3078276aad2fbd55eea7f3100bf31ba0f"
 
 [[projects]]
   branch = "master"
-  digest = "1:e6671eb0f7ab598118cb7309092e88e56993459414bdd4469edde1c8ae950851"
+  digest = "1:6162842ea9d3ec8283ce506e773fd98199464bc6c859fa8362210acae21855ea"
   name = "yunion.io/x/pkg"
   packages = [
     "gotypes",
@@ -1408,6 +1426,7 @@
     "util/reflectutils",
     "util/regutils",
     "util/runtime",
+    "util/seclib",
     "util/secrules",
     "util/sets",
     "util/stringutils",
@@ -1419,7 +1438,7 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "9d246215b0a167b153bcdbc7d75031ced7138cf8"
+  revision = "526a04d2eb834022e20100d991d1c84b78d87c07"
 
 [[projects]]
   branch = "master"

@@ -4,12 +4,12 @@ import (
 	"yunion.io/x/onecloud/pkg/appsrv"
 )
 
-var taskWorkMan *appsrv.WorkerManager
+var taskWorkMan *appsrv.SWorkerManager
 
 func init() {
-	taskWorkMan = appsrv.NewWorkerManager("TaskWorkerManager", 4, 10)
+	taskWorkMan = appsrv.NewWorkerManager("TaskWorkerManager", 4, 100)
 }
 
-func TaskManager() *appsrv.WorkerManager {
+func TaskManager() *appsrv.SWorkerManager {
 	return taskWorkMan
 }
