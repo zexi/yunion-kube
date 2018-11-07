@@ -96,6 +96,7 @@ func RegisterDriver(scaledCtx *config.ScaledContext) {
 	}
 	driver := clusterdriver.Drivers["yke"]
 	ykeDriver := driver.(*yke.Driver)
+	ykeDriver.DialerFactory = scaledCtx.Dialer
 	ykeDriver.DockerDialer = docker.Build
 	ykeDriver.LocalDialer = local.Build
 	ykeDriver.WrapTransportFactory = docker.WrapTransport

@@ -24,6 +24,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/types"
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke/ykecerts"
+	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
 	"yunion.io/x/yunion-kube/pkg/types/slice"
 	"yunion.io/x/yunion-kube/pkg/utils"
 )
@@ -39,10 +40,18 @@ func NewDriver() types.Driver {
 
 type WrapTransportFactory func(config *yketypes.KubernetesEngineConfig) k8s.WrapTransport
 
+type IDialerFactory interface {
+}
+
 type Driver struct {
 	DockerDialer         hosts.DialerFactory
 	LocalDialer          hosts.DialerFactory
 	WrapTransportFactory WrapTransportFactory
+	DialerFactory        dialer.Factory
+}
+
+func (d *Driver) GetDialerFactory() dialer.Factory {
+	return d.DialerFactory
 }
 
 func (d *Driver) wrapTransport(config *yketypes.KubernetesEngineConfig) k8s.WrapTransport {

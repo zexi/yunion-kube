@@ -9,6 +9,6 @@ type Dialer func(network, address string) (net.Conn, error)
 type Factory interface {
 	//LocalClusterDialer() Dialer
 	//ClusterDialer(clusterName string) (Dialer, error)
-	DockerDialer(clusterName, machineName string) (Dialer, error)
-	NodeDialer(clusterName, machineName string) (Dialer, error)
+	DockerDialer(clusterId, nodeId string) (Dialer, error)
+	NodeDialer(clusterId, nodeId string) (Dialer, error)
 }
