@@ -486,7 +486,7 @@ func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 		return err
 	}
 
-	if strings.Contains(cluster.ApiEndpoint, n.Address) && len(oldNodes) != 1 {
+	if len(n.Address) != 0 && strings.Contains(cluster.ApiEndpoint, n.Address) && len(oldNodes) != 1 {
 		return httperrors.NewInputParameterError("First control node %q must deleted at last", n.Name)
 	}
 

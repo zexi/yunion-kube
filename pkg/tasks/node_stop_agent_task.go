@@ -21,6 +21,7 @@ func init() {
 }
 
 func (t *NodeStopAgentTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetStage("OnStopAgent", nil)
 	t.StopKubeAgentOnHost(ctx, obj, data)
 }
 
@@ -31,7 +32,6 @@ func (t *NodeStopAgentTask) StopKubeAgentOnHost(ctx context.Context, obj db.ISta
 		t.SetStageFailed(ctx, err.Error())
 		return
 	}
-	t.SetStage("OnStopAgent", data.(*jsonutils.JSONDict))
 	header := http.Header{}
 	header.Set("X-Task-Id", t.GetTaskId())
 	url := "/kubeagent/stop"
@@ -43,4 +43,8 @@ func (t *NodeStopAgentTask) StopKubeAgentOnHost(ctx context.Context, obj db.ISta
 
 func (t *NodeStopAgentTask) OnStopAgent(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, data.(*jsonutils.JSONDict))
+}
+
+func (t *NodeStopAgentTask) OnStopAgentFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.OnFailedJson(ctx, obj, data)
 }

@@ -33,6 +33,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
+	ykedriver "yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/templates"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -393,12 +394,12 @@ func (c *SCluster) ValidateDeployCondition(ctx context.Context, userCred mcclien
 		return
 	}
 	if c.Status == CLUSTER_STATUS_DEPLOY {
-		err = fmt.Errorf("Cluster status is %q", c.Status)
+		err = httperrors.NewUnsupportOperationError("Cluster status is %q", c.Status)
 		return
 	}
 	for _, node := range nodes {
 		if !yutils.IsInStringArray(node.Status, []string{NODE_STATUS_READY, NODE_STATUS_RUNNING}) {
-			err = fmt.Errorf("Node %q status %q is not ready or running", node.Name, node.Status)
+			err = httperrors.NewUnsupportOperationError("Node %q status %q is not ready or running", node.Name, node.Status)
 			return
 		}
 	}
@@ -662,6 +663,11 @@ func (c *SCluster) RemoveCluster(ctx context.Context) error {
 func (c *SCluster) ClusterDriver() drivertypes.Driver {
 	driver := clusterdriver.Drivers["yke"]
 	return driver
+}
+
+func (c *SCluster) ClusterYKEDriver() *ykedriver.Driver {
+	driver := clusterdriver.Drivers["yke"]
+	return driver.(*ykedriver.Driver)
 }
 
 func (c *SCluster) GetYKEAuthzConfig() yketypes.AuthzConfig {
@@ -1253,12 +1259,21 @@ func (c *SCluster) StartClusterImportTask(ctx context.Context, userCred mcclient
 	return nil
 }
 
-func (c *SCluster) IsNodesReady(nodes ...*SNode) bool {
+func (c *SCluster) IsNodeAgentReady(node *SNode) bool {
+	driver := c.ClusterYKEDriver()
+	dialer := driver.GetDialerFactory()
+	_, err := dialer.DockerDialer(c.Id, node.Id)
+	if err != nil {
+		log.Warningf("Node %s kube agent is not ready: %v", node.Name, err)
+		return false
+	}
+	return true
+}
+
+func (c *SCluster) IsNodeAgentsReady(nodes ...*SNode) bool {
 	isAllReady := true
 	for _, node := range nodes {
-		//if node.Status != NODE_STATUS_READY {
-		if !sets.NewString(NODE_STATUS_READY, NODE_STATUS_RUNNING).Has(node.Status) {
-			log.Debugf("node %q status %q is not ready", node.Name, node.Status)
+		if !c.IsNodeAgentReady(node) {
 			return false
 		}
 	}
@@ -1360,8 +1375,8 @@ func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.To
 	}
 
 	for _, node := range nodes {
-		if strings.Contains(c.ApiEndpoint, node.Address) && len(nodes) != len(oldNodes) {
-			return nil, httperrors.NewInputParameterError("First control node %q must deleted at last", node.Name)
+		if len(node.Address) != 0 && strings.Contains(c.ApiEndpoint, node.Address) && len(nodes) != len(oldNodes) {
+			return nil, httperrors.NewInputParameterError("First control node %q must deleted at last, address %q", node.Name, node.Address)
 		}
 	}
 	return nodes, nil
