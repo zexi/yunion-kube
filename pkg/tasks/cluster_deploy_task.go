@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -46,14 +45,8 @@ func (t *ClusterDeployTask) getPendingDeployNodes() ([]*models.SNode, error) {
 }
 
 func (t *ClusterDeployTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*models.SCluster)
-	nodes, err := t.getPendingDeployNodes()
-	if err != nil {
-		t.SetFailed(ctx, cluster, err)
-		return
-	}
 	t.SetStage("OnWaitNodesAgentStart", nil)
-	t.StartNodesAgent(ctx, cluster, nodes, data)
+	t.OnWaitNodesAgentStart(ctx, obj, data)
 }
 
 func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -63,18 +56,25 @@ func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IS
 		t.SetFailed(ctx, cluster, fmt.Errorf("Get pendingNodes: %v", err))
 		return
 	}
-	if !cluster.IsNodesReady(nodes...) {
-		log.Infof("Not all node ready, wait agents to start")
-		time.Sleep(time.Second * 2)
-		t.ScheduleRun(nil)
+	if cluster.IsNodeAgentsReady(nodes...) {
+		t.SetStage("OnNodeAgentsReady", nil)
+		log.Infof("All nodes agent started, start deploy")
+		t.doDeploy(ctx, cluster, nodes)
 		return
 	}
-	log.Infof("All nodes agent started, start deploy")
-	t.doDeploy(ctx, cluster, nodes)
+	log.Infof("Not all node ready, wait agents to start")
+	err = t.StartNodesAgent(ctx, cluster, nodes, data)
+	if err != nil {
+		t.SetFailed(ctx, cluster, err)
+	}
 }
 
 func (t *ClusterDeployTask) OnWaitNodesAgentStartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnWaitNodesAgentStart: %s", data))
+}
+
+func (t *ClusterDeployTask) OnNodeAgentsReady(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	log.Infof("Do nothing when node agents ready")
 }
 
 func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) {

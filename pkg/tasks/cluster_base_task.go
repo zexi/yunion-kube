@@ -2,9 +2,9 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/models"
@@ -28,29 +28,38 @@ type SClusterAgentBaseTask struct {
 	SClusterBaseTask
 }
 
-func (t *SClusterAgentBaseTask) StartNodesAgent(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, data jsonutils.JSONObject) {
+func (t *SClusterAgentBaseTask) StartNodesAgent(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, data jsonutils.JSONObject) error {
 	for _, node := range nodes {
+		if cluster.IsNodeAgentReady(node) {
+			continue
+		}
 		err := node.StartAgentStartTask(ctx, t.UserCred, nil, t.GetTaskId())
 		if err != nil {
-			log.Errorf("Start node %q agent task error: %v", node.Name, err)
+			err = fmt.Errorf("Start node %q agent task error: %v", node.Name, err)
+			return err
 		}
 	}
+	return nil
 }
 
-func (t *SClusterAgentBaseTask) RestartNodesAgent(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, data jsonutils.JSONObject) {
+func (t *SClusterAgentBaseTask) RestartNodesAgent(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, data jsonutils.JSONObject) error {
 	for _, node := range nodes {
 		err := node.StartAgentRestartTask(ctx, t.UserCred, nil, t.GetTaskId())
 		if err != nil {
-			log.Errorf("Restart node %q agent task error: %v", node.Name, err)
+			err = fmt.Errorf("Restart node %q agent task error: %v", node.Name, err)
+			return err
 		}
 	}
+	return nil
 }
 
-func (t *SClusterAgentBaseTask) StopNodesAgent(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, data jsonutils.JSONObject) {
+func (t *SClusterAgentBaseTask) StopNodesAgent(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, data jsonutils.JSONObject) error {
 	for _, node := range nodes {
 		err := node.StartAgentStopTask(ctx, t.UserCred, nil, t.GetTaskId())
 		if err != nil {
-			log.Errorf("Stop node %q agent task error: %v", node.Name, err)
+			err = fmt.Errorf("Stop node %q agent task error: %v", node.Name, err)
+			return err
 		}
 	}
+	return nil
 }
