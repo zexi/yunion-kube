@@ -101,7 +101,7 @@ type SCluster struct {
 
 func (m *SClusterManager) InitializeData() error {
 	// check if default cluster exists
-	cluster, err := m.FetchByIdOrName("", "default")
+	cluster, err := m.FetchByIdOrName(nil, "default")
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return err
@@ -164,8 +164,8 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 	return m.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-func (m *SClusterManager) FetchClusterByIdOrName(ownerProjId, ident string) (*SCluster, error) {
-	cluster, err := m.FetchByIdOrName(ownerProjId, ident)
+func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.IIdentityProvider, ident string) (*SCluster, error) {
+	cluster, err := m.FetchByIdOrName(userCred, ident)
 	if err != nil {
 		log.Errorf("Fetch cluster %q fail: %v", ident, err)
 		if err == sql.ErrNoRows {
@@ -1343,7 +1343,7 @@ func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.To
 				return nil, err
 			}
 		}
-		nodeObj, err := NodeManager.FetchByIdOrName("", id)
+		nodeObj, err := NodeManager.FetchByIdOrName(userCred, id)
 		if err != nil {
 			return nil, httperrors.NewInputParameterError("Not found node by id: %s", id)
 		}

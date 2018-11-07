@@ -18,7 +18,7 @@ func (s *factory) get(req *http.Request) (http.Handler, error) {
 	if clusterId == "" {
 		return nil, fmt.Errorf("ClusterId not provided by request: %#v", req)
 	}
-	cluster, err := models.ClusterManager.FetchClusterByIdOrName(auth.GetTokenString(), clusterId)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(auth.AdminCredential(), clusterId)
 	if err != nil {
 		return nil, err
 	}

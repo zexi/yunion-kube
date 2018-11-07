@@ -46,7 +46,7 @@ func (f *authFactory) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httperrors.NotAcceptableError(w, "Cluster id not provide")
 		return
 	}
-	cluster, err := models.ClusterManager.FetchClusterByIdOrName("", clusterId)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(nil, clusterId)
 	if err != nil {
 		httperrors.NotFoundError(w, err.Error())
 		return
