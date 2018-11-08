@@ -24,6 +24,7 @@ func (man *SServicetreeAppManager) GetConfigSets() releaseapp.ConfigSets {
 		`monitor-stream.kafka.configurationOverrides.offsets\.topic\.replication\.factor`: "1",
 		"monitor-stream.kafka.zookeeper.replicaCount":                                     "1",
 		"monitor-stream.kairosdb.cassandra.config.cluster_size":                           "1",
+		"monitor-stream.kairosdb.cassandra.config.seed_size":                              "1",
 	}
 	return globalSets.Add(conf)
 }

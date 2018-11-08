@@ -706,3 +706,40 @@ func (n *SNode) GetCloudHost() (*apis.CloudHost, error) {
 	}
 	return &cloudHost, nil
 }
+
+func (n *SNode) AllowPerformConfigDockerRegistry(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (n *SNode) PerformConfigDockerRegistry(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	oldConfig, err := n.GetDockerdConfig()
+	if err != nil {
+		return nil, err
+	}
+	config := apis.DockerdConfig{}
+	err = data.Unmarshal(&config)
+	if err != nil {
+		return nil, err
+	}
+	needRestartDocker := false
+	if len(config.RegistryMirrors) != 0 {
+		needRestartDocker = true
+		oldConfig.RegistryMirrors = config.RegistryMirrors
+	}
+	if len(config.InsecureRegistries) != 0 {
+		needRestartDocker = true
+		oldConfig.InsecureRegistries = config.InsecureRegistries
+	}
+	_, err = n.GetModelManager().TableSpec().Update(n, func() error {
+		dConfig := jsonutils.Marshal(oldConfig)
+		n.DockerdConfig = dConfig
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if needRestartDocker {
+		err = n.StartAgentStartTask(ctx, userCred, nil, "")
+	}
+	return nil, err
+}
