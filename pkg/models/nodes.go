@@ -21,6 +21,7 @@ import (
 	yketypes "yunion.io/x/yke/pkg/types"
 
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
+	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -574,6 +575,7 @@ func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
 			LiveRestore:     true,
 			Graph:           DEFAULT_DOCKER_GRAPH_DIR,
 			RegistryMirrors: DEFAULT_DOCKER_REGISTRY_MIRRORS,
+			Bip:             options.Options.DockerdBip,
 		}, nil
 	}
 	config := apis.DockerdConfig{}
@@ -587,6 +589,9 @@ func (n *SNode) GetDockerdConfig() (apis.DockerdConfig, error) {
 	}
 	if len(config.RegistryMirrors) == 0 {
 		config.RegistryMirrors = DEFAULT_DOCKER_REGISTRY_MIRRORS
+	}
+	if len(config.Bip) == 0 {
+		config.Bip = options.Options.DockerdBip
 	}
 	return config, err
 }
