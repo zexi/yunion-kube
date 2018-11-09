@@ -17,4 +17,5 @@ type DockerdConfig struct {
 	RegistryMirrors    []string `json:"registry-mirrors"`
 	InsecureRegistries []string `json:"insecure-registries"`
 	Graph              string   `json:"graph"`
+	Bip                string   `json:"bip,omitempty"`
 }

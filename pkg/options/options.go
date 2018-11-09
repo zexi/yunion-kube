@@ -20,4 +20,6 @@ type KubeServerOptions struct {
 	RepoRefreshDuration int    `help:"Helm repo auto refresh duration, default 5 mins" default:"5"`
 
 	LxcfsRequireAnnotation bool `help:"Only mount lxcfs volume when pod set 'initializer.kubernetes.io/lxcfs' annotation" default:"false"`
+
+	DockerdBip string `help:"Global nodes docker daemon bridge CIDR" default:"172.17.0.1/16"`
 }
