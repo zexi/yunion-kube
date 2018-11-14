@@ -683,6 +683,10 @@ func (c *SCluster) GetYunionConfig() yketypes.YunionConfig {
 	if err != nil {
 		log.Errorf("Get internal influxdb endpoint error: %v", err)
 	}
+	schedulerUrl, err := session.GetServiceURL("scheduler", "internalURL")
+	if err != nil {
+		log.Errorf("Get internal scheduler endpoint error: %v", err)
+	}
 	o := options.Options
 	return yketypes.YunionConfig{
 		AuthURL:        o.AuthURL,
@@ -693,6 +697,7 @@ func (c *SCluster) GetYunionConfig() yketypes.YunionConfig {
 		KubeCluster:    c.Name,
 		HostBridge:     "br0",
 		InfluxdbUrl:    influxdbUrl,
+		SchedulerUrl:   fmt.Sprintf("%s/k8s", schedulerUrl),
 		DockerGraphDir: DEFAULT_DOCKER_GRAPH_DIR,
 	}
 }
@@ -836,7 +841,7 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 		BaseService: yketypes.BaseService{
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
-				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,VolumeScheduling=true",
 			},
 		},
 		ServiceClusterIPRange: c.GetServiceClusterIPRange(),
@@ -847,7 +852,8 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 		BaseService: yketypes.BaseService{
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
-				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true",
+				"feature-gates":      "CSIPersistentVolume=true,MountPropagation=true,VolumeScheduling=true",
+				"policy-config-file": ykecluster.SchedulerConfigPath,
 			},
 		},
 	}
@@ -862,7 +868,7 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
 				"read-only-port": "10255",
-				"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true",
+				"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,VolumeScheduling=true",
 				"eviction-hard":  "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
 			},
 		},
