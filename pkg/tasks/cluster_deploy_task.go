@@ -59,7 +59,8 @@ func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IS
 	if cluster.IsNodeAgentsReady(nodes...) {
 		t.SetStage("OnNodeAgentsReady", nil)
 		log.Infof("All nodes agent started, start deploy")
-		t.doDeploy(ctx, cluster, nodes)
+		isSync, _ := t.GetParams().Bool("sync")
+		t.doDeploy(ctx, cluster, nodes, isSync)
 		return
 	}
 	log.Infof("Not all node ready, wait agents to start")
@@ -77,7 +78,7 @@ func (t *ClusterDeployTask) OnNodeAgentsReady(ctx context.Context, obj db.IStand
 	log.Infof("Do nothing when node agents ready")
 }
 
-func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) {
+func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, isSync bool) {
 	postDeployFunc := func() {
 		err := addNodesToContainerSchedtag(nodes)
 		if err != nil {
@@ -89,7 +90,12 @@ func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SClust
 		}
 	}
 
-	err := cluster.Deploy(ctx, postDeployFunc, nodes...)
+	var err error
+	if !isSync {
+		err = cluster.Deploy(ctx, postDeployFunc, nodes...)
+	} else {
+		err = cluster.SyncUpdate(ctx)
+	}
 	if err != nil {
 		log.Errorf("Deploy error: %v", err)
 		t.SetFailed(ctx, cluster, fmt.Errorf("deploy error: %v", err))

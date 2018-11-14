@@ -198,20 +198,19 @@ func (m *SClusterManager) GetClusterById(ident string) (*apis.Cluster, error) {
 }
 
 func (m *SClusterManager) GetDeployConfig(cluster *SCluster, pendingNodes ...*SNode) (*yketypes.KubernetesEngineConfig, error) {
-	oldConf, newConf, err := m.getConfig(cluster, pendingNodes...)
+	oldConf, fixedConf, err := m.getDeployConfig(cluster, pendingNodes...)
 	if err != nil {
 		return nil, err
 	}
-	if reflect.DeepEqual(oldConf, newConf) {
-		newConf = nil
-		log.Debugf("config not change")
+	if reflect.DeepEqual(oldConf, fixedConf) {
+		return oldConf, nil
 	}
-	return newConf, nil
+	return fixedConf, nil
 }
 
-func (m *SClusterManager) getConfig(cluster *SCluster, pendingNodes ...*SNode) (old, new *yketypes.KubernetesEngineConfig, err error) {
+func (m *SClusterManager) getDeployConfig(cluster *SCluster, pendingNodes ...*SNode) (oldConf, fixedConf *yketypes.KubernetesEngineConfig, err error) {
 	clusterId := cluster.Id
-	old, err = cluster.GetYKEConfig()
+	oldConf, err = cluster.GetYKEConfig()
 	if err != nil {
 		err = fmt.Errorf("Get old YKE config: %v", err)
 		return
@@ -222,14 +221,13 @@ func (m *SClusterManager) getConfig(cluster *SCluster, pendingNodes ...*SNode) (
 		err = fmt.Errorf("Get YKE nodes: %v", err)
 		return
 	}
-	newConf, err := cluster.NewYKEConfig()
+	fixedConf, err = cluster.NewYKEFixedConfig()
 	if err != nil {
 		err = fmt.Errorf("Get cluster new YKE config: %v", err)
 		return
 	}
-	newConf.Nodes = nodes
-	new = &newConf
-	return old, new, nil
+	fixedConf.Nodes = nodes
+	return oldConf, fixedConf, nil
 }
 
 func (m *SClusterManager) reconcileYKENodes(clusterId string, pendingNodes ...*SNode) ([]yketypes.ConfigNode, error) {
@@ -455,6 +453,21 @@ func (c *SCluster) backoffTryRun(f func() error, failureThreshold int) {
 	}
 
 	go run()
+}
+
+func (c *SCluster) AllowPerformSyncConfig(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (c *SCluster) PerformSyncConfig(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	nodes, err := c.ValidateDeployCondition(ctx, userCred, query, data)
+	if err != nil {
+		return nil, err
+	}
+	taskData := FetchClusterDeployTaskData(nodes)
+	taskData.Add(jsonutils.JSONTrue, "sync")
+	err = c.StartClusterDeployTask(ctx, userCred, taskData, "")
+	return nil, err
 }
 
 func (c *SCluster) SyncUpdate(ctx context.Context) error {
@@ -884,22 +897,22 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 	return config, nil
 }
 
-func (c *SCluster) NewYKEConfig() (yketypes.KubernetesEngineConfig, error) {
-	conf := yketypes.KubernetesEngineConfig{}
+func (c *SCluster) NewYKEFixedConfig() (*yketypes.KubernetesEngineConfig, error) {
 	systemImages, err := c.GetYKESystemImages()
 	if err != nil {
-		return conf, err
+		return nil, err
 	}
+	conf := yketypes.KubernetesEngineConfig{}
 	conf.SystemImages = *systemImages
 	conf.Authorization = c.GetYKEAuthzConfig()
 	conf.Network = c.GetYKENetworkConfig()
 	conf.YunionConfig = c.GetYunionConfig()
 	conf.Services, err = c.GetYKEServicesConfig(conf.SystemImages)
 	if err != nil {
-		return conf, err
+		return nil, err
 	}
 	conf.WebhookAuth, err = c.GetYKEWebhookAuthConfig()
-	return conf, err
+	return &conf, err
 }
 
 func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -965,6 +978,26 @@ func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient
 	ret := jsonutils.NewDict()
 	ret.Add(jsonutils.NewString(configStr), "config")
 	return ret, nil
+}
+
+func (c *SCluster) AllowPerformUpdateEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (c *SCluster) PerformUpdateEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	configStr, err := data.GetString("config")
+	if err != nil {
+		return nil, err
+	}
+	config, err := utils.ConvertToYkeConfig(configStr)
+	if err != nil {
+		return nil, httperrors.NewBadRequestError("Invalid engine config string: %s", configStr)
+	}
+	err = c.SetYKEConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetDetailsEngineConfig(ctx, userCred, query)
 }
 
 func (c *SCluster) AllowGetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
