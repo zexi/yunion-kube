@@ -50,5 +50,5 @@ func (man *SNotifyAppManager) getVerificationUrl() string {
 		log.Errorf("Parse publicURL %q error: %v", influxdbUrl, err)
 		return ""
 	}
-	return fmt.Sprintf("http://%s/resource/email-verification/id/{0}/token/{1}", u.Hostname())
+	return fmt.Sprintf("https://%s/resource/email-verification/id/{0}/token/{1}", u.Hostname())
 }
