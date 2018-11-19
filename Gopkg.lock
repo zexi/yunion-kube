@@ -1472,7 +1472,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:41489cbe59996b7e0512eb32f24930b52314474afbe2d45cffcdc2984b8b2f30"
+  digest = "1:b0cf16cbce2cd5a55b335c2d3d5d6f2f744b59f44e5d46b7624652a3cf1e0141"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1491,7 +1491,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "31370e41f29502fa116c79a8a0af149563f9f1fe"
+  revision = "b0d726aebc8ee0942fdfb76e8db1251312150408"
 
 [solve-meta]
   analyzer-name = "dep"
