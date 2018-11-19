@@ -29,6 +29,11 @@ const (
 	STORAGE_CLOUD_EFFICIENCY = "cloud_efficiency"
 	STORAGE_CLOUD_SSD        = "cloud_ssd"
 	STORAGE_EPHEMERAL_SSD    = "ephemeral_ssd"
+	STORAGE_GP2_SSD          = "gp2"      // aws general purpose ssd
+	STORAGE_IO1_SSD          = "io1"      // aws Provisioned IOPS SSD
+	STORAGE_ST1_HDD          = "st1"      // aws Throughput Optimized HDD
+	STORAGE_SC1_SSD          = "sc1"      // aws Cold HDD
+	STORAGE_STANDARD_SSD     = "standard" // aws Magnetic volumes
 
 	STORAGE_ENABLED  = "enabled"
 	STORAGE_DISABLED = "disabled"
@@ -48,6 +53,7 @@ var (
 		STORAGE_LOCAL, STORAGE_BAREMETAL, STORAGE_SHEEPDOG,
 		STORAGE_RBD, STORAGE_DOCKER, STORAGE_NAS, STORAGE_VSAN,
 	}
+	STORAGE_LIMITED_TYPES = []string{STORAGE_LOCAL, STORAGE_BAREMETAL, STORAGE_NAS, STORAGE_RBD}
 )
 
 type SStorageManager struct {

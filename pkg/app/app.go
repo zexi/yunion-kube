@@ -43,6 +43,8 @@ func prepareEnv() {
 	os.Setenv("DISABLE_HTTP2", "true")
 
 	cloudcommon.ParseOptions(&options.Options, &options.Options.Options, os.Args, "kube-server.conf")
+	// TODO: support rbac
+	options.Options.EnableRbac = false
 	runtime.ReallyCrash = false
 }
 
