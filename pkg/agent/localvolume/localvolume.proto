@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package localvolume;
+
+service LocalVolume {
+	rpc AttachImage (AttachImageRequest) returns (AttachImageResponse) {}
+	rpc IsMounted (IsMountedRequest) returns (IsMountedResponse) {}
+	rpc MountVolume (MountVolumeRequest) returns (MountVolumeResponse) {}
+	rpc UnmountVolume (UnmountVolumeRequest) returns (UnmountVolumeResponse) {}
+	rpc DetachDevice (DetachDeviceRequest) returns (DetachDeviceResponse) {}
+}
+
+message AttachImageRequest {
+	// cloud local disk name
+	string disk_path = 1;
+}
+
+message AttachImageResponse {
+	// attached local disk loop device path
+	string device_path = 1;
+}
+
+message MountVolumeRequest {
+	string device_path = 1;
+	string target_path = 2;
+	string fs_type = 3;
+	bool read_only = 4;
+}
+
+message MountVolumeResponse {
+}
+
+message IsMountedRequest {
+	string target_path = 2;
+}
+
+message IsMountedResponse {
+	bool mounted = 1;
+}
+
+message UnmountVolumeRequest {
+	string target_path = 1;
+}
+
+message UnmountVolumeResponse {
+	string device_path = 1;
+	int32 count = 2;
+}
+
+message DetachDeviceRequest {
+	string device_path = 1;
+}
+
+message DetachDeviceResponse {
+}

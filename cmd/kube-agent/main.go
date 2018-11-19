@@ -20,6 +20,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/util/version"
 
+	rpcserver "yunion.io/x/yunion-kube/pkg/agent/localvolume/server"
 	"yunion.io/x/yunion-kube/pkg/agent/node"
 	"yunion.io/x/yunion-kube/pkg/remotedialer"
 	"yunion.io/x/yunion-kube/pkg/tunnelserver"
@@ -29,6 +30,10 @@ import (
 const (
 	Token  = tunnelserver.Token
 	Params = tunnelserver.Params
+)
+
+var (
+	rpcUnixSocketFile string
 )
 
 func appFlags() []cli.Flag {
@@ -84,6 +89,14 @@ func appFlags() []cli.Flag {
 				Name:        "id",
 				Usage:       "Node id for register",
 				Destination: &node.NodeId,
+			},
+		),
+		altsrc.NewStringFlag(
+			cli.StringFlag{
+				Name:        "rpc-socket-file",
+				Usage:       "GRPC server unix socket file",
+				Value:       "/var/run/yunion-kube-agent.sock",
+				Destination: &rpcUnixSocketFile,
 			},
 		),
 	}
@@ -162,6 +175,9 @@ func run(c *cli.Context) error {
 		}()
 		return nil
 	}
+
+	// start local volume rpc server
+	go rpcserver.NewServer(rpcUnixSocketFile).Start()
 
 	for {
 		wsURL := fmt.Sprintf("wss://%s/connect", serverURL.Host)

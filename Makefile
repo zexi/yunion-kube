@@ -25,11 +25,15 @@ CMDS := $(shell find ./cmd -mindepth 1 -maxdepth 1 -type d)
 
 all: build
 
-build: clean
+build: clean grpc
 	@for PKG in $(CMDS); do \
 		echo build $$PKG; \
 		$(GO_BUILD) -o $(BIN_DIR)/`basename $${PKG}` $$PKG; \
 	done
+
+grpc:
+	protoc --proto_path=pkg/agent/localvolume --go_out=plugins=grpc:pkg/agent/localvolume \
+		localvolume.proto
 
 cmd/%: prepare_dir
 	$(GO_BUILD) -o $(BIN_DIR)/$(shell basename $@) $(REPO_PREFIX)/$@
