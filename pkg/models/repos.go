@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	YUNION_REPO_NAME = "yunion"
+	YUNION_REPO_NAME = "infra"
 )
 
 type SRepoManager struct {
