@@ -52,6 +52,7 @@ func ReleaseUpgrade(helmclient *client.HelmTunnelClient, opt *CreateUpdateReleas
 		opt.ReleaseName,
 		chartRequest,
 		helm.UpdateValueOverrides(vals),
+		helm.UpgradeDisableHooks(true),
 		helm.UpgradeDryRun(opt.DryRun),
 		helm.UpgradeTimeout(opt.Timeout),
 		helm.ResetValues(opt.ResetValues),
