@@ -2,7 +2,9 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -45,7 +47,17 @@ func (t *NodeRestartAgentTask) RestartKubeAgentOnHost(ctx context.Context, obj d
 }
 
 func (t *NodeRestartAgentTask) OnRestartAgent(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetStageComplete(ctx, data.(*jsonutils.JSONDict))
+	node := obj.(*models.SNode)
+	for i := 0; i <= 5; i++ {
+		if node.IsAgentReady() {
+			log.Infof("[%s] Node %s agent connected", t.GetName(), node.Name)
+			t.SetStageComplete(ctx, data.(*jsonutils.JSONDict))
+			return
+		}
+		log.Infof("[%s] Wait node %s agent to connect...", t.GetName(), node.Name)
+		time.Sleep(5 * time.Second)
+	}
+	t.OnFailed(ctx, obj, fmt.Errorf("Node restart agent connection timeout", node.Name))
 }
 
 func (t *NodeRestartAgentTask) OnRestartAgentFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {

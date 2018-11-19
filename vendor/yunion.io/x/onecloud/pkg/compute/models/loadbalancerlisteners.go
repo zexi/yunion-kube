@@ -104,6 +104,7 @@ type SLoadbalancerListener struct {
 
 func (man *SLoadbalancerListenerManager) checkListenerUniqueness(ctx context.Context, lb *SLoadbalancer, listenerType string, listenerPort int64) error {
 	q := man.Query().
+		IsFalse("pending_deleted").
 		Equals("loadbalancer_id", lb.Id).
 		Equals("listener_port", listenerPort)
 	switch listenerType {
@@ -217,12 +218,9 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 		}
 	}
 	{
-		if backendGroupV.Model != nil {
-			backendGroup := backendGroupV.Model.(*SLoadbalancerBackendGroup)
-			if backendGroup.LoadbalancerId != lb.Id {
-				return nil, httperrors.NewInputParameterError("backend group %s(%s) belongs to loadbalancer %s instead of %s",
-					backendGroup.Name, backendGroup.Id, backendGroup.LoadbalancerId, lb.Id)
-			}
+		if backendGroup, ok := backendGroupV.Model.(*SLoadbalancerBackendGroup); ok && backendGroup.LoadbalancerId != lb.Id {
+			return nil, httperrors.NewInputParameterError("backend group %s(%s) belongs to loadbalancer %s instead of %s",
+				backendGroup.Name, backendGroup.Id, backendGroup.LoadbalancerId, lb.Id)
 		}
 	}
 	{
@@ -263,16 +261,8 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 			}
 		}
 	}
-	{
-		if aclStatusV.Value == LB_BOOL_ON {
-			acl := aclV.Model.(*SLoadbalancerAcl)
-			if acl == nil {
-				return nil, fmt.Errorf("missing acl")
-			}
-			if len(aclTypeV.Value) == 0 {
-				return nil, fmt.Errorf("missing acl_type")
-			}
-		}
+	if err := man.validateAcl(aclStatusV, aclTypeV, aclV, data); err != nil {
+		return nil, err
 	}
 	return man.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
@@ -290,6 +280,20 @@ func (man *SLoadbalancerListenerManager) checkTypeV(listenerType string) validat
 	return nil
 }
 
+func (man *SLoadbalancerListenerManager) validateAcl(aclStatusV *validators.ValidatorStringChoices, aclTypeV *validators.ValidatorStringChoices, aclV *validators.ValidatorModelIdOrName, data *jsonutils.JSONDict) error {
+	if aclStatusV.Value == LB_BOOL_ON {
+		if aclV.Model == nil {
+			return httperrors.NewInputParameterError("missing acl")
+		}
+		if len(aclTypeV.Value) == 0 {
+			return httperrors.NewInputParameterError("missing acl_type")
+		}
+	} else {
+		data.Set("acl_id", jsonutils.NewString(""))
+	}
+	return nil
+}
+
 func (lblis *SLoadbalancerListener) AllowPerformStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return lblis.IsOwner(userCred) || userCred.IsSystemAdmin()
 }
@@ -298,7 +302,11 @@ func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, user
 	ownerProjId := lblis.GetOwnerProjectId()
 	backendGroupV := validators.NewModelIdOrNameValidator("backend_group", "loadbalancerbackendgroup", ownerProjId)
 	aclStatusV := validators.NewStringChoicesValidator("acl_status", LB_BOOL_VALUES)
+	aclStatusV.Default(lblis.AclStatus)
 	aclTypeV := validators.NewStringChoicesValidator("acl_type", LB_ACL_TYPES)
+	if LB_ACL_TYPES.Has(lblis.AclType) {
+		aclTypeV.Default(lblis.AclType)
+	}
 	aclV := validators.NewModelIdOrNameValidator("acl", "loadbalanceracl", ownerProjId)
 	certV := validators.NewModelIdOrNameValidator("certificate", "loadbalancercertificate", ownerProjId)
 	tlsCipherPolicyV := validators.NewStringChoicesValidator("tls_cipher_policy", LB_TLS_CIPHER_POLICIES).Default(LB_TLS_CIPHER_POLICY_1_2)
@@ -347,13 +355,13 @@ func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, user
 			return nil, err
 		}
 	}
+	if err := LoadbalancerListenerManager.validateAcl(aclStatusV, aclTypeV, aclV, data); err != nil {
+		return nil, err
+	}
 	{
-		if backendGroupV.Model != nil {
-			backendGroup := backendGroupV.Model.(*SLoadbalancerBackendGroup)
-			if backendGroup.LoadbalancerId != lblis.LoadbalancerId {
-				return nil, httperrors.NewInputParameterError("backend group %s(%s) belongs to loadbalancer %s instead of %s",
-					backendGroup.Name, backendGroup.Id, backendGroup.LoadbalancerId, lblis.LoadbalancerId)
-			}
+		if backendGroup, ok := backendGroupV.Model.(*SLoadbalancerBackendGroup); ok && backendGroup.LoadbalancerId != lblis.LoadbalancerId {
+			return nil, httperrors.NewInputParameterError("backend group %s(%s) belongs to loadbalancer %s instead of %s",
+				backendGroup.Name, backendGroup.Id, backendGroup.LoadbalancerId, lblis.LoadbalancerId)
 		}
 	}
 	return lblis.SVirtualResourceBase.ValidateUpdateData(ctx, userCred, query, data)
@@ -361,16 +369,27 @@ func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, user
 
 func (lblis *SLoadbalancerListener) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := lblis.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	if lblis.BackendGroupId == "" {
-		return extra
+	{
+		lb, err := LoadbalancerManager.FetchById(lblis.LoadbalancerId)
+		if err != nil {
+			log.Errorf("loadbalancer listener %s(%s): fetch loadbalancer (%s) error: %s",
+				lblis.Name, lblis.Id, lblis.LoadbalancerId, err)
+			return extra
+		}
+		extra.Set("loadbalancer", jsonutils.NewString(lb.GetName()))
 	}
-	lbbg, err := LoadbalancerBackendGroupManager.FetchById(lblis.BackendGroupId)
-	if err != nil {
-		log.Errorf("loadbalancer listener %s(%s): fetch backend group (%s) error: %s",
-			lblis.Name, lblis.Id, lblis.BackendGroupId, err)
-		return extra
+	{
+		if lblis.BackendGroupId == "" {
+			return extra
+		}
+		lbbg, err := LoadbalancerBackendGroupManager.FetchById(lblis.BackendGroupId)
+		if err != nil {
+			log.Errorf("loadbalancer listener %s(%s): fetch backend group (%s) error: %s",
+				lblis.Name, lblis.Id, lblis.BackendGroupId, err)
+			return extra
+		}
+		extra.Set("backend_group", jsonutils.NewString(lbbg.GetName()))
 	}
-	extra.Set("backend_group", jsonutils.NewString(lbbg.GetName()))
 	return extra
 }
 

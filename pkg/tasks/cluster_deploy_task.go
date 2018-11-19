@@ -20,7 +20,7 @@ const (
 )
 
 type ClusterDeployTask struct {
-	SClusterAgentBaseTask
+	SClusterBaseTask
 }
 
 func init() {
@@ -45,37 +45,32 @@ func (t *ClusterDeployTask) getPendingDeployNodes() ([]*models.SNode, error) {
 }
 
 func (t *ClusterDeployTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetStage("OnWaitNodesAgentStart", nil)
-	t.OnWaitNodesAgentStart(ctx, obj, data)
-}
-
-func (t *ClusterDeployTask) OnWaitNodesAgentStart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetStage("OnNodesAgentStart", nil)
 	cluster := obj.(*models.SCluster)
 	nodes, err := t.getPendingDeployNodes()
 	if err != nil {
 		t.SetFailed(ctx, cluster, fmt.Errorf("Get pendingNodes: %v", err))
 		return
 	}
-	if cluster.IsNodeAgentsReady(nodes...) {
-		t.SetStage("OnNodeAgentsReady", nil)
-		log.Infof("All nodes agent started, start deploy")
-		isSync, _ := t.GetParams().Bool("sync")
-		t.doDeploy(ctx, cluster, nodes, isSync)
+	cluster.StartClusterStartNodesAgentTask(ctx, t.GetUserCred(), nil, t.GetTaskId(), nodes...)
+}
+
+func (t *ClusterDeployTask) OnNodesAgentStart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	cluster := obj.(*models.SCluster)
+	nodes, err := t.getPendingDeployNodes()
+	if err != nil {
+		t.SetFailed(ctx, cluster, fmt.Errorf("Get pendingNodes: %v", err))
 		return
 	}
-	log.Infof("Not all node ready, wait agents to start")
-	err = t.StartNodesAgent(ctx, cluster, nodes, data)
-	if err != nil {
-		t.SetFailed(ctx, cluster, err)
-	}
+
+	isSync, _ := t.GetParams().Bool("sync")
+
+	log.Infof("All nodes agent started, start deploy")
+	t.doDeploy(ctx, cluster, nodes, isSync)
 }
 
-func (t *ClusterDeployTask) OnWaitNodesAgentStartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+func (t *ClusterDeployTask) OnNodesAgentStartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnWaitNodesAgentStart: %s", data))
-}
-
-func (t *ClusterDeployTask) OnNodeAgentsReady(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	log.Infof("Do nothing when node agents ready")
 }
 
 func (t *ClusterDeployTask) doDeploy(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode, isSync bool) {

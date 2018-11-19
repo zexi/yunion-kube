@@ -53,16 +53,15 @@ func init() {
 }
 
 const (
-	CLUSTER_STATUS_INIT         = "init"
-	CLUSTER_STATUS_PRE_CREATING = "pre-creating"
-	CLUSTER_STATUS_CREATING     = "creating"
-	CLUSTER_STATUS_IMPORT       = "importing"
-	CLUSTER_STATUS_POST_CHECK   = "post-checking"
-	CLUSTER_STATUS_RUNNING      = "running"
-	CLUSTER_STATUS_ERROR        = "error"
-	CLUSTER_STATUS_DEPLOY       = "deploying"
-	CLUSTER_STATUS_UPDATING     = "updating"
-	CLUSTER_STATUS_DELETING     = "deleting"
+	CLUSTER_STATUS_INIT       = "init"
+	CLUSTER_STATUS_CREATING   = "creating"
+	CLUSTER_STATUS_IMPORT     = "importing"
+	CLUSTER_STATUS_POST_CHECK = "post-checking"
+	CLUSTER_STATUS_RUNNING    = "running"
+	CLUSTER_STATUS_ERROR      = "error"
+	CLUSTER_STATUS_DEPLOY     = "deploying"
+	CLUSTER_STATUS_UPDATING   = "updating"
+	CLUSTER_STATUS_DELETING   = "deleting"
 
 	CLUSTER_MODE_INTERNAL = "internal"
 
@@ -74,6 +73,16 @@ const (
 
 	K8S_PROXY_URL_PREFIX    = "/k8s/clusters/"
 	K8S_AUTH_WEBHOOK_PREFIX = "/k8s/auth/"
+)
+
+var (
+	ClusterProcessingStatus = sets.NewString(
+		CLUSTER_STATUS_DEPLOY,
+		CLUSTER_STATUS_IMPORT,
+		CLUSTER_STATUS_UPDATING,
+		CLUSTER_STATUS_CREATING,
+		CLUSTER_STATUS_DELETING,
+	)
 )
 
 type SClusterManager struct {
@@ -367,7 +376,7 @@ func (c *SCluster) GetYKENodes() ([]*SNode, error) {
 		}
 		clusterId, nodeId := parts[0], parts[1]
 		if clusterId != c.Id {
-			return nil, fmt.Errorf("YKE node %q cluster id not equal '%s:%s'", nodeId, clusterId, c.Name, c.Id)
+			return nil, fmt.Errorf("YKE node %q cluster id %s not equal '%s:%s'", nodeId, clusterId, c.Name, c.Id)
 		}
 		obj, err := NodeManager.FetchNodeById(nodeId)
 		if err != nil {
@@ -419,7 +428,7 @@ func (c *SCluster) PerformDeploy(ctx context.Context, userCred mcclient.TokenCre
 	if err != nil {
 		return nil, err
 	}
-	c.StartClusterDeployTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
+	err = c.StartClusterDeployTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
 	return nil, err
 }
 
@@ -1324,7 +1333,7 @@ func (c *SCluster) AllowPerformAddNodes(ctx context.Context, userCred mcclient.T
 }
 
 func (c *SCluster) validateAddNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (nodes []*SNode, err error) {
-	if sets.NewString(CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_CREATING, CLUSTER_STATUS_DEPLOY).Has(c.Status) {
+	if ClusterProcessingStatus.Has(c.Status) {
 		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
 	}
 	nodesData, err := data.Get("nodes")
@@ -1382,7 +1391,7 @@ func (c *SCluster) AllowPerformDeleteNodes(ctx context.Context, userCred mcclien
 }
 
 func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
-	if sets.NewString(CLUSTER_STATUS_UPDATING, CLUSTER_STATUS_CREATING, CLUSTER_STATUS_DEPLOY).Has(c.Status) {
+	if ClusterProcessingStatus.Has(c.Status) {
 		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
 	}
 	nodesData, err := data.GetArray("nodes")
@@ -1441,4 +1450,97 @@ func (c *SCluster) StartClusterDeleteNodesTask(ctx context.Context, userCred mcc
 	}
 	task.ScheduleRun(nil)
 	return nil
+}
+
+func (c *SCluster) getBatchTaskNodes(nodes []*SNode) []db.IStandaloneModel {
+	ret := make([]db.IStandaloneModel, len(nodes))
+	for i, node := range nodes {
+		ret[i] = node
+	}
+	return ret
+}
+
+func (c *SCluster) startClusterNodesAgentTask(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	data *jsonutils.JSONDict,
+	action, parentTaskId string,
+	nodes ...*SNode,
+) error {
+	if data == nil {
+		data = jsonutils.NewDict()
+	}
+	if !yutils.IsInStringArray(action, []string{"start", "stop", "restart"}) {
+		return fmt.Errorf("Unspported action: %s", action)
+	}
+	data.Add(jsonutils.NewString(action), "action")
+
+	objs := c.getBatchTaskNodes(nodes)
+	RunBatchTask(ctx, objs, userCred, data, "ClusterNodesAgentTask", parentTaskId)
+	return nil
+}
+
+func (c *SCluster) StartClusterStartNodesAgentTask(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	data *jsonutils.JSONDict,
+	parentTaskId string,
+	nodes ...*SNode,
+) error {
+	return c.startClusterNodesAgentTask(ctx, userCred, data, "start", parentTaskId, nodes...)
+}
+
+func (c *SCluster) StartClusterRestartNodesAgentTask(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	data *jsonutils.JSONDict,
+	parentTaskId string,
+	nodes ...*SNode,
+) error {
+	return c.startClusterNodesAgentTask(ctx, userCred, data, "restart", parentTaskId, nodes...)
+}
+
+func (c *SCluster) StartClusterStopNodesAgentTask(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	data *jsonutils.JSONDict,
+	parentTaskId string,
+	nodes ...*SNode,
+) error {
+	return c.startClusterNodesAgentTask(ctx, userCred, data, "stop", parentTaskId, nodes...)
+}
+
+func (c *SCluster) AllowPerformRestartAgent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return allowPerformAction(ctx, userCred, query, data)
+}
+
+func (c *SCluster) PerformRestartAgent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if ClusterProcessingStatus.Has(c.Status) {
+		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
+	}
+	all, _ := data.Bool("all")
+	nodes, err := c.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]*SNode, 0)
+	if !all {
+		nodeIds, _ := data.GetArray("nodes")
+		if len(nodeIds) == 0 {
+			return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("No node provided"))
+		}
+		for _, nodeId := range nodeIds {
+			id, err := nodeId.GetString()
+			if err != nil {
+				return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("Get node id error: %v", err))
+			}
+			if node := getNodesById(nodes, id); node != nil {
+				targets = append(targets, node)
+			}
+		}
+	} else {
+		targets = nodes
+	}
+	err = c.StartClusterRestartNodesAgentTask(ctx, userCred, nil, "", targets...)
+	return nil, err
 }
