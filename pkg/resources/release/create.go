@@ -226,7 +226,7 @@ func ReleaseCreate(helmclient *client.HelmTunnelClient, opt *CreateUpdateRelease
 		helm.ReleaseName(opt.ReleaseName),
 		helm.InstallDryRun(opt.DryRun),
 		helm.InstallReuseName(true),
-		helm.InstallDisableHooks(false),
+		helm.InstallDisableHooks(true),
 		helm.InstallTimeout(opt.Timeout),
 		helm.InstallWait(false))
 	if err != nil {
