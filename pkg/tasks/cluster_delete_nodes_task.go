@@ -15,7 +15,7 @@ import (
 )
 
 type ClusterDeleteNodesTask struct {
-	SClusterAgentBaseTask
+	SClusterBaseTask
 }
 
 func init() {
@@ -40,41 +40,38 @@ func (t *ClusterDeleteNodesTask) getDeleteNodes() ([]*models.SNode, error) {
 }
 
 func (t *ClusterDeleteNodesTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetStage("OnWaitNodesAgentRestart", nil)
-	t.OnWaitNodesAgentRestart(ctx, obj, data)
-}
-
-func (t *ClusterDeleteNodesTask) OnWaitNodesAgentRestart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetStage("OnNodesAgentRestart", nil)
 	cluster := obj.(*models.SCluster)
 	nodes, err := t.getDeleteNodes()
 	if err != nil {
 		t.SetFailed(ctx, cluster, fmt.Errorf("Get delete nodes: %v", err))
 		return
 	}
-	if cluster.IsNodeAgentsReady(nodes...) {
-		log.Infof("All nodes agent started, start delete")
-		t.SetStage("OnNodesAgentRestart", nil)
-		err = t.doDelete(ctx, cluster, nodes)
-		if err != nil {
-			t.SetFailed(ctx, cluster, fmt.Errorf("do delete: %v", err))
-			models.SetNodesStatus(nodes, models.NODE_STATUS_ERROR)
-			return
-		}
-		t.SetStageComplete(ctx, nil)
-	}
-	log.Infof("Not all node ready, wait agents to start")
-	err = t.RestartNodesAgent(ctx, cluster, nodes, data)
-	if err != nil {
-		t.SetFailed(ctx, cluster, err)
-	}
-}
 
-func (t *ClusterDeleteNodesTask) OnWaitNodesAgentRestartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnWaitNodesAgentReStart: %s", data))
+	cluster.StartClusterRestartNodesAgentTask(ctx, t.GetUserCred(), nil, t.GetTaskId(), nodes...)
 }
 
 func (t *ClusterDeleteNodesTask) OnNodesAgentRestart(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	log.Infof("Do nothing when node agents restart")
+	cluster := obj.(*models.SCluster)
+	nodes, err := t.getDeleteNodes()
+	if err != nil {
+		t.SetFailed(ctx, cluster, fmt.Errorf("Get delete nodes: %v", err))
+		return
+	}
+
+	log.Infof("All nodes agent started, start delete")
+	err = t.doDelete(ctx, cluster, nodes)
+	if err != nil {
+		t.SetFailed(ctx, cluster, fmt.Errorf("do delete: %v", err))
+		models.SetNodesStatus(nodes, models.NODE_STATUS_ERROR)
+		return
+	}
+
+	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterDeleteNodesTask) OnNodesAgentRestartFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetFailed(ctx, obj.(*models.SCluster), fmt.Errorf("OnNodesAgentReStart: %s", data))
 }
 
 func (t *ClusterDeleteNodesTask) doDelete(ctx context.Context, cluster *models.SCluster, nodes []*models.SNode) error {
@@ -111,8 +108,10 @@ func (t *ClusterDeleteNodesTask) doDelete(ctx context.Context, cluster *models.S
 		}
 	}
 
+	// stop nodes kube agent
+	cluster.StartClusterStopNodesAgentTask(ctx, t.GetUserCred(), nil, "", nodes...)
+
 	for _, node := range nodes {
-		node.StartAgentStopTask(ctx, t.UserCred, nil, "")
 		err = removeCloudContainers(node)
 		if err != nil {
 			return err

@@ -1367,11 +1367,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:49ffc35ec8d3f7789393cd132acd359e8ac1f5d38c7a2b91c484b041840c62c0"
+  digest = "1:54554b3c72f4fcbd3c27c5137f9acd9d153d7e7150d77cd509af50c75fcb41b9"
   name = "yunion.io/x/jsonutils"
   packages = ["."]
   pruneopts = "UT"
-  revision = "d1290e94d4753c1748fc7c89f472a523cc0a5c08"
+  revision = "7079aada4c7e9a37e4c3b183bddb0ef684e038f2"
 
 [[projects]]
   branch = "master"
@@ -1386,7 +1386,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:f3960f2d17c4e69c74c9602e4d62d34976d316eebdf51965a3f588025d2aafe1"
+  digest = "1:acd54ff1cd9bd9a12f3170dc3af8a891d12c35b06e71b99ee265bc61d07af1bd"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
@@ -1419,11 +1419,11 @@
     "pkg/util/seclib2",
   ]
   pruneopts = "UT"
-  revision = "89cfced3078276aad2fbd55eea7f3100bf31ba0f"
+  revision = "da6110e4f73add7f4f51bd429653bdedfb1bf635"
 
 [[projects]]
   branch = "master"
-  digest = "1:6162842ea9d3ec8283ce506e773fd98199464bc6c859fa8362210acae21855ea"
+  digest = "1:c250ec13ba0e09939cc13dd1d8d3191b22d4d8dabb0e53092e06118b5b91c201"
   name = "yunion.io/x/pkg"
   packages = [
     "gotypes",
@@ -1452,15 +1452,15 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "526a04d2eb834022e20100d991d1c84b78d87c07"
+  revision = "d6652934a347e815bfaa18dffe9cafc3f0409cf6"
 
 [[projects]]
   branch = "master"
-  digest = "1:e52c4c426ba5bbb92b2d6b2f20f694ff836dde16151adaca39c86d5fb010fea9"
+  digest = "1:66b13d3803b8ff8f26c3ca0422fb18ca0362dff62240e436b0aa0a921f833bb9"
   name = "yunion.io/x/sqlchemy"
   packages = ["."]
   pruneopts = "UT"
-  revision = "946ed13318f85073e55dbb8105593c710e943a31"
+  revision = "7de55aae3ef9b019c47d21ff8fa4add1a9c80eb7"
 
 [[projects]]
   branch = "master"

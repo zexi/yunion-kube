@@ -12,9 +12,31 @@ type TRbacResult string
 
 const (
 	WILD_MATCH = "*"
-	Allow      = TRbacResult("allow")
+
+	AdminAllow = TRbacResult("allow")
+	OwnerAllow = TRbacResult("owner")
+	UserAllow  = TRbacResult("user")
+	GuestAllow = TRbacResult("guest")
 	Deny       = TRbacResult("deny")
 )
+
+var (
+	strictness = map[TRbacResult]int{
+		Deny:       0,
+		AdminAllow: 1,
+		OwnerAllow: 2,
+		UserAllow:  3,
+		GuestAllow: 4,
+	}
+)
+
+func (r TRbacResult) Strictness() int {
+	return strictness[r]
+}
+
+func (r1 TRbacResult) StricterThan(r2 TRbacResult) bool {
+	return r1.Strictness() < r2.Strictness()
+}
 
 type SRbacPolicy struct {
 	Condition string
@@ -55,6 +77,10 @@ func (rule *SRbacRule) contains(rule2 *SRbacRule) bool {
 		return false
 	}
 	return true
+}
+
+func (rule *SRbacRule) stricterThan(r2 *SRbacRule) bool {
+	return rule.Result.StricterThan(r2.Result)
 }
 
 func (rule *SRbacRule) match(service string, resource string, action string, extra ...string) (bool, int, int) {
@@ -122,7 +148,9 @@ func (policy *SRbacPolicy) GetMatchRule(service string, resource string, action 
 	var matchRule *SRbacRule
 	for i := 0; i < len(policy.Rules); i += 1 {
 		match, matchCnt, weight := policy.Rules[i].match(service, resource, action, extra...)
-		if match && (maxMatchCnt < matchCnt || (maxMatchCnt == matchCnt && minWeight > weight)) {
+		if match && (maxMatchCnt < matchCnt ||
+			(maxMatchCnt == matchCnt && minWeight > weight) ||
+			(maxMatchCnt == matchCnt && minWeight == weight && matchRule.stricterThan(&policy.Rules[i]))) {
 			maxMatchCnt = matchCnt
 			minWeight = weight
 			matchRule = &policy.Rules[i]
@@ -131,7 +159,7 @@ func (policy *SRbacPolicy) GetMatchRule(service string, resource string, action 
 	return matchRule
 }
 
-func compactRules(rules []SRbacRule) []SRbacRule {
+func CompactRules(rules []SRbacRule) []SRbacRule {
 	output := make([]SRbacRule, 1)
 	output[0] = rules[0]
 	for i := 1; i < len(rules); i += 1 {
@@ -168,7 +196,7 @@ func (policy *SRbacPolicy) Decode(policyJson jsonutils.JSONObject) error {
 		return err
 	}
 
-	policy.Rules = compactRules(rules)
+	policy.Rules = CompactRules(rules)
 
 	return nil
 }
@@ -185,11 +213,18 @@ func decode(rules jsonutils.JSONObject, decodeRule SRbacRule, level int) ([]SRba
 	case *jsonutils.JSONString:
 		ruleJsonStr := rules.(*jsonutils.JSONString)
 		ruleStr, _ := ruleJsonStr.GetString()
-		if ruleStr == string(Allow) {
-			decodeRule.Result = Allow
-		} else if ruleStr == string(Deny) {
+		switch ruleStr {
+		case string(AdminAllow):
+			decodeRule.Result = AdminAllow
+		case string(OwnerAllow):
+			decodeRule.Result = OwnerAllow
+		case string(UserAllow):
+			decodeRule.Result = UserAllow
+		case string(GuestAllow):
+			decodeRule.Result = GuestAllow
+		case string(Deny):
 			decodeRule.Result = Deny
-		} else {
+		default:
 			return nil, fmt.Errorf("unsupported rule string %s", ruleStr)
 		}
 		return []SRbacRule{decodeRule}, nil
@@ -318,23 +353,20 @@ func (policy *SRbacPolicy) Explain(request [][]string) [][]string {
 	return output
 }
 
-func (policy *SRbacPolicy) Allow(userCred jsonutils.JSONObject, service, resource, action string, extra ...string) bool {
+func (policy *SRbacPolicy) Allow(userCred jsonutils.JSONObject, service, resource, action string, extra ...string) TRbacResult {
 	if len(policy.Condition) > 0 {
 		match, err := conditionparser.Eval(policy.Condition, userCred)
 		if err != nil {
 			log.Errorf("eval condition %s fail %s", policy.Condition, err)
-			return false
+			return Deny
 		}
 		if !match {
-			return false
+			return Deny
 		}
 	}
 	rule := policy.GetMatchRule(service, resource, action, extra...)
 	if rule == nil {
-		return false
+		return Deny
 	}
-	if rule.Result == Deny {
-		return false
-	}
-	return true
+	return rule.Result
 }

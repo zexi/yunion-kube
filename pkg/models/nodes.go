@@ -748,3 +748,12 @@ func (n *SNode) PerformConfigDockerRegistry(ctx context.Context, userCred mcclie
 	}
 	return nil, err
 }
+
+func (n *SNode) IsAgentReady() bool {
+	cluster, err := n.GetCluster()
+	if err != nil {
+		log.Errorf("Get node %s cluster error: %v", n.Name, err)
+		return false
+	}
+	return cluster.IsNodeAgentReady(n)
+}
