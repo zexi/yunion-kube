@@ -925,18 +925,23 @@ func (c *SCluster) NewYKEFixedConfig() (*yketypes.KubernetesEngineConfig, error)
 }
 
 func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return allowPerformAction(ctx, userCred, query, data)
+	//return allowPerformAction(ctx, userCred, query, data)
+	return true
 }
 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	// TODO:
-	// 1. Get normal user config
-	directly := jsonutils.QueryBoolean(data, "directly", false)
-	getF := c.GetClientKubeConfig
-	if directly {
-		getF = c.GetAdminKubeconfig
+	var conf string
+	var err error
+	if userCred.IsSystemAdmin() {
+		//directly := jsonutils.QueryBoolean(data, "directly", false)
+		//getF := c.GetAdminProxyKubeConfig
+		//if directly {
+		getF := c.GetAdminKubeconfig
+		//}
+		conf, err = getF()
+	} else {
+		conf, err = c.GetClientTokenKubeConfig(userCred)
 	}
-	conf, err := getF()
 	if err != nil {
 		return nil, httperrors.NewInternalServerError("Generate kubeconfig err: %v", err)
 	}
@@ -945,7 +950,18 @@ func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mccli
 	return ret, nil
 }
 
-func (c *SCluster) GetClientKubeConfig() (string, error) {
+func (c *SCluster) GetClientTokenKubeConfig(userCred mcclient.TokenCredential) (string, error) {
+	info, err := DecodeClusterInfo(c.ToInfo())
+	if err != nil {
+		return "", err
+	}
+	project := userCred.GetProjectName()
+	token := userCred.GetTokenString()
+	expired := userCred.GetExpires()
+	return templates.GetKubeTokenConfig(info.Endpoint, c.Name, project, project, token, expired)
+}
+
+func (c *SCluster) GetAdminProxyKubeConfig() (string, error) {
 	info, err := DecodeClusterInfo(c.ToInfo())
 	if err != nil {
 		return "", err
