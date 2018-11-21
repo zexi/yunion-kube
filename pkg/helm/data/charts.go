@@ -18,6 +18,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/yunion-kube/pkg/helm/data/common"
 	"yunion.io/x/yunion-kube/pkg/types/helm"
@@ -162,9 +163,10 @@ func ChartShowDetails(repoName, chartName, chartVersion string) (*helm.ChartDeta
 
 func ChartsList(query *helm.ChartQuery) ([]*ChartResult, error) {
 	q := chartQuery{
-		Name:    query.Name,
-		Repo:    query.Repo,
-		Keyword: query.Keyword,
+		Name:       query.Name,
+		Repo:       query.Repo,
+		Keyword:    query.Keyword,
+		AllVersion: query.AllVersion,
 	}
 	allVersion := query.AllVersion
 	chartList, err := allRepoCharts(query, allVersion)
@@ -217,9 +219,10 @@ type chartList struct {
 }
 
 type chartQuery struct {
-	Name    string
-	Repo    string
-	Keyword string
+	Name       string
+	Repo       string
+	Keyword    string
+	AllVersion bool
 }
 
 func newChartList(charts []*ChartResult) *chartList {
@@ -244,10 +247,21 @@ func newChartList(charts []*ChartResult) *chartList {
 		}
 		return true
 	}
+
+	yunionFilter := func(item *ChartResult, query chartQuery) bool {
+		if item.Repo != helm.YUNION_REPO_NAME {
+			return true
+		}
+		if utils.IsInStringArray(helm.YUNION_REPO_HIDE_KEYWORD, item.Chart.Keywords) && !query.AllVersion {
+			return false
+		}
+		return true
+	}
 	return &chartList{
 		charts: charts,
 		filters: []chartFilterFunc{
 			generalFilter,
+			yunionFilter,
 		},
 	}
 }
