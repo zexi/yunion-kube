@@ -14,6 +14,7 @@ import (
 	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/yunion-kube/pkg/models"
+	o "yunion.io/x/yunion-kube/pkg/options"
 )
 
 const (
@@ -52,7 +53,6 @@ func shouldAddServiceToCloud(svc *api.Service) bool {
 	for _, annoKey := range []string{
 		YUNION_SERVICE_TYPE,
 		YUNION_SERVICE_NAME,
-		YUNION_ENDPOINT_REGION,
 	} {
 		if _, ok := anno[annoKey]; !ok {
 			return false
@@ -148,6 +148,9 @@ func (ep *endpointInfo) createOrUpdateFromCloud() (jsonutils.JSONObject, error) 
 func getCloudEndpointInfo(svc *api.Service, cloudSvc *serviceInfo) (*endpointInfo, error) {
 	anno := svc.ObjectMeta.Annotations
 	region := anno[YUNION_ENDPOINT_REGION]
+	if region == "" {
+		region = o.Options.Region
+	}
 	zone := anno[YUNION_ENDPOINT_ZONE]
 	regionId := mcclient.RegionID(region, zone)
 	inf := anno[YUNION_ENDPOINT_INTERFACE]
