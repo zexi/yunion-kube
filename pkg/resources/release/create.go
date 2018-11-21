@@ -15,10 +15,12 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/httperrors"
 
 	"yunion.io/x/yunion-kube/pkg/helm/client"
 	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
 func generateName(nameTemplate string) (string, error) {
@@ -203,6 +205,19 @@ func (man *SReleaseManager) Create(req *common.Request) (interface{}, error) {
 	return ReleaseCreate(cli, createOpt)
 }
 
+func validateInfraCreate(cli *client.HelmTunnelClient, chartPkg *helmtypes.ChartPackage) error {
+	releases, err := ListReleases(cli, ReleaseListQuery{All: true})
+	if err != nil {
+		return err
+	}
+	for _, rls := range releases.Releases {
+		if rls.Chart.Metadata.Name == chartPkg.Metadata.Name {
+			return httperrors.NewBadRequestError("Release %s already created by chart %s", rls.Name, rls.Chart.Metadata.Name)
+		}
+	}
+	return nil
+}
+
 func ReleaseCreate(helmclient *client.HelmTunnelClient, opt *CreateUpdateReleaseRequest) (*rls.InstallReleaseResponse, error) {
 	log.Infof("Deploying chart=%q, release name=%q", opt.ChartName, opt.ReleaseName)
 	segs := strings.Split(opt.ChartName, "/")
@@ -213,6 +228,12 @@ func ReleaseCreate(helmclient *client.HelmTunnelClient, opt *CreateUpdateRelease
 	pkg, err := helmdata.ChartFromRepo(repoName, chartName, opt.Version)
 	if err != nil {
 		return nil, err
+	}
+	if repoName == helmtypes.YUNION_REPO_NAME {
+		err = validateInfraCreate(helmclient, pkg)
+		if err != nil {
+			return nil, err
+		}
 	}
 	chartRequest := pkg.Chart
 	vals, err := opt.Vals()
