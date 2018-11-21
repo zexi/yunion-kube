@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/chart"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/resources/errors"
 	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
@@ -55,23 +56,23 @@ func handleHelmTillerInstall(ctx context.Context, w http.ResponseWriter, r *http
 	}
 	request, err := NewCloudK8sRequest(ctx, query.(*jsonutils.JSONDict), body)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	cli := request.GetK8sClient()
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	opt := helmclient.InstallOption{}
 	err = body.Unmarshal(&opt)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	err = helmclient.Install(cli, &opt)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -95,12 +96,12 @@ func chartlistHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	}
 	cq, dsq, err := getQuery(ctx, w, r)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	list, err := chart.ChartManager.List(cq, dsq)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	SendJSON(w, common.ListResource2JSONWithKey(list, "charts"))
@@ -117,13 +118,13 @@ func chartShowHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	userCred := getUserCredential(ctx)
 	repo, err := models.RepoManager.FetchRepoByIdOrName(userCred, repoName)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	version, _ := query.GetString("version")
 	resp, err := chart.ChartManager.Show(repo.Name, chartName, version)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		errors.GeneralServerError(w, err)
 		return
 	}
 	SendJSON(w, wrapBody(resp, "chart"))
