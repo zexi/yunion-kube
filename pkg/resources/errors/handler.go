@@ -73,6 +73,11 @@ func contains(s []int32, e int32) bool {
 
 func NewJSONClientError(err error) *httputils.JSONClientError {
 	log.Errorf("Handle error: %#v", err)
+	if httpErr, ok := err.(*httputils.JSONClientError); ok {
+		return httpErr
+	}
+
+	// handle k8s error
 	statusCode := http.StatusInternalServerError
 	statusError, ok := err.(*errors.StatusError)
 	var title string
