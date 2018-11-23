@@ -15,6 +15,8 @@ import (
 	"yunion.io/x/log"
 	yerrors "yunion.io/x/pkg/util/errors"
 	"yunion.io/x/pkg/util/workqueue"
+
+	o "yunion.io/x/yunion-kube/pkg/options"
 )
 
 var (
@@ -366,11 +368,13 @@ func (r *Reconciler) ReconcileRBAC(userName, userID string) (ras RoleAssignments
 		return
 	}
 
-	// create LimitRange to each project namespace
-	err = r.EnsureProjectsLimitRange(projects...)
-	if err != nil {
-		err = fmt.Errorf("Create default LimitRange to projects: %v, error: %v", projects, err)
-		return
+	if o.Options.EnableDefaultLimitRange {
+		// create LimitRange to each project namespace
+		err = r.EnsureProjectsLimitRange(projects...)
+		if err != nil {
+			err = fmt.Errorf("Create default LimitRange to projects: %v, error: %v", projects, err)
+			return
+		}
 	}
 
 	// TODO: Start a cronjob to clean invalid RBAC ClusterRoleBindings, RoleBindings and Namespace
