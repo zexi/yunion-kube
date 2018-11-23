@@ -21,5 +21,7 @@ type KubeServerOptions struct {
 
 	LxcfsRequireAnnotation bool `help:"Only mount lxcfs volume when pod set 'initializer.kubernetes.io/lxcfs' annotation" default:"false"`
 
+	EnableDefaultLimitRange bool `help:"Enable default namespace limit range" default:"false"`
+
 	DockerdBip string `help:"Global nodes docker daemon bridge CIDR" default:"172.17.0.1/16"`
 }

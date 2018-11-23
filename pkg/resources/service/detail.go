@@ -43,10 +43,10 @@ type ServiceDetail struct {
 	ClusterIP string `json:"clusterIP"`
 
 	// List of events related to this Service
-	EventList common.EventList `json:"eventList"`
+	EventList []common.Event `json:"events"`
 
 	// PodList represents list of pods targeted by same label selector as this service.
-	PodList pod.PodList `json:"podList"`
+	PodList []pod.Pod `json:"pods"`
 
 	// Show the value of the SessionAffinity of the Service.
 	SessionAffinity v1.ServiceAffinity `json:"sessionAffinity"`
@@ -139,8 +139,8 @@ func ToServiceDetail(service *v1.Service, events common.EventList, pods pod.PodL
 		Selector:          service.Spec.Selector,
 		ClusterIP:         service.Spec.ClusterIP,
 		Type:              service.Spec.Type,
-		EventList:         events,
-		PodList:           pods,
+		EventList:         events.Events,
+		PodList:           pods.Pods,
 		SessionAffinity:   service.Spec.SessionAffinity,
 	}
 }
