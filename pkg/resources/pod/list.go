@@ -45,12 +45,20 @@ type PodList struct {
 	Events []v1.Event
 }
 
+func (l PodList) GetPods() []Pod {
+	return l.Pods
+}
+
 func (l *PodList) GetResponseData() interface{} {
 	return l.Pods
 }
 
 func (man *SPodManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetPodList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SPodManager) ListV2(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetPodList(k8sCli, nsQuery, dsQuery)
 }
 
 func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {

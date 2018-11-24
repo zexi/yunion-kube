@@ -26,7 +26,11 @@ type IngressList struct {
 }
 
 func (man *SIngressManager) List(req *common.Request) (common.ListResource, error) {
-	return GetIngressList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man SIngressManager) ListV2(client client.Interface, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetIngressList(client, namespace, dsQuery)
 }
 
 // GetIngressList returns all ingresses in the given namespace.

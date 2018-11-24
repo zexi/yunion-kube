@@ -1,100 +1,143 @@
 package release
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
-	"k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
+	"bytes"
+	"reflect"
+
+	//apps "k8s.io/api/apps/v1beta2"
+	//extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
+	//"k8s.io/apimachinery/pkg/fields"
+	//"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/helm/pkg/proto/hapi/release"
 
+	"yunion.io/x/log"
+
+	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/resources/event"
+	"yunion.io/x/yunion-kube/pkg/resources/configmap"
+	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/resources/secret"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-type Resources struct {
-	Pods         []pod.Pod                 `json:"pods"`
-	Services     []service.Service         `json:"services"`
-	Ingresses    []ingress.Ingress         `json:"ingresses"`
-	StatefulSets []statefulset.StatefulSet `json:"statefulsets"`
+func GetReleaseResources(cli *k8sclient.GenericClient, rls *release.Release) (map[string]interface{}, error) {
+	namespace := rls.Namespace
+	reader := bytes.NewBufferString(rls.Manifest)
+	objs, err := cli.Get(namespace, reader)
+	if err != nil {
+		return nil, err
+	}
+	k8sCli, _ := cli.KubernetesClientSet()
+	return convertRuntimeObjs(k8sCli, objs, namespace)
 }
 
-func GetReleaseResources(cli kubernetes.Interface, rls *release.Release) (*Resources, error) {
-	nsQuery := common.NewSameNamespaceQuery(rls.Namespace)
-	labelsMap := map[string]string{
-		"release": rls.Name,
+func convertRuntimeObjs(
+	cli kubernetes.Interface,
+	objMap map[string][]runtime.Object,
+	namespace string,
+) (map[string]interface{}, error) {
+	nsQuery := common.NewNamespaceQuery(namespace)
+	ret := make(map[string]interface{})
+	for kind, objs := range objMap {
+		k, cObjs, err := processObjs(kind, cli, objs, nsQuery, dataselect.DefaultDataSelect)
+		if err != nil {
+			return nil, err
+		}
+		ret[k] = cObjs
 	}
-	listOpt := metav1.ListOptions{
-		FieldSelector: fields.Everything().String(),
-		LabelSelector: labels.Set(labelsMap).AsSelector().String(),
-	}
-	channels := &common.ResourceChannels{
-		PodList:         common.GetPodListChannelWithOptions(cli, nsQuery, listOpt),
-		ServiceList:     common.GetServiceListChannelWithOptions(cli, nsQuery, listOpt),
-		IngressList:     common.GetIngressListChannelWithOptions(cli, nsQuery, listOpt),
-		StatefulSetList: common.GetStatefulSetListChannelWithOptions(cli, nsQuery, listOpt),
-		EventList:       common.GetEventListChannel(cli, nsQuery),
-	}
-	pods := <-channels.PodList.List
-	err := <-channels.PodList.Error
-	if err != nil {
-		return nil, err
-	}
-	svcs := <-channels.ServiceList.List
-	err = <-channels.ServiceList.Error
-	if err != nil {
-		return nil, err
-	}
-	ings := <-channels.IngressList.List
-	err = <-channels.IngressList.Error
-	if err != nil {
-		return nil, err
-	}
-	states := <-channels.StatefulSetList.List
-	err = <-channels.StatefulSetList.Error
-	if err != nil {
-		return nil, err
-	}
-	events := <-channels.EventList.List
-	err = <-channels.EventList.Error
-	if err != nil {
-		return nil, err
-	}
-	return transforResource(pods, svcs, ings, states, events), nil
+	return ret, nil
 }
 
-func transforResource(
-	pods *v1.PodList,
-	svcs *v1.ServiceList,
-	ings *extensions.IngressList,
-	statefulSets *apps.StatefulSetList,
-	events *v1.EventList,
-) *Resources {
-	res := &Resources{
-		Pods:         make([]pod.Pod, len(pods.Items)),
-		Services:     make([]service.Service, len(svcs.Items)),
-		Ingresses:    make([]ingress.Ingress, len(ings.Items)),
-		StatefulSets: make([]statefulset.StatefulSet, len(statefulSets.Items)),
+type IObjLister interface {
+	ListV2(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
+}
+
+func processObjs(
+	kind string,
+	cli kubernetes.Interface,
+	objs []runtime.Object,
+	nsQuery *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery,
+) (string, interface{}, error) {
+	var kindPlural string
+	var ret interface{}
+	var err error
+	kindFuncMap := map[string]IObjLister{
+		apis.ResourceKindPod:         pod.PodManager,
+		apis.ResourceKindDeployment:  deployment.DeploymentManager,
+		apis.ResourceKindStatefulSet: statefulset.StatefulSetManager,
+		apis.ResourceKindService:     service.ServiceManager,
+		apis.ResourceKindConfigMap:   configmap.ConfigMapManager,
+		apis.ResourceKindIngress:     ingress.IngressManager,
+		apis.ResourceKindSecret:      secret.SecretManager,
 	}
-	for i, item := range pods.Items {
-		warnings := event.GetPodsEventWarnings(events.Items, []v1.Pod{item})
-		res.Pods[i] = pod.ToPod(item, warnings)
+	manager, ok := kindFuncMap[kind]
+	if !ok {
+		ret = objs
+	} else {
+		ret, err = processResources(cli, objs, nsQuery, dsQuery, manager)
 	}
-	for i, item := range svcs.Items {
-		res.Services[i] = service.ToService(item)
+	kindPlural = transToKindPlural(kind)
+	return kindPlural, ret, err
+}
+
+func transToKindPlural(kind string) string {
+	ret, ok := apis.KindToAPIMapping[kind]
+	if !ok {
+		return kind
 	}
-	for i, item := range ings.Items {
-		res.Ingresses[i] = ingress.ToIngress(&item)
+	return ret.Resource
+}
+
+func processResources(
+	cli kubernetes.Interface,
+	objs []runtime.Object,
+	nsQuery *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery,
+	ILister IObjLister,
+) (interface{}, error) {
+	list, err := ILister.ListV2(cli, nsQuery, dsQuery)
+	if err != nil {
+		log.Errorf("Get configmap list error: %v", err)
+		return nil, err
 	}
-	for i, item := range statefulSets.Items {
-		podInfo := statefulset.GetPodInfo(item, pods.Items, events.Items)
-		res.StatefulSets[i] = statefulset.ToStatefulSet(&item, &podInfo)
+	ret := make([]interface{}, 0)
+	dataV := reflect.ValueOf(list.GetResponseData())
+	for i := 0; i < dataV.Len(); i++ {
+		objV := dataV.Index(i)
+		obj := objV.Interface()
+		if runtimeObjsHas(objs, obj.(IObjectMeta)) {
+			ret = append(ret, obj)
+		}
 	}
-	return res
+	return ret, nil
+}
+
+type IObjectMeta interface {
+	GetName() string
+}
+
+func runtimeObjsHas(
+	objs []runtime.Object,
+	iObj IObjectMeta,
+) bool {
+	getName := func(obj runtime.Object) string {
+		metaV := reflect.ValueOf(obj).Elem().FieldByName("ObjectMeta")
+		meta := metaV.Interface().(metav1.ObjectMeta)
+		return meta.Name
+	}
+	for _, obj := range objs {
+		if getName(obj) == iObj.GetName() {
+			return true
+		}
+	}
+	return false
 }
