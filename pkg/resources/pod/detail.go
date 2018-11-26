@@ -97,7 +97,7 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 		return nil, err
 	}
 
-	eventList, err := GetEventsForPod(client, dataselect.DefaultDataSelect, pod.Namespace, pod.Name)
+	eventList, err := GetEventsForPod(client, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 	warnings := event.GetPodsEventWarnings(rawEventList.Items, []v1.Pod{*pod})
 	commonPod := ToPod(*pod, warnings)
 
-	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, namespace, name, dataselect.DefaultDataSelect)
+	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, namespace, name, dataselect.DefaultDataSelect())
 
 	podDetail := toPodDetail(commonPod, pod, configMapList, secretList, eventList, persistentVolumeClaimList)
 	return &podDetail, nil

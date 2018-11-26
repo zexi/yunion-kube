@@ -1,88 +1,48 @@
 package deployment
 
 import (
-	"encoding/json"
-	"strings"
+	apps "k8s.io/api/apps/v1beta2"
+	api "k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 
-	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/pkg/util/regutils"
-
+	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 func (man *SDeploymentManager) ValidateCreateData(req *common.Request) error {
-	data := req.Data
-	name, _ := data.GetString("name")
-	if name == "" {
-		return httperrors.NewInputParameterError("Name must provided")
-	}
-	replica, _ := data.Int("replicas")
-	if replica == 0 {
-		data.Set("replicas", jsonutils.NewInt(1))
-	}
-	namespace, _ := req.GetNamespaceByData()
-	if namespace == "" {
-		namespace = req.GetDefaultNamespace()
-		data.Set("namespace", jsonutils.NewString(namespace))
-	}
-	return nil
+	req.Data.Set("controllerType", jsonutils.NewString(apis.ResourceKindDeployment))
+	return app.ValidateCreateData(req)
 }
 
 func (man *SDeploymentManager) Create(req *common.Request) (interface{}, error) {
-	appSpec := AppDeploymentSpec{}
-	dataStr, err := req.Data.GetString()
-	if err != nil {
-		return nil, err
-	}
-	log.Errorf("====Get string: %s", dataStr)
-	err = json.NewDecoder(strings.NewReader(dataStr)).Decode(&appSpec)
-	if err != nil {
-		return nil, httperrors.NewInputParameterError(err.Error())
-	}
-
-	// check labels
-	if len(appSpec.Labels) == 0 {
-		// set default label run=<name>
-		appSpec.Labels = append(appSpec.Labels, Label{
-			Key:   "run",
-			Value: appSpec.Name,
-		})
-	}
-
-	if appSpec.NetworkConfig != nil {
-		if addr := appSpec.NetworkConfig.Address; addr != "" {
-			if !regutils.MatchIP4Addr(addr) {
-				return nil, httperrors.NewInputParameterError("Invalid network ip address format: %q", addr)
-			}
-		}
-	}
-
-	spec, err := DeployApp(&appSpec, req.GetK8sClient())
-	if err != nil {
-		return nil, err
-	}
-	return spec, nil
+	return app.Create(req, createDeploymentApp)
 }
 
-func (man *SDeployFromFileManager) ValidateCreateData(req *common.Request) error {
-	return nil
-}
-
-func (man *SDeployFromFileManager) Create(req *common.Request) (interface{}, error) {
-	deploymentSpec := AppDeploymentFromFileSpec{}
-	err := req.Data.Unmarshal(&deploymentSpec)
-	if err != nil {
-		return nil, err
+func createDeploymentApp(
+	cli client.Interface,
+	objectMeta metaV1.ObjectMeta,
+	labels map[string]string,
+	podTemplate api.PodTemplateSpec,
+	spec *app.AppDeploymentSpec,
+) error {
+	deployment := &apps.Deployment{
+		ObjectMeta: objectMeta,
+		Spec: apps.DeploymentSpec{
+			Replicas: &spec.Replicas,
+			Template: podTemplate,
+			Selector: &metaV1.LabelSelector{
+				// Quoting from https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#selector:
+				// In API version apps/v1beta2, .spec.selector and .metadata.labels no longer default to
+				// .spec.template.metadata.labels if not set. So they must be set explicitly.
+				// Also note that .spec.selector is immutable after creation of the Deployment in apps/v1beta2.
+				MatchLabels: labels,
+			},
+		},
 	}
-	_, err = DeployAppFromFile(req.K8sConfig, &deploymentSpec)
-	if err != nil {
-		return nil, err
-	}
-	return &AppDeploymentFromFileResponse{
-		Name:    deploymentSpec.Name,
-		Content: deploymentSpec.Content,
-	}, nil
+	_, err := cli.AppsV1beta2().Deployments(spec.Namespace).Create(deployment)
+	return err
 }

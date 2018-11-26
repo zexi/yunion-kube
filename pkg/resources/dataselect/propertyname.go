@@ -7,4 +7,5 @@ const (
 	CreationTimestampProperty = "creationTimestamp"
 	NamespaceProperty         = "namespace"
 	StatusProperty            = "status"
+	SecretTypeProperty        = "type"
 )

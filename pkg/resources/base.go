@@ -145,6 +145,10 @@ func (m *SNamespaceResourceManager) AllowCreateItem(req *common.Request) bool {
 	return m.IsOwner(req)
 }
 
+func (m *SNamespaceResourceManager) ValidateCreateData(req *common.Request) error {
+	return common.ValidateK8sResourceCreateData(req, m.Keyword(), true)
+}
+
 func (m *SNamespaceResourceManager) AllowGetItem(req *common.Request, id string) bool {
 	return m.IsOwner(req)
 }

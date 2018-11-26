@@ -57,7 +57,7 @@ func GetStorageClass(client kubernetes.Interface, name string) (*StorageClassDet
 	}
 
 	persistentVolumeList, err := persistentvolume.GetStorageClassPersistentVolumes(client,
-		storage.Name, dataselect.DefaultDataSelect)
+		storage.Name, dataselect.DefaultDataSelect())
 
 	storageClass := toStorageClassDetail(storage, persistentVolumeList)
 	return &storageClass, err

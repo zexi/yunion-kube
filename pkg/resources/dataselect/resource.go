@@ -216,3 +216,41 @@ func (cell ChartDataCell) GetProperty(name PropertyName) ComparableValue {
 		return nil
 	}
 }
+
+type SecretDataCell struct {
+	NamespaceDataCell
+	Type v1.SecretType
+}
+
+func getSecretType(obj interface{}) (v1.SecretType, error) {
+	v := reflect.ValueOf(obj)
+	f := v.FieldByName("Type")
+	if !f.IsValid() {
+		return "", fmt.Errorf("Object %#v not hava Type field", obj)
+	}
+	return f.Interface().(v1.SecretType), nil
+}
+
+func NewSecretDataCell(obj interface{}) (DataCell, error) {
+	cell, err := NewNamespaceDataCell(obj)
+	if err != nil {
+		return SecretDataCell{}, err
+	}
+	secType, err := getSecretType(obj)
+	if err != nil {
+		return SecretDataCell{}, err
+	}
+	return SecretDataCell{
+		NamespaceDataCell: cell.(NamespaceDataCell),
+		Type:              secType,
+	}, nil
+}
+
+func (cell SecretDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case SecretTypeProperty:
+		return StdComparableString(string(cell.Type))
+	default:
+		return cell.NamespaceDataCell.GetProperty(name)
+	}
+}
