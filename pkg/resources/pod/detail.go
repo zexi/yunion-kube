@@ -22,12 +22,12 @@ import (
 
 type PodDetail struct {
 	Pod
-	QOSClass                  string                                          `json:"qosClass"`
-	Containers                []Container                                     `json:"containers"`
-	InitContainers            []Container                                     `json:"initContainers"`
-	Conditions                []common.Condition                              `json:"conditions"`
-	Events                    []common.Event                                  `json:"events"`
-	PersistentvolumeclaimList persistentvolumeclaim.PersistentVolumeClaimList `json:"persistentVolumeClaimList"`
+	QOSClass                  string                                        `json:"qosClass"`
+	Containers                []Container                                   `json:"containers"`
+	InitContainers            []Container                                   `json:"initContainers"`
+	Conditions                []common.Condition                            `json:"conditions"`
+	Events                    []common.Event                                `json:"events"`
+	PersistentvolumeclaimList []persistentvolumeclaim.PersistentVolumeClaim `json:"persistentVolumeClaims"`
 }
 
 // Container represents a docker/rkt/etc. container that lives in a pod.
@@ -153,7 +153,7 @@ func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps *v1.ConfigMapList,
 		//Metrics:                   metrics,
 		Conditions:                getPodConditions(*pod),
 		Events:                    events.Events,
-		PersistentvolumeclaimList: *persistentVolumeClaimList,
+		PersistentvolumeclaimList: persistentVolumeClaimList.Items,
 	}
 }
 

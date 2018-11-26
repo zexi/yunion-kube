@@ -28,7 +28,11 @@ type PersistentVolumeClaim struct {
 }
 
 func (man *SPersistentVolumeClaimManager) List(req *common.Request) (common.ListResource, error) {
-	return GetPersistentVolumeClaimList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SPersistentVolumeClaimManager) ListV2(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetPersistentVolumeClaimList(client, nsQuery, dsQuery)
 }
 
 // GetPersistentVolumeClaimList returns a list of all Persistent Volume Claims in the cluster.

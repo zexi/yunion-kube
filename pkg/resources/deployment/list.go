@@ -40,7 +40,11 @@ func (d Deployment) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SDeploymentManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetDeploymentList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SDeploymentManager) ListV2(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetDeploymentList(client, nsQuery, dsQuery)
 }
 
 type DeploymentList struct {
@@ -49,6 +53,10 @@ type DeploymentList struct {
 	replicasets []apps.ReplicaSet
 	pods        []v1.Pod
 	events      []v1.Event
+}
+
+func (l *DeploymentList) GetDeployments() []Deployment {
+	return l.deployments
 }
 
 func (man *SDeploymentManager) GetDeploymentList(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*DeploymentList, error) {

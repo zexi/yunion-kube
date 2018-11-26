@@ -40,7 +40,11 @@ func (s Service) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SServiceManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetServiceList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SServiceManager) ListV2(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetServiceList(client, nsQuery, dsQuery)
 }
 
 func (man *SServiceManager) GetServiceList(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {

@@ -157,15 +157,20 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 	if err != nil {
 		return nil, err
 	}
+	kubeAdminConfig, err := cluster.GetAdminKubeconfig()
+	if err != nil {
+		return nil, err
+	}
 	req := &common.Request{
-		K8sClient:      k8sCli,
-		K8sConfig:      config,
-		K8sAdminClient: k8sAdminCli,
-		K8sAdminConfig: adminConfig,
-		UserCred:       userCred,
-		Query:          query,
-		Data:           data,
-		Context:        ctx,
+		K8sClient:       k8sCli,
+		K8sConfig:       config,
+		K8sAdminClient:  k8sAdminCli,
+		K8sAdminConfig:  adminConfig,
+		UserCred:        userCred,
+		Query:           query,
+		Data:            data,
+		Context:         ctx,
+		KubeAdminConfig: kubeAdminConfig,
 	}
 	return req, nil
 }

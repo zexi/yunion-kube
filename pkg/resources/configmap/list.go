@@ -29,8 +29,16 @@ func (l *ConfigMapList) GetResponseData() interface{} {
 	return l.configMaps
 }
 
+func (l *ConfigMapList) GetConfigMaps() []ConfigMap {
+	return l.configMaps
+}
+
 func (man *SConfigMapManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetConfigMapList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SConfigMapManager) ListV2(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetConfigMapList(client, nsQuery, dsQuery)
 }
 
 func (man *SConfigMapManager) GetConfigMapList(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {

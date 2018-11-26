@@ -40,7 +40,11 @@ type StatefulSet struct {
 }
 
 func (man *SStatefuleSetManager) List(req *common.Request) (common.ListResource, error) {
-	return GetStatefulSetList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SStatefuleSetManager) ListV2(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetStatefulSetList(client, nsQuery, dsQuery)
 }
 
 // GetStatefulSetList returns a list of all Stateful Sets in the cluster.

@@ -62,7 +62,11 @@ type SecretList struct {
 }
 
 func (man *SSecretManager) List(req *common.Request) (common.ListResource, error) {
-	return GetSecretList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+}
+
+func (man *SSecretManager) ListV2(client kubernetes.Interface, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetSecretList(client, namespace, dsQuery)
 }
 
 // GetSecretList returns all secrets in the given namespace.
