@@ -19,14 +19,15 @@ import (
 )
 
 type Request struct {
-	K8sClient      client.Interface
-	K8sAdminClient client.Interface
-	K8sConfig      *rest.Config
-	K8sAdminConfig *rest.Config
-	UserCred       mcclient.TokenCredential
-	Query          *jsonutils.JSONDict
-	Data           *jsonutils.JSONDict
-	Context        context.Context
+	K8sClient       client.Interface
+	K8sAdminClient  client.Interface
+	K8sConfig       *rest.Config
+	K8sAdminConfig  *rest.Config
+	UserCred        mcclient.TokenCredential
+	Query           *jsonutils.JSONDict
+	Data            *jsonutils.JSONDict
+	Context         context.Context
+	KubeAdminConfig string
 }
 
 func (r *Request) AllowListItems() bool {
@@ -93,6 +94,10 @@ func (r *Request) GetHelmClient() (*helmclient.HelmTunnelClient, error) {
 	k8scli := r.GetK8sAdminClient()
 	k8sconfig := r.GetK8sAdminRestConfig()
 	return helmclient.NewHelmTunnelClient(k8scli, k8sconfig)
+}
+
+func (r *Request) GetGenericClient() (*k8sclient.GenericClient, error) {
+	return k8sclient.NewGeneric(r.KubeAdminConfig)
 }
 
 func (r *Request) GetNamespaceByQuery() (string, error) {

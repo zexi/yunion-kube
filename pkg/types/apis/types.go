@@ -41,6 +41,10 @@ type ObjectMeta struct {
 	CreationTimestamp v1.Time `json:"creationTimestamp,omitempty"`
 }
 
+func (m ObjectMeta) GetName() string {
+	return m.Name
+}
+
 // TypeMeta describes an individual object in an API response or request with strings representing
 // the type of the object.
 type TypeMeta struct {
