@@ -4,6 +4,8 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"yunion.io/x/jsonutils"
+
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -62,7 +64,21 @@ type SecretList struct {
 }
 
 func (man *SSecretManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	query := req.ToQuery()
+	if secType, _ := req.Query.GetString("type"); secType != "" {
+		filter := query.FilterQuery
+		filter.Append(dataselect.NewFilterBy(dataselect.SecretTypeProperty, secType))
+	}
+	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), query)
+}
+
+func (man *SRegistrySecretManager) List(req *common.Request) (common.ListResource, error) {
+	query := req.Query
+	query.Add(
+		jsonutils.NewString(string(v1.SecretTypeDockerConfigJson)),
+		string(dataselect.SecretTypeProperty),
+	)
+	return SecretManager.List(req)
 }
 
 func (man *SSecretManager) ListV2(client kubernetes.Interface, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
@@ -87,7 +103,7 @@ func toSecretList(secrets []v1.Secret, dsQuery *dataselect.DataSelectQuery) (*Se
 	err := dataselect.ToResourceList(
 		secretList,
 		secrets,
-		dataselect.NewNamespaceDataCell,
+		dataselect.NewSecretDataCell,
 		dsQuery,
 	)
 	return secretList, err

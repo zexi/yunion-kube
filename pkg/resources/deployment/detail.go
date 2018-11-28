@@ -13,8 +13,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	//hpa "yunion.io/x/yunion-kube/pkg/resources/horizontalpodautoscaler"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
-	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
+	"yunion.io/x/yunion-kube/pkg/resources/service"
 )
 
 // RollingUpdateStrategy is behavior of a rolling update. See RollingUpdateDeployment K8s object.
@@ -99,8 +99,8 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 			common.NewSameNamespaceQuery(namespace), options),
 		PodList: common.GetPodListChannelWithOptions(client,
 			common.NewSameNamespaceQuery(namespace), options),
-		EventList: common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace),options),
+		EventList:   common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace), options),
 	}
 
 	rawRs := <-channels.ReplicaSetList.List
@@ -121,24 +121,24 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		return nil, err
 	}
 
-	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect)
+	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect())
 	if err != nil {
 		return nil, err
 	}
 
 	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items)
 
-	podList, err := GetDeploymentPods(client, dataselect.DefaultDataSelect, namespace, deploymentName)
+	podList, err := GetDeploymentPods(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := event.GetResourceEvents(client, dataselect.DefaultDataSelect, namespace, deploymentName)
+	eventList, err := event.GetResourceEvents(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, dataselect.DefaultDataSelect, namespace, deploymentName)
+	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 	return &DeploymentDetail{
 		Deployment:            commonDeployment,
 		PodList:               podList.Pods,
-		ServiceList: svcList.Services,
+		ServiceList:           svcList.Services,
 		Selector:              deployment.Spec.Selector.MatchLabels,
 		StatusInfo:            GetStatusInfo(&deployment.Status),
 		Strategy:              deployment.Spec.Strategy.Type,

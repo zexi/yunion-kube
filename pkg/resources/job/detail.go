@@ -39,7 +39,7 @@ func GetJobDetail(client kubernetes.Interface, namespace, name string) (*JobDeta
 		return nil, err
 	}
 
-	podList, err := GetJobPods(client, dataselect.DefaultDataSelect, namespace, name)
+	podList, err := GetJobPods(client, dataselect.DefaultDataSelect(), namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func GetJobDetail(client kubernetes.Interface, namespace, name string) (*JobDeta
 		return nil, err
 	}
 
-	eventList, err := GetJobEvents(client, dataselect.DefaultDataSelect, jobData.Namespace, jobData.Name)
+	eventList, err := GetJobEvents(client, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
 	if err != nil {
 		return nil, err
 	}

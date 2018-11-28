@@ -5,15 +5,10 @@ import (
 )
 
 var (
-	DeploymentManager     *SDeploymentManager
-	DeployFromFileManager *SDeployFromFileManager
+	DeploymentManager *SDeploymentManager
 )
 
 type SDeploymentManager struct {
-	*resources.SNamespaceResourceManager
-}
-
-type SDeployFromFileManager struct {
 	*resources.SNamespaceResourceManager
 }
 
@@ -26,7 +21,4 @@ func init() {
 		SNamespaceResourceManager: resources.NewNamespaceResourceManager("deployment", "deployments"),
 	}
 
-	DeployFromFileManager = &SDeployFromFileManager{
-		SNamespaceResourceManager: resources.NewNamespaceResourceManager("deployfromfile", "deployfromfiles"),
-	}
 }
