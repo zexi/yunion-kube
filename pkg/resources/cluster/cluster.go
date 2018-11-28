@@ -37,7 +37,7 @@ type Cluster struct {
 }
 
 func (man *SClusterManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCluster(req.GetK8sClient(), dataselect.DefaultDataSelect)
+	return GetCluster(req.GetK8sClient(), dataselect.DefaultDataSelect())
 }
 
 // GetCluster returns a list of all cluster resources in the cluster.

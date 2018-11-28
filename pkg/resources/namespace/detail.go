@@ -47,7 +47,7 @@ func GetNamespaceDetail(client k8sClient.Interface, name string) (*NamespaceDeta
 		return nil, err
 	}
 
-	events, err := event.GetNamespaceEvents(client, dataselect.DefaultDataSelect, namespace.Name)
+	events, err := event.GetNamespaceEvents(client, dataselect.DefaultDataSelect(), namespace.Name)
 	if err != nil {
 		return nil, err
 	}

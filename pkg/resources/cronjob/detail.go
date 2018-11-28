@@ -21,8 +21,8 @@ type CronJobDetail struct {
 
 	ConcurrencyPolicy       string         `json:"concurrencyPolicy"`
 	StartingDeadLineSeconds *int64         `json:"startingDeadlineSeconds"`
-	ActiveJobs              job.JobList    `json:"activeJobs"`
-	InactiveJobs            job.JobList    `json:"inactiveJobs"`
+	ActiveJobs              []job.Job      `json:"activeJobs"`
+	InactiveJobs            []job.Job      `json:"inactiveJobs"`
 	Events                  []common.Event `json:"events"`
 
 	// Extends list item structure.
@@ -63,8 +63,8 @@ func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs jo
 		CronJob:                 toCronJob(cj),
 		ConcurrencyPolicy:       string(cj.Spec.ConcurrencyPolicy),
 		StartingDeadLineSeconds: cj.Spec.StartingDeadlineSeconds,
-		ActiveJobs:              activeJobs,
-		InactiveJobs:            inactiveJobs,
+		ActiveJobs:              activeJobs.Jobs,
+		InactiveJobs:            inactiveJobs.Jobs,
 		Events:                  events.Events,
 	}
 }

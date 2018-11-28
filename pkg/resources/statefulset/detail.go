@@ -12,6 +12,7 @@ import (
 	ds "yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/resources/service"
 )
 
 // StatefulSetDetail is a presentation layer view of Kubernetes Stateful Set resource. This means it is Stateful
@@ -20,6 +21,9 @@ type StatefulSetDetail struct {
 	StatefulSet
 	PodList   []pod.Pod      `json:"pods"`
 	EventList []common.Event `json:"events"`
+	// Label selector of the service.
+	Selector    map[string]string `json:"selector"`
+	ServiceList []service.Service `json:"services"`
 }
 
 func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -36,7 +40,20 @@ func GetStatefulSetDetail(client kubernetes.Interface, namespace, name string) (
 		return nil, err
 	}
 
-	podList, err := GetStatefulSetPods(client, ds.DefaultDataSelect, name, namespace)
+	selector, err := metaV1.LabelSelectorAsSelector(ss.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+	options := metaV1.ListOptions{LabelSelector: selector.String()}
+	channels := &common.ResourceChannels{
+		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace), options),
+	}
+	svcList, err := service.GetServiceListFromChannels(channels, ds.DefaultDataSelect())
+	if err != nil {
+		return nil, err
+	}
+
+	podList, err := GetStatefulSetPods(client, ds.DefaultDataSelect(), name, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -46,22 +63,30 @@ func GetStatefulSetDetail(client kubernetes.Interface, namespace, name string) (
 		return nil, err
 	}
 
-	events, err := event.GetResourceEvents(client, ds.DefaultDataSelect, ss.Namespace, ss.Name)
+	events, err := event.GetResourceEvents(client, ds.DefaultDataSelect(), ss.Namespace, ss.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	commonSs := ToStatefulSet(ss, podInfo)
 
-	ssDetail := getStatefulSetDetail(commonSs, ss, *events, *podList, *podInfo)
+	ssDetail := getStatefulSetDetail(commonSs, ss, *events, *podList, *podInfo, *svcList)
 	return &ssDetail, nil
 }
 
-func getStatefulSetDetail(commonSs StatefulSet, statefulSet *apps.StatefulSet, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) StatefulSetDetail {
+func getStatefulSetDetail(
+	commonSs StatefulSet,
+	statefulSet *apps.StatefulSet,
+	eventList common.EventList,
+	podList pod.PodList,
+	podInfo common.PodInfo,
+	svcList service.ServiceList,
+) StatefulSetDetail {
 	return StatefulSetDetail{
 		StatefulSet: commonSs,
 		PodList:     podList.Pods,
 		EventList:   eventList.Events,
+		ServiceList: svcList.Services,
 	}
 }
 

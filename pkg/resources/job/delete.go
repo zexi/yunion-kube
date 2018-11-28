@@ -1,4 +1,4 @@
-package deployment
+package job
 
 import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -7,14 +7,14 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
-func (man *SDeploymentManager) Delete(req *common.Request, id string) error {
+func (man *SJobManager) Delete(req *common.Request, id string) error {
 	cli := req.GetK8sClient()
 	namespace := req.GetDefaultNamespace()
-	deployment, err := cli.AppsV1beta2().Deployments(namespace).Get(id, metaV1.GetOptions{})
+	job, err := cli.BatchV1().Jobs(namespace).Get(id, metaV1.GetOptions{})
 	if err != nil {
 		return err
 	}
-	err = app.DeleteServices(cli, namespace, deployment.Spec.Selector)
+	err = app.DeleteServices(cli, namespace, job.Spec.Selector)
 	if err != nil {
 		return err
 	}
