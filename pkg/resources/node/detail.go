@@ -107,7 +107,7 @@ type NodeDetail struct {
 }
 
 func (man *SNodeManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetNodeDetail(req.GetK8sClient(), id, dataselect.DefaultDataSelect)
+	return GetNodeDetail(req.GetK8sClient(), id, dataselect.DefaultDataSelect())
 }
 
 // GetNodeDetail gets node details.

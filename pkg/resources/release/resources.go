@@ -4,11 +4,7 @@ import (
 	"bytes"
 	"reflect"
 
-	//apps "k8s.io/api/apps/v1beta2"
-	//extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/apimachinery/pkg/fields"
-	//"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/helm/pkg/proto/hapi/release"
@@ -47,7 +43,7 @@ func convertRuntimeObjs(
 	nsQuery := common.NewNamespaceQuery(namespace)
 	ret := make(map[string]interface{})
 	for kind, objs := range objMap {
-		k, cObjs, err := processObjs(kind, cli, objs, nsQuery, dataselect.DefaultDataSelect)
+		k, cObjs, err := processObjs(kind, cli, objs, nsQuery, dataselect.DefaultDataSelect())
 		if err != nil {
 			return nil, err
 		}

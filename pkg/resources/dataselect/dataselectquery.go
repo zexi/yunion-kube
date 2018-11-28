@@ -16,8 +16,10 @@ type SortBy struct {
 	Ascending bool
 }
 
-var NoSort = &SortQuery{
-	SortByList: []SortBy{},
+func NoSort() *SortQuery {
+	return &SortQuery{
+		SortByList: []SortBy{},
+	}
 }
 
 type FilterQuery struct {
@@ -29,27 +31,35 @@ type FilterBy struct {
 	Value    ComparableValue
 }
 
-var NoFilter = &FilterQuery{
-	FilterByList: []FilterBy{},
+func NoFilter() *FilterQuery {
+	return &FilterQuery{
+		FilterByList: []FilterBy{},
+	}
 }
 
 type LimitQuery struct {
 	Limit int
 }
 
-var NoLimiter = &LimitQuery{
-	Limit: -1,
+func NoLimiter() *LimitQuery {
+	return &LimitQuery{
+		Limit: -1,
+	}
 }
 
 type OffsetQuery struct {
 	Offset int
 }
 
-var NoOffset = &OffsetQuery{
-	Offset: 0,
+func NoOffset() *OffsetQuery {
+	return &OffsetQuery{
+		Offset: 0,
+	}
 }
 
-var NoDataSelect = NewDataSelectQuery(NoSort, NoFilter, NoLimiter, NoOffset)
+func NoDataSelect() *DataSelectQuery {
+	return NewDataSelectQuery(NoSort(), NoFilter(), NoLimiter(), NoOffset())
+}
 
 func NewDataSelectQuery(
 	sortQuery *SortQuery,
@@ -71,7 +81,7 @@ func NewDataSelectQuery(
 func NewSortQuery(sortByListRaw []string) *SortQuery {
 	if sortByListRaw == nil || len(sortByListRaw)%2 == 1 {
 		// Empty sort list or invalid (odd) length
-		return NoSort
+		return NoSort()
 	}
 	sortByList := []SortBy{}
 	for i := 0; i+1 < len(sortByListRaw); i += 2 {
@@ -83,7 +93,7 @@ func NewSortQuery(sortByListRaw []string) *SortQuery {
 			ascending = false
 		} else {
 			// Invalid order option. Only ascending (a), descending (d) options are supported
-			return NoSort
+			return NoSort()
 		}
 
 		// parse property name
@@ -105,21 +115,30 @@ func NewSortQuery(sortByListRaw []string) *SortQuery {
 // parameter1 equals value1 and parameter2 equals value2
 func NewFilterQuery(filterByListRaw []string) *FilterQuery {
 	if filterByListRaw == nil || len(filterByListRaw)%2 == 1 {
-		return NoFilter
+		return NoFilter()
 	}
 	filterByList := []FilterBy{}
 	for i := 0; i+1 < len(filterByListRaw); i += 2 {
 		propertyName := filterByListRaw[i]
 		propertyValue := filterByListRaw[i+1]
-		filterBy := FilterBy{
-			Property: PropertyName(propertyName),
-			Value:    StdComparableString(propertyValue),
-		}
+		filterBy := NewFilterBy(propertyName, propertyValue)
 		filterByList = append(filterByList, filterBy)
 	}
 	return &FilterQuery{
 		FilterByList: filterByList,
 	}
+}
+
+func NewFilterBy(property, value string) FilterBy {
+	return FilterBy{
+		Property: PropertyName(property),
+		Value:    StdComparableString(value),
+	}
+}
+
+func (f *FilterQuery) Append(filters ...FilterBy) *FilterQuery {
+	f.FilterByList = append(f.FilterByList, filters...)
+	return f
 }
 
 func NewLimitQuery(limit int) *LimitQuery {
@@ -130,4 +149,6 @@ func NewOffsetQuery(offset int) *OffsetQuery {
 	return &OffsetQuery{offset}
 }
 
-var DefaultDataSelect = NewDataSelectQuery(NoSort, NoFilter, NoLimiter, NoOffset)
+func DefaultDataSelect() *DataSelectQuery {
+	return NoDataSelect()
+}

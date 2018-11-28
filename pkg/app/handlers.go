@@ -10,6 +10,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/models"
+	k8sapp "yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
 	"yunion.io/x/yunion-kube/pkg/resources/cronjob"
@@ -62,8 +63,8 @@ func InitHandlers(app *appsrv.Application) {
 	for _, man := range []k8s.IK8sResourceManager{
 		configmap.ConfigMapManager,
 		cronjob.CronJobManager,
+		k8sapp.AppFromFileManager,
 		deployment.DeploymentManager,
-		deployment.DeployFromFileManager,
 		ingress.IngressManager,
 		job.JobManager,
 		pod.PodManager,
@@ -74,6 +75,7 @@ func InitHandlers(app *appsrv.Application) {
 		rbacroles.RbacRoleManager,
 		release.ReleaseManager,
 		secret.SecretManager,
+		secret.RegistrySecretManager,
 		service.ServiceManager,
 		cluster.ClusterManager,
 		statefulset.StatefulSetManager,

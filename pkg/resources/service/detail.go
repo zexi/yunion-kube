@@ -73,7 +73,7 @@ func GetServiceDetail(client client.Interface, namespace, name string, dsQuery *
 		return nil, err
 	}
 
-	eventList, err := GetServiceEvents(client, dataselect.DefaultDataSelect, namespace, name)
+	eventList, err := GetServiceEvents(client, dataselect.DefaultDataSelect(), namespace, name)
 	if err != nil {
 		return nil, err
 	}
