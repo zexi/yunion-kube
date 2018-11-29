@@ -11,6 +11,9 @@ import (
 )
 
 func TrimKindPlural(plural string) string {
+	if api.GetResourceKinds().Has(plural) {
+		return plural
+	}
 	switch plural {
 	case "ingresses":
 		return api.ResourceKindIngress
