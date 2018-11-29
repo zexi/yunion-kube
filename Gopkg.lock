@@ -1386,7 +1386,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:acd54ff1cd9bd9a12f3170dc3af8a891d12c35b06e71b99ee265bc61d07af1bd"
+  digest = "1:fc43d321a9c3643e9247f45f6e3ddc29b9587a799de4b44d080c5b0d1745113d"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
@@ -1419,7 +1419,7 @@
     "pkg/util/seclib2",
   ]
   pruneopts = "UT"
-  revision = "da6110e4f73add7f4f51bd429653bdedfb1bf635"
+  revision = "741ab54f2d314c4467b144f1ee81f8a07f030f55"
 
 [[projects]]
   branch = "master"
@@ -1472,7 +1472,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:fbfae3c967ab47e347e76cf7a9087e999bec2320d360af45c3d55c221cf8a4f5"
+  digest = "1:0606fd67b389f45c3ebcd7cbf8187940f48529343dcac76cfdfb7ed20c948efc"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1491,7 +1491,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "ee4426840504c453ba37970cb82e01e36fb51372"
+  revision = "3fbdb315787c0bd19e9c4a05328364a9a12ae570"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1519,6 +1519,8 @@
     "gopkg.in/urfave/cli.v1/altsrc",
     "gopkg.in/yaml.v2",
     "k8s.io/api/admissionregistration/v1alpha1",
+    "k8s.io/api/apps/v1",
+    "k8s.io/api/apps/v1beta1",
     "k8s.io/api/apps/v1beta2",
     "k8s.io/api/autoscaling/v1",
     "k8s.io/api/batch/v1",
@@ -1550,10 +1552,12 @@
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/rest",
+    "k8s.io/client-go/restmapper",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/util/cert",
     "k8s.io/client-go/util/flowcontrol",
+    "k8s.io/client-go/util/homedir",
     "k8s.io/helm/cmd/helm/installer",
     "k8s.io/helm/pkg/chartutil",
     "k8s.io/helm/pkg/downloader",
@@ -1569,6 +1573,8 @@
     "k8s.io/helm/pkg/provenance",
     "k8s.io/helm/pkg/repo",
     "k8s.io/helm/pkg/strvals",
+    "k8s.io/kubernetes/pkg/kubectl/cmd/util",
+    "k8s.io/kubernetes/pkg/kubectl/genericclioptions/resource",
     "k8s.io/kubernetes/pkg/util/mount",
     "yunion.io/x/jsonutils",
     "yunion.io/x/log",
