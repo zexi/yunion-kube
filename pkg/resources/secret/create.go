@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -38,7 +37,10 @@ func (man *SRegistrySecretManager) ValidateCreateData(req *common.Request) error
 
 func (man *SSecretManager) Create(req *common.Request) (interface{}, error) {
 	dataMap, _ := req.Data.GetMap("data")
-	name, _ := req.Data.GetString("name")
+	objMeta, err := common.GetK8sObjectCreateMeta(req.Data)
+	if err != nil {
+		return nil, err
+	}
 	ns := req.GetDefaultNamespace()
 	var kind v1.SecretType
 	kindStr, _ := req.Data.GetString("secretType")
@@ -56,11 +58,9 @@ func (man *SSecretManager) Create(req *common.Request) (interface{}, error) {
 		data[key] = []byte(content)
 	}
 	secret := &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Data: data,
-		Type: kind,
+		ObjectMeta: *objMeta,
+		Data:       data,
+		Type:       kind,
 	}
 	obj, err := req.GetK8sClient().CoreV1().Secrets(ns).Create(secret)
 	return obj, err

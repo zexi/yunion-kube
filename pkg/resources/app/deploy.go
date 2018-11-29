@@ -1,7 +1,6 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -24,6 +23,8 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/sets"
+
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -39,11 +40,7 @@ var (
 
 func NewAppCreateData(data jsonutils.JSONObject) (*AppDeploymentSpec, error) {
 	appSpec := AppDeploymentSpec{}
-	dataStr, err := data.GetString()
-	if err != nil {
-		return nil, err
-	}
-	err = json.NewDecoder(strings.NewReader(dataStr)).Decode(&appSpec)
+	err := common.JsonDecode(data, &appSpec)
 	if err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
 	}
