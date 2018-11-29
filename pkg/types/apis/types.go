@@ -5,6 +5,8 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"yunion.io/x/pkg/util/sets"
 )
 
 // ObjectMeta is metadata about an instance of a resource.
@@ -219,4 +221,12 @@ var KindToAPIMapping = map[string]struct {
 	ResourceKindStatefulSet:             {"statefulsets", ClientTypeAppsClient, true},
 	ResourceKindStorageClass:            {"storageclasses", ClientTypeStorageClient, false},
 	ResourceKindEndpoint:                {"endpoints", ClientTypeDefault, true},
+}
+
+func GetResourceKinds() sets.String {
+	kinds := sets.NewString()
+	for kind := range KindToAPIMapping {
+		kinds.Insert(kind)
+	}
+	return kinds
 }
