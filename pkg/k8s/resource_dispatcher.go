@@ -33,8 +33,14 @@ func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sR
 	// get resource instance details
 	app.AddHandler2("GET", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(getHandler), metadata, "get_details", tags)
 
+	// get resource spec
+	app.AddHandler2("GET", fmt.Sprintf("%s/%s/<resid>/<spec>", clusterPrefix, plural), handler.Filter(getSpecHandler), metadata, "get_specific", tags)
+
 	// create resources
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s", clusterPrefix, plural), handler.Filter(createHandler), metadata, "create", tags)
+
+	// perform action on resource instance
+	app.AddHandler2("POST", fmt.Sprintf("%s/%s/<resid>/<action>", clusterPrefix, plural), handler.Filter(performActionHandler), metadata, "perform_action", tags)
 
 	// update resource
 	app.AddHandler2("PUT", fmt.Sprintf("%s/%s/<resid>", clusterPrefix, plural), handler.Filter(updateHandler), metadata, "update", tags)
@@ -103,9 +109,29 @@ func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
+func getSpecHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, _ := fetchEnv(ctx, w, r)
+	result, err := handler.GetSpecific(ctx, params["<resid>"], params["<spec>"], query.(*jsonutils.JSONDict))
+	if err != nil {
+		errors.GeneralServerError(w, err)
+		return
+	}
+	SendJSON(w, wrapBody(result, handler.Keyword()))
+}
+
 func createHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, _, query, body := fetchEnv(ctx, w, r)
 	handleCreate(ctx, w, handler, query, body)
+}
+
+func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, data := fetchEnv(ctx, w, r)
+	result, err := handler.PerformAction(ctx, params["<resid>"], params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
+	if err != nil {
+		errors.GeneralServerError(w, err)
+		return
+	}
+	SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
 func handleCreate(ctx context.Context, w http.ResponseWriter, handler IK8sResourceHandler, query, body jsonutils.JSONObject) {
