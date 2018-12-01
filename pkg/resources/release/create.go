@@ -213,7 +213,7 @@ func validateInfraCreate(cli *client.HelmTunnelClient, chartPkg *helmtypes.Chart
 	if releases == nil {
 		return nil
 	}
-	for _, rls := range releases.Releases {
+	for _, rls := range releases {
 		if rls.Chart.Metadata.Name == chartPkg.Metadata.Name {
 			return httperrors.NewBadRequestError("Release %s already created by chart %s", rls.Name, rls.Chart.Metadata.Name)
 		}

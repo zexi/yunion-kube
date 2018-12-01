@@ -118,7 +118,7 @@ func (man *SReleaseManager) GetReleaseList(helmclient *client.HelmTunnelClient, 
 	if list == nil {
 		return emptyList, nil
 	}
-	releaseList, err := ToReleaseList(list.Releases, dsQuery)
+	releaseList, err := ToReleaseList(list, dsQuery)
 	return releaseList, err
 }
 
@@ -144,7 +144,7 @@ func ToReleaseList(releases []*release.Release, dsQuery *dataselect.DataSelectQu
 	return list, err
 }
 
-func ListReleases(helmclient *client.HelmTunnelClient, q ReleaseListQuery) (*rls.ListReleasesResponse, error) {
+func ListReleases(helmclient *client.HelmTunnelClient, q ReleaseListQuery) ([]*release.Release, error) {
 	stats := q.statusCodes()
 	ops := []helm.ReleaseListOption{
 		helm.ReleaseListSort(int32(rls.ListSort_LAST_RELEASED)),
@@ -164,7 +164,30 @@ func ListReleases(helmclient *client.HelmTunnelClient, q ReleaseListQuery) (*rls
 		log.Errorf("Can't retrieve the list of releases: %v", err)
 		return nil, err
 	}
-	return resp, err
+	return filterReleaseList(resp.GetReleases()), err
+}
+
+func filterReleaseList(rels []*release.Release) []*release.Release {
+	idx := map[string]int32{}
+
+	for _, r := range rels {
+		name, version := r.GetName(), r.GetVersion()
+		if max, ok := idx[name]; ok {
+			// check if we have a greater version already
+			if max > version {
+				continue
+			}
+		}
+		idx[name] = version
+	}
+
+	uniq := make([]*release.Release, 0, len(idx))
+	for _, r := range rels {
+		if idx[r.GetName()] == r.GetVersion() {
+			uniq = append(uniq, r)
+		}
+	}
+	return uniq
 }
 
 func ShowRelease(helmclient *client.HelmTunnelClient, releaseName string) (*rls.GetReleaseContentResponse, error) {

@@ -44,14 +44,14 @@ func ReleaseUpgrade(helmclient *client.HelmTunnelClient, opt *CreateUpdateReleas
 		return nil, err
 	}
 	chartRequest := pkg.Chart
-	vals, err := opt.Vals()
+	rawVals, err := opt.Vals()
 	if err != nil {
 		return nil, err
 	}
 	upgradeRes, err := helmclient.UpdateReleaseFromChart(
 		opt.ReleaseName,
 		chartRequest,
-		helm.UpdateValueOverrides(vals),
+		helm.UpdateValueOverrides(rawVals),
 		helm.UpgradeDisableHooks(true),
 		helm.UpgradeDryRun(opt.DryRun),
 		helm.UpgradeTimeout(opt.Timeout),
