@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -13,6 +15,8 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/pkg/gotypes"
+	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -29,7 +33,11 @@ type IK8sResourceHandler interface {
 
 	Get(ctx context.Context, id string, query *jsonutils.JSONDict) (interface{}, error)
 
+	GetSpecific(ctx context.Context, id, spec string, query *jsonutils.JSONDict) (interface{}, error)
+
 	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (interface{}, error)
+
+	PerformAction(ctx context.Context, id, action string, query, data *jsonutils.JSONDict) (interface{}, error)
 
 	Update(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (interface{}, error)
 
@@ -208,6 +216,105 @@ func (h *K8sResourceHandler) Get(ctx context.Context, id string, query *jsonutil
 		return nil, httperrors.NewForbiddenError("Not allow to get item")
 	}
 	return h.resourceManager.Get(req, id)
+}
+
+func (h *K8sResourceHandler) GetSpecific(ctx context.Context, id, spec string, query *jsonutils.JSONDict) (interface{}, error) {
+	req, err := NewCloudK8sRequest(ctx, query, nil)
+	if err != nil {
+		return nil, errors.NewJSONClientError(err)
+	}
+	specCamel := utils.Kebab2Camel(spec, "-")
+	funcName := fmt.Sprintf("AllowGetDetails%s", specCamel)
+	funcValue, err := getManagerFuncValue(funcName, h.resourceManager)
+	if err != nil {
+		return nil, httperrors.NewSpecNotFoundError("%s", err.Error())
+	}
+	params := []reflect.Value{
+		reflect.ValueOf(req),
+		reflect.ValueOf(id),
+	}
+	outs := funcValue.Call(params)
+	if len(outs) != 1 {
+		return nil, httperrors.NewInternalServerError("Invalid %s return value", funcName)
+	}
+	isAllow := outs[0].Bool()
+	if !isAllow {
+		return nil, httperrors.NewForbiddenError("%s not allow to get spec %s", h.Keyword(), spec)
+	}
+
+	funcName = fmt.Sprintf("GetDetails%s", specCamel)
+	funcValue, err = getManagerFuncValue(funcName, h.resourceManager)
+	if err != nil {
+		return nil, httperrors.NewSpecNotFoundError("%s", err.Error())
+	}
+
+	outs = funcValue.Call(params)
+	if len(outs) != 2 {
+		return nil, httperrors.NewInternalServerError("Invalid %s return value", funcName)
+	}
+
+	resVal := outs[0].Interface()
+	errVal := outs[1].Interface()
+	if !gotypes.IsNil(errVal) {
+		return nil, errVal.(error)
+	}
+	if gotypes.IsNil(resVal) {
+		return nil, nil
+	}
+	return resVal, nil
+}
+
+func (h *K8sResourceHandler) PerformAction(ctx context.Context, id, action string, query, data *jsonutils.JSONDict) (interface{}, error) {
+	req, err := NewCloudK8sRequest(ctx, query, data)
+	if err != nil {
+		return nil, errors.NewJSONClientError(err)
+	}
+	specCamel := utils.Kebab2Camel(action, "-")
+	funcName := fmt.Sprintf("Perform%s", specCamel)
+	funcValue, err := getManagerFuncValue(funcName, h.resourceManager)
+	if err != nil {
+		return nil, httperrors.NewActionNotFoundError("%s", err.Error())
+	}
+	params := []reflect.Value{
+		reflect.ValueOf(req),
+		reflect.ValueOf(id),
+	}
+	allowFuncName := fmt.Sprintf("Allow%s", funcName)
+	allowFuncValue, err := getManagerFuncValue(allowFuncName, h.resourceManager)
+	if err != nil {
+		return nil, httperrors.NewActionNotFoundError("%s", err.Error())
+	}
+	outs := allowFuncValue.Call(params)
+	if len(outs) != 1 {
+		return nil, httperrors.NewInternalServerError("Invalid %s return value", allowFuncName)
+	}
+	isAllow := outs[0].Bool()
+	if !isAllow {
+		return nil, httperrors.NewForbiddenError("%s not allow to perform action %s", h.Keyword(), action)
+	}
+	outs = funcValue.Call(params)
+	if len(outs) != 2 {
+		return nil, httperrors.NewInternalServerError("Invalid %s return value", funcName)
+	}
+
+	resVal := outs[0].Interface()
+	errVal := outs[1].Interface()
+	if !gotypes.IsNil(errVal) {
+		return nil, errVal.(error)
+	}
+	if gotypes.IsNil(resVal) {
+		return nil, nil
+	}
+	return resVal, nil
+}
+
+func getManagerFuncValue(funcName string, man IK8sResourceManager) (reflect.Value, error) {
+	manValue := reflect.ValueOf(man)
+	funcValue := manValue.MethodByName(funcName)
+	if !funcValue.IsValid() || funcValue.IsNil() {
+		return reflect.ValueOf(nil), fmt.Errorf("Not found function %s on %s manager", funcName, man.Keyword())
+	}
+	return funcValue, nil
 }
 
 func doCreateItem(man IK8sResourceManager, req *common.Request) (jsonutils.JSONObject, error) {
