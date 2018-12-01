@@ -1147,7 +1147,7 @@
   version = "kubernetes-1.11.2"
 
 [[projects]]
-  digest = "1:1c35a38b90cb260f18ab081c52b896fe96bf7573075d56a5b3893d4eefeb6f2b"
+  digest = "1:2efc6d3e0aef14a3a9917e7e422a2a42374df11b35a9f607efdab133b76781e8"
   name = "k8s.io/helm"
   packages = [
     "cmd/helm/installer",
@@ -1175,6 +1175,7 @@
     "pkg/storage/errors",
     "pkg/strvals",
     "pkg/sympath",
+    "pkg/timeconv",
     "pkg/tlsutil",
     "pkg/urlutil",
     "pkg/version",
@@ -1472,7 +1473,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:0606fd67b389f45c3ebcd7cbf8187940f48529343dcac76cfdfb7ed20c948efc"
+  digest = "1:dab9d53d12b85255523b5ac1e72241b69ad09292913b5dc7f04302d4e82078be"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1491,7 +1492,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "3fbdb315787c0bd19e9c4a05328364a9a12ae570"
+  revision = "a4a9883492f02252c570434bcf5bdee9912a03a5"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1573,6 +1574,7 @@
     "k8s.io/helm/pkg/provenance",
     "k8s.io/helm/pkg/repo",
     "k8s.io/helm/pkg/strvals",
+    "k8s.io/helm/pkg/timeconv",
     "k8s.io/kubernetes/pkg/kubectl/cmd/util",
     "k8s.io/kubernetes/pkg/kubectl/genericclioptions/resource",
     "k8s.io/kubernetes/pkg/util/mount",
@@ -1590,6 +1592,7 @@
     "yunion.io/x/onecloud/pkg/mcclient/auth",
     "yunion.io/x/onecloud/pkg/mcclient/modules",
     "yunion.io/x/onecloud/pkg/util/httputils",
+    "yunion.io/x/pkg/gotypes",
     "yunion.io/x/pkg/util/cache",
     "yunion.io/x/pkg/util/errors",
     "yunion.io/x/pkg/util/regutils",
