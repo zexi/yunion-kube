@@ -15,6 +15,7 @@ import (
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/types"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -99,14 +100,22 @@ func (r *Request) GetNamespaceByQuery() (string, error) {
 	if r.Query == nil {
 		return "", fmt.Errorf("query is nil")
 	}
-	return r.Query.GetString("namespace")
+	ns, err := r.Query.GetString("namespace")
+	if err != nil {
+		return "", err
+	}
+	return types.ConvertProjectToNamespace(ns), nil
 }
 
 func (r *Request) GetNamespaceByData() (string, error) {
 	if r.Data == nil {
 		return "", fmt.Errorf("data is nil")
 	}
-	return r.Data.GetString("namespace")
+	ns, err := r.Data.GetString("namespace")
+	if err != nil {
+		return "", err
+	}
+	return types.ConvertProjectToNamespace(ns), nil
 }
 
 func (r *Request) GetDefaultNamespace() string {
@@ -116,7 +125,7 @@ func (r *Request) GetDefaultNamespace() string {
 	}
 	ns, _ = r.GetNamespaceByData()
 	if ns == "" {
-		ns = r.UserCred.GetProjectName()
+		ns = types.ConvertProjectToNamespace(r.UserCred.GetProjectName())
 	}
 	return ns
 }
