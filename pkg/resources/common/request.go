@@ -33,6 +33,10 @@ type Request struct {
 	KubeAdminConfig string
 }
 
+func (r *Request) GetProjectNamespace() string {
+	return types.ConvertProjectToNamespace(r.UserCred.GetProjectName())
+}
+
 func (r *Request) AllowListItems() bool {
 	allNamespace := jsonutils.QueryBoolean(r.Query, "all_namespace", false)
 	if allNamespace && !r.UserCred.IsSystemAdmin() {
@@ -47,7 +51,7 @@ func (r *Request) AllowCreateItem() bool {
 	}
 	ns := r.GetDefaultNamespace()
 	// TODO: support isOwner check
-	return ns == r.UserCred.GetProjectName()
+	return ns == r.GetProjectNamespace()
 }
 
 func (r *Request) ShowAllNamespace() bool {
@@ -60,7 +64,7 @@ func (r *Request) GetNamespaceQuery() *NamespaceQuery {
 	}
 	namespace, _ := r.Query.GetString("namespace")
 	if len(namespace) == 0 {
-		namespace = r.UserCred.GetProjectName()
+		namespace = r.GetProjectNamespace()
 	}
 	return NewNamespaceQuery(namespace)
 }
@@ -132,7 +136,7 @@ func (r *Request) GetDefaultNamespace() string {
 	}
 	ns, _ = r.GetNamespaceByData()
 	if ns == "" {
-		ns = types.ConvertProjectToNamespace(r.UserCred.GetProjectName())
+		ns = r.GetProjectNamespace()
 	}
 	return ns
 }
