@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"strings"
 
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -17,6 +16,7 @@ import (
 	"yunion.io/x/pkg/util/workqueue"
 
 	o "yunion.io/x/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/types"
 )
 
 var (
@@ -314,32 +314,13 @@ func (r *Reconciler) EnsureProjectsLimitRange(projects ...string) error {
 	}, projects...)
 }
 
-func isASCII(s string) bool {
-	for _, c := range s {
-		if c > 127 {
-			return false
-		}
-	}
-	return true
-}
-
 func ProjectsTranslate(names []string) []string {
 	ret := []string{}
-	trans := func(name string, olds []string, new string) string {
-		for _, ch := range olds {
-			name = strings.Replace(name, ch, new, -1)
-		}
-		return name
-	}
 	for _, name := range names {
-		if !isASCII(name) {
-			log.Warningf("Project name %q is not ASCII string, skip it", name)
-			continue
+		validName := types.ConvertProjectToNamespace(name)
+		if validName != "" {
+			ret = append(ret, validName)
 		}
-		validName := trans(name,
-			[]string{"/", `\`, ".", "?", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "+", "="}, "-")
-		log.Debugf("Do trans %q => %q", name, validName)
-		ret = append(ret, validName)
 	}
 	return ret
 }

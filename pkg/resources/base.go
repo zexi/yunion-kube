@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/types"
 )
 
 type SResourceBaseManager struct {
@@ -134,7 +135,7 @@ func (m *SNamespaceResourceManager) InNamespace() bool {
 }
 
 func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin() || req.GetDefaultNamespace() == req.UserCred.GetProjectName()
+	return req.UserCred.IsSystemAdmin() || req.GetDefaultNamespace() == types.ConvertProjectToNamespace(req.UserCred.GetProjectName())
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
