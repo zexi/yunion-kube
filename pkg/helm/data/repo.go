@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"k8s.io/helm/pkg/getter"
 	"k8s.io/helm/pkg/repo"
 
 	"yunion.io/x/log"
@@ -15,6 +14,7 @@ import (
 	"yunion.io/x/pkg/util/workqueue"
 
 	"yunion.io/x/yunion-kube/pkg/helm/data/common"
+	"yunion.io/x/yunion-kube/pkg/helm/data/getter"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/types/helm"
 )
