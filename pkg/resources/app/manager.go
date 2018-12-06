@@ -82,6 +82,9 @@ func (man *SAppFromFileManager) Create(req *common.Request) (interface{}, error)
 	if err != nil {
 		return nil, err
 	}
+	if deploymentSpec.Namespace == "" {
+		deploymentSpec.Namespace = req.GetDefaultNamespace()
+	}
 	_, err = DeployAppFromFile(req.K8sConfig, &deploymentSpec)
 	if err != nil {
 		return nil, err
