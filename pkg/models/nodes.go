@@ -631,7 +631,7 @@ func (n *SNode) StartAgentStartTask(ctx context.Context, userCred mcclient.Token
 	return nil
 }
 
-func (n *SNode) GetAgentRegisterConfig() (ret apis.HostRegisterConfig, error error) {
+func (n *SNode) GetAgentRegisterConfig() (ret apis.HostRegisterConfig, err error) {
 	serverUrl, err := GetKubeServerUrl()
 	if err != nil {
 		err = fmt.Errorf("Get server url: %v", err)
