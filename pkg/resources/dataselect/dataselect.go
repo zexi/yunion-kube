@@ -97,7 +97,9 @@ func (s *DataSelector) Limit() *DataSelector {
 	}
 
 	if s.Total > limit {
-		s.GenericDataList = s.GenericDataList[:limit]
+		if limit <= len(s.GenericDataList) {
+			s.GenericDataList = s.GenericDataList[:limit]
+		}
 	}
 	return s
 }
