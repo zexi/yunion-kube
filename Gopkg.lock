@@ -1473,7 +1473,7 @@
 
 [[projects]]
   branch = "release/2.3.0"
-  digest = "1:dab9d53d12b85255523b5ac1e72241b69ad09292913b5dc7f04302d4e82078be"
+  digest = "1:fecd9ef5cd73fff43755a2c9f770d561170f1386b02cab02740cd38e66419973"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1492,7 +1492,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "a4a9883492f02252c570434bcf5bdee9912a03a5"
+  revision = "4f4516c6bf30d2eed34863d0bd5adaf13ed614a8"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1575,6 +1575,8 @@
     "k8s.io/helm/pkg/repo",
     "k8s.io/helm/pkg/strvals",
     "k8s.io/helm/pkg/timeconv",
+    "k8s.io/helm/pkg/tlsutil",
+    "k8s.io/helm/pkg/version",
     "k8s.io/kubernetes/pkg/kubectl/cmd/util",
     "k8s.io/kubernetes/pkg/kubectl/genericclioptions/resource",
     "k8s.io/kubernetes/pkg/util/mount",
