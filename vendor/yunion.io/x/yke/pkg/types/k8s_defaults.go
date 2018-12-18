@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DefaultK8s = "v1.12.0-rancher1-1"
+	DefaultK8s = "v1.12.3-rancher1-1"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 	K8sVersionsCurrent = []string{
 		"v1.10.5-rancher1-2",
 		"v1.11.3-rancher1-1",
-		"v1.12.0-rancher1-1",
+		"v1.12.3-rancher1-1",
 	}
 
 	// K8sVersionToSystemImages is dynamically populated on init() with the latest versions
@@ -108,9 +108,9 @@ var (
 			Heapster:                  m("yunion/heapster-amd64:v1.5.4"),
 			YunionCloudMonitor:        m("yunion/cloudmon:latest"),
 		},
-		"v1.12.0-rancher1-1": {
+		"v1.12.3-rancher1-1": {
 			Etcd:                      m("quay.io/coreos/etcd:v3.2.24"),
-			Kubernetes:                m("rancher/hyperkube:v1.12.0-rancher1"),
+			Kubernetes:                m("rancher/hyperkube:v1.12.3-rancher1"),
 			Alpine:                    m("yunion/yke-tools:v0.1.13"),
 			NginxProxy:                m("yunion/yke-tools:v0.1.13"),
 			CertDownloader:            m("yunion/yke-tools:v0.1.13"),
@@ -120,7 +120,7 @@ var (
 			KubeDNSSidecar:            m("gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.13"),
 			KubeDNSAutoscaler:         m("gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.0.0"),
 			CoreDNS:                   m("yunion/coredns:1.2.6"),
-			YunionCNI:                 m("yunion/cni:v2.3.1"),
+			YunionCNI:                 m("yunion/cni:v2.4.0"),
 			CSIAttacher:               m("quay.io/k8scsi/csi-attacher:v0.4.0"),
 			CSIProvisioner:            m("quay.io/k8scsi/csi-provisioner:v0.4.0"),
 			CSIRegistrar:              m("quay.io/k8scsi/driver-registrar:v0.4.0"),
