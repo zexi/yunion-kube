@@ -9,12 +9,12 @@ import (
 const (
 	K8S_V1_10_5         = "v1.10.5"
 	K8S_V1_11_3         = "v1.11.3"
-	K8S_V1_12_0         = "v1.12.0"
+	K8S_V1_12_0         = "v1.12.3"
 	DEFAULT_K8S_VERSION = K8S_V1_12_0
 
 	YKE_K8S_V1_10_5 = "v1.10.5-rancher1-2"
 	YKE_K8S_V1_11_3 = "v1.11.3-rancher1-1"
-	YKE_K8S_V1_12_0 = "v1.12.0-rancher1-1"
+	YKE_K8S_V1_12_0 = "v1.12.3-rancher1-1"
 )
 
 var (
