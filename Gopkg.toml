@@ -79,7 +79,7 @@
 
 [[constraint]]
     name = "yunion.io/x/yke"
-    branch = "release/2.3.0"
+    branch = "release/2.4.0"
 
 [[constraint]]
     name = "yunion.io/x/onecloud"
