@@ -8,4 +8,5 @@ const (
 	NamespaceProperty         = "namespace"
 	StatusProperty            = "status"
 	SecretTypeProperty        = "type"
+	PVCUnusedProperty         = "unused"
 )

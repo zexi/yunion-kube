@@ -11,18 +11,11 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // PersistentVolumeClaimDetail provides the presentation layer view of Kubernetes Persistent Volume Claim resource.
 type PersistentVolumeClaimDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-	Status       v1.PersistentVolumeClaimPhase   `json:"status"`
-	Volume       string                          `json:"volume"`
-	Capacity     v1.ResourceList                 `json:"capacity"`
-	AccessModes  []v1.PersistentVolumeAccessMode `json:"accessModes"`
-	StorageClass *string                         `json:"storageClass"`
+	PersistentVolumeClaim
 }
 
 func (man *SPersistentVolumeClaimManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -34,24 +27,21 @@ func GetPersistentVolumeClaimDetail(client kubernetes.Interface, namespace strin
 	log.Infof("Getting details of %s persistent volume claim", name)
 
 	rawPersistentVolumeClaim, err := client.CoreV1().PersistentVolumeClaims(namespace).Get(name, metaV1.GetOptions{})
-
 	if err != nil {
 		return nil, err
 	}
 
-	return getPersistentVolumeClaimDetail(rawPersistentVolumeClaim), nil
+	pods, err := client.CoreV1().Pods(namespace).List(metaV1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return getPersistentVolumeClaimDetail(rawPersistentVolumeClaim, pods.Items), nil
 }
 
-func getPersistentVolumeClaimDetail(persistentVolumeClaim *v1.PersistentVolumeClaim) *PersistentVolumeClaimDetail {
-
+func getPersistentVolumeClaimDetail(pvc *v1.PersistentVolumeClaim, pods []v1.Pod) *PersistentVolumeClaimDetail {
 	return &PersistentVolumeClaimDetail{
-		ObjectMeta:   api.NewObjectMeta(persistentVolumeClaim.ObjectMeta),
-		TypeMeta:     api.NewTypeMeta(api.ResourceKindPersistentVolumeClaim),
-		Status:       persistentVolumeClaim.Status.Phase,
-		Volume:       persistentVolumeClaim.Spec.VolumeName,
-		Capacity:     persistentVolumeClaim.Status.Capacity,
-		AccessModes:  persistentVolumeClaim.Spec.AccessModes,
-		StorageClass: persistentVolumeClaim.Spec.StorageClassName,
+		PersistentVolumeClaim: toPersistentVolumeClaim(*pvc, pods),
 	}
 }
 
@@ -98,7 +88,11 @@ func GetPodPersistentVolumeClaims(client kubernetes.Interface, namespace string,
 		log.Infof("Found %d persistentvolumeclaims related to %s pod",
 			len(podPersistentVolumeClaims), podName)
 
-		return toPersistentVolumeClaimList(podPersistentVolumeClaims, dsQuery)
+		pvcs := []PersistentVolumeClaim{}
+		for _, pvc := range podPersistentVolumeClaims {
+			pvcs = append(pvcs, toPersistentVolumeClaim(pvc, []v1.Pod{*pod}))
+		}
+		return toPersistentVolumeClaimList(pvcs, dsQuery)
 	}
 
 	log.Infof("No persistentvolumeclaims found related to %s pod", podName)

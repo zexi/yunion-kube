@@ -29,6 +29,10 @@ func createStatefulSetApp(
 	podTemplate api.PodTemplateSpec,
 	spec *app.AppDeploymentSpec,
 ) error {
+	pvcs, err := spec.GetTemplatePVCs()
+	if err != nil {
+		return err
+	}
 	ss := &apps.StatefulSet{
 		ObjectMeta: objectMeta,
 		Spec: apps.StatefulSetSpec{
@@ -38,9 +42,9 @@ func createStatefulSetApp(
 			Selector: &metaV1.LabelSelector{
 				MatchLabels: labels,
 			},
-			VolumeClaimTemplates: []api.PersistentVolumeClaim{},
+			VolumeClaimTemplates: pvcs,
 		},
 	}
-	_, err := cli.AppsV1beta2().StatefulSets(spec.Namespace).Create(ss)
+	_, err = cli.AppsV1beta2().StatefulSets(spec.Namespace).Create(ss)
 	return err
 }
