@@ -177,6 +177,9 @@ func getPodSpec(spec *AppDeploymentSpec) api.PodSpec {
 	if spec.MemoryRequirement != nil {
 		containerSpec.Resources.Requests[api.ResourceMemory] = *spec.MemoryRequirement
 	}
+	if len(spec.VolumeMounts) != 0 {
+		containerSpec.VolumeMounts = spec.VolumeMounts
+	}
 	podSpec := api.PodSpec{
 		Containers: []api.Container{containerSpec},
 	}
@@ -185,6 +188,10 @@ func getPodSpec(spec *AppDeploymentSpec) api.PodSpec {
 
 	if spec.ImagePullSecret != nil {
 		podSpec.ImagePullSecrets = []api.LocalObjectReference{{Name: *spec.ImagePullSecret}}
+	}
+
+	if len(spec.Volumes) != 0 {
+		podSpec.Volumes = spec.Volumes
 	}
 	return podSpec
 }
