@@ -254,3 +254,45 @@ func (cell SecretDataCell) GetProperty(name PropertyName) ComparableValue {
 		return cell.NamespaceDataCell.GetProperty(name)
 	}
 }
+
+type PVCDataCell struct {
+	NamespaceDataCell
+	Unused string // "true" or "false"
+}
+
+func getPVCMountedBy(obj interface{}) ([]string, error) {
+	v := reflect.ValueOf(obj)
+	f := v.FieldByName("MountedBy")
+	if !f.IsValid() {
+		return nil, fmt.Errorf("Object %#v not hava MountedBy field", obj)
+	}
+	return f.Interface().([]string), nil
+}
+
+func NewPVCDataCell(obj interface{}) (DataCell, error) {
+	cell, err := NewNamespaceDataCell(obj)
+	if err != nil {
+		return PVCDataCell{}, err
+	}
+	mountedBy, err := getPVCMountedBy(obj)
+	if err != nil {
+		return PVCDataCell{}, err
+	}
+	unused := "false"
+	if len(mountedBy) == 0 {
+		unused = "true"
+	}
+	return PVCDataCell{
+		NamespaceDataCell: cell.(NamespaceDataCell),
+		Unused:            unused,
+	}, nil
+}
+
+func (cell PVCDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case PVCUnusedProperty:
+		return StdComparableString(cell.Unused)
+	default:
+		return cell.NamespaceDataCell.GetProperty(name)
+	}
+}

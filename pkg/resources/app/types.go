@@ -3,6 +3,7 @@ package app
 import (
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -68,6 +69,47 @@ type AppDeploymentSpec struct {
 	ControllerType string `json:"controllerType"`
 
 	RestartPolicy string `json:"restartPolicy"`
+
+	// Pod volumes
+	Volumes []api.Volume `json:"volumes"`
+
+	// Container volume mounts
+	VolumeMounts []api.VolumeMount `json:"volumeMounts"`
+
+	VolumeClaimTemplates []PersistentVolumeClaim `json:"volumeClaimTemplates"`
+}
+
+type PersistentVolumeClaim struct {
+	Name         string `json:"name"`
+	StorageClass string `json:"storageClass"`
+	Size         string `json:"size"`
+	//AccessModes []string `json:"accessModes"`
+}
+
+func (spec AppDeploymentSpec) GetTemplatePVCs() ([]api.PersistentVolumeClaim, error) {
+	pvcs := []api.PersistentVolumeClaim{}
+	for _, pt := range spec.VolumeClaimTemplates {
+		storageSize, err := resource.ParseQuantity(pt.Size)
+		if err != nil {
+			return nil, err
+		}
+		pvc := api.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      pt.Name,
+				Namespace: spec.Namespace,
+			},
+			Spec: api.PersistentVolumeClaimSpec{
+				AccessModes: []api.PersistentVolumeAccessMode{api.ReadWriteOnce},
+				Resources: api.ResourceRequirements{
+					Requests: api.ResourceList{
+						"storage": storageSize,
+					},
+				},
+			},
+		}
+		pvcs = append(pvcs, pvc)
+	}
+	return pvcs, nil
 }
 
 // AppDeploymentFromFileSpec is a specification for deployment from file
