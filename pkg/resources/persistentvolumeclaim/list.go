@@ -31,9 +31,13 @@ type PersistentVolumeClaim struct {
 
 func (man *SPersistentVolumeClaimManager) List(req *common.Request) (common.ListResource, error) {
 	query := req.ToQuery()
-	if jsonutils.QueryBoolean(req.Query, "unused", false) {
+	if req.Query.Contains("unused") {
 		filter := query.FilterQuery
-		filter.Append(dataselect.NewFilterBy(dataselect.PVCUnusedProperty, "true"))
+		isUnused := "false"
+		if jsonutils.QueryBoolean(req.Query, "unused", false) {
+			isUnused = "true"
+		}
+		filter.Append(dataselect.NewFilterBy(dataselect.PVCUnusedProperty, isUnused))
 	}
 	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), query)
 }
