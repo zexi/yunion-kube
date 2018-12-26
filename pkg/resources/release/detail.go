@@ -68,7 +68,8 @@ func GetReleaseDetail(
 	}
 	rls.Release.Info = status.Info
 
-	cfg, err := chartutil.CoalesceValues(rls.Release.Chart, rls.Release.Config)
+	//cfg, err := chartutil.CoalesceValues(rls.Release.Chart, rls.Release.Config)
+	cfg, err := chartutil.ReadValues([]byte(rls.Release.Config.Raw))
 	if err != nil {
 		return nil, fmt.Errorf("CoalesceValues: %v", err)
 	}
