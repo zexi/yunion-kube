@@ -32,7 +32,8 @@ type Deployment struct {
 	// Init Container images of deployment
 	InitContainerImages []string `json:"initContainerImages"`
 
-	Status string `json:"status"`
+	Status   string            `json:"status"`
+	Selector map[string]string `json:"selector"`
 }
 
 func (d Deployment) ToListItem() jsonutils.JSONObject {
@@ -97,6 +98,7 @@ func ToDeployment(deployment apps.Deployment, rs []apps.ReplicaSet, pods []v1.Po
 		InitContainerImages: common.GetInitContainerImages(&deployment.Spec.Template.Spec),
 		Pods:                podInfo,
 		Status:              podInfo.GetStatus(),
+		Selector:            deployment.Spec.Selector.MatchLabels,
 	}
 }
 

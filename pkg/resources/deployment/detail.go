@@ -46,9 +46,6 @@ type DeploymentDetail struct {
 
 	ServiceList []service.Service `json:"services"`
 
-	// Label selector of the service.
-	Selector map[string]string `json:"selector"`
-
 	// Status information on the deployment
 	StatusInfo `json:"statusInfo"`
 
@@ -178,7 +175,6 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		Deployment:            commonDeployment,
 		PodList:               podList.Pods,
 		ServiceList:           svcList.Services,
-		Selector:              deployment.Spec.Selector.MatchLabels,
 		StatusInfo:            GetStatusInfo(&deployment.Status),
 		Strategy:              deployment.Spec.Strategy.Type,
 		MinReadySeconds:       deployment.Spec.MinReadySeconds,

@@ -696,6 +696,20 @@ func (c *SCluster) GetYKEAuthzConfig() yketypes.AuthzConfig {
 	return yketypes.AuthzConfig{Mode: ykecluster.DefaultAuthorizationMode}
 }
 
+func (c *SCluster) GetCloudProviderConfig(conf yketypes.YunionConfig) yketypes.CloudProvider {
+	return yketypes.CloudProvider{
+		Name: "yunion",
+		YunionCloudProvider: &yketypes.YunionCloudProvider{
+			AuthURL:       conf.AuthURL,
+			AdminUser:     conf.AdminUser,
+			AdminPassword: conf.AdminPassword,
+			AdminProject:  conf.AdminProject,
+			Region:        conf.Region,
+			Cluster:       c.Name,
+		},
+	}
+}
+
 func (c *SCluster) GetYunionConfig() yketypes.YunionConfig {
 	session, err := GetAdminSession()
 	if err != nil {
@@ -863,7 +877,8 @@ func (c *SCluster) GetYKEServicesConfig(images yketypes.SystemImages) (yketypes.
 		BaseService: yketypes.BaseService{
 			Image: images.Kubernetes,
 			ExtraArgs: map[string]string{
-				"feature-gates": "CSIPersistentVolume=true,MountPropagation=true,VolumeScheduling=true",
+				"feature-gates":  "CSIPersistentVolume=true,MountPropagation=true,VolumeScheduling=true",
+				"cloud-provider": "external",
 			},
 		},
 		ServiceClusterIPRange: c.GetServiceClusterIPRange(),
@@ -916,6 +931,7 @@ func (c *SCluster) NewYKEFixedConfig() (*yketypes.KubernetesEngineConfig, error)
 	conf.Authorization = c.GetYKEAuthzConfig()
 	conf.Network = c.GetYKENetworkConfig()
 	conf.YunionConfig = c.GetYunionConfig()
+	conf.CloudProvider = c.GetCloudProviderConfig(conf.YunionConfig)
 	conf.Services, err = c.GetYKEServicesConfig(conf.SystemImages)
 	if err != nil {
 		return nil, err
