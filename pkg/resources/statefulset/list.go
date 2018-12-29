@@ -35,8 +35,9 @@ type StatefulSet struct {
 	ContainerImages []string `json:"containerImages"`
 
 	// Init container images of the Stateful Set.
-	InitContainerImages []string `json:"initContainerImages"`
-	Status              string   `json:"status"`
+	InitContainerImages []string          `json:"initContainerImages"`
+	Status              string            `json:"status"`
+	Selector            map[string]string `json:"selector"`
 }
 
 func (man *SStatefuleSetManager) List(req *common.Request) (common.ListResource, error) {
@@ -126,5 +127,6 @@ func ToStatefulSet(statefulSet *apps.StatefulSet, podInfo *common.PodInfo) State
 		InitContainerImages: common.GetInitContainerImages(&statefulSet.Spec.Template.Spec),
 		Pods:                *podInfo,
 		Status:              podInfo.GetStatus(),
+		Selector:            statefulSet.Spec.Selector.MatchLabels,
 	}
 }

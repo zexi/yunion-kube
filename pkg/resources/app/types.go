@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/resources/service"
 )
 
 const (
@@ -36,13 +37,16 @@ type AppDeploymentSpec struct {
 
 	// Port mappings for the service that is created. The service is created if there is at least
 	// one port mapping.
-	PortMappings []PortMapping `json:"portMappings"`
+	PortMappings []service.PortMapping `json:"portMappings"`
 
 	// List of user-defined environment variables.
 	Variables []EnvironmentVariable `json:"variables"`
 
 	// Whether the created service is external.
 	IsExternal bool `json:"isExternal"`
+
+	// LoadBalancerNetworkId
+	LoadBalancerNetworkId string `json:"loadBalancerNetwork"`
 
 	// Description of the deployment.
 	Description *string `json:"description"`
@@ -137,18 +141,6 @@ type AppDeploymentFromFileResponse struct {
 
 	// Error after create resource
 	//Error string `json:"error"`
-}
-
-// PortMapping is a specification of port mapping for an application deployment.
-type PortMapping struct {
-	// Port that will be exposed on the service.
-	Port int32 `json:"port"`
-
-	// Docker image path for the application.
-	TargetPort int32 `json:"targetPort"`
-
-	// IP protocol for the mapping, e.g., "TCP" or "UDP".
-	Protocol api.Protocol `json:"protocol"`
 }
 
 // EnvironmentVariable represents a named variable accessible for containers.

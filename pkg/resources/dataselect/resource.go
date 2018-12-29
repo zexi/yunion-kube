@@ -296,3 +296,41 @@ func (cell PVCDataCell) GetProperty(name PropertyName) ComparableValue {
 		return cell.NamespaceDataCell.GetProperty(name)
 	}
 }
+
+type ServiceDataCell struct {
+	NamespaceDataCell
+	Type v1.ServiceType
+}
+
+func getServiceSpec(obj interface{}) (v1.ServiceSpec, error) {
+	v := reflect.ValueOf(obj)
+	f := v.FieldByName("Spec")
+	if !f.IsValid() {
+		return v1.ServiceSpec{}, fmt.Errorf("Object %#v not hava Spec field", obj)
+	}
+	return f.Interface().(v1.ServiceSpec), nil
+}
+
+func NewServiceDataCell(obj interface{}) (DataCell, error) {
+	cell, err := NewNamespaceDataCell(obj)
+	if err != nil {
+		return ServiceDataCell{}, err
+	}
+	spec, err := getServiceSpec(obj)
+	if err != nil {
+		return ServiceDataCell{}, err
+	}
+	return ServiceDataCell{
+		NamespaceDataCell: cell.(NamespaceDataCell),
+		Type:              spec.Type,
+	}, nil
+}
+
+func (cell ServiceDataCell) GetProperty(name PropertyName) ComparableValue {
+	switch name {
+	case SecretTypeProperty:
+		return StdComparableString(string(cell.Type))
+	default:
+		return cell.NamespaceDataCell.GetProperty(name)
+	}
+}
