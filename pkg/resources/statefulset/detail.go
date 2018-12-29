@@ -19,10 +19,8 @@ import (
 // Set plus additional augmented data we can get from other sources (like services that target the same pods).
 type StatefulSetDetail struct {
 	StatefulSet
-	PodList   []pod.Pod      `json:"pods"`
-	EventList []common.Event `json:"events"`
-	// Label selector of the service.
-	Selector    map[string]string `json:"selector"`
+	PodList     []pod.Pod         `json:"pods"`
+	EventList   []common.Event    `json:"events"`
 	ServiceList []service.Service `json:"services"`
 }
 

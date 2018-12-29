@@ -70,7 +70,7 @@ func fetchVerberEnv(ctx context.Context, w http.ResponseWriter, r *http.Request)
 	params := req.GetParams()
 	kindPlural := params["<kind>"]
 	name := params["<name>"]
-	kind := TrimKindPlural(kindPlural)
+	kind := api.TrimKindPlural(kindPlural)
 	resourceSpec, ok := api.KindToAPIMapping[kind]
 	if !ok {
 		return nil, fmt.Errorf("Not found %q resource kind spec", kind)

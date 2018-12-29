@@ -10,8 +10,6 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	dynamicclient "k8s.io/client-go/deprecated-dynamic"
 	"k8s.io/client-go/discovery"
@@ -25,6 +23,7 @@ import (
 	"yunion.io/x/pkg/util/sets"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -119,34 +118,24 @@ func DeployApp(spec *AppDeploymentSpec, cli client.Interface, createFunc CreateR
 func createAppService(
 	cli client.Interface,
 	objectMeta metaV1.ObjectMeta,
-	labels map[string]string,
+	selector map[string]string,
 	spec *AppDeploymentSpec,
 ) error {
-	service := &api.Service{
+	opt := service.CreateOption{
 		ObjectMeta: objectMeta,
-		Spec: api.ServiceSpec{
-			Selector: labels,
-		},
+		Selector:   selector,
+		Namespace:  spec.Namespace,
 	}
 	if spec.IsExternal {
-		service.Spec.Type = api.ServiceTypeLoadBalancer
+		opt.Type = api.ServiceTypeLoadBalancer
+		if spec.LoadBalancerNetworkId != "" {
+			opt.LBNetwork = spec.LoadBalancerNetworkId
+		}
 	} else {
-		service.Spec.Type = api.ServiceTypeClusterIP
+		opt.Type = api.ServiceTypeClusterIP
 	}
 
-	for _, portMapping := range spec.PortMappings {
-		servicePort := api.ServicePort{
-			Protocol: portMapping.Protocol,
-			Port:     portMapping.Port,
-			Name:     generatePortMappingName(portMapping),
-			TargetPort: intstr.IntOrString{
-				Type:   intstr.Int,
-				IntVal: portMapping.TargetPort,
-			},
-		}
-		service.Spec.Ports = append(service.Spec.Ports, servicePort)
-	}
-	_, err := cli.CoreV1().Services(spec.Namespace).Create(service)
+	_, err := service.CreateService(cli, opt)
 	return err
 }
 
@@ -218,21 +207,6 @@ func convertEnvVarsSpec(variables []EnvironmentVariable) []api.EnvVar {
 		result = append(result, api.EnvVar{Name: variable.Name, Value: variable.Value})
 	}
 	return result
-}
-
-func generatePortMappingName(portMapping PortMapping) string {
-	return generateName(fmt.Sprintf("%s-%d-%d-", strings.ToLower(string(portMapping.Protocol)),
-		portMapping.Port, portMapping.TargetPort))
-}
-
-func generateName(base string) string {
-	maxNameLength := 63
-	randomLength := 5
-	maxGeneratedNameLength := maxNameLength - randomLength
-	if len(base) > maxGeneratedNameLength {
-		base = base[:maxGeneratedNameLength]
-	}
-	return fmt.Sprintf("%s%s", base, rand.String(randomLength))
 }
 
 // DeployAppFromFile deploys an app based on the given yaml or json file.
