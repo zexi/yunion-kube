@@ -134,6 +134,7 @@ func createAppService(
 	} else {
 		opt.Type = api.ServiceTypeClusterIP
 	}
+	opt.Ports = spec.PortMappings
 
 	_, err := service.CreateService(cli, opt)
 	return err
