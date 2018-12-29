@@ -9,4 +9,5 @@ const (
 	StatusProperty            = "status"
 	SecretTypeProperty        = "type"
 	PVCUnusedProperty         = "unused"
+	ServiceTypeProperty       = "type"
 )

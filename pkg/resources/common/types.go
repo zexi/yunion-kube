@@ -4,6 +4,8 @@ const (
 	// k8s annotations for create pod
 	YUNION_CNI_NETWORK_ANNOTATION = "cni.yunion.io/network"
 	YUNION_CNI_IPADDR_ANNOTATION  = "cni.yunion.io/ip"
+
+	YUNION_LB_NETWORK_ANNOTATION = "loadbalancer.yunion.io/network"
 )
 
 type NetworkConfig struct {

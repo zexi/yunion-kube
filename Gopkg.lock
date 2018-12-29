@@ -1473,13 +1473,14 @@
 
 [[projects]]
   branch = "release/2.4.0"
-  digest = "1:dfad08f049b6330e8aa0d192d29cdfcb0f0113953fd86062fce6d8db25bf6ba4"
+  digest = "1:b03dbb21c2170db7bcc84c69a61d45c96ade0c88091f76bada507d45e0cc5061"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
     "pkg/addons",
     "pkg/authz",
     "pkg/cloudprovider",
+    "pkg/cloudprovider/yunion",
     "pkg/cluster",
     "pkg/docker",
     "pkg/hosts",
@@ -1492,7 +1493,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "720c91e367c7dce8b1c5a3a98d41866a1ff5af28"
+  revision = "5879024ce1796427c531d577247f317876f88f84"
 
 [solve-meta]
   analyzer-name = "dep"
