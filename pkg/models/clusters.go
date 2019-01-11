@@ -1034,6 +1034,16 @@ func (c *SCluster) PerformUpdateEngineConfig(ctx context.Context, userCred mccli
 	if err != nil {
 		return nil, httperrors.NewBadRequestError("Invalid engine config string: %s", configStr)
 	}
+	nodes, err := c.GetNodes()
+	if err != nil {
+		return nil, httperrors.NewGeneralError(fmt.Errorf("Get nodes error: %v", err))
+	}
+	for _, node := range nodes {
+		err = node.UpdateRolesByConfig(config)
+		if err != nil {
+			return nil, err
+		}
+	}
 	err = c.SetYKEConfig(config)
 	if err != nil {
 		return nil, err
