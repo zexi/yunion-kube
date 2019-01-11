@@ -757,3 +757,59 @@ func (n *SNode) IsAgentReady() bool {
 	}
 	return cluster.IsNodeAgentReady(n)
 }
+
+func (n *SNode) UpdateRolesByConfig(config *yketypes.KubernetesEngineConfig) error {
+	for _, node := range config.Nodes {
+		if n.YKENodeName() != node.NodeName {
+			continue
+		}
+		return n.updateRolesByConfig(&node)
+	}
+	return nil
+}
+
+func (n *SNode) updateRolesByConfig(node *yketypes.ConfigNode) error {
+	if len(node.Role) == 0 {
+		return httperrors.NewNotAcceptableError("Empty roles for node %s", n.Name)
+	}
+	for _, role := range node.Role {
+		if !sets.NewString("etcd", "controlplane", "worker").Has(role) {
+			return httperrors.NewInputParameterError("Invalid role %s", role)
+		}
+	}
+	roles := sets.NewString(node.Role...)
+	if n.Etcd && !roles.Has("etcd") {
+		n.Etcd = false
+	}
+	_, err := n.GetModelManager().TableSpec().Update(n, func() error {
+		if roles.Has("etcd") {
+			if !n.Etcd {
+				n.Etcd = true
+			}
+		} else {
+			if n.Etcd {
+				n.Etcd = false
+			}
+		}
+		if roles.Has("controlplane") {
+			if !n.Controlplane {
+				n.Controlplane = true
+			}
+		} else {
+			if n.Controlplane {
+				n.Controlplane = false
+			}
+		}
+		if roles.Has("worker") {
+			if !n.Worker {
+				n.Worker = true
+			}
+		} else {
+			if n.Worker {
+				n.Worker = false
+			}
+		}
+		return nil
+	})
+	return err
+}
