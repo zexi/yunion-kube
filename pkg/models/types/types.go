@@ -1,0 +1,77 @@
+package types
+
+// k8s cluster type
+type ClusterType string
+
+const (
+	// common k8s cluster with nodes
+	ClusterTypeDefault ClusterType = "default"
+	// nodeless k8s cluster
+	ClusterTypeServerless ClusterType = "serverless"
+)
+
+// k8s cluster cloud type
+type CloudType string
+
+const (
+	// cluster running on private cloud
+	CloudTypePrivate CloudType = "private"
+	// cluster running on public cloud
+	CloudTypePublic CloudType = "public"
+	// cluster running on hybrid cloud
+	CloudTypeHybrid CloudType = "hybrid"
+)
+
+type ModeType string
+
+const (
+	// self build k8s cluster
+	ModeTypeSelfBuild ModeType = "customize"
+	// public cloud managed k8s cluster
+	ModeTypeManaged ModeType = "managed"
+	// imported already exists k8s cluster
+	ModeTypeImport ModeType = "import"
+)
+
+type ProviderType string
+
+const (
+	// default provider type by yunion onecloud
+	ProviderTypeOnecloud ProviderType = "onecloud"
+	// AWS provider
+	ProviderTypeAws ProviderType = "aws"
+	// Alibaba cloud provider
+	ProviderTypeAliyun ProviderType = "aliyun"
+	// Azure provider
+	ProviderTypeAzure ProviderType = "azure"
+	// Tencent cloud provider
+	ProviderTypeQcloud ProviderType = "qcloud"
+)
+
+const (
+	DefaultServiceCIDR   string = "10.43.0.0/16"
+	DefaultServiceDomain string = "cluster.local"
+)
+
+type MachineResourceType string
+
+const (
+	MachineResourceTypeBaremetal = "baremetal"
+	MachineResourceTypeVm        = "vm"
+)
+
+type RoleType string
+
+const (
+	RoleTypeControlplane = "controlplane"
+	RoleTypeNode         = "node"
+)
+
+const (
+	MachineStatusInit        = "init"
+	MachineCreateFail        = "create_fail"
+	MachineStatusPrepare     = "prepare"
+	MachineStatusPrepareFail = "prepare_fail"
+	MachineStatusRunning     = "running"
+	MachineStatusReady       = "ready"
+)

@@ -10,6 +10,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	k8sapp "yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
@@ -54,6 +55,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.ClusterManager,
 		models.NodeManager,
 		models.RepoManager,
+		clusters.ClusterManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)

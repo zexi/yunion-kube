@@ -10,6 +10,7 @@ import (
 	res "k8s.io/apimachinery/pkg/api/resource"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
@@ -243,8 +244,13 @@ func evalValueFrom(src *v1.EnvVarSource, container *v1.Container, pod *v1.Pod,
 		}
 		return valueFrom
 	case src.FieldRef != nil:
-		internalFieldPath, _, err := runtime.NewScheme().ConvertFieldLabel(src.FieldRef.APIVersion,
-			"Pod", src.FieldRef.FieldPath, "")
+		gv, err := schema.ParseGroupVersion(src.FieldRef.APIVersion)
+		if err != nil {
+			log.Errorf("%v", err)
+			return ""
+		}
+		gvk := gv.WithKind("Pod")
+		internalFieldPath, _, err := runtime.NewScheme().ConvertFieldLabel(gvk, src.FieldRef.FieldPath, "")
 		if err != nil {
 			log.Errorf("%v", err)
 			return ""

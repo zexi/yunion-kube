@@ -35,23 +35,38 @@
 
 [[override]]
     name = "k8s.io/helm"
-    version = "v2.11.0"
+    version = "v2.12.3"
+
+[[override]]
+    name = "k8s.io/cli-runtime"
+    version = "kubernetes-1.12.0"
 
 [[override]]
     name = "k8s.io/api"
-    version = "kubernetes-1.11.1"
+    version = "kubernetes-1.13.0"
 
 [[override]]
     name = "k8s.io/apimachinery"
-    version = "kubernetes-1.11.1"
+    version = "kubernetes-1.13.0"
 
 [[override]]
     name = "k8s.io/client-go"
-    version = "kubernetes-1.11.2"
+    version = "kubernetes-1.13.0"
 
 [[override]]
     name = "k8s.io/kubernetes"
-    branch = "release-1.11"
+    branch = "release-1.13"
+    #version = "v1.12.3"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.13.0"
+
+[[constraint]]
+  name = "k8s.io/apiserver"
+  #revision = "cf5eff4f5e8f6019796cb18c69918b9f2f09e6db"
+  #revision = "b6aa1175dafa586b8042c7bfdcd1585f9ecfaa08"
+  branch = "release-1.13"
 
 [[override]]
     name = "github.com/ugorji/go"
@@ -84,6 +99,10 @@
 [[constraint]]
     name = "yunion.io/x/onecloud"
     branch = "release/2.3.0"
+
+[[constraint]]
+    name = "yunion.io/x/cluster-api-provider-onecloud"
+    branch = "master"
 
 [[constraint]]
     name = "google.golang.org/grpc"

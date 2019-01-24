@@ -15,9 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/cli-runtime/pkg/genericclioptions/resource"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/helm/pkg/kube"
-	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/genericclioptions/resource"
 
 	"yunion.io/x/log"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -106,7 +107,16 @@ func processResource(infos kube.Result, fn kube.ResourceActorFunc) error {
 }
 
 func asVersioned(info *resource.Info) runtime.Object {
-	return cmdutil.AsDefaultVersionedOrOriginal(info.Object, info.Mapping)
+	converter := runtime.ObjectConvertor(scheme.Scheme)
+	groupVersioner := runtime.GroupVersioner(schema.GroupVersions(scheme.Scheme.PrioritizedVersionsAllGroups()))
+	if info.Mapping != nil {
+		groupVersioner = info.Mapping.GroupVersionKind.GroupVersion()
+	}
+
+	if obj, err := converter.ConvertToVersion(info.Object, groupVersioner); err == nil {
+		return obj
+	}
+	return info.Object
 }
 
 //get a kubernetes resources' relation pods
