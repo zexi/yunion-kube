@@ -8,39 +8,43 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
+
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/util/billing"
+	"yunion.io/x/pkg/tristate"
+	"yunion.io/x/pkg/util/fileutils"
+	"yunion.io/x/pkg/util/regutils"
+	"yunion.io/x/pkg/utils"
+	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
+	"yunion.io/x/onecloud/pkg/cloudcommon/validators"
 	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/modules/notify"
 	"yunion.io/x/onecloud/pkg/util/httputils"
 	"yunion.io/x/onecloud/pkg/util/logclient"
 	"yunion.io/x/onecloud/pkg/util/seclib2"
-
-	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
-	"yunion.io/x/pkg/util/fileutils"
-	"yunion.io/x/pkg/util/regutils"
-	"yunion.io/x/pkg/util/sysutils"
-	"yunion.io/x/pkg/utils"
-	"yunion.io/x/sqlchemy"
 )
 
 func (self *SGuest) AllowGetDetailsVnc(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowGetSpec(userCred, self, "vnc")
 }
 
 func (self *SGuest) GetDetailsVnc(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_SNAPSHOT_STREAM}) {
+	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_BLOCK_STREAM}) {
 		host := self.GetHost()
 		if host == nil {
 			return nil, httperrors.NewInternalServerError("Host missing")
 		}
-		retval, err := self.GetDriver().GetGuestVncInfo(userCred, self, host)
+		retval, err := self.GetDriver().GetGuestVncInfo(ctx, userCred, self, host)
 		if err != nil {
 			return nil, err
 		}
@@ -51,15 +55,19 @@ func (self *SGuest) GetDetailsVnc(ctx context.Context, userCred mcclient.TokenCr
 	}
 }
 
-func (self *SGuest) AllowGetDetailsMonitor(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+func (self *SGuest) AllowPerformMonitor(ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "monitor")
 }
 
-func (self *SGuest) GetDetailsMonitor(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_SNAPSHOT_STREAM}) {
-		cmd, err := query.GetString("command")
+func (self *SGuest) PerformMonitor(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject,
+	data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_BLOCK_STREAM}) {
+		cmd, err := data.GetString("command")
 		if err != nil {
-			return nil, err
+			return nil, httperrors.NewMissingParameterError("command")
 		}
 		return self.SendMonitorCommand(ctx, userCred, cmd)
 	}
@@ -67,7 +75,7 @@ func (self *SGuest) GetDetailsMonitor(ctx context.Context, userCred mcclient.Tok
 }
 
 func (self *SGuest) AllowGetDetailsDesc(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowGetSpec(userCred, self, "desc")
 }
 
 func (self *SGuest) GetDetailsDesc(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -75,12 +83,12 @@ func (self *SGuest) GetDetailsDesc(ctx context.Context, userCred mcclient.TokenC
 	if host == nil {
 		return nil, httperrors.NewInvalidStatusError("No host for server")
 	}
-	desc := self.GetDriver().GetJsonDescAtHost(ctx, self, host)
+	desc := self.GetDriver().GetJsonDescAtHost(ctx, userCred, self, host)
 	return desc, nil
 }
 
 func (self *SGuest) AllowPerformSaveImage(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "save-image")
 }
 
 func (self *SGuest) PerformSaveImage(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -92,12 +100,16 @@ func (self *SGuest) PerformSaveImage(ctx context.Context, userCred mcclient.Toke
 		return nil, httperrors.NewInputParameterError("No root image")
 	} else {
 		kwargs := data.(*jsonutils.JSONDict)
-		restart := self.Status == VM_RUNNING
+		restart := (self.Status == VM_RUNNING) || jsonutils.QueryBoolean(data, "auto_start", false)
 		properties := jsonutils.NewDict()
 		if notes, err := data.GetString("notes"); err != nil && len(notes) > 0 {
 			properties.Add(jsonutils.NewString(notes), "notes")
 		}
-		properties.Add(jsonutils.NewString(self.OsType), "os_type")
+		osType := self.OsType
+		if len(osType) == 0 {
+			osType = "Linux"
+		}
+		properties.Add(jsonutils.NewString(osType), "os_type")
 		kwargs.Add(properties, "properties")
 		kwargs.Add(jsonutils.NewBool(restart), "restart")
 
@@ -118,10 +130,14 @@ func (self *SGuest) StartGuestSaveImage(ctx context.Context, userCred mcclient.T
 }
 
 func (self *SGuest) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "sync")
+
 }
 
 func (self *SGuest) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING}) {
+		return nil, httperrors.NewResourceBusyError("Cannot sync in status %s", self.Status)
+	}
 	if err := self.StartSyncTask(ctx, userCred, false, ""); err != nil {
 		return nil, err
 	}
@@ -160,7 +176,7 @@ func (self *SGuest) CheckQemuVersion(qemuVer, compareVer string) bool {
 }
 
 func (self *SGuest) AllowPerformMigrate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "migrate")
 }
 
 func (self *SGuest) PerformMigrate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -187,7 +203,7 @@ func (self *SGuest) PerformMigrate(ctx context.Context, userCred mcclient.TokenC
 	var preferHostId string
 	preferHost, _ := data.GetString("prefer_host")
 	if len(preferHost) > 0 {
-		if !userCred.IsSystemAdmin() {
+		if !db.IsAdminAllowPerform(userCred, self, "assign-host") {
 			return nil, httperrors.NewBadRequestError("Only system admin can assign host")
 		}
 		iHost, _ := HostManager.FetchByIdOrName(userCred, preferHost)
@@ -220,7 +236,7 @@ func (self *SGuest) StartMigrateTask(ctx context.Context, userCred mcclient.Toke
 }
 
 func (self *SGuest) AllowPerformLiveMigrate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "live-migrate")
 }
 
 func (self *SGuest) PerformLiveMigrate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -250,7 +266,7 @@ func (self *SGuest) PerformLiveMigrate(ctx context.Context, userCred mcclient.To
 		var preferHostId string
 		preferHost, _ := data.GetString("prefer_host")
 		if len(preferHost) > 0 {
-			if !userCred.IsSystemAdmin() {
+			if !db.IsAdminAllowPerform(userCred, self, "assign-host") {
 				return nil, httperrors.NewBadRequestError("Only system admin can assign host")
 			}
 			iHost, _ := HostManager.FetchByIdOrName(userCred, preferHost)
@@ -283,7 +299,7 @@ func (self *SGuest) StartGuestLiveMigrateTask(ctx context.Context, userCred mccl
 }
 
 func (self *SGuest) AllowPerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "deploy")
 }
 
 func (self *SGuest) PerformDeploy(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -292,10 +308,7 @@ func (self *SGuest) PerformDeploy(ctx context.Context, userCred mcclient.TokenCr
 		return nil, fmt.Errorf("Parse query body error")
 	}
 
-	// 变更密码/密钥时需要Restart才能生效。更新普通字段不需要Restart, Azure需要在运行状态下操作
-	doRestart := false
 	if kwargs.Contains("__delete_keypair__") || kwargs.Contains("keypair") {
-		doRestart = self.GetDriver().IsNeedRestartForResetLoginInfo()
 		var kpId string
 
 		if kwargs.Contains("keypair") {
@@ -317,13 +330,24 @@ func (self *SGuest) PerformDeploy(ctx context.Context, userCred mcclient.TokenCr
 				kwargs.Set("delete_public_key", jsonutils.NewString(okey.PublicKey))
 			}
 
-			self.GetModelManager().TableSpec().Update(self, func() error {
+			_, err := self.GetModelManager().TableSpec().Update(self, func() error {
 				self.KeypairId = kpId
 				return nil
 			})
 
+			if err != nil {
+				log.Errorf("update keypair fail: %s", err)
+				return nil, httperrors.NewInternalServerError(err.Error())
+			}
+
 			kwargs.Set("reset_password", jsonutils.JSONTrue)
 		}
+	}
+
+	// 变更密码/密钥时需要Restart才能生效。更新普通字段不需要Restart, Azure需要在运行状态下操作
+	doRestart := false
+	if resetPasswd, _ := kwargs.Bool("reset_password"); resetPasswd {
+		doRestart = self.GetDriver().IsNeedRestartForResetLoginInfo()
 	}
 
 	deployStatus, err := self.GetDriver().GetDeployStatus()
@@ -332,7 +356,8 @@ func (self *SGuest) PerformDeploy(ctx context.Context, userCred mcclient.TokenCr
 	}
 
 	if utils.IsInStringArray(self.Status, deployStatus) {
-		if doRestart && self.Status == VM_RUNNING {
+		if (doRestart && self.Status == VM_RUNNING) ||
+			jsonutils.QueryBoolean(kwargs, "auto_start", false) {
 			kwargs.Set("restart", jsonutils.JSONTrue)
 		}
 		err := self.StartGuestDeployTask(ctx, userCred, kwargs, "deploy", "")
@@ -346,7 +371,7 @@ func (self *SGuest) PerformDeploy(ctx context.Context, userCred mcclient.TokenCr
 }
 
 func (self *SGuest) AllowPerformAttachdisk(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "attachdisk")
 }
 
 func (self *SGuest) ValidateAttachDisk(ctx context.Context, disk *SDisk) error {
@@ -383,10 +408,12 @@ func (self *SGuest) ValidateAttachDisk(ctx context.Context, disk *SDisk) error {
 func (self *SGuest) PerformAttachdisk(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	diskId, err := data.GetString("disk_id")
 	if err != nil {
-		return nil, err
+		log.Errorln(err)
+		return nil, httperrors.NewMissingParameterError("disk_id")
 	}
 	disk, err := DiskManager.FetchByIdOrName(userCred, diskId)
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
+		log.Errorln(err)
 		return nil, err
 	}
 	if disk == nil {
@@ -406,9 +433,7 @@ func (self *SGuest) PerformAttachdisk(ctx context.Context, userCred mcclient.Tok
 }
 
 func (self *SGuest) StartSyncTask(ctx context.Context, userCred mcclient.TokenCredential, fw_only bool, parentTaskId string) error {
-	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING}) {
-		return httperrors.NewResourceBusyError("Cannot sync in status %s", self.Status)
-	}
+
 	data := jsonutils.NewDict()
 	if fw_only {
 		data.Add(jsonutils.JSONTrue, "fw_only")
@@ -426,7 +451,7 @@ func (self *SGuest) StartSyncTask(ctx context.Context, userCred mcclient.TokenCr
 }
 
 func (self *SGuest) AllowPerformSuspend(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "suspend")
 }
 
 func (self *SGuest) PerformSuspend(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -449,7 +474,7 @@ func (self *SGuest) AllowPerformStart(ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
 	data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "start")
 }
 
 func (self *SGuest) PerformStart(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject,
@@ -484,15 +509,15 @@ func (self *SGuest) StartGuestDeployTask(ctx context.Context, userCred mcclient.
 	return nil
 }
 
-func (self *SGuest) NotifyServerEvent(event string, priority string, loginInfo bool) error {
+func (self *SGuest) NotifyServerEvent(event string, priority notify.TNotifyPriority, loginInfo bool) {
 	meta, err := self.GetAllMetadata(nil)
 	if err != nil {
-		return err
+		return
 	}
 	kwargs := jsonutils.NewDict()
 	kwargs.Add(jsonutils.NewString(self.Name), "name")
 	if loginInfo {
-		kwargs.Add(jsonutils.NewStringArray(self.getNotifyIps()), "ips")
+		kwargs.Add(jsonutils.NewString(self.getNotifyIps()), "ips")
 		osName := meta["os_name"]
 		if osName == "Windows" {
 			kwargs.Add(jsonutils.JSONTrue, "windows")
@@ -514,10 +539,10 @@ func (self *SGuest) NotifyServerEvent(event string, priority string, loginInfo b
 			}
 		}
 	}
-	return notifyclient.Notify(self.ProjectId, event, priority, kwargs)
+	notifyclient.Notify(self.ProjectId, true, priority, event, kwargs)
 }
 
-func (self *SGuest) NotifyAdminServerEvent(ctx context.Context, event string, priority string) error {
+func (self *SGuest) NotifyAdminServerEvent(ctx context.Context, event string, priority notify.TNotifyPriority) {
 	kwargs := jsonutils.NewDict()
 	kwargs.Add(jsonutils.NewString(self.Name), "name")
 	tc, _ := self.GetTenantCache(ctx)
@@ -526,7 +551,7 @@ func (self *SGuest) NotifyAdminServerEvent(ctx context.Context, event string, pr
 	} else {
 		kwargs.Add(jsonutils.NewString(self.ProjectId), "tenant")
 	}
-	return notifyclient.Notify(options.Options.NotifyAdminUser, event, priority, kwargs)
+	notifyclient.Notify(options.Options.NotifyAdminUser, true, priority, event, kwargs)
 }
 
 func (self *SGuest) StartGuestStopTask(ctx context.Context, userCred mcclient.TokenCredential, isForce bool, parentTaskId string) error {
@@ -568,6 +593,66 @@ func (self *SGuest) GetDetailsIso(userCred mcclient.TokenCredential) jsonutils.J
 	return desc
 }
 
+func (self *SGuest) AllowPerformInsertiso(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred)
+}
+
+func (self *SGuest) PerformInsertiso(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	cdrom := self.getCdrom()
+	if cdrom == nil {
+		return nil, fmt.Errorf("Failed to get cdrom")
+	}
+
+	if len(cdrom.ImageId) > 0 {
+		return nil, httperrors.NewBadRequestError("CD-ROM not empty, please eject first")
+	}
+	imageId, _ := data.GetString("image_id")
+	image, err := parseIsoInfo(ctx, userCred, imageId)
+	if err != nil {
+		log.Errorln(err)
+		return nil, err
+	}
+
+	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_READY}) {
+		err = self.StartInsertIsoTask(ctx, image.Id, self.HostId, userCred, "")
+		return nil, err
+	} else {
+		return nil, httperrors.NewServerStatusError("Insert ISO not allowed in status %s", self.Status)
+	}
+}
+
+func (self *SGuest) AllowPerformEjectiso(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred)
+}
+
+func (self *SGuest) PerformEjectiso(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if self.Hypervisor != HYPERVISOR_KVM {
+		return nil, httperrors.NewNotAcceptableError("Not allow for hypervisor %s", self.Hypervisor)
+	}
+	cdrom := self.getCdrom()
+	if cdrom == nil {
+		return nil, fmt.Errorf("Failed to get cdrom")
+	}
+	if len(cdrom.ImageId) == 0 {
+		return nil, httperrors.NewBadRequestError("No ISO to eject")
+	}
+	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_READY}) {
+		err := self.StartEjectisoTask(ctx, userCred, "")
+		return nil, err
+	} else {
+		return nil, httperrors.NewServerStatusError("Eject ISO not allowed in status %s", self.Status)
+	}
+}
+
+func (self *SGuest) StartEjectisoTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "GuestEjectISOTask", self, userCred, nil, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
 func (self *SGuest) StartInsertIsoTask(ctx context.Context, imageId string, hostId string, userCred mcclient.TokenCredential, parentTaskId string) error {
 	self.insertIso(imageId)
 
@@ -593,13 +678,8 @@ func (self *SGuest) StartGueststartTask(ctx context.Context, userCred mcclient.T
 	return nil
 }
 
-func (self *SGuest) StartGuestCreateDiskTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	task, err := taskman.TaskManager.NewTask(ctx, "GuestCreateDiskTask", self, userCred, data, parentTaskId, "", nil)
-	if err != nil {
-		return err
-	}
-	task.ScheduleRun(nil)
-	return nil
+func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.TokenCredential, params *jsonutils.JSONDict, pendingUsage quotas.IQuota, parentTaskId string) error {
+	return self.GetDriver().StartGuestCreateTask(self, ctx, userCred, params, pendingUsage, parentTaskId)
 }
 
 func (self *SGuest) StartSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
@@ -624,67 +704,246 @@ func (self *SGuest) StartDeleteGuestTask(ctx context.Context, userCred mcclient.
 	return self.GetDriver().StartDeleteGuestTask(ctx, userCred, self, params, parentTaskId)
 }
 
-func (self *SGuest) AllowPerformAssignSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+func (self *SGuest) AllowPerformAddSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return self.IsOwner(userCred)
 }
 
+func (self *SGuest) PerformAddSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING, VM_SUSPEND}) {
+		return nil, httperrors.NewInputParameterError("Cannot assign security rules in status %s", self.Status)
+	}
+
+	maxCount := self.GetDriver().GetMaxSecurityGroupCount()
+	if maxCount == 0 {
+		return nil, httperrors.NewUnsupportOperationError("Cannot assign security group for this guest %s", self.Name)
+	}
+
+	secgrpJsonArray := jsonutils.GetArrayOfPrefix(data, "secgrp")
+	if len(secgrpJsonArray) == 0 {
+		return nil, httperrors.NewInputParameterError("Missing secgrp.0 secgrp.1 ... parameters")
+	}
+
+	originSecgroups := self.GetSecgroups()
+	if len(originSecgroups)+len(secgrpJsonArray) >= maxCount {
+		return nil, httperrors.NewUnsupportOperationError("guest %s band to up to %d security groups", self.Name, maxCount)
+	}
+
+	originSecgroupIds := []string{}
+	for _, secgroup := range originSecgroups {
+		originSecgroupIds = append(originSecgroupIds, secgroup.Id)
+	}
+
+	newSecgroups := []*SSecurityGroup{}
+	newSecgroupNames := []string{}
+	for idx := 0; idx < len(secgrpJsonArray); idx++ {
+		secgroupId, _ := secgrpJsonArray[idx].GetString()
+		secgrp, err := SecurityGroupManager.FetchByIdOrName(userCred, secgroupId)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewInputParameterError("failed to find secgroup %s for params %s", secgroupId, fmt.Sprintf("secgrp.%d", idx))
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+
+		if err := SecurityGroupManager.ValidateName(secgrp.GetName()); err != nil {
+			return nil, httperrors.NewInputParameterError("The secgroup name %s does not meet the requirements, please change the name", secgrp.GetName())
+		}
+
+		if utils.IsInStringArray(secgrp.GetId(), originSecgroupIds) {
+			return nil, httperrors.NewInputParameterError("security group %s has already been assigned to guest %s", secgrp.GetName(), self.Name)
+		}
+		newSecgroups = append(newSecgroups, secgrp.(*SSecurityGroup))
+		newSecgroupNames = append(newSecgroupNames, secgrp.GetName())
+	}
+
+	for _, secgroup := range newSecgroups {
+		if _, err := GuestsecgroupManager.newGuestSecgroup(ctx, userCred, self, secgroup); err != nil {
+			return nil, httperrors.NewInputParameterError(err.Error())
+		}
+	}
+
+	logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(newSecgroupNames, ",")), userCred, true)
+	return nil, self.StartSyncTask(ctx, userCred, true, "")
+}
+
+func (self *SGuest) AllowPerformAssignSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "assign-secgroup")
+}
+
 func (self *SGuest) AllowPerformRevokeSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "revoke-secgroup")
+}
+
+func (self *SGuest) revokeSecgroup(ctx context.Context, userCred mcclient.TokenCredential, secgroup *SSecurityGroup) error {
+	if secgroup == nil {
+		return fmt.Errorf("failed to revoke null secgroup")
+	}
+	if self.SecgrpId != secgroup.Id {
+		return GuestsecgroupManager.DeleteGuestSecgroup(ctx, userCred, self, secgroup)
+	}
+	secgroups := self.GetSecgroups()
+	if len(secgroups) <= 1 {
+		_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+			self.SecgrpId = "default"
+			return nil
+		})
+		return err
+	}
+	for _, _secgroup := range secgroups {
+		// 从guestsecgroups中移除一个安全组，并将guest的 secgroupId 设为此安全组ID
+		if _secgroup.Id != secgroup.Id {
+			err := GuestsecgroupManager.DeleteGuestSecgroup(ctx, userCred, self, &_secgroup)
+			if err != nil {
+				return err
+			}
+			_, err = self.GetModelManager().TableSpec().Update(self, func() error {
+				self.SecgrpId = _secgroup.Id
+				return nil
+			})
+			return err
+		}
+	}
+	return nil
 }
 
 func (self *SGuest) PerformRevokeSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING, VM_SUSPEND}) {
 		return nil, httperrors.NewInputParameterError("Cannot revoke security rules in status %s", self.Status)
-	} else {
-		if _, err := self.GetModelManager().TableSpec().Update(self, func() error {
-			self.SecgrpId = "default"
-			return nil
-		}); err != nil {
-			return nil, err
+	}
+
+	revokeSecgroups := []*SSecurityGroup{}
+	secgrpJsonArray := jsonutils.GetArrayOfPrefix(data, "secgrp")
+	originSecgroups := self.GetSecgroups()
+	originSecgroupIds := []string{}
+	for _, originSecgroup := range originSecgroups {
+		originSecgroupIds = append(originSecgroupIds, originSecgroup.Id)
+	}
+
+	if len(secgrpJsonArray) == 0 {
+		revokeSecgroups = append(revokeSecgroups, self.getSecgroup())
+	}
+
+	revokeSecgroupNames := []string{}
+	for idx := 0; idx < len(secgrpJsonArray); idx++ {
+		secgroupId, _ := secgrpJsonArray[idx].GetString()
+		secgrp, err := SecurityGroupManager.FetchByIdOrName(userCred, secgroupId)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewInputParameterError("failed to find secgroup %s for params %s", secgroupId, fmt.Sprintf("secgrp.%d", idx))
+			}
+			return nil, httperrors.NewGeneralError(err)
 		}
-		if err := self.StartSyncTask(ctx, userCred, true, ""); err != nil {
+		if !utils.IsInStringArray(secgrp.GetId(), originSecgroupIds) {
+			return nil, httperrors.NewInputParameterError("security group %s not assigned to guest %s", secgrp.GetName(), self.Name)
+		}
+		revokeSecgroups = append(revokeSecgroups, secgrp.(*SSecurityGroup))
+		revokeSecgroupNames = append(revokeSecgroupNames, secgrp.GetName())
+	}
+
+	for _, secgroup := range revokeSecgroups {
+		if err := self.revokeSecgroup(ctx, userCred, secgroup); err != nil {
 			return nil, err
 		}
 	}
-	return nil, nil
+	logclient.AddActionLog(self, logclient.ACT_VM_REVOKESECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(revokeSecgroupNames, ",")), userCred, true)
+	return nil, self.StartSyncTask(ctx, userCred, true, "")
 }
 
 func (self *SGuest) PerformAssignSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING, VM_SUSPEND}) {
-		logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, "Cannot assign security rules in status "+self.Status, userCred, false)
 		return nil, httperrors.NewInputParameterError("Cannot assign security rules in status %s", self.Status)
-	} else {
-		if secgrp, err := data.GetString("secgrp"); err != nil {
-			logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, err, userCred, false)
-			return nil, err
-		} else if sg, err := SecurityGroupManager.FetchByIdOrName(userCred, secgrp); err != nil {
-			msg := fmt.Sprintf("SecurityGroup %s not found", secgrp)
-			logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, msg, userCred, false)
-			return nil, httperrors.NewNotFoundError("SecurityGroup %s not found", secgrp)
-		} else {
-			if _, err := self.GetModelManager().TableSpec().Update(self, func() error {
-				self.SecgrpId = sg.GetId()
+	}
+	secgrpV := validators.NewModelIdOrNameValidator("secgrp", "secgroup", userCred.GetProjectId())
+	if err := secgrpV.Validate(data.(*jsonutils.JSONDict)); err != nil {
+		return nil, err
+	}
+
+	if err := SecurityGroupManager.ValidateName(secgrpV.Model.GetName()); err != nil {
+		return nil, httperrors.NewInputParameterError("The secgroup name %s does not meet the requirements, please change the name", secgrpV.Model.GetName())
+	}
+
+	if _, err := self.GetModelManager().TableSpec().Update(self, func() error {
+		self.SecgrpId = secgrpV.Model.GetId()
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, fmt.Sprintf("secgroup: %s", secgrpV.Model.GetName()), userCred, true)
+	return nil, self.StartSyncTask(ctx, userCred, true, "")
+}
+
+func (self *SGuest) AllowPerformSetSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "set-secgroup")
+}
+
+func (self *SGuest) PerformSetSecgroup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING, VM_SUSPEND}) {
+		return nil, httperrors.NewInputParameterError("Cannot assign security rules in status %s", self.Status)
+	}
+	secgrpJsonArray := jsonutils.GetArrayOfPrefix(data, "secgrp")
+	if len(secgrpJsonArray) == 0 {
+		return nil, httperrors.NewInputParameterError("Missing secgrp.0 secgrp.1 ... parameters")
+	}
+
+	maxCount := self.GetDriver().GetMaxSecurityGroupCount()
+	if maxCount == 0 {
+		return nil, httperrors.NewUnsupportOperationError("Cannot assign security group for this guest %s", self.Name)
+	}
+
+	if len(secgrpJsonArray) > maxCount {
+		return nil, httperrors.NewUnsupportOperationError("guest %s band to up to %d security groups", self.Name, maxCount)
+	}
+
+	setSecgroups := []*SSecurityGroup{}
+	setSecgroupNames := []string{}
+	for idx := 0; idx < len(secgrpJsonArray); idx++ {
+		secgroupId, _ := secgrpJsonArray[idx].GetString()
+		secgrp, err := SecurityGroupManager.FetchByIdOrName(userCred, secgroupId)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewInputParameterError("failed to find secgroup %s for params %s", secgroupId, fmt.Sprintf("secgrp.%d", idx))
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+
+		if err := SecurityGroupManager.ValidateName(secgrp.GetName()); err != nil {
+			return nil, httperrors.NewInputParameterError("The secgroup name %s does not meet the requirements, please change the name", secgrp.GetName())
+		}
+
+		setSecgroups = append(setSecgroups, secgrp.(*SSecurityGroup))
+		setSecgroupNames = append(setSecgroupNames, secgrp.GetName())
+	}
+
+	if err := self.RevokeAllSecgroups(ctx, userCred); err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < len(setSecgroups); i++ {
+		if i == 0 {
+			_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+				self.SecgrpId = setSecgroups[i].Id
 				return nil
-			}); err != nil {
-				logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, err, userCred, false)
+			})
+			if err != nil {
 				return nil, err
 			}
-			if err := self.StartSyncTask(ctx, userCred, true, ""); err != nil {
-				logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, err, userCred, false)
-				return nil, err
+		} else {
+			if _, err := GuestsecgroupManager.newGuestSecgroup(ctx, userCred, self, setSecgroups[i]); err != nil {
+				return nil, httperrors.NewInputParameterError(err.Error())
 			}
 		}
 	}
-	logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, nil, userCred, true)
-	return nil, nil
+	logclient.AddActionLog(self, logclient.ACT_VM_SETSECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(setSecgroupNames, ",")), userCred, true)
+	return nil, self.StartSyncTask(ctx, userCred, true, "")
 }
 
 func (self *SGuest) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsAdmin(userCred)
+	return db.IsAdminAllowPerform(userCred, self, "purge")
 }
 
 func (self *SGuest) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	err := self.ValidateDeleteCondition(ctx)
+	err := self.ValidatePurgeCondition(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -708,28 +967,24 @@ func (self *SGuest) setKeypairId(userCred mcclient.TokenCredential, keypairId st
 }
 
 func (self *SGuest) AllowPerformRebuildRoot(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "rebuild-root")
 }
 
 func (self *SGuest) PerformRebuildRoot(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	imageId, _ := data.GetString("image_id")
-	if len(imageId) == 0 {
-		gdc := self.CategorizeDisks()
-		imageId = gdc.Root.GetTemplateId()
-		if len(imageId) == 0 {
-			return nil, httperrors.NewBadRequestError("No template for root disk")
+
+	if len(imageId) > 0 {
+		img, err := CachedimageManager.getImageInfo(ctx, userCred, imageId, false)
+		if err != nil {
+			return nil, httperrors.NewNotFoundError("failed to find %s", imageId)
 		}
+		osType, _ := img.Properties["os_type"]
+		osName := self.GetMetadata("os_name", userCred)
+		if len(osName) == 0 && len(osType) == 0 && strings.ToLower(osType) != strings.ToLower(osName) {
+			return nil, httperrors.NewBadRequestError("Cannot switch OS between %s-%s", osName, osType)
+		}
+		imageId = img.Id
 	}
-	img, err := CachedimageManager.getImageInfo(ctx, userCred, imageId, false)
-	if err != nil {
-		return nil, httperrors.NewNotFoundError("failed to find %s", imageId)
-	}
-	osType, _ := img.Properties["os_type"]
-	osName := self.GetMetadata("os_name", userCred)
-	if len(osName) == 0 && len(osType) == 0 && strings.ToLower(osType) != strings.ToLower(osName) {
-		return nil, httperrors.NewBadRequestError("Cannot switch OS between %s-%s", osName, osType)
-	}
-	imageId = img.Id
 
 	rebuildStatus, err := self.GetDriver().GetRebuildRootStatus()
 	if err != nil {
@@ -771,11 +1026,20 @@ func (self *SGuest) PerformRebuildRoot(ctx context.Context, userCred mcclient.To
 		}
 	}
 
-	return nil, self.StartRebuildRootTask(ctx, userCred, imageId, needStop, autoStart, passwd, resetPasswd)
+	allDisks := jsonutils.QueryBoolean(data, "all_disks", false)
+
+	return nil, self.StartRebuildRootTask(ctx, userCred, imageId, needStop, autoStart, passwd, resetPasswd, allDisks)
 }
 
-func (self *SGuest) StartRebuildRootTask(ctx context.Context, userCred mcclient.TokenCredential, imageId string, needStop, autoStart bool, passwd string, resetPasswd bool) error {
+func (self *SGuest) StartRebuildRootTask(ctx context.Context, userCred mcclient.TokenCredential, imageId string, needStop, autoStart bool, passwd string, resetPasswd bool, allDisk bool) error {
 	data := jsonutils.NewDict()
+	if len(imageId) == 0 {
+		gdc := self.CategorizeDisks()
+		imageId = gdc.Root.GetTemplateId()
+		if len(imageId) == 0 {
+			return httperrors.NewBadRequestError("No template for root disk")
+		}
+	}
 	data.Set("image_id", jsonutils.NewString(imageId))
 	if needStop {
 		data.Set("need_stop", jsonutils.JSONTrue)
@@ -791,6 +1055,13 @@ func (self *SGuest) StartRebuildRootTask(ctx context.Context, userCred mcclient.
 	if len(passwd) > 0 {
 		data.Set("password", jsonutils.NewString(passwd))
 	}
+
+	if allDisk {
+		data.Set("all_disks", jsonutils.JSONTrue)
+	} else {
+		data.Set("all_disks", jsonutils.JSONFalse)
+	}
+	self.SetStatus(userCred, VM_REBUILD_ROOT, "request start rebuild root")
 	if self.GetHypervisor() == HYPERVISOR_BAREMETAL {
 		task, err := taskman.TaskManager.NewTask(ctx, "BaremetalServerRebuildRootTask", self, userCred, data, "", "", nil)
 		if err != nil {
@@ -815,17 +1086,22 @@ func (self *SGuest) DetachDisk(ctx context.Context, disk *SDisk, userCred mcclie
 }
 
 func (self *SGuest) AllowPerformCreatedisk(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "createdisk")
 }
 
 func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	var diskIdx, diskSize = 0, 0
+	diskSize := 0
 	disksConf := jsonutils.NewDict()
 	diskSizes := make(map[string]int, 0)
-	diskSeq := fmt.Sprintf("disk.%d", diskIdx)
-	for data.Contains(diskSeq) {
-		diskDef, _ := data.Get(diskSeq)
-		diskInfo, err := parseDiskInfo(ctx, userCred, diskDef)
+
+	diskDefArray := jsonutils.GetArrayOfPrefix(data, "disk")
+	if len(diskDefArray) == 0 {
+		logclient.AddActionLog(self, logclient.ACT_CREATE, "No Disk Info Provided", userCred, false)
+		return nil, httperrors.NewBadRequestError("No Disk Info Provided")
+	}
+
+	for diskIdx := 0; diskIdx < len(diskDefArray); diskIdx += 1 {
+		diskInfo, err := parseDiskInfo(ctx, userCred, diskDefArray[diskIdx])
 		if err != nil {
 			logclient.AddActionLog(self, logclient.ACT_CREATE, err.Error(), userCred, false)
 			return nil, httperrors.NewBadRequestError(err.Error())
@@ -833,19 +1109,13 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 		if len(diskInfo.Backend) == 0 {
 			diskInfo.Backend = self.getDefaultStorageType()
 		}
-		disksConf.Set(diskSeq, jsonutils.Marshal(diskInfo))
+		disksConf.Set(fmt.Sprintf("disk.%d", diskIdx), jsonutils.Marshal(diskInfo))
 		if _, ok := diskSizes[diskInfo.Backend]; !ok {
-			diskSizes[diskInfo.Backend] = diskInfo.Size
+			diskSizes[diskInfo.Backend] = diskInfo.SizeMb
 		} else {
-			diskSizes[diskInfo.Backend] += diskInfo.Size
+			diskSizes[diskInfo.Backend] += diskInfo.SizeMb
 		}
-		diskSize += diskInfo.Size
-		diskIdx += 1
-		diskSeq = fmt.Sprintf("disk.%d", diskIdx)
-	}
-	if diskIdx == 0 {
-		logclient.AddActionLog(self, logclient.ACT_CREATE, "No Disk Info Provided", userCred, false)
-		return nil, httperrors.NewBadRequestError("No Disk Info Provided")
+		diskSize += diskInfo.SizeMb
 	}
 	host := self.GetHost()
 	if host == nil {
@@ -858,7 +1128,7 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 			logclient.AddActionLog(self, logclient.ACT_CREATE, "No valid storage on current host", userCred, false)
 			return nil, httperrors.NewBadRequestError("No valid storage on current host")
 		}
-		if storage.GetCapacity() < size {
+		if storage.GetCapacity() > 0 && storage.GetCapacity() < size {
 			logclient.AddActionLog(self, logclient.ACT_CREATE, "Not eough storage space on current host", userCred, false)
 			return nil, httperrors.NewBadRequestError("Not eough storage space on current host")
 		}
@@ -869,13 +1139,13 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 	err := QuotaManager.CheckSetPendingQuota(ctx, userCred, self.ProjectId, pendingUsage)
 	if err != nil {
 		logclient.AddActionLog(self, logclient.ACT_CREATE, err.Error(), userCred, false)
-		return nil, httperrors.NewBadRequestError(err.Error())
+		return nil, httperrors.NewOutOfQuotaError(err.Error())
 	}
 
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
 
-	err = self.CreateDisksOnHost(ctx, userCred, host, disksConf, pendingUsage)
+	err = self.CreateDisksOnHost(ctx, userCred, host, disksConf, pendingUsage, false)
 	if err != nil {
 		QuotaManager.CancelPendingUsage(ctx, userCred, self.ProjectId, nil, pendingUsage)
 		logclient.AddActionLog(self, logclient.ACT_CREATE, err.Error(), userCred, false)
@@ -885,19 +1155,31 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 	return nil, err
 }
 
+func (self *SGuest) StartGuestCreateDiskTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "GuestCreateDiskTask", self, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
 func (self *SGuest) AllowPerformDetachdisk(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "detachdisk")
 }
 
 func (self *SGuest) PerformDetachdisk(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	diskId, err := data.GetString("disk_id")
 	if err != nil {
-		return nil, err
+		return nil, httperrors.NewMissingParameterError("disk_id")
 	}
 	keepDisk := jsonutils.QueryBoolean(data, "keep_disk", false)
 	iDisk, err := DiskManager.FetchByIdOrName(userCred, diskId)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, httperrors.NewNotFoundError("failed to find disk %s", diskId)
+		}
+		return nil, httperrors.NewGeneralError(err)
 	}
 	disk := iDisk.(*SDisk)
 	if disk != nil {
@@ -913,14 +1195,8 @@ func (self *SGuest) PerformDetachdisk(ctx context.Context, userCred mcclient.Tok
 				return nil, httperrors.NewInputParameterError("Cannot keep detached disk")
 			}
 			if utils.IsInStringArray(self.Status, detachDiskStatus) {
-				if disk.Status == DISK_INIT {
-					disk.SetStatus(userCred, DISK_DETACHING, "")
-				}
-				taskData := jsonutils.NewDict()
-				taskData.Add(jsonutils.NewString(disk.Id), "disk_id")
-				taskData.Add(jsonutils.NewBool(keepDisk), "keep_disk")
-				self.GetDriver().StartGuestDetachdiskTask(ctx, userCred, self, taskData, "")
-				return nil, nil
+				err = self.StartGuestDetachdiskTask(ctx, userCred, disk, keepDisk, "")
+				return nil, err
 			} else {
 				return nil, httperrors.NewInvalidStatusError("Server in %s not able to detach disk", self.Status)
 			}
@@ -931,8 +1207,24 @@ func (self *SGuest) PerformDetachdisk(ctx context.Context, userCred mcclient.Tok
 	return nil, httperrors.NewResourceNotFoundError("Disk %s not found", diskId)
 }
 
+func (self *SGuest) StartGuestDetachdiskTask(ctx context.Context, userCred mcclient.TokenCredential, disk *SDisk, keepDisk bool, parentTaskId string) error {
+	taskData := jsonutils.NewDict()
+	taskData.Add(jsonutils.NewString(disk.Id), "disk_id")
+	taskData.Add(jsonutils.NewBool(keepDisk), "keep_disk")
+	if utils.IsInStringArray(disk.Status, []string{DISK_INIT, DISK_ALLOC_FAILED}) {
+		//删除非正常状态下的disk
+		taskData.Add(jsonutils.JSONFalse, "keep_disk")
+		disk.GetModelManager().TableSpec().Update(disk, func() error {
+			disk.AutoDelete = true
+			return nil
+		})
+	}
+	disk.SetStatus(userCred, DISK_DETACHING, "")
+	return self.GetDriver().StartGuestDetachdiskTask(ctx, userCred, self, taskData, parentTaskId)
+}
+
 func (self *SGuest) AllowPerformDetachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "detach-isolated-device")
 }
 
 func (self *SGuest) PerformDetachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -960,29 +1252,29 @@ func (self *SGuest) PerformDetachIsolatedDevice(ctx context.Context, userCred mc
 	host := self.GetHost()
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
-	err = self.detachIsolateDevice(userCred, dev)
+	err = self.detachIsolateDevice(ctx, userCred, dev)
 	return nil, err
 }
 
-func (self *SGuest) detachIsolateDevice(userCred mcclient.TokenCredential, dev *SIsolatedDevice) error {
+func (self *SGuest) detachIsolateDevice(ctx context.Context, userCred mcclient.TokenCredential, dev *SIsolatedDevice) error {
 	if dev.GuestId != self.Id {
 		msg := "Isolated device is not attached to this guest"
 		logclient.AddActionLog(self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
 		return httperrors.NewBadRequestError(msg)
 	}
-	_, err := self.GetModelManager().TableSpec().Update(dev, func() error {
+	_, err := dev.GetModelManager().TableSpec().Update(dev, func() error {
 		dev.GuestId = ""
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	db.OpsLog.LogEvent(self, db.ACT_GUEST_DETACH_ISOLATED_DEVICE, dev.GetShortDesc(), userCred)
+	db.OpsLog.LogEvent(self, db.ACT_GUEST_DETACH_ISOLATED_DEVICE, dev.GetShortDesc(ctx), userCred)
 	return nil
 }
 
 func (self *SGuest) AllowPerformAttachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "attach-isolated-device")
 }
 
 func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1010,7 +1302,7 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	host := self.GetHost()
 	lockman.LockObject(ctx, host)
 	defer lockman.ReleaseObject(ctx, host)
-	err = self.attachIsolatedDevice(userCred, dev)
+	err = self.attachIsolatedDevice(ctx, userCred, dev)
 	var msg string
 	if err != nil {
 		msg = err.Error()
@@ -1019,8 +1311,117 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	return nil, err
 }
 
+func (self *SGuest) AllowPerformChangeIpaddr(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "change-ipaddr")
+}
+
+func (self *SGuest) findGuestnetworkByInfo(ipStr string, macStr string, index int64) (*SGuestnetwork, error) {
+	if len(ipStr) > 0 {
+		gn, err := self.GetNetworkByIp(ipStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewNotFoundError("ip %s not found", ipStr)
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+		return gn, nil
+	} else if len(macStr) > 0 {
+		gn, err := self.GetNetworkByMac(macStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewNotFoundError("mac %s not found", macStr)
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+		return gn, nil
+	} else {
+		gns, err := self.GetNetworks("")
+		if err != nil {
+			return nil, httperrors.NewGeneralError(err)
+		}
+		if index >= 0 && index < int64(len(gns)) {
+			return &gns[index], nil
+		}
+		return nil, httperrors.NewInputParameterError("no either ip_addr or mac specified")
+	}
+}
+
+func (self *SGuest) PerformChangeIpaddr(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if self.Status != VM_READY && self.Status != VM_RUNNING {
+		return nil, httperrors.NewInvalidStatusError("Cannot change network ip_addr in status %s", self.Status)
+	}
+
+	reserve := jsonutils.QueryBoolean(data, "reserve", false)
+
+	ipStr, _ := data.GetString("ip_addr")
+	macStr, _ := data.GetString("mac")
+	index, _ := data.Int("index")
+
+	gn, err := self.findGuestnetworkByInfo(ipStr, macStr, index)
+	if err != nil {
+		return nil, err
+	}
+
+	netDesc, err := data.Get("net_desc")
+	if err != nil {
+		return nil, httperrors.NewBadRequestError(err.Error())
+	}
+	conf, err := parseNetworkInfo(userCred, netDesc)
+	if err != nil {
+		return nil, err
+	}
+	err = isValidNetworkInfo(userCred, conf)
+	if err != nil {
+		return nil, httperrors.NewBadRequestError(err.Error())
+	}
+	host := self.GetHost()
+
+	_, err = func() (jsonutils.JSONObject, error) {
+		lockman.LockRawObject(ctx, GuestnetworkManager.KeywordPlural(), "")
+		defer lockman.ReleaseRawObject(ctx, GuestnetworkManager.KeywordPlural(), "")
+
+		if len(conf.Mac) > 0 {
+			if conf.Mac != gn.MacAddr {
+				if self.Status != VM_READY {
+					// change mac
+					return nil, httperrors.NewInvalidStatusError("cannot change mac when guest is running")
+				}
+				// check mac duplication
+				if GuestnetworkManager.Query().Equals("mac_addr", conf.Mac).Count() > 0 {
+					return nil, httperrors.NewConflictError("mac addr %s has been occupied", conf.Mac)
+				}
+			} else {
+				if conf.Address == gn.IpAddr { // ip addr is the same, noop
+					return nil, nil
+				}
+			}
+		} else {
+			conf.Mac = gn.MacAddr
+		}
+
+		err = self.detachNetworks(ctx, userCred, []SGuestnetwork{*gn}, reserve, false)
+		if err != nil {
+			return nil, err
+		}
+		conf.Ifname = gn.Ifname
+		err = self.attach2NetworkDesc(ctx, userCred, host, conf, nil)
+		if err != nil {
+			return nil, httperrors.NewBadRequestError(err.Error())
+		}
+
+		return nil, nil
+	}()
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = self.StartSyncTask(ctx, userCred, true, "")
+	return nil, err
+}
+
 func (self *SGuest) AllowPerformDetachnetwork(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "detachnetwork")
 }
 
 func (self *SGuest) PerformDetachnetwork(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1028,21 +1429,52 @@ func (self *SGuest) PerformDetachnetwork(ctx context.Context, userCred mcclient.
 		return nil, httperrors.NewInvalidStatusError("Cannot detach network in status %s", self.Status)
 	}
 	reserve := jsonutils.QueryBoolean(data, "reserve", false)
-	netId, err := data.GetString("net_id")
-	if err != nil {
-		return nil, httperrors.NewBadRequestError(err.Error())
+
+	netStr, _ := data.GetString("net_id")
+	if len(netStr) > 0 {
+		netObj, err := NetworkManager.FetchById(netStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewResourceNotFoundError2(NetworkManager.Keyword(), netStr)
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+		gns, err := self.GetNetworks(netObj.GetId())
+		if err != nil {
+			return nil, httperrors.NewGeneralError(err)
+		}
+		err = self.detachNetworks(ctx, userCred, gns, reserve, true)
+		return nil, err
 	}
-	iNetwork, err := NetworkManager.FetchById(netId)
-	if err != nil {
-		return nil, httperrors.NewNotFoundError("Network %s not found", netId)
+	ipStr, _ := data.GetString("ip_addr")
+	if len(ipStr) > 0 {
+		gn, err := self.GetNetworkByIp(ipStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewNotFoundError("ip %s not found", ipStr)
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+		err = self.detachNetworks(ctx, userCred, []SGuestnetwork{*gn}, reserve, true)
+		return nil, err
 	}
-	network := iNetwork.(*SNetwork)
-	err = self.detachNetwork(ctx, userCred, network, reserve, true)
-	return nil, err
+	macStr, _ := data.GetString("mac")
+	if len(macStr) > 0 {
+		gn, err := self.GetNetworkByMac(macStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewNotFoundError("mac %s not found", macStr)
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+		err = self.detachNetworks(ctx, userCred, []SGuestnetwork{*gn}, reserve, true)
+		return nil, err
+	}
+	return nil, httperrors.NewInputParameterError("no either ip_addr, mac or network specified")
 }
 
 func (self *SGuest) AllowPerformAttachnetwork(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "attachnetwork")
 }
 
 func (self *SGuest) PerformAttachnetwork(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1093,44 +1525,49 @@ func (self *SGuest) PerformAttachnetwork(ctx context.Context, userCred mcclient.
 }
 
 func (self *SGuest) AllowPerformChangeBandwidth(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred) || userCred.IsSystemAdmin()
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "change-bandwidth")
 }
 
 func (self *SGuest) PerformChangeBandwidth(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING}) {
-		guestnics := self.GetNetworks()
-		index, err := data.Int("index")
-		if err != nil || index > int64(len(guestnics)) {
-			logclient.AddActionLog(self, logclient.ACT_VM_CHANGE_BANDWIDTH, "Index Not fount or out of NIC index", userCred, false)
-			return nil, httperrors.NewBadRequestError("Index Not fount or out of NIC index")
-		}
-		bandwidth, err := data.Int("bandwidth")
-		if err != nil || bandwidth < 0 {
-			logclient.AddActionLog(self, logclient.ACT_VM_CHANGE_BANDWIDTH, "Bandwidth must non-negative", userCred, false)
-			return nil, httperrors.NewBadRequestError("Bandwidth must be non-negative")
-		}
-		guestnic := &guestnics[index]
-		if guestnic.BwLimit != int(bandwidth) {
-			GuestnetworkManager.TableSpec().Update(guestnic, func() error {
-				guestnic.BwLimit = int(bandwidth)
-				return nil
-			})
-			err := self.StartSyncTask(ctx, userCred, false, "")
-			logclient.AddActionLog(self, logclient.ACT_VM_CHANGE_BANDWIDTH, err, userCred, err == nil)
-			return nil, err
-		}
-		return nil, nil
+	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING}) {
+		msg := fmt.Sprintf("Cannot change bandwidth in status %s", self.Status)
+		return nil, httperrors.NewBadRequestError(msg)
 	}
-	msg := fmt.Sprintf("Cannot change bandwidth in status %s", self.Status)
-	logclient.AddActionLog(self, logclient.ACT_VM_CHANGE_BANDWIDTH, msg, userCred, false)
-	return nil, httperrors.NewBadRequestError(msg)
+
+	bandwidth, err := data.Int("bandwidth")
+	if err != nil || bandwidth < 0 {
+		return nil, httperrors.NewBadRequestError("Bandwidth must be non-negative")
+	}
+
+	ipStr, _ := data.GetString("ip_addr")
+	macStr, _ := data.GetString("mac")
+	index, _ := data.Int("index")
+	guestnic, err := self.findGuestnetworkByInfo(ipStr, macStr, index)
+	if err != nil {
+		return nil, err
+	}
+
+	if guestnic.BwLimit != int(bandwidth) {
+		GuestnetworkManager.TableSpec().Update(guestnic, func() error {
+			guestnic.BwLimit = int(bandwidth)
+			return nil
+		})
+		err := self.StartSyncTask(ctx, userCred, false, "")
+		logclient.AddActionLog(self, logclient.ACT_VM_CHANGE_BANDWIDTH, err, userCred, err == nil)
+		return nil, err
+	}
+	return nil, nil
 }
 
 func (self *SGuest) AllowPerformChangeConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred) || self.IsAdmin(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "change-config")
 }
 
 func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if !self.GetDriver().AllowReconfigGuest() {
+		return nil, httperrors.NewInvalidStatusError("Not allow to change config")
+	}
+
 	changeStatus, err := self.GetDriver().GetChangeConfigStatus()
 	if err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
@@ -1138,42 +1575,86 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 	if !utils.IsInStringArray(self.Status, changeStatus) {
 		return nil, httperrors.NewInvalidStatusError("Cannot change config in %s", self.Status)
 	}
-	if !self.GetDriver().AllowReconfigGuest() {
-		return nil, httperrors.NewInvalidStatusError("Not allow to change config")
-	}
+
 	host := self.GetHost()
 	if host == nil {
 		return nil, httperrors.NewInvalidStatusError("No valid host")
 	}
+
 	var addCpu, addMem int
+	var cpuChanged, memChanged bool
+
 	confs := jsonutils.NewDict()
-	vcpuCount, err := data.GetString("vcpu_count")
-	if err == nil {
-		nVcpu, err := strconv.ParseInt(vcpuCount, 10, 0)
+	skuId := jsonutils.GetAnyString(data, []string{"instance_type", "sku", "flavor"})
+	if len(skuId) > 0 {
+		sku, err := ServerSkuManager.FetchSkuByNameAndHypervisor(skuId, self.GetHypervisor(), true)
 		if err != nil {
-			return nil, httperrors.NewBadRequestError("Params vcpu_count parse error")
+			return nil, err
 		}
-		err = confs.Add(jsonutils.NewInt(nVcpu), "vcpu_count")
-		if err != nil {
-			return nil, httperrors.NewBadRequestError("Params vcpu_count parse error")
+
+		if sku.GetName() != self.InstanceType {
+			confs.Add(jsonutils.NewString(sku.GetName()), "instance_type")
+			confs.Add(jsonutils.NewInt(int64(sku.CpuCoreCount)), "vcpu_count")
+			confs.Add(jsonutils.NewInt(int64(sku.MemorySizeMB)), "vmem_size")
+
+			if sku.CpuCoreCount != int(self.VcpuCount) {
+				cpuChanged = true
+				addCpu = sku.CpuCoreCount - int(self.VcpuCount)
+			}
+			if sku.MemorySizeMB != self.VmemSize {
+				memChanged = true
+				addMem = sku.MemorySizeMB - self.VmemSize
+			}
 		}
-		addCpu = int(nVcpu - int64(self.VcpuCount))
+
+	} else {
+		vcpuCount, err := data.GetString("vcpu_count")
+		if err == nil {
+			nVcpu, err := strconv.ParseInt(vcpuCount, 10, 0)
+			if err != nil {
+				return nil, httperrors.NewBadRequestError("Params vcpu_count parse error")
+			}
+
+			if nVcpu != int64(self.VcpuCount) {
+				cpuChanged = true
+				addCpu = int(nVcpu - int64(self.VcpuCount))
+				err = confs.Add(jsonutils.NewInt(nVcpu), "vcpu_count")
+				if err != nil {
+					return nil, httperrors.NewBadRequestError("Params vcpu_count parse error")
+				}
+			}
+		}
+		vmemSize, err := data.GetString("vmem_size")
+		if err == nil {
+			if !regutils.MatchSize(vmemSize) {
+				return nil, httperrors.NewBadRequestError("Memory size must be number[+unit], like 256M, 1G or 256")
+			}
+			nVmem, err := fileutils.GetSizeMb(vmemSize, 'M', 1024)
+			if err != nil {
+				httperrors.NewBadRequestError("Params vmem_size parse error")
+			}
+			if nVmem != self.VmemSize {
+				memChanged = true
+				addMem = nVmem - self.VmemSize
+				err = confs.Add(jsonutils.NewInt(int64(nVmem)), "vmem_size")
+				if err != nil {
+					return nil, httperrors.NewBadRequestError("Params vmem_size parse error")
+				}
+			}
+		}
 	}
-	vmemSize, err := data.GetString("vmem_size")
-	if err == nil {
-		if !regutils.MatchSize(vmemSize) {
-			return nil, httperrors.NewBadRequestError("Memory size must be number[+unit], like 256M, 1G or 256")
-		}
-		nVmem, err := fileutils.GetSizeMb(vmemSize, 'M', 1024)
-		if err != nil {
-			httperrors.NewBadRequestError("Params vmem_size parse error")
-		}
-		err = confs.Add(jsonutils.NewInt(int64(nVmem)), "vmem_size")
-		if err != nil {
-			return nil, httperrors.NewBadRequestError("Params vmem_size parse error")
-		}
-		addMem = nVmem - self.VmemSize
+
+	if self.Status == VM_RUNNING && (cpuChanged || memChanged) && self.GetDriver().NeedStopForChangeSpec() {
+		return nil, httperrors.NewInvalidStatusError("cannot change CPU/Memory spec in status %s", self.Status)
 	}
+
+	if addCpu < 0 {
+		addCpu = 0
+	}
+	if addMem < 0 {
+		addMem = 0
+	}
+
 	disks := self.GetDisks()
 	var addDisk int
 	var diskIdx = 1
@@ -1184,7 +1665,7 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 	for {
 		diskNum := fmt.Sprintf("disk.%d", diskIdx)
 		diskDesc, err := data.Get(diskNum)
-		if err != nil {
+		if err != nil || diskDesc == jsonutils.JSONNull {
 			break
 		}
 		diskConf, err := parseDiskInfo(ctx, userCred, diskDesc)
@@ -1194,11 +1675,11 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 		if len(diskConf.Backend) == 0 {
 			diskConf.Backend = self.getDefaultStorageType()
 		}
-		if diskConf.Size > 0 {
+		if diskConf.SizeMb > 0 {
 			if diskIdx >= len(disks) {
 				newDisks.Add(jsonutils.Marshal(diskConf), fmt.Sprintf("disk.%d", newDiskIdx))
 				newDiskIdx += 1
-				addDisk += diskConf.Size
+				addDisk += diskConf.SizeMb
 				storage := host.GetLeastUsedStorage(diskConf.Backend)
 				if storage == nil {
 					return nil, httperrors.NewResourceNotReadyError("host not connect storage %s", diskConf.Backend)
@@ -1207,22 +1688,22 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 				if !ok {
 					diskSizes[storage.Id] = 0
 				}
-				diskSizes[storage.Id] = diskSizes[storage.Id] + diskConf.Size
+				diskSizes[storage.Id] = diskSizes[storage.Id] + diskConf.SizeMb
 			} else {
 				disk := disks[diskIdx].GetDisk()
 				oldSize := disk.DiskSize
-				if diskConf.Size < oldSize {
+				if diskConf.SizeMb < oldSize {
 					return nil, httperrors.NewInputParameterError("Cannot reduce disk size")
-				} else if diskConf.Size > oldSize {
-					arr := jsonutils.NewArray(jsonutils.NewString(disks[diskIdx].DiskId), jsonutils.NewInt(int64(diskConf.Size)))
+				} else if diskConf.SizeMb > oldSize {
+					arr := jsonutils.NewArray(jsonutils.NewString(disks[diskIdx].DiskId), jsonutils.NewInt(int64(diskConf.SizeMb)))
 					resizeDisks.Add(arr)
-					addDisk += diskConf.Size - oldSize
+					addDisk += diskConf.SizeMb - oldSize
 					storage := disks[diskIdx].GetDisk().GetStorage()
 					_, ok := diskSizes[storage.Id]
 					if !ok {
 						diskSizes[storage.Id] = 0
 					}
-					diskSizes[storage.Id] = diskSizes[storage.Id] + diskConf.Size - oldSize
+					diskSizes[storage.Id] = diskSizes[storage.Id] + diskConf.SizeMb - oldSize
 				}
 			}
 		}
@@ -1230,11 +1711,6 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 	}
 
 	provider, e := self.GetHost().GetDriver()
-	/*if e != nil {
-		log.Errorf("Get Provider Error: %s", e)
-		return nil, httperrors.NewInsufficientResourceError("Provider Not Found")
-	}*/
-
 	if e != nil || !provider.IsPublicCloud() {
 		for storageId, needSize := range diskSizes {
 			iStorage, err := StorageManager.FetchById(storageId)
@@ -1256,7 +1732,7 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 	if resizeDisks.Length() > 0 {
 		confs.Add(resizeDisks, "resize")
 	}
-	if jsonutils.QueryBoolean(data, "auto_start", false) {
+	if self.Status != VM_RUNNING && jsonutils.QueryBoolean(data, "auto_start", false) {
 		confs.Add(jsonutils.NewBool(true), "auto_start")
 	}
 
@@ -1275,11 +1751,12 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 	if !pendingUsage.IsEmpty() {
 		err := QuotaManager.CheckSetPendingQuota(ctx, userCred, userCred.GetProjectId(), pendingUsage)
 		if err != nil {
-			return nil, httperrors.NewBadRequestError("Check set pending quota error %s", err)
+			return nil, httperrors.NewOutOfQuotaError("Check set pending quota error %s", err)
 		}
 	}
+
 	if newDisks.Length() > 0 {
-		err := self.CreateDisksOnHost(ctx, userCred, host, newDisks, pendingUsage)
+		err := self.CreateDisksOnHost(ctx, userCred, host, newDisks, pendingUsage, false)
 		if err != nil {
 			QuotaManager.CancelPendingUsage(ctx, userCred, self.ProjectId, nil, pendingUsage)
 			return nil, httperrors.NewBadRequestError("Create disk on host error: %s", err)
@@ -1300,17 +1777,30 @@ func (self *SGuest) StartChangeConfigTask(ctx context.Context, userCred mcclient
 	return nil
 }
 
+func (self *SGuest) RevokeAllSecgroups(ctx context.Context, userCred mcclient.TokenCredential) error {
+	err := GuestsecgroupManager.DeleteGuestSecgroup(ctx, userCred, self, nil)
+	if err != nil {
+		return err
+	}
+	err = self.revokeSecgroup(ctx, userCred, self.getSecgroup())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (self *SGuest) DoPendingDelete(ctx context.Context, userCred mcclient.TokenCredential) {
 	eip, _ := self.GetEip()
 	if eip != nil {
 		eip.DoPendingDelete(ctx, userCred)
 	}
+
 	for _, guestdisk := range self.GetDisks() {
 		disk := guestdisk.GetDisk()
-		storage := disk.GetStorage()
-		if utils.IsInStringArray(storage.StorageType, sysutils.LOCAL_STORAGE_TYPES) || utils.IsInStringArray(disk.DiskType, []string{DISK_TYPE_SYS, DISK_TYPE_SWAP}) || (utils.IsInStringArray(self.Hypervisor, PUBLIC_CLOUD_HYPERVISORS) && disk.AutoDelete) {
+		if !disk.IsDetachable() {
 			disk.DoPendingDelete(ctx, userCred)
 		} else {
+			log.Warningf("detachable disk on pending delete guests!!! should be removed earlier")
 			self.DetachDisk(ctx, disk, userCred)
 		}
 	}
@@ -1318,7 +1808,7 @@ func (self *SGuest) DoPendingDelete(ctx context.Context, userCred mcclient.Token
 }
 
 func (model *SGuest) AllowPerformCancelDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return db.IsAdminAllowPerform(userCred, model, "cancel-delete")
 }
 
 func (self *SGuest) PerformCancelDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1354,7 +1844,7 @@ func (self *SGuest) AllowPerformReset(ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
 	data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "reset")
 }
 
 func (self *SGuest) PerformReset(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject,
@@ -1368,7 +1858,7 @@ func (self *SGuest) PerformReset(ctx context.Context, userCred mcclient.TokenCre
 }
 
 func (self *SGuest) AllowPerformDiskSnapshot(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "disk-snapshot")
 }
 
 func (self *SGuest) PerformDiskSnapshot(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1401,7 +1891,7 @@ func (self *SGuest) PerformDiskSnapshot(ctx context.Context, userCred mcclient.T
 		pendingUsage := &SQuota{Snapshot: 1}
 		err = QuotaManager.CheckSetPendingQuota(ctx, userCred, self.ProjectId, pendingUsage)
 		if err != nil {
-			return nil, httperrors.NewBadRequestError("Check set pending quota error %s", err)
+			return nil, httperrors.NewOutOfQuotaError("Check set pending quota error %s", err)
 		}
 		snapshot, err := SnapshotManager.CreateSnapshot(ctx, userCred, MANUAL, diskId, self.Id, "", name)
 		QuotaManager.CancelPendingUsage(ctx, userCred, self.ProjectId, nil, pendingUsage)
@@ -1422,7 +1912,7 @@ func (self *SGuest) PerformDiskSnapshot(ctx context.Context, userCred mcclient.T
 }
 
 func (self *SGuest) AllowPerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "syncstatus")
 }
 
 func (self *SGuest) PerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1466,16 +1956,17 @@ func (self *SGuest) AllowPerformStop(ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
 	data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "stop")
 }
 
 func (self *SGuest) PerformStop(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject,
 	data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	isForce := jsonutils.QueryBoolean(data, "is_force", false)
-	if utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_STOP_FAILED}) || (isForce && self.Status == VM_STOPPING) {
+	// XXX if is force, force stop guest
+	var isForce = jsonutils.QueryBoolean(data, "is_force", false)
+	if isForce || utils.IsInStringArray(self.Status, []string{VM_RUNNING, VM_STOP_FAILED}) {
 		return nil, self.StartGuestStopTask(ctx, userCred, isForce, "")
 	} else {
-		return nil, httperrors.NewInvalidStatusError("Cannot do start server in status %s", self.Status)
+		return nil, httperrors.NewInvalidStatusError("Cannot stop server in status %s", self.Status)
 	}
 }
 
@@ -1483,7 +1974,7 @@ func (self *SGuest) AllowPerformRestart(ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
 	data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "restart")
 }
 
 func (self *SGuest) PerformRestart(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1496,7 +1987,7 @@ func (self *SGuest) PerformRestart(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (self *SGuest) AllowPerformSendkeys(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "sendkeys")
 }
 
 func (self *SGuest) PerformSendkeys(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1508,7 +1999,8 @@ func (self *SGuest) PerformSendkeys(ctx context.Context, userCred mcclient.Token
 	}
 	keys, err := data.GetString("keys")
 	if err != nil {
-		return nil, err
+		log.Errorln(err)
+		return nil, httperrors.NewMissingParameterError("keys")
 	}
 	err = self.VerifySendKeys(keys)
 	if err != nil {
@@ -1570,7 +2062,7 @@ func (self *SGuest) SendMonitorCommand(ctx context.Context, userCred mcclient.To
 }
 
 func (self *SGuest) AllowPerformAssociateEip(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "associate-eip")
 }
 
 func (self *SGuest) PerformAssociateEip(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1632,13 +2124,13 @@ func (self *SGuest) PerformAssociateEip(ctx context.Context, userCred mcclient.T
 	params.Add(jsonutils.NewString(self.Id), "instance_id")
 	params.Add(jsonutils.NewString(EIP_ASSOCIATE_TYPE_SERVER), "instance_type")
 
-	err = eip.StartEipAssociateTask(ctx, userCred, params)
+	err = eip.StartEipAssociateTask(ctx, userCred, params, "")
 
 	return nil, err
 }
 
 func (self *SGuest) AllowPerformDissociateEip(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "dissociate-eip")
 }
 
 func (self *SGuest) PerformDissociateEip(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1653,7 +2145,9 @@ func (self *SGuest) PerformDissociateEip(ctx context.Context, userCred mcclient.
 
 	self.SetStatus(userCred, VM_DISSOCIATE_EIP, "associate eip")
 
-	err = eip.StartEipDissociateTask(ctx, userCred, "")
+	autoDelete := jsonutils.QueryBoolean(data, "auto_delete", false)
+
+	err = eip.StartEipDissociateTask(ctx, userCred, autoDelete, "")
 	if err != nil {
 		log.Errorf("fail to start dissociate task %s", err)
 		return nil, httperrors.NewGeneralError(err)
@@ -1662,7 +2156,7 @@ func (self *SGuest) PerformDissociateEip(ctx context.Context, userCred mcclient.
 }
 
 func (self *SGuest) AllowPerformCreateEip(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "create-eip")
 }
 
 func (self *SGuest) PerformCreateEip(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1694,12 +2188,17 @@ func (self *SGuest) PerformCreateEip(ctx context.Context, userCred mcclient.Toke
 		return nil, httperrors.NewInvalidStatusError("No cloudregion???")
 	}
 
-	err = ElasticipManager.allocateEipAndAssociateVM(ctx, userCred, self, int(bw), chargeType, host.ManagerId, region.Id)
+	eipPendingUsage := &SQuota{Eip: 1}
+	err = QuotaManager.CheckSetPendingQuota(ctx, userCred, userCred.GetProjectId(), eipPendingUsage)
 	if err != nil {
-		return nil, httperrors.NewGeneralError(err)
+		return nil, httperrors.NewOutOfQuotaError("Out of eip quota: %s", err)
 	}
 
-	self.SetStatus(userCred, VM_ASSOCIATE_EIP, "allocate and associate EIP")
+	err = ElasticipManager.AllocateEipAndAssociateVM(ctx, userCred, self, int(bw), chargeType, eipPendingUsage)
+	if err != nil {
+		QuotaManager.CancelPendingUsage(ctx, userCred, userCred.GetProjectId(), eipPendingUsage, eipPendingUsage)
+		return nil, httperrors.NewGeneralError(err)
+	}
 
 	return nil, nil
 }
@@ -1717,7 +2216,7 @@ func (self *SGuest) setUserData(ctx context.Context, userCred mcclient.TokenCred
 }
 
 func (self *SGuest) AllowPerformUserData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "userdata")
 }
 
 func (self *SGuest) PerformUserData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1736,4 +2235,501 @@ func (self *SGuest) PerformUserData(ctx context.Context, userCred mcclient.Token
 		}
 	}
 	return nil, nil
+}
+
+func (self *SGuest) SwitchToBackup() error {
+	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+		self.HostId, self.BackupHostId = self.BackupHostId, self.HostId
+		return nil
+	})
+	return err
+}
+
+func (self *SGuest) AllowPerformSwitchToBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "switch-to-backup")
+}
+
+func (self *SGuest) PerformSwitchToBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if self.Status == VM_BLOCK_STREAM {
+		return nil, httperrors.NewBadRequestError("Cannot swith to backup when guest in status %s", self.Status)
+	}
+	if len(self.BackupHostId) == 0 {
+		return nil, httperrors.NewBadRequestError("Guest no backup host")
+	}
+	if task, err := taskman.TaskManager.NewTask(ctx, "GuestSwitchToBackupTask", self, userCred, nil, "", "", nil); err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil, nil
+}
+
+func (manager *SGuestManager) AllowPerformDirtyServerStart(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowClassPerform(userCred, manager, "dirty-server-start")
+}
+
+func (manager *SGuestManager) PerformDirtyServerStart(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	guestId, err := data.GetString("guest_id")
+	if err != nil {
+		return nil, httperrors.NewBadRequestError("Missing guest_id")
+	}
+	guest := manager.FetchGuestById(guestId)
+	if guest == nil {
+		return nil, httperrors.NewNotFoundError("Guest %s not found", guestId)
+	}
+	hostId, _ := data.GetString("host_id")
+	if len(hostId) == 0 {
+		return nil, httperrors.NewBadGatewayError("Missing host_id or host id is nil?")
+	}
+
+	if guest.HostId == hostId {
+		// master guest
+		err := guest.StartGueststartTask(ctx, userCred, nil, "")
+		return nil, err
+	} else if guest.BackupHostId == hostId {
+		// slave guest
+		err := guest.GuestStartAndSyncToBackup(ctx, userCred, nil, "")
+		return nil, err
+	}
+	// else { // 这里是清除这台机器最后的机会
+	// 	err := guest.StartUndeployGuestTask(ctx, userCred, "", hostId)
+	// 	return nil, err
+	// }
+	return nil, nil
+}
+
+func (guest *SGuest) GuestStartAndSyncToBackup(ctx context.Context, userCred mcclient.TokenCredential,
+	data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "GuestStartAndSyncToBackupTask", guest, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		log.Errorf(err.Error())
+		return err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil
+}
+
+func (self *SGuest) AllowPerformCreateBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "create-backup")
+}
+
+func (self *SGuest) PerformCreateBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if len(self.BackupHostId) > 0 {
+		return nil, httperrors.NewBadRequestError("Already have backup server")
+	}
+	if self.getDefaultStorageType() != STORAGE_LOCAL {
+		return nil, httperrors.NewBadRequestError("Cannot create backup with shared storage")
+	}
+	if self.Hypervisor != HYPERVISOR_KVM {
+		return nil, httperrors.NewBadRequestError("Backup only support hypervisor kvm")
+	}
+	if len(self.GetIsolatedDevices()) > 0 {
+		return nil, httperrors.NewBadRequestError("Cannot create backup with isolated devices")
+	}
+	if self.GuestDisksHasSnapshot() {
+		return nil, httperrors.NewBadRequestError("Cannot create backup with snapshot")
+	}
+
+	req := self.getGuestBackupResourceRequirements(ctx, userCred)
+	err := QuotaManager.CheckSetPendingQuota(ctx, userCred, self.GetOwnerProjectId(), &req)
+	if err != nil {
+		return nil, httperrors.NewOutOfQuotaError(err.Error())
+	}
+
+	params := data.(*jsonutils.JSONDict)
+	params.Set("guest_status", jsonutils.NewString(self.Status))
+	task, err := taskman.TaskManager.NewTask(ctx, "GuestCreateBackupTask", self, userCred, params, "", "", &req)
+	if err != nil {
+		QuotaManager.CancelPendingUsage(ctx, userCred, self.ProjectId, nil, &req)
+		log.Errorf(err.Error())
+		return nil, err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil, nil
+}
+
+func (self *SGuest) AllowPerformDeleteBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "delete-backup")
+}
+
+func (self *SGuest) PerformDeleteBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if len(self.BackupHostId) == 0 {
+		return nil, httperrors.NewBadRequestError("Guest without backup")
+	}
+	backupHost := HostManager.FetchHostById(self.BackupHostId)
+	if backupHost == nil {
+		return nil, httperrors.NewNotFoundError("Guest backup host not found")
+	}
+	if backupHost.Status == HOST_OFFLINE && !jsonutils.QueryBoolean(data, "purge", false) {
+		return nil, httperrors.NewBadRequestError("Backup host is offline")
+	}
+
+	taskData := jsonutils.NewDict()
+	taskData.Set("pruge", jsonutils.NewBool(jsonutils.QueryBoolean(data, "purge", false)))
+	taskData.Set("host_id", jsonutils.NewString(self.BackupHostId))
+	if task, err := taskman.TaskManager.NewTask(
+		ctx, "GuestDeleteOnHostTask", self, userCred, taskData, "", "", nil); err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil, nil
+}
+
+func (self *SGuest) CreateBackupDisks(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	if task, err := taskman.TaskManager.NewTask(ctx, "GuestCreateBackupDisksTask", self, userCred, nil, parentTaskId, "", nil); err != nil {
+		log.Errorf(err.Error())
+		return err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil
+}
+
+func (self *SGuest) StartCreateBackup(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string, kwargs *jsonutils.JSONDict) error {
+	if kwargs == nil {
+		kwargs = jsonutils.NewDict()
+	}
+	kwargs.Add(jsonutils.NewString("create"), "deploy_action")
+	if task, err := taskman.TaskManager.NewTask(ctx, "GuestDeployBackupTask", self, userCred, kwargs, parentTaskId, "", nil); err != nil {
+		log.Errorf(err.Error())
+		return err
+	} else {
+		task.ScheduleRun(nil)
+	}
+	return nil
+}
+
+func (self *SGuest) AllowPerformMirrorJobFailed(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "mirror-job-failed")
+}
+
+func (self *SGuest) PerformMirrorJobFailed(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if len(self.BackupHostId) == 0 {
+		return nil, nil
+	} else {
+		return nil, self.SetStatus(userCred, VM_MIRROR_FAIL, "OnSyncToBackup")
+	}
+}
+
+func (self *SGuest) AllowPerformSetExtraOption(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "set-extra-option")
+}
+
+func (self *SGuest) PerformSetExtraOption(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	key, err := data.GetString("key")
+	if err != nil {
+		return nil, httperrors.NewBadRequestError("Option key required")
+	}
+	value, _ := data.GetString("value")
+	extraOptions := self.GetExtraOptions(userCred)
+	extraOptions.Set(key, jsonutils.NewString(value))
+	return nil, self.SetExtraOptions(ctx, userCred, extraOptions)
+}
+
+func (self *SGuest) GetExtraOptions(userCred mcclient.TokenCredential) *jsonutils.JSONDict {
+	options := self.GetMetadataJson("extra_options", userCred)
+	o, ok := options.(*jsonutils.JSONDict)
+	if ok {
+		return o
+	}
+	return jsonutils.NewDict()
+}
+
+func (self *SGuest) SetExtraOptions(ctx context.Context, userCred mcclient.TokenCredential, extraOptions *jsonutils.JSONDict) error {
+	return self.SetMetadata(ctx, "extra_options", extraOptions, userCred)
+}
+
+func (self *SGuest) AllowPerformDelExtraOption(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "del-extra-option")
+}
+
+func (self *SGuest) PerformDelExtraOption(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	key, err := data.GetString("key")
+	if err != nil {
+		return nil, httperrors.NewBadRequestError("Option key required")
+	}
+	extraOptions := self.GetExtraOptions(userCred)
+	extraOptions.Remove(key)
+	return nil, self.SetExtraOptions(ctx, userCred, extraOptions)
+}
+
+func (self *SGuest) AllowPerformRenew(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "renew")
+}
+
+func (self *SGuest) PerformRenew(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	durationStr := jsonutils.GetAnyString(data, []string{"duration"})
+	if len(durationStr) == 0 {
+		return nil, httperrors.NewInputParameterError("missong duration")
+	}
+
+	bc, err := billing.ParseBillingCycle(durationStr)
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("invalid duration %s: %s", durationStr, err)
+	}
+
+	if !self.GetDriver().IsSupportedBillingCycle(bc) {
+		return nil, httperrors.NewInputParameterError("unsupported duration %s", durationStr)
+	}
+
+	err = self.startGuestRenewTask(ctx, userCred, durationStr, "")
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (self *SGuest) startGuestRenewTask(ctx context.Context, userCred mcclient.TokenCredential, duration string, parentTaskId string) error {
+	data := jsonutils.NewDict()
+	data.Add(jsonutils.NewString(duration), "duration")
+	task, err := taskman.TaskManager.NewTask(ctx, "GuestRenewTask", self, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		log.Errorf("fail to crate GuestRenewTask %s", err)
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (self *SGuest) SaveRenewInfo(ctx context.Context, userCred mcclient.TokenCredential, bc *billing.SBillingCycle, expireAt *time.Time) error {
+	err := self.doSaveRenewInfo(ctx, userCred, bc, expireAt)
+	if err != nil {
+		return err
+	}
+	guestdisks := self.GetDisks()
+	for i := 0; i < len(guestdisks); i += 1 {
+		disk := guestdisks[i].GetDisk()
+		if disk.BillingType == BILLING_TYPE_PREPAID {
+			err = disk.SaveRenewInfo(ctx, userCred, bc, expireAt)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (self *SGuest) doSaveRenewInfo(ctx context.Context, userCred mcclient.TokenCredential, bc *billing.SBillingCycle, expireAt *time.Time) error {
+	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+		if self.BillingType != BILLING_TYPE_PREPAID {
+			self.BillingType = BILLING_TYPE_PREPAID
+		}
+		if expireAt != nil && !expireAt.IsZero() {
+			self.ExpiredAt = *expireAt
+		} else {
+			self.BillingCycle = bc.String()
+			self.ExpiredAt = bc.EndAt(self.ExpiredAt)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Errorf("Update error %s", err)
+		return err
+	}
+	db.OpsLog.LogEvent(self, db.ACT_RENEW, self.GetShortDesc(ctx), userCred)
+	return nil
+}
+
+func (self *SGuest) AllowPerformStreamDisksComplete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "stream-disks-complete")
+}
+
+func (self *SGuest) PerformStreamDisksComplete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	for _, disk := range self.GetDisks() {
+		d := disk.GetDisk()
+		if len(d.SnapshotId) > 0 {
+			SnapshotManager.AddRefCount(d.SnapshotId, -1)
+			d.SetMetadata(ctx, "merge_snapshot", jsonutils.JSONFalse, userCred)
+		}
+	}
+	return nil, nil
+}
+
+func (man *SGuestManager) AllowPerformImport(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowClassPerform(userCred, man, "import")
+}
+
+type SImportNic struct {
+	Index     int    `json:"index"`
+	Bridge    string `json:"bridge"`
+	Domain    string `json:"domain"`
+	Ip        string `json:"ip"`
+	Vlan      int    `json:"vlan"`
+	Driver    string `json:"driver"`
+	Masklen   int    `json:"masklen"`
+	Virtual   bool   `json:"virtual"`
+	Manual    bool   `json:"manual"`
+	WireId    string `json:"wire_id"`
+	NetId     string `json:"net_id"`
+	Mac       string `json:"mac"`
+	BandWidth int    `json:"bw"`
+	Dns       string `json:"dns"`
+	Net       string `json:"net"`
+	Interface string `json:"interface"`
+	Gateway   string `json:"gateway"`
+	Ifname    string `json:"ifname"`
+}
+
+func (n SImportNic) ToNetConfig(net *SNetwork) *SNetworkConfig {
+	return &SNetworkConfig{
+		Network: net.Id,
+		Wire:    net.WireId,
+		Address: n.Ip,
+		Mac:     n.Mac,
+		Driver:  n.Driver,
+		BwLimit: n.BandWidth,
+	}
+}
+
+type SImportDisk struct {
+	Index      int    `json:"index"`
+	DiskId     string `json:"disk_id"`
+	Driver     string `json:"driver"`
+	CacheMode  string `json:"cache_mode"`
+	AioMode    string `json:"aio_mode"`
+	SizeMb     int    `json:"size"`
+	Format     string `json:"format"`
+	Fs         string `json:"fs"`
+	Mountpoint string `json:"mountpoint"`
+	Dev        string `json:"dev"`
+	TemplateId string `json:"template_id"`
+}
+
+func (d SImportDisk) ToDiskConfig() *SDiskConfig {
+	ret := &SDiskConfig{
+		SizeMb:  d.SizeMb,
+		ImageId: d.TemplateId,
+		Format:  d.Format,
+		Driver:  d.Driver,
+		DiskId:  d.DiskId,
+		Cache:   d.CacheMode,
+	}
+	if len(d.Mountpoint) > 0 {
+		ret.Mountpoint = d.Mountpoint
+	}
+	if len(d.Fs) > 0 {
+		ret.Fs = d.Fs
+	}
+	return ret
+}
+
+type SImportGuestDesc struct {
+	Id          string            `json:"uuid"`
+	Name        string            `json:"name"`
+	Nics        []SImportNic      `json:"nics"`
+	Disks       []SImportDisk     `json:"disks"`
+	Metadata    map[string]string `json:"metadata"`
+	MemSizeMb   int               `json:"mem"`
+	Cpu         int               `json:"cpu"`
+	TemplateId  string            `json:"template_id"`
+	ImagePath   string            `json:"image_path"`
+	Vdi         string            `json:"vdi"`
+	Hypervisor  string            `json:"hypervisor"`
+	HostId      string            `json:"host"`
+	BootOrder   string            `json:"boot_order"`
+	IsSystem    bool              `json:"is_system"`
+	Description string            `json:"description"`
+}
+
+func (man *SGuestManager) PerformImport(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	desc := SImportGuestDesc{}
+	if err := data.Unmarshal(&desc); err != nil {
+		return nil, httperrors.NewInputParameterError("Invalid desc: %s", data.String())
+	}
+	if len(desc.Id) == 0 {
+		return nil, httperrors.NewInputParameterError("Server Id is empty")
+	}
+	if len(desc.Name) == 0 {
+		return nil, httperrors.NewInputParameterError("Server Name is empty")
+	}
+	if obj, _ := man.FetchByIdOrName(userCred, desc.Id); obj != nil {
+		return nil, httperrors.NewInputParameterError("Server %s already exists", desc.Id)
+	}
+	if err := db.NewNameValidator(man, userCred.GetProjectId(), desc.Name); err != nil {
+		return nil, err
+	}
+	if hostObj, _ := HostManager.FetchByIdOrName(userCred, desc.HostId); hostObj == nil {
+		return nil, httperrors.NewNotFoundError("Host %s not found", desc.HostId)
+	} else {
+		desc.HostId = hostObj.GetId()
+	}
+	// 1. create import guest on host
+	gst, err := man.createImportGuest(ctx, userCred, desc)
+	if err != nil {
+		return nil, err
+	}
+	// 2. import networks
+	if err := gst.importNics(ctx, userCred, desc.Nics); err != nil {
+		return nil, err
+	}
+	// 3. import disks
+	if err := gst.importDisks(ctx, userCred, desc.Disks); err != nil {
+		return nil, err
+	}
+	// 4. set metadata
+	for k, v := range desc.Metadata {
+		gst.SetMetadata(ctx, k, v, userCred)
+	}
+	return jsonutils.Marshal(gst), nil
+}
+
+func (man *SGuestManager) createImportGuest(ctx context.Context, userCred mcclient.TokenCredential, desc SImportGuestDesc) (*SGuest, error) {
+	model, err := db.NewModelObject(man)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	gst, ok := model.(*SGuest)
+	if !ok {
+		return nil, httperrors.NewGeneralError(fmt.Errorf("Can't convert %#v to *SGuest model", model))
+	}
+	gst.ProjectId = userCred.GetProjectId()
+	gst.IsSystem = desc.IsSystem
+	gst.Id = desc.Id
+	gst.Name = desc.Name
+	gst.HostId = desc.HostId
+	gst.Status = "import"
+	gst.Hypervisor = desc.Hypervisor
+	gst.VmemSize = desc.MemSizeMb
+	gst.VcpuCount = int8(desc.Cpu)
+	gst.BootOrder = desc.BootOrder
+	gst.Description = desc.Description
+	err = man.TableSpec().Insert(gst)
+	return gst, err
+}
+
+func (self *SGuest) importNics(ctx context.Context, userCred mcclient.TokenCredential, nics []SImportNic) error {
+	if len(nics) == 0 {
+		return httperrors.NewInputParameterError("Empty import nics")
+	}
+	for _, nic := range nics {
+		net, err := NetworkManager.GetNetworkOfIP(nic.Ip, "", tristate.None)
+		if err != nil {
+			return httperrors.NewNotFoundError("Not found network by ip %s", nic.Ip)
+		}
+		err = self.attach2NetworkDesc(ctx, userCred, self.GetHost(), nic.ToNetConfig(net), nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (self *SGuest) importDisks(ctx context.Context, userCred mcclient.TokenCredential, disks []SImportDisk) error {
+	if len(disks) == 0 {
+		return httperrors.NewInputParameterError("Empty import disks")
+	}
+	for _, disk := range disks {
+		disk, err := self.createDiskOnHost(ctx, userCred, self.GetHost(), disk.ToDiskConfig(), nil, true)
+		if err != nil {
+			return err
+		}
+		disk.SetStatus(userCred, DISK_READY, "")
+	}
+	return nil
 }

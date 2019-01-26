@@ -13,19 +13,19 @@ import (
 const REGION_ZONE_SEP = '-'
 
 type KeystoneEndpointV3 struct {
-	Id        string
-	Interface string
-	Region    string
-	Region_id string
-	Url       string
-	Name      string
+	Id        string `json:"id"`
+	Interface string `json:"interface"`
+	Region    string `json:"region"`
+	Region_id string `json:"region_id"`
+	Url       string `json:"url"`
+	Name      string `json:"name"`
 }
 
 type KeystoneServiceV3 struct {
-	Id        string
-	Name      string
-	Type      string
-	Endpoints []KeystoneEndpointV3
+	Id        string               `json:"id"`
+	Name      string               `json:"name"`
+	Type      string               `json:"type"`
+	Endpoints []KeystoneEndpointV3 `json:"endpoint"`
 }
 
 type KeystoneDomainV3 struct {
@@ -135,8 +135,12 @@ func (this *TokenCredentialV3) IsAdmin() bool {
 	return false
 }
 
-func (this *TokenCredentialV3) IsSystemAdmin() bool {
+func (this *TokenCredentialV3) HasSystemAdminPrivelege() bool {
 	return this.IsAdmin() && this.GetTenantName() == "system"
+}
+
+func (this *TokenCredentialV3) IsAdminAllow(service string, resource string, action string, extra ...string) bool {
+	return this.HasSystemAdminPrivelege()
 }
 
 func (this *TokenCredentialV3) GetRegions() []string {

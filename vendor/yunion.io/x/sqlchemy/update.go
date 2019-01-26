@@ -22,26 +22,23 @@ func (ts *STableSpec) prepareUpdate(dt interface{}) (*SUpdateSession, error) {
 		return nil, fmt.Errorf("Update input must be a Pointer")
 	}
 	dataValue := reflect.ValueOf(dt).Elem()
-	fields := reflectutils.FetchStructFieldNameValueInterfaces(dataValue) //  fetchStructFieldNameValue(dataType, dataValue)
+	fields := reflectutils.FetchStructFieldValueSet(dataValue) //  fetchStructFieldNameValue(dataType, dataValue)
 
 	zeroPrimary := make([]string, 0)
-	zeroKeyIndex := make([]string, 0)
 	for _, c := range ts.columns {
 		k := c.Name()
-		ov, ok := fields[k]
+		ov, ok := fields.GetInterface(k)
 		if !ok {
 			continue
 		}
 		if c.IsPrimary() && c.IsZero(ov) {
 			zeroPrimary = append(zeroPrimary, k)
-		} else if c.IsKeyIndex() && c.IsZero(ov) {
-			zeroKeyIndex = append(zeroKeyIndex, k)
 		}
 	}
 
-	if len(zeroPrimary) > 0 && len(zeroKeyIndex) > 0 {
-		return nil, fmt.Errorf("not a valid data, primary key %s and key index %s are empty",
-			strings.Join(zeroPrimary, ","), strings.Join(zeroKeyIndex, ","))
+	if len(zeroPrimary) > 0 {
+		return nil, fmt.Errorf("not a valid data, primary key %s empty",
+			strings.Join(zeroPrimary, ","))
 	}
 
 	originValue := gotypes.DeepCopyRv(dataValue)
@@ -73,27 +70,22 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 
 	// dataType := reflect.TypeOf(dt).Elem()
 	dataValue := reflect.ValueOf(dt).Elem()
-	ofields := reflectutils.FetchStructFieldNameValueInterfaces(us.oValue)
-	fields := reflectutils.FetchStructFieldNameValueInterfaces(dataValue)
+	ofields := reflectutils.FetchStructFieldValueSet(us.oValue)
+	fields := reflectutils.FetchStructFieldValueSet(dataValue)
 
 	versionFields := make([]string, 0)
 	updatedFields := make([]string, 0)
 	primaries := make(map[string]interface{})
-	keyIndexes := make(map[string]interface{})
 	setters := make(map[string]SUpdateDiff)
 	for _, c := range us.tableSpec.columns {
 		k := c.Name()
-		of, ok := ofields[k]
-		if !ok {
-			continue
-		}
-		nf := fields[k]
-		if c.IsPrimary() && !c.IsZero(of) { // skip update primary key
-			primaries[k] = of
-			continue
-		} else if c.IsKeyIndex() && !c.IsZero(of) {
-			keyIndexes[k] = of
-			continue
+		of, _ := ofields.GetInterface(k)
+		nf, _ := fields.GetInterface(k)
+		if !gotypes.IsNil(of) {
+			if c.IsPrimary() && !c.IsZero(of) { // skip update primary key
+				primaries[k] = of
+				continue
+			}
 		}
 		nc, ok := c.(*SIntegerColumn)
 		if ok && nc.IsAutoVersion {
@@ -107,6 +99,9 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 		}
 		if reflect.DeepEqual(of, nf) {
 			continue
+		}
+		if c.IsZero(nf) && c.IsText() {
+			nf = nil
 		}
 		setters[k] = SUpdateDiff{old: of, new: nf, col: c}
 	}
@@ -125,8 +120,12 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 		} else {
 			buf.WriteString(", ")
 		}
-		buf.WriteString(fmt.Sprintf("`%s` = ?", k))
-		vars = append(vars, v.col.ConvertFromValue(v.new))
+		if gotypes.IsNil(v.new) {
+			buf.WriteString(fmt.Sprintf("`%s` = NULL", k))
+		} else {
+			buf.WriteString(fmt.Sprintf("`%s` = ?", k))
+			vars = append(vars, v.col.ConvertFromValue(v.new))
+		}
 	}
 	for _, versionField := range versionFields {
 		buf.WriteString(fmt.Sprintf(", `%s` = `%s` + 1", versionField, versionField))
@@ -136,15 +135,10 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 	}
 	buf.WriteString(" WHERE ")
 	first = true
-	var indexFields map[string]interface{}
-	if len(primaries) > 0 {
-		indexFields = primaries
-	} else if len(keyIndexes) > 0 {
-		indexFields = keyIndexes
-	} else {
-		return nil, fmt.Errorf("neither primary key nor key indexes empty???")
+	if len(primaries) == 0 {
+		return nil, fmt.Errorf("primary key empty???")
 	}
-	for k, v := range indexFields {
+	for k, v := range primaries {
 		if first {
 			first = false
 		} else {

@@ -59,8 +59,7 @@ func (dispatcher *DBJointModelDispatcher) ListMasterDescendent(ctx context.Conte
 
 	model, err := fetchItem(dispatcher.JointModelManager().GetMasterManager(), ctx, userCred, idStr, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.JointModelManager().GetMasterManager().Keyword(), idStr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.JointModelManager().GetMasterManager().Keyword(), idStr)
 	} else if err != nil {
 		return nil, err
 	}
@@ -86,8 +85,7 @@ func (dispatcher *DBJointModelDispatcher) ListSlaveDescendent(ctx context.Contex
 
 	model, err := fetchItem(dispatcher.JointModelManager().GetSlaveManager(), ctx, userCred, idStr, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.JointModelManager().GetSlaveManager().Keyword(), idStr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.JointModelManager().GetSlaveManager().Keyword(), idStr)
 	} else if err != nil {
 		return nil, err
 	}
@@ -111,7 +109,7 @@ func (dispatcher *DBJointModelDispatcher) _listJoint(ctx context.Context, userCr
 		return nil, httperrors.NewForbiddenError("Not allow to list")
 	}
 
-	items, err := listItems(dispatcher.JointModelManager(), ctx, userCred, queryDict, "")
+	items, err := ListItems(dispatcher.JointModelManager(), ctx, userCred, queryDict, "")
 	if err != nil {
 		log.Errorf("Fail to list items: %s", err)
 		return nil, httperrors.NewGeneralError(err)
@@ -128,7 +126,7 @@ func fetchJointItem(dispatcher *DBJointModelDispatcher, ctx context.Context, use
 	if err != nil {
 		return nil, nil, nil, httperrors.NewGeneralError(err)
 	}
-	item, err := dispatcher.JointModelManager().FetchByIds(master.GetId(), slave.GetId())
+	item, err := FetchJointByIds(dispatcher.JointModelManager(), master.GetId(), slave.GetId(), query)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -139,8 +137,7 @@ func (dispatcher *DBJointModelDispatcher) Get(ctx context.Context, id1 string, i
 	userCred := fetchUserCredential(ctx)
 	_, _, item, err := fetchJointItem(dispatcher, ctx, userCred, id1, id2, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s-%s not found",
-			dispatcher.modelManager.Keyword(), id1, id2))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), id1+"-"+id2)
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -157,7 +154,14 @@ func (dispatcher *DBJointModelDispatcher) Get(ctx context.Context, id1 string, i
 }
 
 func attachItems(dispatcher *DBJointModelDispatcher, master IStandaloneModel, slave IStandaloneModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !dispatcher.JointModelManager().AllowAttach(ctx, userCred, master, slave) {
+	var isAllow bool
+	if consts.IsRbacEnabled() {
+		isAllow = isObjectRbacAllowed(master.GetModelManager(), master, userCred, policy.PolicyActionPerform, "attach") &&
+			isObjectRbacAllowed(slave.GetModelManager(), slave, userCred, policy.PolicyActionPerform, "attach")
+	} else {
+		isAllow = dispatcher.JointModelManager().AllowAttach(ctx, userCred, master, slave)
+	}
+	if !isAllow {
 		return nil, httperrors.NewForbiddenError("Not allow to attach")
 	}
 	ownerProjId, err := fetchOwnerProjectId(ctx, dispatcher.JointModelManager(), userCred, data)
@@ -177,7 +181,7 @@ func attachItems(dispatcher *DBJointModelDispatcher, master IStandaloneModel, sl
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
-	OpsLog.LogAttachEvent(master, slave, userCred, jsonutils.Marshal(item))
+	OpsLog.LogAttachEvent(ctx, master, slave, userCred, jsonutils.Marshal(item))
 	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{item}, userCred, query, data)
 	return getItemDetails(dispatcher.JointModelManager(), item, ctx, userCred, query)
 }
@@ -187,7 +191,7 @@ func (dispatcher *DBJointModelDispatcher) Attach(ctx context.Context, id1 string
 	master, err := fetchItem(dispatcher.JointModelManager().GetMasterManager(), ctx, userCred, id1, query)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, httperrors.NewResourceNotFoundError("%s %d not found", dispatcher.JointModelManager().GetMasterManager().KeywordPlural(), id1)
+			return nil, httperrors.NewResourceNotFoundError2(dispatcher.JointModelManager().GetMasterManager().Keyword(), id1)
 		} else {
 			return nil, httperrors.NewGeneralError(err)
 		}
@@ -195,7 +199,7 @@ func (dispatcher *DBJointModelDispatcher) Attach(ctx context.Context, id1 string
 	slave, err := fetchItem(dispatcher.JointModelManager().GetSlaveManager(), ctx, userCred, id2, query)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, httperrors.NewResourceNotFoundError("%s %d not found", dispatcher.JointModelManager().GetSlaveManager().KeywordPlural(), id2)
+			return nil, httperrors.NewResourceNotFoundError2(dispatcher.JointModelManager().GetSlaveManager().Keyword(), id2)
 		} else {
 			return nil, httperrors.NewGeneralError(err)
 		}
@@ -209,8 +213,12 @@ func (dispatcher *DBJointModelDispatcher) Update(ctx context.Context, id1 string
 	userCred := fetchUserCredential(ctx)
 	master, slave, item, err := fetchJointItem(dispatcher, ctx, userCred, id1, id2, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s-%s not found",
-			dispatcher.modelManager.Keyword(), id1, id2))
+		if jsonutils.QueryBoolean(query, "auto_create", false) {
+			queryDict := query.(*jsonutils.JSONDict)
+			queryDict.Remove("auto_create")
+			return dispatcher.Attach(ctx, id1, id2, query, data)
+		}
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), id1+"-"+id2)
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -222,7 +230,7 @@ func (dispatcher *DBJointModelDispatcher) Update(ctx context.Context, id1 string
 		isAllow = item.AllowUpdateJointItem(ctx, userCred, item)
 	}
 	if !isAllow {
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("Not allow to update item"))
+		return nil, httperrors.NewForbiddenError("Not allow to update item")
 	}
 
 	lockman.LockJointObject(ctx, master, slave)
@@ -234,8 +242,7 @@ func (dispatcher *DBJointModelDispatcher) Detach(ctx context.Context, id1 string
 	userCred := fetchUserCredential(ctx)
 	master, slave, item, err := fetchJointItem(dispatcher, ctx, userCred, id1, id2, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s-%s not found",
-			dispatcher.modelManager.Keyword(), id1, id2))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), id1+"-"+id2)
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -243,7 +250,7 @@ func (dispatcher *DBJointModelDispatcher) Detach(ctx context.Context, id1 string
 	defer lockman.ReleaseJointObject(ctx, master, slave)
 	obj, err := deleteItem(dispatcher.JointModelManager(), item, ctx, userCred, query, data)
 	if err == nil {
-		OpsLog.LogDetachEvent(item.Master(), item.Slave(), userCred, jsonutils.Marshal(item))
+		OpsLog.LogDetachEvent(ctx, item.Master(), item.Slave(), userCred, jsonutils.Marshal(item))
 	}
 	return obj, err
 }
@@ -255,7 +262,7 @@ func DetachJoint(ctx context.Context, userCred mcclient.TokenCredential, item IJ
 	}
 	err = item.Delete(ctx, userCred)
 	if err == nil {
-		OpsLog.LogDetachEvent(item.Master(), item.Slave(), userCred, item.GetShortDesc())
+		OpsLog.LogDetachEvent(ctx, item.Master(), item.Slave(), userCred, item.GetShortDesc(ctx))
 	}
 	return err
 }

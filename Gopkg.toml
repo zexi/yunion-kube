@@ -98,7 +98,7 @@
 
 [[constraint]]
     name = "yunion.io/x/onecloud"
-    branch = "release/2.3.0"
+    branch = "release/2.6.0"
 
 [[constraint]]
     name = "yunion.io/x/cluster-api-provider-onecloud"

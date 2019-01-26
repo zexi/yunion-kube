@@ -9,7 +9,6 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/util/stringutils"
@@ -26,7 +25,6 @@ const (
 
 type SRepoManager struct {
 	db.SStandaloneResourceBaseManager
-	models.SInfrastructureManager
 }
 
 var RepoManager *SRepoManager
@@ -56,7 +54,6 @@ func (m *SRepoManager) InitializeData() error {
 
 type SRepo struct {
 	db.SStandaloneResourceBase
-	models.SInfrastructure
 
 	Url      string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
 	Source   string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"admin"`
@@ -69,7 +66,7 @@ func (man *SRepoManager) AllowListItems(ctx context.Context, userCred mcclient.T
 
 func (man *SRepoManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*db.CustomizeListFilters, error) {
 	filters := db.NewCustomizeListFilters()
-	if userCred.IsSystemAdmin() {
+	if userCred.HasSystemAdminPrivelege() {
 		return filters, nil
 	}
 	publicFilter := func(obj jsonutils.JSONObject) (bool, error) {
@@ -129,15 +126,15 @@ func (man *SRepoManager) ListRepos() ([]SRepo, error) {
 }
 
 func (r *SRepo) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return r.SInfrastructure.AllowGetDetails(ctx, userCred, query) || r.IsPublic
+	return db.IsAdminAllowGet(userCred, r) || r.IsPublic
 }
 
 func (r *SRepo) AllowPerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return userCred.HasSystemAdminPrivelege()
 }
 
 func (r *SRepo) AllowPerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return userCred.HasSystemAdminPrivelege()
 }
 
 func (r *SRepo) PerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

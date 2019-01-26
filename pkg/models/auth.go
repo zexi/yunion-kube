@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"fmt"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -15,7 +16,7 @@ const (
 )
 
 func GetAdminSession() (*mcclient.ClientSession, error) {
-	session := auth.AdminSession(options.Options.Region, "", "", "")
+	session := auth.AdminSession(context.TODO(), options.Options.Region, "", "", "v2")
 	if session == nil {
 		return nil, fmt.Errorf("Can't get cloud session, maybe not init auth package ???")
 	}

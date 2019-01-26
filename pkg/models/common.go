@@ -146,7 +146,7 @@ func ModelCreateFields(man db.IModelManager, userCred mcclient.TokenCredential) 
 		tags := col.Tags()
 		create, _ := tags["create"]
 		update := tags["update"]
-		if update == "user" || (update == "admin" && userCred.IsSystemAdmin()) || create == "required" || create == "optional" || ((create == "admin_required" || create == "admin_optional") && userCred.IsSystemAdmin()) {
+		if update == "user" || (update == "admin" && userCred.HasSystemAdminPrivelege()) || create == "required" || create == "optional" || ((create == "admin_required" || create == "admin_optional") && userCred.HasSystemAdminPrivelege()) {
 			ret = append(ret, col.Name())
 		}
 	}
@@ -186,5 +186,5 @@ func (n *YkeConfigNodeFactory) Save() error {
 }
 
 func allowPerformAction(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return userCred.HasSystemAdminPrivelege()
 }

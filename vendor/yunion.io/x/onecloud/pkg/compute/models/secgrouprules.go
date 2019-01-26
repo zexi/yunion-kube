@@ -9,14 +9,15 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/util/compare"
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/secrules"
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/sqlchemy"
+
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type SSecurityGroupRuleManager struct {
@@ -78,14 +79,14 @@ func (manager *SSecurityGroupRuleManager) AllowListItems(ctx context.Context, us
 
 func (self *SSecurityGroupRule) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
 	if secgroup := self.GetSecGroup(); secgroup != nil {
-		return secgroup.IsOwner(userCred)
+		return secgroup.IsOwner(userCred) || db.IsAdminAllowUpdate(userCred, self)
 	}
 	return false
 }
 
 func (self *SSecurityGroupRule) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	if secgroup := self.GetSecGroup(); secgroup != nil {
-		return secgroup.IsOwner(userCred)
+		return secgroup.IsOwner(userCred) || db.IsAdminAllowDelete(userCred, self)
 	}
 	return false
 }
@@ -109,7 +110,7 @@ func (manager *SSecurityGroupRuleManager) ListItemFilter(ctx context.Context, q 
 		if secgroup, _ := SecurityGroupManager.FetchByIdOrName(userCred, defsecgroup); secgroup != nil {
 			sql = sql.Equals("secgroup_id", secgroup.GetId())
 		} else {
-			return nil, httperrors.NewNotFoundError(fmt.Sprintf("Security Group %s not found", defsecgroup))
+			return nil, httperrors.NewNotFoundError("Security Group %s not found", defsecgroup)
 		}
 	}
 	for _, field := range []string{"direction", "action", "protocol"} {
@@ -165,43 +166,13 @@ func (manager *SSecurityGroupRuleManager) ValidateCreateData(ctx context.Context
 		PortEnd:   -1,
 	}
 	ports, _ := data.GetString("ports")
-	var err error
-	if len(ports) > 0 {
-		if strings.Index(ports, "-") > 0 {
-			portsInfo := strings.Split(ports, "-")
-			if len(portsInfo) != 2 {
-				return nil, httperrors.NewInputParameterError("invalid ports: %s", ports)
-			}
-			rule.PortStart, err = strconv.Atoi(portsInfo[0])
-			if err != nil {
-				return nil, httperrors.NewInputParameterError("invalid port start: %s", portsInfo[0])
-			}
-			rule.PortEnd, err = strconv.Atoi(portsInfo[1])
-			if err != nil {
-				return nil, httperrors.NewInputParameterError("invalid port end: %s", portsInfo[1])
-			}
-		} else if strings.Index(ports, ",") > 0 {
-			for _, port := range strings.Split(ports, ",") {
-				_port, err := strconv.Atoi(port)
-				if err != nil {
-					return nil, httperrors.NewInputParameterError("invalid port : %d", port)
-				}
-				rule.Ports = append(rule.Ports, _port)
-			}
-		} else {
-			port, err := strconv.Atoi(ports)
-			if err != nil {
-				return nil, httperrors.NewInputParameterError("invalid ports: %s", ports)
-			}
-			rule.Ports = append(rule.Ports, port)
-		}
-	}
-
-	err = rule.ValidateRule()
-	if err != nil {
+	if err := rule.ParsePorts(ports); err != nil {
 		return nil, httperrors.NewInputParameterError(err.Error())
 	}
-	return manager.SModelBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+	if err := rule.ValidateRule(); err != nil {
+		return nil, httperrors.NewInputParameterError(err.Error())
+	}
+	return manager.SResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
 
 func (self *SSecurityGroupRule) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -278,6 +249,16 @@ func (self *SSecurityGroupRule) String() string {
 		}
 	}
 	return fields[0] + strings.Join(fields[1:], " ")
+}
+
+func (self *SSecurityGroupRule) toRule() (*secrules.SecurityRule, error) {
+	rule, err := secrules.ParseSecurityRule(self.String())
+	if err != nil {
+		return nil, err
+	}
+	rule.Description = self.Description
+	rule.Priority = int(self.Priority)
+	return rule, nil
 }
 
 func (self *SSecurityGroupRule) SingleRules() ([]secrules.SecurityRule, error) {
@@ -420,12 +401,17 @@ func (manager *SSecurityGroupRuleManager) newFromCloudSecurityGroup(rule secrule
 		protocol = secrules.PROTO_ANY
 	}
 
+	cidr := "0.0.0.0/0"
+	if rule.IPNet != nil && rule.IPNet.String() != "<nil>" {
+		cidr = rule.IPNet.String()
+	}
+
 	secrule := &SSecurityGroupRule{
 		Priority:    int64(rule.Priority),
 		Protocol:    protocol,
 		Ports:       "",
 		Direction:   string(rule.Direction),
-		CIDR:        rule.IPNet.String(),
+		CIDR:        cidr,
 		Action:      string(rule.Action),
 		Description: rule.Description,
 		SecgroupID:  secgroup.Id,
@@ -449,4 +435,16 @@ func (manager *SSecurityGroupRuleManager) newFromCloudSecurityGroup(rule secrule
 		return nil, err
 	}
 	return secrule, nil
+}
+
+func (manager *SSecurityGroupRuleManager) GetOwnerId(userCred mcclient.IIdentityProvider) string {
+	return userCred.GetProjectId()
+}
+
+func (self *SSecurityGroupRule) GetOwnerProjectId() string {
+	secgrp := self.GetSecGroup()
+	if secgrp != nil {
+		return secgrp.ProjectId
+	}
+	return ""
 }

@@ -443,6 +443,14 @@
   revision = "9cad4c3443a7200dd6400aef47183728de563a38"
 
 [[projects]]
+  digest = "1:09970bb8daf100bdf11b48b72c71ef980cd2b50efbd903989b3d182956be0b83"
+  name = "github.com/hako/durafmt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "7b7ae1e72eade09dbc9c2cfba3e6c4bae7b8bcac"
+  version = "1.0.0"
+
+[[projects]]
   digest = "1:8ec8d88c248041a6df5f6574b87bc00e7e0b493881dad2e7ef47b11dc69093b5"
   name = "github.com/hashicorp/golang-lru"
   packages = [
@@ -1354,22 +1362,28 @@
   revision = "cd34563cd63c2bd7c6fe88a73c4dcf34ed8a67cb"
 
 [[projects]]
-  digest = "1:4e1fd585209a204c359bdf42091c8c1ed13e8bd4c85f1e2b45f28a88ab2f0d69"
+  digest = "1:20168984ec67f3daf9f0c7a34896b53cfbe74395be3f4e7f7ad655bce28aa7d2"
   name = "sigs.k8s.io/cluster-api"
   packages = [
+    "cmd/clusterctl/clientcmd",
     "pkg/apis/cluster/common",
     "pkg/apis/cluster/v1alpha1",
     "pkg/client/clientset_generated/clientset",
     "pkg/client/clientset_generated/clientset/scheme",
     "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
+    "pkg/util",
   ]
   pruneopts = "UT"
   revision = "f03f47c17d09c4765a1bfdd204f8d814196cb3d8"
 
 [[projects]]
-  digest = "1:84a8609383bec11b71d52dd813f33f1d16614b91966940bdc2aa79bea864fa25"
+  digest = "1:9b89872389bed1e6647547b868c3f9fa813f8adf098ba0984bc672e4b78ae235"
   name = "sigs.k8s.io/controller-runtime"
-  packages = ["pkg/runtime/scheme"]
+  packages = [
+    "pkg/client",
+    "pkg/client/apiutil",
+    "pkg/runtime/scheme",
+  ]
   pruneopts = "UT"
   revision = "12d98582e72927b6cd0123e2b4e819f9341ce62c"
   version = "v0.1.10"
@@ -1392,19 +1406,23 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:24083112c6107c8525c492394388f37d5da184c0b615e080aa0895e4ab5a14f3"
+  digest = "1:e275a1fe55959c8ab119e031775059663ea8aa9ba9783b5b0e82e7560d4e8c90"
   name = "yunion.io/x/cluster-api-provider-onecloud"
-  packages = ["pkg/apis/onecloudprovider/v1alpha1"]
+  packages = [
+    "pkg/apis/onecloudprovider/v1alpha1",
+    "pkg/cloud/onecloud/actuators",
+    "pkg/cloud/onecloud/services/certificates",
+  ]
   pruneopts = "UT"
-  revision = "89c78c017c925749dd49b3f28a63347b406f2a68"
+  revision = "c5b6589e51ebee08d5938f9ef138736cb7501387"
 
 [[projects]]
   branch = "master"
-  digest = "1:54554b3c72f4fcbd3c27c5137f9acd9d153d7e7150d77cd509af50c75fcb41b9"
+  digest = "1:9a92b34083e218c123d21a4b0d74228df6b186de9dcd6489e5b4cf68f4e90104"
   name = "yunion.io/x/jsonutils"
   packages = ["."]
   pruneopts = "UT"
-  revision = "7079aada4c7e9a37e4c3b183bddb0ef684e038f2"
+  revision = "c40afc81cccc4618168f722c64deba7cfbb1f8bd"
 
 [[projects]]
   branch = "master"
@@ -1418,8 +1436,8 @@
   revision = "5185c49f6d361f61e561fbccba1bedcc7c62748b"
 
 [[projects]]
-  branch = "release/2.3.0"
-  digest = "1:fc43d321a9c3643e9247f45f6e3ddc29b9587a799de4b44d080c5b0d1745113d"
+  branch = "release/2.6.0"
+  digest = "1:185f05785ad419714c3820858a013acf8b7bec287c00c2d11c16639ffc7686a4"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
@@ -1432,6 +1450,7 @@
     "pkg/cloudcommon/db/quotas",
     "pkg/cloudcommon/db/taskman",
     "pkg/cloudcommon/notifyclient",
+    "pkg/cloudcommon/pending_delete",
     "pkg/cloudcommon/policy",
     "pkg/cloudcommon/validators",
     "pkg/cloudprovider",
@@ -1443,20 +1462,27 @@
     "pkg/mcclient",
     "pkg/mcclient/auth",
     "pkg/mcclient/modules",
+    "pkg/mcclient/modules/k8s",
+    "pkg/mcclient/modules/notify",
     "pkg/proxy",
+    "pkg/util/ansible",
+    "pkg/util/billing",
+    "pkg/util/cloudinit",
     "pkg/util/conditionparser",
+    "pkg/util/hashcache",
     "pkg/util/httputils",
     "pkg/util/imagetools",
+    "pkg/util/k8s",
     "pkg/util/logclient",
     "pkg/util/rbacutils",
     "pkg/util/seclib2",
   ]
   pruneopts = "UT"
-  revision = "741ab54f2d314c4467b144f1ee81f8a07f030f55"
+  revision = "abfe3f4c3c2c9395d84c68bc4e5c2fd22b30fd96"
 
 [[projects]]
   branch = "master"
-  digest = "1:c250ec13ba0e09939cc13dd1d8d3191b22d4d8dabb0e53092e06118b5b91c201"
+  digest = "1:defa9ce7b7f04438c6d46eb7dca251e7a8d9f30e9f1319618fabd99af316d59a"
   name = "yunion.io/x/pkg"
   packages = [
     "gotypes",
@@ -1477,7 +1503,6 @@
     "util/secrules",
     "util/sets",
     "util/stringutils",
-    "util/sysutils",
     "util/timeutils",
     "util/version",
     "util/wait",
@@ -1485,23 +1510,23 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "d6652934a347e815bfaa18dffe9cafc3f0409cf6"
+  revision = "e2e42205d868c26829b9322b40cdc48f24fed379"
 
 [[projects]]
   branch = "master"
-  digest = "1:66b13d3803b8ff8f26c3ca0422fb18ca0362dff62240e436b0aa0a921f833bb9"
+  digest = "1:0e3c8da76b7b7ba0f67ef0737d361e117b65bd328bfbcb28fb030268df587ca9"
   name = "yunion.io/x/sqlchemy"
   packages = ["."]
   pruneopts = "UT"
-  revision = "7de55aae3ef9b019c47d21ff8fa4add1a9c80eb7"
+  revision = "0b1ca973f3e5140dee7e773fc51cfc8c07ce0f69"
 
 [[projects]]
   branch = "master"
-  digest = "1:f07a1ef9758f56186dd9039a8608bc9d537070a7c04479dbab6aeb42501001b7"
+  digest = "1:cec4892868ae1c9fec0d2cace79d4c43e620345cc3c070d004dec09caf197208"
   name = "yunion.io/x/structarg"
   packages = ["."]
   pruneopts = "UT"
-  revision = "ba8620a6258308b3faa4174d4c2d81a6f70b57ea"
+  revision = "f39549642b91f03f0b46403f9856d4750e3e59eb"
 
 [[projects]]
   branch = "release/2.4.0"
@@ -1585,6 +1610,7 @@
     "k8s.io/client-go/deprecated-dynamic",
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/kubernetes",
+    "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/restmapper",
     "k8s.io/client-go/tools/cache",
@@ -1610,11 +1636,13 @@
     "k8s.io/helm/pkg/timeconv",
     "k8s.io/helm/pkg/tlsutil",
     "k8s.io/helm/pkg/version",
-    "k8s.io/kubernetes/pkg/kubectl/cmd/util",
     "k8s.io/kubernetes/pkg/util/mount",
+    "sigs.k8s.io/cluster-api/cmd/clusterctl/clientcmd",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
+    "sigs.k8s.io/cluster-api/pkg/util",
     "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1",
+    "yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates",
     "yunion.io/x/jsonutils",
     "yunion.io/x/log",
     "yunion.io/x/onecloud/pkg/appctx",
@@ -1629,7 +1657,9 @@
     "yunion.io/x/onecloud/pkg/mcclient/auth",
     "yunion.io/x/onecloud/pkg/mcclient/modules",
     "yunion.io/x/onecloud/pkg/util/httputils",
+    "yunion.io/x/onecloud/pkg/util/k8s",
     "yunion.io/x/pkg/gotypes",
+    "yunion.io/x/pkg/tristate",
     "yunion.io/x/pkg/util/cache",
     "yunion.io/x/pkg/util/errors",
     "yunion.io/x/pkg/util/netutils",

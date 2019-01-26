@@ -42,7 +42,7 @@ func prepareEnv() {
 	os.Unsetenv("SSH_AGENT_PID")
 	os.Setenv("DISABLE_HTTP2", "true")
 
-	cloudcommon.ParseOptions(&options.Options, &options.Options.Options, os.Args, "kube-server.conf")
+	cloudcommon.ParseOptions(&options.Options, os.Args, "kube-server.conf", "k8s")
 	// TODO: support rbac
 	options.Options.EnableRbac = false
 	runtime.ReallyCrash = false
@@ -53,7 +53,7 @@ func Run(ctx context.Context) error {
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
 
-	app := cloudcommon.InitApp(&options.Options.Options)
+	app := cloudcommon.InitApp(&options.Options.CommonOptions, true)
 	InitHandlers(app)
 
 	if db.CheckSync(options.Options.AutoSyncTable) {
@@ -75,7 +75,7 @@ func Run(ctx context.Context) error {
 
 	go RegisterDriver(scaledCtx)
 
-	cloudcommon.InitAuth(&options.Options.Options, func() {
+	cloudcommon.InitAuth(&options.Options.CommonOptions, func() {
 		log.Infof("Auth complete, start controllers.")
 		go func() {
 			controllers.Start()

@@ -1,11 +1,15 @@
 package logclient
 
 import (
+	"context"
+	"strings"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/util/stringutils"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -56,7 +60,16 @@ const (
 	ACT_VM_SYNC_STATUS               = "同步状态"
 	ACT_VM_UNBIND_KEYPAIR            = "解绑密钥"
 	ACT_VM_ASSIGNSECGROUP            = "关联安全组"
+	ACT_VM_REVOKESECGROUP            = "取消关联安全组"
+	ACT_VM_SETSECGROUP               = "设置安全组"
 	ACT_RESET_DISK                   = "回滚磁盘"
+	ACT_SYNC_STATUS                  = "同步状态"
+	ACT_SYNC_CONF                    = "同步配置"
+
+	ACT_IMAGE_SAVE = "上传镜像"
+
+	ACT_RECYCLE_PREPAID      = "池化预付费主机"
+	ACT_UNDO_RECYCLE_PREPAID = "取消池化预付费主机"
 )
 
 // golang 不支持 const 的string array, http://t.cn/EzAvbw8
@@ -65,13 +78,18 @@ var BLACK_LIST_OBJ_TYPE = []string{"parameter"}
 var logclientWorkerMan *appsrv.SWorkerManager
 
 func init() {
-	logclientWorkerMan = appsrv.NewWorkerManager("LogClientWorkerManager", 1, 50)
+	logclientWorkerMan = appsrv.NewWorkerManager("LogClientWorkerManager", 1, 50, false)
 }
 
 type IObject interface {
 	GetId() string
 	GetName() string
 	Keyword() string
+}
+
+type IVirtualObject interface {
+	IObject
+	GetOwnerProjectId() string
 }
 
 type IModule interface {
@@ -89,6 +107,9 @@ func PostWebsocketNotify(model IObject, action string, iNotes interface{}, userC
 }
 
 func addLog(model IObject, action string, iNotes interface{}, userCred mcclient.TokenCredential, success bool, api IModule) {
+	if !consts.OpsLogEnabled() {
+		return
+	}
 
 	token := userCred
 	notes := stringutils.Interface2String(iNotes)
@@ -111,6 +132,7 @@ func addLog(model IObject, action string, iNotes interface{}, userCred mcclient.
 	}
 
 	logentry := jsonutils.NewDict()
+
 	logentry.Add(jsonutils.NewString(objName), "obj_name")
 	logentry.Add(jsonutils.NewString(model.Keyword()), "obj_type")
 	logentry.Add(jsonutils.NewString(objId), "obj_id")
@@ -119,6 +141,16 @@ func addLog(model IObject, action string, iNotes interface{}, userCred mcclient.
 	logentry.Add(jsonutils.NewString(token.GetUserName()), "user")
 	logentry.Add(jsonutils.NewString(token.GetTenantId()), "tenant_id")
 	logentry.Add(jsonutils.NewString(token.GetTenantName()), "tenant")
+	logentry.Add(jsonutils.NewString(token.GetDomainId()), "domain_id")
+	logentry.Add(jsonutils.NewString(token.GetDomainName()), "domain")
+	logentry.Add(jsonutils.NewString(strings.Join(token.GetRoles(), ",")), "roles")
+
+	if virtualModel, ok := model.(IVirtualObject); ok {
+		ownerProjId := virtualModel.GetOwnerProjectId()
+		if len(ownerProjId) > 0 {
+			logentry.Add(jsonutils.NewString(ownerProjId), "owner_tenant_id")
+		}
+	}
 
 	if !success {
 		// 失败日志
@@ -130,7 +162,7 @@ func addLog(model IObject, action string, iNotes interface{}, userCred mcclient.
 
 	logentry.Add(jsonutils.NewString(notes), "notes")
 	logclientWorkerMan.Run(func() {
-		s := auth.GetSession(userCred, "", "")
+		s := auth.GetSession(context.Background(), userCred, "", "")
 		_, err := api.Create(s, logentry)
 		if err != nil {
 			log.Errorf("create action log failed %s", err)

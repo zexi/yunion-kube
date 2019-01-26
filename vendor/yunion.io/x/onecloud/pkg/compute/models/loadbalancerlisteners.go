@@ -7,11 +7,15 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/util/compare"
+	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/validators"
+	"yunion.io/x/onecloud/pkg/cloudprovider"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
@@ -33,6 +37,11 @@ func init() {
 	}
 }
 
+type SLoadbalancerHTTPRateLimiter struct {
+	HTTPRequestRate       int `nullable:"false" list:"user" create:"optional" update:"user"`
+	HTTPRequestRatePerSrc int `nullable:"false" list:"user" create:"optional" update:"user"`
+}
+
 type SLoadbalancerTCPListener struct{}
 type SLoadbalancerUDPListener struct{}
 
@@ -43,8 +52,6 @@ type SLoadbalancerHTTPListener struct {
 	StickySessionCookie        string `width:"128" charset:"ascii" nullable:"false" list:"user" create:"optional" update:"user"`
 	StickySessionCookieTimeout int    `nullable:"false" list:"user" create:"optional" update:"user"`
 
-	//XForwardedForSLBIP bool `nullable:"false" list:"user" create:"optional"`
-	//XForwardedForSLBID bool `nullable:"false" list:"user" create:"optional"`
 	XForwardedFor bool `nullable:"false" list:"user" create:"optional" update:"user"`
 	Gzip          bool `nullable:"false" list:"user" create:"optional" update:"user"`
 }
@@ -63,13 +70,15 @@ type SLoadbalancerHTTPSListener struct {
 
 type SLoadbalancerListener struct {
 	db.SVirtualResourceBase
+	SManagedResourceBase
 
-	LoadbalancerId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"optional"`
-	ListenerType   string `width:"16" charset:"ascii" nullable:"false" list:"user" create:"required"`
-	ListenerPort   int    `nullable:"false" list:"user" create:"required"`
-	BackendGroupId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"optional" update:"user"`
+	CloudregionId     string `width:"36" charset:"ascii" nullable:"false" list:"admin" default:"default" create:"optional"`
+	LoadbalancerId    string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"optional"`
+	ListenerType      string `width:"16" charset:"ascii" nullable:"false" list:"user" create:"required"`
+	ListenerPort      int    `nullable:"false" list:"user" create:"required"`
+	BackendGroupId    string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"optional" update:"user"`
+	BackendServerPort int    `nullable:"false" get:"user" list:"user" default:"0" create:"optional"`
 
-	Bandwidth int    `nullable:"false" list:"user" create:"optional" update:"user"`
 	Scheduler string `width:"16" charset:"ascii" nullable:"false" list:"user" create:"required" update:"user"`
 
 	ClientRequestTimeout  int `nullable:"false" list:"user" create:"optional" update:"user"`
@@ -100,6 +109,8 @@ type SLoadbalancerListener struct {
 	SLoadbalancerUDPListener
 	SLoadbalancerHTTPListener
 	SLoadbalancerHTTPSListener
+
+	SLoadbalancerHTTPRateLimiter
 }
 
 func (man *SLoadbalancerListenerManager) checkListenerUniqueness(ctx context.Context, lb *SLoadbalancer, listenerType string, listenerPort int64) error {
@@ -128,7 +139,7 @@ func (man *SLoadbalancerListenerManager) PreDeleteSubs(ctx context.Context, user
 	subs := []SLoadbalancerListener{}
 	db.FetchModelObjects(man, q, &subs)
 	for _, sub := range subs {
-		sub.PreDelete(ctx, userCred)
+		sub.DoPendingDelete(ctx, userCred)
 	}
 }
 
@@ -139,29 +150,13 @@ func (man *SLoadbalancerListenerManager) ListItemFilter(ctx context.Context, q *
 	}
 	userProjId := userCred.GetProjectId()
 	data := query.(*jsonutils.JSONDict)
-	{
-		lbV := validators.NewModelIdOrNameValidator("loadbalancer", "loadbalancer", userProjId)
-		lbV.Optional(true)
-		q, err = lbV.QueryFilter(q, data)
-		if err != nil {
-			return nil, err
-		}
-	}
-	{
-		backendGroupV := validators.NewModelIdOrNameValidator("backend_group", "loadbalancerbackendgroup", userProjId)
-		backendGroupV.Optional(true)
-		q, err = backendGroupV.QueryFilter(q, data)
-		if err != nil {
-			return nil, err
-		}
-	}
-	{
-		aclV := validators.NewModelIdOrNameValidator("acl", "loadbalanceracl", userProjId)
-		aclV.Optional(true)
-		q, err = aclV.QueryFilter(q, data)
-		if err != nil {
-			return nil, err
-		}
+	q, err = validators.ApplyModelFilters(q, data, []*validators.ModelFilterOptions{
+		{Key: "loadbalancer", ModelKeyword: "loadbalancer", ProjectId: userProjId},
+		{Key: "backend_group", ModelKeyword: "loadbalancerbackendgroup", ProjectId: userProjId},
+		{Key: "acl", ModelKeyword: "loadbalanceracl", ProjectId: userProjId},
+	})
+	if err != nil {
+		return nil, err
 	}
 	return q, nil
 }
@@ -201,6 +196,9 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 
 		"x_forwarded_for": validators.NewBoolValidator("x_forwarded_for").Default(true),
 		"gzip":            validators.NewBoolValidator("gzip").Default(false),
+
+		"http_request_rate":         validators.NewNonNegativeValidator("http_request_rate").Default(0),
+		"http_request_rate_per_src": validators.NewNonNegativeValidator("http_request_rate_per_src").Default(0),
 	}
 	for _, v := range keyV {
 		if err := v.Validate(data); err != nil {
@@ -208,6 +206,8 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 		}
 	}
 	lb := lbV.Model.(*SLoadbalancer)
+	data.Set("manager_id", jsonutils.NewString(lb.ManagerId))
+	data.Set("cloudregion_id", jsonutils.NewString(lb.CloudregionId))
 	listenerPort := listenerPortV.Value
 	listenerType := listenerTypeV.Value
 	{
@@ -237,6 +237,10 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 					return nil, err
 				}
 			}
+			cert := certV.Model.(*SLoadbalancerCertificate)
+			if cert.CloudregionId != lb.CloudregionId {
+				return nil, httperrors.NewInputParameterError("certificate %s(%s) and lb %s(%s) are not in the same region", cert.Name, cert.Id, lb.Name, lb.Id)
+			}
 		}
 	}
 	{
@@ -246,8 +250,8 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 			"health_check":      validators.NewStringChoicesValidator("health_check", LB_BOOL_VALUES).Default(LB_BOOL_ON),
 			"health_check_type": checkTypeV,
 
-			"health_check_domain":    validators.NewDomainNameValidator("domain").AllowEmpty(true).Default(""),
-			"health_check_path":      validators.NewURLPathValidator("path").Default(""),
+			"health_check_domain":    validators.NewDomainNameValidator("health_check_domain").AllowEmpty(true).Default(""),
+			"health_check_path":      validators.NewURLPathValidator("health_check_path").Default(""),
 			"health_check_http_code": validators.NewStringMultiChoicesValidator("health_check_http_code", LB_HEALTH_CHECK_HTTP_CODES).Sep(",").Default(LB_HEALTH_CHECK_HTTP_CODE_DEFAULT),
 
 			"health_check_rise":     validators.NewRangeValidator("health_check_rise", 1, 1000).Default(3),
@@ -264,7 +268,14 @@ func (man *SLoadbalancerListenerManager) ValidateCreateData(ctx context.Context,
 	if err := man.validateAcl(aclStatusV, aclTypeV, aclV, data); err != nil {
 		return nil, err
 	}
-	return man.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+	if _, err := man.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data); err != nil {
+		return nil, err
+	}
+	region := lb.GetRegion()
+	if region == nil {
+		return nil, httperrors.NewResourceNotFoundError("failed to find region for loadbalancer %s", lb.Name)
+	}
+	return region.GetDriver().ValidateCreateLoadbalancerListenerData(ctx, userCred, data, backendGroupV.Model)
 }
 
 func (man *SLoadbalancerListenerManager) checkTypeV(listenerType string) validators.IValidator {
@@ -295,7 +306,56 @@ func (man *SLoadbalancerListenerManager) validateAcl(aclStatusV *validators.Vali
 }
 
 func (lblis *SLoadbalancerListener) AllowPerformStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return lblis.IsOwner(userCred) || userCred.IsSystemAdmin()
+	return lblis.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, lblis, "status")
+}
+
+func (lblis *SLoadbalancerListener) PerformStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if _, err := lblis.SVirtualResourceBase.PerformStatus(ctx, userCred, query, data); err != nil {
+		return nil, err
+	}
+	if lblis.Status == LB_STATUS_ENABLED {
+		return nil, lblis.StartLoadBalancerListenerStartTask(ctx, userCred, "")
+	}
+	return nil, lblis.StartLoadBalancerListenerStopTask(ctx, userCred, "")
+}
+
+func (lblis *SLoadbalancerListener) StartLoadBalancerListenerStartTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "LoadbalancerListenerStartTask", lblis, userCred, nil, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (lblis *SLoadbalancerListener) StartLoadBalancerListenerStopTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "LoadbalancerListenerStopTask", lblis, userCred, nil, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (lblis *SLoadbalancerListener) AllowPerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, lblis, "syncstatus")
+}
+
+func (lblis *SLoadbalancerListener) PerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	params := jsonutils.NewDict()
+	if utils.IsInStringArray(lblis.Status, []string{LB_STATUS_ENABLED, LB_STATUS_DISABLED}) {
+		params.Add(jsonutils.NewString(lblis.Status), "origin_status")
+	}
+	return nil, lblis.StartLoadBalancerListenerSyncstatusTask(ctx, userCred, params, "")
+}
+
+func (lblis *SLoadbalancerListener) StartLoadBalancerListenerSyncstatusTask(ctx context.Context, userCred mcclient.TokenCredential, params *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "LoadbalancerListenerSyncstatusTask", lblis, userCred, params, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -333,8 +393,8 @@ func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, user
 		"health_check":      validators.NewStringChoicesValidator("health_check", LB_BOOL_VALUES),
 		"health_check_type": LoadbalancerListenerManager.checkTypeV(lblis.ListenerType),
 
-		"health_check_domain":    validators.NewDomainNameValidator("domain").AllowEmpty(true),
-		"health_check_path":      validators.NewURLPathValidator("path"),
+		"health_check_domain":    validators.NewDomainNameValidator("health_check_domain").AllowEmpty(true),
+		"health_check_path":      validators.NewURLPathValidator("health_check_path"),
 		"health_check_http_code": validators.NewStringMultiChoicesValidator("health_check_http_code", LB_HEALTH_CHECK_HTTP_CODES).Sep(","),
 
 		"health_check_rise":     validators.NewRangeValidator("health_check_rise", 1, 1000),
@@ -345,9 +405,12 @@ func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, user
 		"x_forwarded_for": validators.NewBoolValidator("x_forwarded_for"),
 		"gzip":            validators.NewBoolValidator("gzip"),
 
+		"http_request_rate":         validators.NewNonNegativeValidator("http_request_rate"),
+		"http_request_rate_per_src": validators.NewNonNegativeValidator("http_request_rate_per_src"),
+
 		"certificate":       certV,
 		"tls_cipher_policy": tlsCipherPolicyV,
-		"enable_http2":      validators.NewBoolValidator("enable_http2").Default(true),
+		"enable_http2":      validators.NewBoolValidator("enable_http2"),
 	}
 	for _, v := range keyV {
 		v.Optional(true)
@@ -364,7 +427,35 @@ func (lblis *SLoadbalancerListener) ValidateUpdateData(ctx context.Context, user
 				backendGroup.Name, backendGroup.Id, backendGroup.LoadbalancerId, lblis.LoadbalancerId)
 		}
 	}
-	return lblis.SVirtualResourceBase.ValidateUpdateData(ctx, userCred, query, data)
+	if _, err := lblis.SVirtualResourceBase.ValidateUpdateData(ctx, userCred, query, data); err != nil {
+		return nil, err
+	}
+
+	region := lblis.GetRegion()
+	if region == nil {
+		return nil, httperrors.NewResourceNotFoundError("failed to find region for loadbalancer listener %s", lblis.Name)
+	}
+
+	return region.GetDriver().ValidateUpdateLoadbalancerListenerData(ctx, userCred, data, backendGroupV.Model)
+}
+
+func (lblis *SLoadbalancerListener) PostUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	lblis.SVirtualResourceBase.PostUpdate(ctx, userCred, query, data)
+	lblis.StartLoadBalancerListenerSyncTask(ctx, userCred, "")
+}
+
+func (lblis *SLoadbalancerListener) StartLoadBalancerListenerSyncTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	params := jsonutils.NewDict()
+	if utils.IsInStringArray(lblis.Status, []string{LB_STATUS_ENABLED, LB_STATUS_DISABLED}) {
+		params.Add(jsonutils.NewString(lblis.Status), "origin_status")
+	}
+	lblis.SetStatus(userCred, LB_SYNC_CONF, "")
+	task, err := taskman.TaskManager.NewTask(ctx, "LoadbalancerListenerSyncTask", lblis, userCred, params, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (lblis *SLoadbalancerListener) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
@@ -393,15 +484,59 @@ func (lblis *SLoadbalancerListener) GetCustomizeColumns(ctx context.Context, use
 	return extra
 }
 
-func (lblis *SLoadbalancerListener) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
+func (lblis *SLoadbalancerListener) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
 	extra := lblis.GetCustomizeColumns(ctx, userCred, query)
-	return extra
+	return extra, nil
 }
 
-func (lblis *SLoadbalancerListener) PreDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	lblis.SetStatus(userCred, LB_STATUS_DISABLED, "preDelete")
-	lblis.DoPendingDelete(ctx, userCred)
-	lblis.PreDeleteSubs(ctx, userCred)
+func (lblis *SLoadbalancerListener) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	lblis.SVirtualResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+
+	lblis.SetStatus(userCred, LB_CREATING, "")
+	if err := lblis.StartLoadBalancerListenerCreateTask(ctx, userCred, ""); err != nil {
+		log.Errorf("Failed to create loadbalancer listener error: %v", err)
+	}
+}
+
+func (lblis *SLoadbalancerListener) StartLoadBalancerListenerCreateTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "LoadbalancerListenerCreateTask", lblis, userCred, nil, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (lblis *SLoadbalancerListener) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, lblis, "purge")
+}
+
+func (lblis *SLoadbalancerListener) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	parasm := jsonutils.NewDict()
+	parasm.Add(jsonutils.JSONTrue, "purge")
+	return nil, lblis.StartLoadBalancerListenerDeleteTask(ctx, userCred, parasm, "")
+}
+
+func (lblis *SLoadbalancerListener) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, lblis, "sync")
+}
+
+func (lblis *SLoadbalancerListener) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, lblis.StartLoadBalancerListenerSyncTask(ctx, userCred, "")
+}
+
+func (lblis *SLoadbalancerListener) StartLoadBalancerListenerDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, params *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "LoadbalancerListenerDeleteTask", lblis, userCred, params, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (lblis *SLoadbalancerListener) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	lblis.SetStatus(userCred, LB_STATUS_DELETING, "")
+	return lblis.StartLoadBalancerListenerDeleteTask(ctx, userCred, jsonutils.NewDict(), "")
 }
 
 func (lblis *SLoadbalancerListener) PreDeleteSubs(ctx context.Context, userCred mcclient.TokenCredential) {
@@ -412,8 +547,274 @@ func (lblis *SLoadbalancerListener) PreDeleteSubs(ctx context.Context, userCred 
 	defer lockman.ReleaseClass(ctx, subMan, ownerProjId)
 	q := subMan.Query().Equals("listener_id", lblis.Id)
 	subMan.PreDeleteSubs(ctx, userCred, q)
+	lblis.DoPendingDelete(ctx, userCred)
 }
 
 func (lblis *SLoadbalancerListener) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	return nil
+}
+
+func (lblis *SLoadbalancerListener) GetLoadbalancerListenerParams() (*cloudprovider.SLoadbalancerListener, error) {
+	listener := &cloudprovider.SLoadbalancerListener{
+		Name:               lblis.Name,
+		Description:        lblis.Description,
+		ListenerType:       lblis.ListenerType,
+		ListenerPort:       lblis.ListenerPort,
+		Scheduler:          lblis.Scheduler,
+		EnableHTTP2:        lblis.EnableHttp2,
+		Bandwidth:          0,
+		EstablishedTimeout: lblis.BackendConnectTimeout,
+
+		HealthCheck:         lblis.HealthCheck,
+		HealthCheckTimeout:  lblis.HealthCheckTimeout,
+		HealthCheckDomain:   lblis.HealthCheckDomain,
+		HealthCheckHttpCode: lblis.HealthCheckHttpCode,
+		HealthCheckURI:      lblis.HealthCheckURI,
+		HealthCheckInterval: lblis.HealthCheckInterval,
+
+		HealthCheckRise: lblis.HealthCheckRise,
+		HealthCheckFail: lblis.HealthCheckFall,
+
+		StickySession:              lblis.StickySession,
+		StickySessionType:          lblis.StickySessionType,
+		StickySessionCookie:        lblis.StickySessionCookie,
+		StickySessionCookieTimeout: lblis.StickySessionCookieTimeout,
+
+		BackendServerPort: lblis.BackendServerPort,
+		XForwardedFor:     lblis.XForwardedFor,
+		TLSCipherPolicy:   lblis.TLSCipherPolicy,
+		Gzip:              lblis.Gzip,
+	}
+	if acl := lblis.GetLoadbalancerAcl(); acl != nil {
+		listener.AccessControlListID = acl.ExternalId
+		listener.AccessControlListType = lblis.AclType
+		listener.AccessControlListStatus = lblis.AclStatus
+	}
+	if certificate := lblis.GetLoadbalancerCertificate(); certificate != nil && lblis.ListenerType == LB_LISTENER_TYPE_HTTPS {
+		listener.CertificateID = certificate.ExternalId
+	}
+
+	if backendgroup := lblis.GetLoadbalancerBackendGroup(); backendgroup != nil {
+		listener.BackendGroupID = backendgroup.ExternalId
+		listener.BackendGroupType = backendgroup.Type
+	}
+	return listener, nil
+}
+
+func (lblis *SLoadbalancerListener) GetLoadbalancerCertificate() *SLoadbalancerCertificate {
+	if len(lblis.CertificateId) == 0 {
+		return nil
+	}
+	certificate, err := LoadbalancerCertificateManager.FetchById(lblis.CertificateId)
+	if err != nil {
+		return nil
+	}
+	return certificate.(*SLoadbalancerCertificate)
+}
+
+func (lblis *SLoadbalancerListener) GetLoadbalancerAcl() *SLoadbalancerAcl {
+	acl, err := LoadbalancerAclManager.FetchById(lblis.AclId)
+	if err != nil {
+		return nil
+	}
+	return acl.(*SLoadbalancerAcl)
+}
+
+func (lblis *SLoadbalancerListener) GetLoadbalancerBackendGroup() *SLoadbalancerBackendGroup {
+	group, err := LoadbalancerBackendGroupManager.FetchById(lblis.BackendGroupId)
+	if err != nil {
+		return nil
+	}
+	return group.(*SLoadbalancerBackendGroup)
+}
+
+func (lblis *SLoadbalancerListener) GetLoadbalancer() *SLoadbalancer {
+	loadbalancer, err := LoadbalancerManager.FetchById(lblis.LoadbalancerId)
+	if err != nil {
+		log.Errorf("failed to find loadbalancer for loadbalancer listener %s", lblis.Name)
+		return nil
+	}
+	return loadbalancer.(*SLoadbalancer)
+}
+
+func (lblis *SLoadbalancerListener) GetRegion() *SCloudregion {
+	if loadbalancer := lblis.GetLoadbalancer(); loadbalancer != nil {
+		return loadbalancer.GetRegion()
+	}
+	return nil
+}
+
+func (lblis *SLoadbalancerListener) GetIRegion() (cloudprovider.ICloudRegion, error) {
+	if loadbalancer := lblis.GetLoadbalancer(); loadbalancer != nil {
+		return loadbalancer.GetIRegion()
+	}
+	return nil, fmt.Errorf("failed to find loadbalancer for lblis %s", lblis.Name)
+}
+
+func (man *SLoadbalancerListenerManager) getLoadbalancerListenersByLoadbalancer(lb *SLoadbalancer) ([]SLoadbalancerListener, error) {
+	listeners := []SLoadbalancerListener{}
+	q := man.Query().Equals("loadbalancer_id", lb.Id)
+	if err := db.FetchModelObjects(man, q, &listeners); err != nil {
+		return nil, err
+	}
+	return listeners, nil
+}
+
+func (man *SLoadbalancerListenerManager) SyncLoadbalancerListeners(ctx context.Context, userCred mcclient.TokenCredential, provider *SCloudprovider, lb *SLoadbalancer, listeners []cloudprovider.ICloudLoadbalancerListener, syncRange *SSyncRange) ([]SLoadbalancerListener, []cloudprovider.ICloudLoadbalancerListener, compare.SyncResult) {
+	localListeners := []SLoadbalancerListener{}
+	remoteListeners := []cloudprovider.ICloudLoadbalancerListener{}
+	syncResult := compare.SyncResult{}
+
+	dbListeners, err := man.getLoadbalancerListenersByLoadbalancer(lb)
+	if err != nil {
+		syncResult.Error(err)
+		return nil, nil, syncResult
+	}
+
+	removed := []SLoadbalancerListener{}
+	commondb := []SLoadbalancerListener{}
+	commonext := []cloudprovider.ICloudLoadbalancerListener{}
+	added := []cloudprovider.ICloudLoadbalancerListener{}
+
+	err = compare.CompareSets(dbListeners, listeners, &removed, &commondb, &commonext, &added)
+	if err != nil {
+		syncResult.Error(err)
+		return nil, nil, syncResult
+	}
+
+	for i := 0; i < len(removed); i++ {
+		err = removed[i].ValidateDeleteCondition(ctx)
+		if err != nil { // cannot delete
+			err = removed[i].SetStatus(userCred, LB_STATUS_UNKNOWN, "sync to delete")
+			if err != nil {
+				syncResult.DeleteError(err)
+			} else {
+				syncResult.Delete()
+			}
+		} else {
+			err = removed[i].Delete(ctx, userCred)
+			if err != nil {
+				syncResult.DeleteError(err)
+			} else {
+				syncResult.Delete()
+			}
+		}
+	}
+	for i := 0; i < len(commondb); i++ {
+		err = commondb[i].SyncWithCloudLoadbalancerListener(ctx, userCred, lb, commonext[i], provider.ProjectId, syncRange.ProjectSync)
+		if err != nil {
+			syncResult.UpdateError(err)
+		} else {
+			localListeners = append(localListeners, commondb[i])
+			remoteListeners = append(remoteListeners, commonext[i])
+			syncResult.Update()
+		}
+	}
+	for i := 0; i < len(added); i++ {
+		new, err := man.newFromCloudLoadbalancerListener(ctx, userCred, lb, added[i], provider.ProjectId)
+		if err != nil {
+			syncResult.AddError(err)
+		} else {
+			localListeners = append(localListeners, *new)
+			remoteListeners = append(remoteListeners, added[i])
+			syncResult.Add()
+		}
+	}
+	return localListeners, remoteListeners, syncResult
+}
+
+func (lblis *SLoadbalancerListener) constructFieldsFromCloudListener(lb *SLoadbalancer, extListener cloudprovider.ICloudLoadbalancerListener) {
+	lblis.Name = extListener.GetName()
+	lblis.ListenerType = extListener.GetListenerType()
+	lblis.ListenerPort = extListener.GetListenerPort()
+	lblis.Scheduler = extListener.GetScheduler()
+	lblis.Status = extListener.GetStatus()
+
+	lblis.AclStatus = extListener.GetAclStatus()
+	lblis.AclType = extListener.GetAclType()
+	if aclID := extListener.GetAclId(); len(aclID) > 0 {
+		if acl, err := LoadbalancerAclManager.FetchByExternalId(aclID); err == nil {
+			lblis.AclId = acl.GetId()
+		}
+	}
+
+	lblis.HealthCheck = extListener.GetHealthCheck()
+	lblis.HealthCheckType = extListener.GetHealthCheckType()
+	lblis.HealthCheckTimeout = extListener.GetHealthCheckTimeout()
+	lblis.HealthCheckInterval = extListener.GetHealthCheckInterval()
+	lblis.BackendServerPort = extListener.GetBackendServerPort()
+
+	switch lblis.ListenerType {
+	case LB_LISTENER_TYPE_HTTPS:
+		lblis.TLSCipherPolicy = extListener.GetTLSCipherPolicy()
+		lblis.EnableHttp2 = extListener.HTTP2Enabled()
+		if certificateId := extListener.GetCertificateId(); len(certificateId) > 0 {
+			if certificate, err := LoadbalancerCertificateManager.FetchByExternalId(certificateId); err == nil {
+				lblis.CertificateId = certificate.GetId()
+			}
+		}
+		fallthrough
+	case LB_LISTENER_TYPE_HTTP:
+		lblis.StickySession = extListener.GetStickySession()
+		lblis.StickySessionType = extListener.GetStickySessionType()
+		lblis.StickySessionCookie = extListener.GetStickySessionCookie()
+		lblis.StickySessionCookieTimeout = extListener.GetStickySessionCookieTimeout()
+		lblis.XForwardedFor = extListener.XForwardedForEnabled()
+		lblis.Gzip = extListener.GzipEnabled()
+	}
+	groupId := extListener.GetBackendGroupId()
+	if len(groupId) == 0 {
+		lblis.BackendGroupId = lb.BackendGroupId
+	} else if group, err := LoadbalancerBackendGroupManager.FetchByExternalId(groupId); err == nil {
+		lblis.BackendGroupId = group.GetId()
+	}
+}
+
+func (lblis *SLoadbalancerListener) SyncWithCloudLoadbalancerListener(ctx context.Context, userCred mcclient.TokenCredential, lb *SLoadbalancer, extListener cloudprovider.ICloudLoadbalancerListener, projectId string, projectSync bool) error {
+	_, err := lblis.GetModelManager().TableSpec().Update(lblis, func() error {
+		lblis.constructFieldsFromCloudListener(lb, extListener)
+		if projectSync && len(projectId) > 0 {
+			lblis.ProjectId = projectId
+		}
+		return nil
+	})
+	return err
+}
+
+func (man *SLoadbalancerListenerManager) newFromCloudLoadbalancerListener(ctx context.Context, userCred mcclient.TokenCredential, lb *SLoadbalancer, extListener cloudprovider.ICloudLoadbalancerListener, projectId string) (*SLoadbalancerListener, error) {
+	lblis := &SLoadbalancerListener{}
+	lblis.SetModelManager(man)
+
+	lblis.LoadbalancerId = lb.Id
+	lblis.ExternalId = extListener.GetGlobalId()
+	lblis.constructFieldsFromCloudListener(lb, extListener)
+
+	lblis.ProjectId = userCred.GetProjectId()
+	if len(projectId) > 0 {
+		lblis.ProjectId = projectId
+	}
+	return lblis, man.TableSpec().Insert(lblis)
+}
+
+func (manager *SLoadbalancerListenerManager) InitializeData() error {
+	listeners := []SLoadbalancerListener{}
+	q := manager.Query()
+	q = q.Filter(sqlchemy.IsNullOrEmpty(q.Field("cloudregion_id")))
+	if err := db.FetchModelObjects(manager, q, &listeners); err != nil {
+		return err
+	}
+	for i := 0; i < len(listeners); i++ {
+		listener := &listeners[i]
+		if lb := listener.GetLoadbalancer(); lb != nil && len(lb.CloudregionId) > 0 {
+			_, err := listener.GetModelManager().TableSpec().Update(listener, func() error {
+				listener.CloudregionId = lb.CloudregionId
+				listener.ManagerId = lb.ManagerId
+				return nil
+			})
+			if err != nil {
+				log.Errorf("failed to update loadbalancer listener %s cloudregion_id", listener.Name)
+			}
+		}
+	}
 	return nil
 }

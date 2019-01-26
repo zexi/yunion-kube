@@ -2,6 +2,7 @@ package taskman
 
 import (
 	"context"
+	"net/http"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -12,7 +13,9 @@ type ITask interface {
 	GetParams() *jsonutils.JSONDict
 	GetUserCred() mcclient.TokenCredential
 	GetTaskId() string
-	SetStage(stageName string, data *jsonutils.JSONDict)
+	SetStage(stageName string, data *jsonutils.JSONDict) error
+
+	GetTaskRequestHeader() http.Header
 
 	SetStageComplete(ctx context.Context, data *jsonutils.JSONDict)
 	SetStageFailed(ctx context.Context, reason string)

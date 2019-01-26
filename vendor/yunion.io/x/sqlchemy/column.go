@@ -3,6 +3,7 @@ package sqlchemy
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +21,6 @@ type IColumnSpec interface {
 	IsSupportDefault() bool
 	IsNullable() bool
 	IsPrimary() bool
-	IsKeyIndex() bool
 	IsUnique() bool
 	IsIndex() bool
 	ExtraDefs() string
@@ -36,6 +36,9 @@ type IColumnSpec interface {
 	IsZero(val interface{}) bool
 	// IsEqual(v1, v2 interface{}) bool
 	Tags() map[string]string
+
+	SetIsPointer()
+	IsPointer() bool
 }
 
 type SBaseColumn struct {
@@ -43,12 +46,20 @@ type SBaseColumn struct {
 	dbName        string
 	sqlType       string
 	defaultString string
+	isPointer     bool
 	isNullable    bool
 	isPrimary     bool
-	isKeyIndex    bool
 	isUnique      bool
 	isIndex       bool
 	tags          map[string]string
+}
+
+func (c *SBaseColumn) SetIsPointer() {
+	c.isPointer = true
+}
+
+func (c *SBaseColumn) IsPointer() bool {
+	return c.isPointer
 }
 
 func (c *SBaseColumn) Name() string {
@@ -77,10 +88,6 @@ func (c *SBaseColumn) IsNullable() bool {
 
 func (c *SBaseColumn) IsPrimary() bool {
 	return c.isPrimary
-}
-
-func (c *SBaseColumn) IsKeyIndex() bool {
-	return c.isKeyIndex
 }
 
 func (c *SBaseColumn) IsUnique() bool {
@@ -188,11 +195,6 @@ func NewBaseColumn(name string, sqltype string, tagmap map[string]string) SBaseC
 	if ok {
 		isPrimary = utils.ToBool(val)
 	}
-	isKeyIndex := false
-	tagmap, val, ok = utils.TagPop(tagmap, TAG_KEY_INDEX)
-	if ok {
-		isKeyIndex = utils.ToBool(val)
-	}
 	isUnique := false
 	tagmap, val, ok = utils.TagPop(tagmap, TAG_UNIQUE)
 	if ok {
@@ -213,7 +215,6 @@ func NewBaseColumn(name string, sqltype string, tagmap map[string]string) SBaseC
 		defaultString: defStr,
 		isNullable:    isNullable,
 		isPrimary:     isPrimary,
-		isKeyIndex:    isKeyIndex,
 		isUnique:      isUnique,
 		isIndex:       isIndex,
 		tags:          tagmap,
@@ -262,17 +263,34 @@ func (c *SBooleanColumn) ConvertFromString(str string) string {
 }
 
 func (c *SBooleanColumn) ConvertFromValue(val interface{}) interface{} {
-	bVal := val.(bool)
-	if bVal {
-		return 1
-	} else {
+	switch bVal := val.(type) {
+	case bool:
+		if bVal {
+			return 1
+		} else {
+			return 0
+		}
+	case *bool:
+		if gotypes.IsNil(bVal) {
+			return 0
+		} else if *bVal {
+			return 1
+		} else {
+			return 0
+		}
+	default:
 		return 0
 	}
 }
 
 func (c *SBooleanColumn) IsZero(val interface{}) bool {
-	bVal := val.(bool)
-	return bVal == false
+	if c.isPointer {
+		bVal := val.(*bool)
+		return bVal == nil
+	} else {
+		bVal := val.(bool)
+		return bVal == false
+	}
 }
 
 func NewBooleanColumn(name string, tagmap map[string]string) SBooleanColumn {
@@ -310,8 +328,13 @@ func (c *STristateColumn) ConvertFromValue(val interface{}) interface{} {
 }
 
 func (c *STristateColumn) IsZero(val interface{}) bool {
-	bVal := val.(tristate.TriState)
-	return bVal == tristate.None
+	if c.isPointer {
+		bVal := val.(*tristate.TriState)
+		return bVal == nil
+	} else {
+		bVal := val.(tristate.TriState)
+		return bVal == tristate.None
+	}
 }
 
 func NewTristateColumn(name string, tagmap map[string]string) STristateColumn {
@@ -343,27 +366,12 @@ func (c *SIntegerColumn) DefinitionString() string {
 }
 
 func (c *SIntegerColumn) IsZero(val interface{}) bool {
-	switch val.(type) {
-	case int8:
-		return val.(int8) == 0
-	case int16:
-		return val.(int16) == 0
-	case int32:
-		return val.(int32) == 0
-	case int64:
-		return val.(int64) == 0
-	case int:
-		return val.(int) == 0
-	case uint:
-		return val.(uint) == 0
-	case uint8:
-		return val.(uint8) == 0
-	case uint16:
-		return val.(uint16) == 0
-	case uint32:
-		return val.(uint32) == 0
-	case uint64:
-		return val.(uint64) == 0
+	if val == nil || (c.isPointer && reflect.ValueOf(val).IsNil()) {
+		return true
+	}
+	switch intVal := val.(type) {
+	case int8, int16, int32, int64, int, uint, uint8, uint16, uint32, uint64:
+		return intVal == 0
 	}
 	return true
 }
@@ -420,11 +428,20 @@ func (c *SFloatColumn) DefinitionString() string {
 }
 
 func (c *SFloatColumn) IsZero(val interface{}) bool {
-	switch val.(type) {
-	case float32:
-		return val.(float32) == 0.0
-	case float64:
-		return val.(float64) == 0.0
+	if c.isPointer {
+		switch val.(type) {
+		case *float32:
+			return val.(*float32) == nil
+		case *float64:
+			return val.(*float64) == nil
+		}
+	} else {
+		switch val.(type) {
+		case float32:
+			return val.(float32) == 0.0
+		case float64:
+			return val.(float64) == 0.0
+		}
 	}
 	return true
 }
@@ -452,11 +469,20 @@ func (c *SDecimalColumn) DefinitionString() string {
 }
 
 func (c *SDecimalColumn) IsZero(val interface{}) bool {
-	switch val.(type) {
-	case float32:
-		return val.(float32) == 0.0
-	case float64:
-		return val.(float64) == 0.0
+	if c.isPointer {
+		switch val.(type) {
+		case *float32:
+			return val.(*float32) == nil
+		case *float64:
+			return val.(*float64) == nil
+		}
+	} else {
+		switch val.(type) {
+		case float32:
+			return val.(float32) == 0.0
+		case float64:
+			return val.(float64) == 0.0
+		}
 	}
 	return true
 }
@@ -515,8 +541,13 @@ func (c *STextColumn) DefinitionString() string {
 }
 
 func (c *STextColumn) IsZero(val interface{}) bool {
-	bVal := val.(string)
-	return len(bVal) == 0
+	if c.isPointer {
+		bval := val.(*string)
+		return bval == nil
+	} else {
+		bVal := val.(string)
+		return len(bVal) == 0
+	}
 }
 
 func NewTextColumn(name string, tagmap map[string]string) STextColumn {
@@ -582,8 +613,14 @@ func (c *SDateTimeColumn) DefinitionString() string {
 }
 
 func (c *SDateTimeColumn) IsZero(val interface{}) bool {
-	bVal := val.(time.Time)
-	return bVal.IsZero()
+	if c.isPointer {
+		bVal := val.(*time.Time)
+		return bVal == nil
+	} else {
+		bVal := val.(time.Time)
+		return bVal.IsZero()
+	}
+
 }
 
 func NewDateTimeColumn(name string, tagmap map[string]string) SDateTimeColumn {
@@ -615,7 +652,9 @@ func (c *CompoundColumn) IsZero(val interface{}) bool {
 	if val == nil {
 		return true
 	}
-	// log.Debugf("%s", val)
+	if c.isPointer && reflect.ValueOf(val).IsNil() {
+		return true
+	}
 	json := val.(gotypes.ISerializable)
 	return json.IsZero()
 }

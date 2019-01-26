@@ -25,18 +25,27 @@ type MachineCreateTask struct {
 }
 
 func (t *MachineCreateTask) newMachine(machine *machines.SMachine) (*clusterv1.Machine, error) {
+	privateIP, err := machine.GetPrivateIP()
+	if err != nil {
+		return nil, err
+	}
 	spec := &providerv1.OneCloudMachineProviderSpec{
 		ResourceType: machine.ResourceType,
+		Provider:     machine.Provider,
+		MachineID:    machine.Id,
+		Role:         machine.Role,
+		PrivateIP:    privateIP,
 	}
 	specVal, err := providerv1.EncodeMachineSpec(spec)
 	if err != nil {
 		return nil, err
 	}
+	//status := &providerv1.OneCloudMachineProviderStatus{}
 	return &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: machine.Name,
 			Labels: map[string]string{
-				"set": string(machine.Role),
+				"set": machine.Role,
 			},
 		},
 		Spec: clusterv1.MachineSpec{
@@ -60,7 +69,7 @@ func (t *MachineCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.OnError(ctx, machine, err)
 		return
 	}
-	_, err = client.ClusterV1alpha1().Machines("").Create(machineObj)
+	_, err = client.ClusterV1alpha1().Machines(machine.GetNamespace()).Create(machineObj)
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
@@ -70,6 +79,6 @@ func (t *MachineCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 }
 
 func (t *MachineCreateTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {
-	machine.SetStatus(t.UserCred, types.MachineCreateFail, err.Error())
+	machine.SetStatus(t.UserCred, types.MachineStatusCreateFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 }

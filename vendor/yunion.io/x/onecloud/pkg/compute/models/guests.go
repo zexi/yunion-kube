@@ -22,6 +22,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
@@ -31,6 +32,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/util/billing"
 	"yunion.io/x/onecloud/pkg/util/seclib2"
 )
 
@@ -56,6 +58,12 @@ const (
 	VM_START_STOP      = "start_stop"
 	VM_STOPPING        = "stopping"
 	VM_STOP_FAILED     = "stop_fail" // # = running
+
+	VM_BACKUP_STARTING         = "backup_starting"
+	VM_BACKUP_CREATING         = "backup_creating"
+	VM_BACKUP_CREATE_FAILED    = "backup_create_fail"
+	VM_DEPLOYING_BACKUP        = "deploying_backup"
+	VM_DEPLOYING_BACKUP_FAILED = "deploging_backup_fail"
 
 	VM_ATTACH_DISK_FAILED = "attach_disk_fail"
 	VM_DETACH_DISK_FAILED = "detach_disk_fail"
@@ -83,7 +91,8 @@ const (
 	VM_START_SNAPSHOT  = "snapshot_start"
 	VM_SNAPSHOT        = "snapshot"
 	VM_SNAPSHOT_DELETE = "snapshot_delete"
-	VM_SNAPSHOT_STREAM = "block_stream"
+	VM_BLOCK_STREAM    = "block_stream"
+	VM_MIRROR_FAIL     = "mirror_failed"
 	VM_SNAPSHOT_SUCC   = "snapshot_succ"
 	VM_SNAPSHOT_FAILED = "snapshot_failed"
 
@@ -101,8 +110,10 @@ const (
 	VM_RESTORE_STATE      = "restore_state"
 	VM_RESTORE_FAILED     = "restore_failed"
 
-	VM_ASSOCIATE_EIP  = "associate_eip"
-	VM_DISSOCIATE_EIP = "dissociate_eip"
+	VM_ASSOCIATE_EIP         = "associate_eip"
+	VM_ASSOCIATE_EIP_FAILED  = "associate_eip_failed"
+	VM_DISSOCIATE_EIP        = "dissociate_eip"
+	VM_DISSOCIATE_EIP_FAILED = "dissociate_eip_failed"
 
 	VM_REMOVE_STATEFILE = "remove_state"
 
@@ -116,21 +127,41 @@ const (
 	HYPERVISOR_BAREMETAL = "baremetal"
 	HYPERVISOR_ESXI      = "esxi"
 	HYPERVISOR_HYPERV    = "hyperv"
+	HYPERVISOR_XEN       = "xen"
+
 	HYPERVISOR_ALIYUN    = "aliyun"
 	HYPERVISOR_QCLOUD    = "qcloud"
 	HYPERVISOR_AZURE     = "azure"
 	HYPERVISOR_AWS       = "aws"
+	HYPERVISOR_HUAWEI    = "huawei"
+	HYPERVISOR_OPENSTACK = "openstack"
 
 	//	HYPERVISOR_DEFAULT = HYPERVISOR_KVM
-	HYPERVISOR_DEFAULT = HYPERVISOR_ALIYUN
+	HYPERVISOR_DEFAULT = HYPERVISOR_KVM
 )
 
-var VM_RUNNING_STATUS = []string{VM_START_START, VM_STARTING, VM_RUNNING, VM_SNAPSHOT_STREAM}
+var VM_RUNNING_STATUS = []string{VM_START_START, VM_STARTING, VM_RUNNING, VM_BLOCK_STREAM}
 var VM_CREATING_STATUS = []string{VM_CREATE_NETWORK, VM_CREATE_DISK, VM_START_DEPLOY, VM_DEPLOYING}
 
-var HYPERVISORS = []string{HYPERVISOR_KVM, HYPERVISOR_BAREMETAL, HYPERVISOR_ESXI, HYPERVISOR_CONTAINER, HYPERVISOR_ALIYUN, HYPERVISOR_AZURE, HYPERVISOR_AWS, HYPERVISOR_QCLOUD}
+var HYPERVISORS = []string{HYPERVISOR_KVM,
+	HYPERVISOR_BAREMETAL,
+	HYPERVISOR_ESXI,
+	HYPERVISOR_CONTAINER,
+	HYPERVISOR_ALIYUN,
+	HYPERVISOR_AZURE,
+	HYPERVISOR_AWS,
+	HYPERVISOR_QCLOUD,
+	HYPERVISOR_HUAWEI,
+	HYPERVISOR_OPENSTACK,
+}
 
-var PUBLIC_CLOUD_HYPERVISORS = []string{HYPERVISOR_ALIYUN, HYPERVISOR_AWS, HYPERVISOR_AZURE, HYPERVISOR_QCLOUD}
+var PUBLIC_CLOUD_HYPERVISORS = []string{
+	HYPERVISOR_ALIYUN,
+	HYPERVISOR_AWS,
+	HYPERVISOR_AZURE,
+	HYPERVISOR_QCLOUD,
+	HYPERVISOR_HUAWEI,
+}
 
 // var HYPERVISORS = []string{HYPERVISOR_ALIYUN}
 
@@ -143,6 +174,8 @@ var HYPERVISOR_HOSTTYPE = map[string]string{
 	HYPERVISOR_AZURE:     HOST_TYPE_AZURE,
 	HYPERVISOR_AWS:       HOST_TYPE_AWS,
 	HYPERVISOR_QCLOUD:    HOST_TYPE_QCLOUD,
+	HYPERVISOR_HUAWEI:    HOST_TYPE_HUAWEI,
+	HYPERVISOR_OPENSTACK: HOST_TYPE_OPENSTACK,
 }
 
 var HOSTTYPE_HYPERVISOR = map[string]string{
@@ -154,6 +187,8 @@ var HOSTTYPE_HYPERVISOR = map[string]string{
 	HOST_TYPE_AZURE:      HYPERVISOR_AZURE,
 	HOST_TYPE_AWS:        HYPERVISOR_AWS,
 	HOST_TYPE_QCLOUD:     HYPERVISOR_QCLOUD,
+	HOST_TYPE_HUAWEI:     HYPERVISOR_HUAWEI,
+	HOST_TYPE_OPENSTACK:  HYPERVISOR_OPENSTACK,
 }
 
 type SGuestManager struct {
@@ -189,7 +224,8 @@ type SGuest struct {
 
 	KeypairId string `width:"36" charset:"ascii" nullable:"true" list:"user" create:"optional"` // Column(VARCHAR(36, charset='ascii'), nullable=True)
 
-	HostId string `width:"36" charset:"ascii" nullable:"true" list:"admin" get:"admin"` // Column(VARCHAR(36, charset='ascii'), nullable=True)
+	HostId       string `width:"36" charset:"ascii" nullable:"true" list:"admin" get:"admin"` // Column(VARCHAR(36, charset='ascii'), nullable=True)
+	BackupHostId string `width:"36" charset:"ascii" nullable:"true" list:"admin" get:"admin"`
 
 	Vga     string `width:"36" charset:"ascii" nullable:"true" list:"user" update:"user" create:"optional"` // Column(VARCHAR(36, charset='ascii'), nullable=True)
 	Vdi     string `width:"36" charset:"ascii" nullable:"true" list:"user" update:"user" create:"optional"` // Column(VARCHAR(36, charset='ascii'), nullable=True)
@@ -203,11 +239,13 @@ type SGuest struct {
 	AdminSecgrpId string `width:"36" charset:"ascii" nullable:"true" get:"admin"`                  // Column(VARCHAR(36, charset='ascii'), nullable=True)
 
 	Hypervisor string `width:"16" charset:"ascii" nullable:"false" default:"kvm" list:"user" create:"required"` // Column(VARCHAR(16, charset='ascii'), nullable=False, default=HYPERVISOR_DEFAULT)
+
+	InstanceType string `width:"64" charset:"ascii" nullable:"true" list:"user" create:"optional"`
 }
 
 func (manager *SGuestManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	if query.Contains("host") || query.Contains("wire") || query.Contains("zone") {
-		if !userCred.IsSystemAdmin() {
+		if !db.IsAdminAllowList(userCred, manager) {
 			return false
 		}
 	}
@@ -215,13 +253,29 @@ func (manager *SGuestManager) AllowListItems(ctx context.Context, userCred mccli
 }
 
 func (manager *SGuestManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	q, err := manager.SVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
-	if err != nil {
-		return nil, err
-	}
 	queryDict, ok := query.(*jsonutils.JSONDict)
 	if !ok {
 		return nil, fmt.Errorf("invalid querystring format")
+	}
+
+	billingTypeStr, _ := queryDict.GetString("billing_type")
+	if len(billingTypeStr) > 0 {
+		if billingTypeStr == BILLING_TYPE_POSTPAID {
+			q = q.Filter(
+				sqlchemy.OR(
+					sqlchemy.IsNullOrEmpty(q.Field("billing_type")),
+					sqlchemy.Equals(q.Field("billing_type"), billingTypeStr),
+				),
+			)
+		} else {
+			q = q.Equals("billing_type", billingTypeStr)
+		}
+		queryDict.Remove("billing_type")
+	}
+
+	q, err := manager.SVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+	if err != nil {
+		return nil, err
 	}
 	isBMstr, _ := queryDict.GetString("baremetal")
 	if len(isBMstr) > 0 && utils.ToBool(isBMstr) {
@@ -233,13 +287,37 @@ func (manager *SGuestManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQ
 		q = q.Equals("hypervisor", hypervisor)
 	}
 
+	resourceTypeStr := jsonutils.GetAnyString(queryDict, []string{"resource_type"})
+	if len(resourceTypeStr) > 0 {
+		hosts := HostManager.Query().SubQuery()
+		subq := hosts.Query(hosts.Field("id"))
+		switch resourceTypeStr {
+		case HostResourceTypeShared:
+			subq = subq.Filter(
+				sqlchemy.OR(
+					sqlchemy.IsNullOrEmpty(hosts.Field("resource_type")),
+					sqlchemy.Equals(hosts.Field("resource_type"), resourceTypeStr),
+				),
+			)
+		default:
+			subq = subq.Equals("resource_type", resourceTypeStr)
+		}
+
+		q = q.In("host_id", subq.SubQuery())
+	}
+
 	hostFilter, _ := queryDict.GetString("host")
 	if len(hostFilter) > 0 {
 		host, _ := HostManager.FetchByIdOrName(nil, hostFilter)
 		if host == nil {
 			return nil, httperrors.NewResourceNotFoundError("host %s not found", hostFilter)
 		}
-		q = q.Equals("host_id", host.GetId())
+		if jsonutils.QueryBoolean(queryDict, "get_backup_guests_on_host", false) {
+			q.Filter(sqlchemy.OR(sqlchemy.Equals(q.Field("host_id"), host.GetId()),
+				sqlchemy.Equals(q.Field("backup_host_id"), host.GetId())))
+		} else {
+			q = q.Equals("host_id", host.GetId())
+		}
 	}
 
 	secgrpFilter, _ := queryDict.GetString("secgroup")
@@ -248,7 +326,12 @@ func (manager *SGuestManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQ
 		if secgrp == nil {
 			return nil, httperrors.NewResourceNotFoundError("secgroup %s not found", secgrpFilter)
 		}
-		q = q.Equals("secgrp_id", secgrp.GetId())
+		q = q.Filter(
+			sqlchemy.OR(
+				sqlchemy.In(q.Field("id"), GuestsecgroupManager.Query("guest_id").Equals("secgroup_id", secgrp.GetId()).SubQuery()),
+				sqlchemy.Equals(q.Field("secgrp_id"), secgrp.GetId()),
+			),
+		)
 	}
 
 	zoneFilter, _ := queryDict.GetString("zone")
@@ -298,26 +381,17 @@ func (manager *SGuestManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQ
 		}
 		disk := diskI.(*SDisk)
 		guestdisks := GuestdiskManager.Query().SubQuery()
-		count := guestdisks.Query().Filter(sqlchemy.AND(
-			sqlchemy.Equals(guestdisks.Field("disk_id"), disk.Id),
-			sqlchemy.IsFalse(guestdisks.Field("deleted")))).Count()
+		count := guestdisks.Query().Equals("disk_id", disk.Id).Count()
 		if count > 0 {
-			sgq := guestdisks.Query(guestdisks.Field("guest_id")).
-				Filter(sqlchemy.AND(
-					sqlchemy.Equals(guestdisks.Field("disk_id"), disk.Id),
-					sqlchemy.IsFalse(guestdisks.Field("deleted"))))
+			sgq := guestdisks.Query(guestdisks.Field("guest_id")).Equals("disk_id", disk.Id).SubQuery()
 			q = q.Filter(sqlchemy.In(q.Field("id"), sgq))
 		} else {
 			hosts := HostManager.Query().SubQuery()
 			hoststorages := HoststorageManager.Query().SubQuery()
 			storages := StorageManager.Query().SubQuery()
 			sq := hosts.Query(hosts.Field("id")).
-				Join(hoststorages, sqlchemy.AND(
-					sqlchemy.Equals(hoststorages.Field("host_id"), hosts.Field("id")),
-					sqlchemy.IsFalse(hoststorages.Field("deleted")))).
-				Join(storages, sqlchemy.AND(
-					sqlchemy.Equals(storages.Field("id"), hoststorages.Field("storage_id")),
-					sqlchemy.IsFalse(storages.Field("deleted")))).
+				Join(hoststorages, sqlchemy.Equals(hoststorages.Field("host_id"), hosts.Field("id"))).
+				Join(storages, sqlchemy.Equals(storages.Field("id"), hoststorages.Field("storage_id"))).
 				Filter(sqlchemy.Equals(storages.Field("id"), disk.StorageId)).SubQuery()
 			q = q.In("host_id", sq)
 		}
@@ -332,6 +406,37 @@ func (manager *SGuestManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQ
 		hosts := HostManager.Query().SubQuery()
 		sq := hosts.Query(hosts.Field("id")).Equals("manager_id", managerI.GetId()).SubQuery()
 		q = q.In("host_id", sq)
+	}
+
+	accountStr := jsonutils.GetAnyString(query, []string{"account", "account_id", "cloudaccount", "cloudaccount_id"})
+	if len(accountStr) > 0 {
+		account, err := CloudaccountManager.FetchByIdOrName(nil, accountStr)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return nil, httperrors.NewResourceNotFoundError2(CloudaccountManager.Keyword(), accountStr)
+			}
+			return nil, httperrors.NewGeneralError(err)
+		}
+		hosts := HostManager.Query().SubQuery()
+		cloudproviders := CloudproviderManager.Query().SubQuery()
+
+		subq := hosts.Query(hosts.Field("id"))
+		subq = subq.Join(cloudproviders, sqlchemy.Equals(cloudproviders.Field("id"), hosts.Field("manager_id")))
+		subq = subq.Filter(sqlchemy.Equals(cloudproviders.Field("cloudaccount_id"), account.GetId()))
+
+		q = q.Filter(sqlchemy.In(q.Field("host_id"), subq.SubQuery()))
+	}
+
+	providerStr := jsonutils.GetAnyString(query, []string{"provider"})
+	if len(providerStr) > 0 {
+		hosts := HostManager.Query().SubQuery()
+		cloudproviders := CloudproviderManager.Query().SubQuery()
+
+		subq := hosts.Query(hosts.Field("id"))
+		subq = subq.Join(cloudproviders, sqlchemy.Equals(cloudproviders.Field("id"), hosts.Field("manager_id")))
+		subq = subq.Filter(sqlchemy.Equals(cloudproviders.Field("provider"), providerStr))
+
+		q = q.Filter(sqlchemy.In(q.Field("host_id"), subq.SubQuery()))
 	}
 
 	regionFilter, _ := queryDict.GetString("region")
@@ -380,6 +485,23 @@ func (manager *SGuestManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQ
 		}
 		q = q.Filter(cond(q.Field("id"), sgq))
 	}
+
+	orderByDisk, _ := queryDict.GetString("order_by_disk")
+	if orderByDisk == "asc" {
+		guestdisks := GuestdiskManager.Query().SubQuery()
+		disks := DiskManager.Query().SubQuery()
+		q.AppendField(sqlchemy.SUM("disks_size", disks.Field("disk_size")))
+		q = q.Join(guestdisks, sqlchemy.Equals(q.Field("id"), guestdisks.Field("guest_id"))).
+			Join(disks, sqlchemy.Equals(guestdisks.Field("disk_id"), disks.Field("id"))).
+			Asc(q.Field("disks_size")).GroupBy(q.Field("id"))
+	} else if orderByDisk == "desc" {
+		guestdisks := GuestdiskManager.Query().SubQuery()
+		disks := DiskManager.Query().SubQuery()
+		q.AppendField(sqlchemy.SUM("disks_size", disks.Field("disk_size")))
+		q = q.Join(guestdisks, sqlchemy.Equals(q.Field("id"), guestdisks.Field("guest_id"))).
+			Join(disks, sqlchemy.Equals(guestdisks.Field("disk_id"), disks.Field("id"))).
+			Desc(q.Field("disks_size")).GroupBy(q.Field("id"))
+	}
 	return q, nil
 }
 
@@ -416,11 +538,22 @@ func (guest *SGuest) GetDriver() IGuestDriver {
 	return GetDriver(hypervisor)
 }
 
-func (guest *SGuest) ValidateDeleteCondition(ctx context.Context) error {
+func (guest *SGuest) validateDeleteCondition(ctx context.Context, isPurge bool) error {
 	if guest.DisableDelete.IsTrue() {
-		return fmt.Errorf("Virtual server is locked, cannot delete")
+		return httperrors.NewInvalidStatusError("Virtual server is locked, cannot delete")
+	}
+	if !isPurge && guest.IsValidPrePaid() {
+		return httperrors.NewForbiddenError("not allow to delete prepaid server in valid status")
 	}
 	return guest.SVirtualResourceBase.ValidateDeleteCondition(ctx)
+}
+
+func (guest *SGuest) ValidatePurgeCondition(ctx context.Context) error {
+	return guest.validateDeleteCondition(ctx, true)
+}
+
+func (guest *SGuest) ValidateDeleteCondition(ctx context.Context) error {
+	return guest.validateDeleteCondition(ctx, false)
 }
 
 func (guest *SGuest) GetDisksQuery() *sqlchemy.SQuery {
@@ -456,26 +589,60 @@ func (guest *SGuest) GetGuestDisk(diskId string) *SGuestdisk {
 	return guestdisk.(*SGuestdisk)
 }
 
-func (guest *SGuest) GetNetworksQuery() *sqlchemy.SQuery {
-	return GuestnetworkManager.Query().Equals("guest_id", guest.Id)
+func (guest *SGuest) GetNetworksQuery(netId string) *sqlchemy.SQuery {
+	q := GuestnetworkManager.Query().Equals("guest_id", guest.Id)
+	if len(netId) > 0 {
+		q = q.Equals("network_id", netId)
+	}
+	return q
 }
 
 func (guest *SGuest) NetworkCount() int {
-	return guest.GetNetworksQuery().Count()
+	return guest.GetNetworksQuery("").Count()
 }
 
-func (guest *SGuest) GetNetworks() []SGuestnetwork {
+func (guest *SGuest) GetNetworks(netId string) ([]SGuestnetwork, error) {
 	guestnics := make([]SGuestnetwork, 0)
-	q := guest.GetNetworksQuery().Asc("index")
+	q := guest.GetNetworksQuery(netId).Asc("index")
 	err := db.FetchModelObjects(GuestnetworkManager, q, &guestnics)
 	if err != nil {
 		log.Errorf("GetNetworks error: %s", err)
+		return nil, err
 	}
-	return guestnics
+	return guestnics, nil
+}
+
+func (guest *SGuest) getNetworkByIpOrMac(ipAddr string, macAddr string) (*SGuestnetwork, error) {
+	q := guest.GetNetworksQuery("")
+	if len(ipAddr) > 0 {
+		q = q.Equals("ip_addr", ipAddr)
+	}
+	if len(macAddr) > 0 {
+		q = q.Equals("mac_addr", macAddr)
+	}
+
+	guestnic := SGuestnetwork{}
+	err := q.First(&guestnic)
+	if err != nil {
+		return nil, err
+	}
+	guestnic.SetModelManager(GuestnetworkManager)
+	return &guestnic, nil
+}
+
+func (guest *SGuest) GetNetworkByIp(ipAddr string) (*SGuestnetwork, error) {
+	return guest.getNetworkByIpOrMac(ipAddr, "")
+}
+
+func (guest *SGuest) GetNetworkByMac(macAddr string) (*SGuestnetwork, error) {
+	return guest.getNetworkByIpOrMac("", macAddr)
 }
 
 func (guest *SGuest) IsNetworkAllocated() bool {
-	guestnics := guest.GetNetworks()
+	guestnics, err := guest.GetNetworks("")
+	if err != nil {
+		return false
+	}
 	for _, gn := range guestnics {
 		if !gn.IsAllocated() {
 			return false
@@ -505,11 +672,20 @@ func (guest *SGuest) SetHostId(hostId string) error {
 	return err
 }
 
+func (guest *SGuest) SetHostIdWithBackup(master, slave string) error {
+	_, err := guest.GetModelManager().TableSpec().Update(guest, func() error {
+		guest.HostId = master
+		guest.BackupHostId = slave
+		return nil
+	})
+	return err
+}
+
 func (guest *SGuest) ValidateResizeDisk(disk *SDisk, storage *SStorage) error {
 	return guest.GetDriver().ValidateResizeDisk(guest, disk, storage)
 }
 
-func validateMemCpuData(data jsonutils.JSONObject) (int, int, error) {
+func ValidateMemCpuData(data jsonutils.JSONObject) (int, int, error) {
 	vmemSize := 0
 	vcpuCount := 0
 	var err error
@@ -549,7 +725,7 @@ func validateMemCpuData(data jsonutils.JSONObject) (int, int, error) {
 }
 
 func (self *SGuest) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	vmemSize, vcpuCount, err := validateMemCpuData(data)
+	vmemSize, vcpuCount, err := ValidateMemCpuData(data)
 	if err != nil {
 		return nil, err
 	}
@@ -603,13 +779,21 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 	var osProf osprofile.SOSProfile
 	hypervisor, _ = data.GetString("hypervisor")
 	if hypervisor != HYPERVISOR_CONTAINER {
+
 		disk0Json, _ := data.Get("disk.0")
-		if disk0Json == nil {
+		if disk0Json == nil || disk0Json == jsonutils.JSONNull {
 			return nil, httperrors.NewInputParameterError("No disk information provided")
 		}
 		diskConfig, err := parseDiskInfo(ctx, userCred, disk0Json)
 		if err != nil {
 			return nil, httperrors.NewInputParameterError("Invalid root image: %s", err)
+		}
+		if len(diskConfig.SnapshotId) > 0 && diskConfig.DiskType != DISK_TYPE_SYS {
+			return nil, httperrors.NewBadRequestError("Snapshot error: disk index 0 but disk type is %s", diskConfig.DiskType)
+		}
+
+		if len(diskConfig.ImageId) == 0 && len(diskConfig.SnapshotId) == 0 && !data.Contains("cdrom") {
+			return nil, httperrors.NewBadRequestError("Miss operating system???")
 		}
 
 		if len(diskConfig.Backend) == 0 {
@@ -620,12 +804,26 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 		data.Add(jsonutils.Marshal(diskConfig), "disk.0")
 
 		imgProperties := diskConfig.ImageProperties
-		if imgProperties == nil || len(imgProperties) == 0 {
+		if data.Contains("cdrom") {
+			cdromStr, err := data.GetString("cdrom")
+			if err != nil {
+				return nil, httperrors.NewInputParameterError("invalid cdrom device description %s", err)
+			}
+			image, err := parseIsoInfo(ctx, userCred, cdromStr)
+			if err != nil {
+				return nil, httperrors.NewInputParameterError("parse cdrom device info error %s", err)
+			}
+			data.Add(jsonutils.NewString(image.Id), "cdrom")
+			if len(imgProperties) == 0 {
+				imgProperties = image.Properties
+			}
+		}
+
+		if len(imgProperties) == 0 {
 			imgProperties = map[string]string{"os_type": "Linux"}
 		}
 
 		osType, _ := data.GetString("os_type")
-
 		osProf, err = osprofile.GetOSProfileFromImageProperties(imgProperties, hypervisor)
 		if err != nil {
 			return nil, httperrors.NewInputParameterError("Invalid root image: %s", err)
@@ -640,16 +838,67 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 			data.Add(jsonutils.NewString(osProf.OSType), "os_type")
 		}
 		data.Add(jsonutils.Marshal(osProf), "__os_profile__")
+	}
+
+	data, err = ValidateScheduleCreateData(ctx, userCred, data, hypervisor)
+	if err != nil {
+		return nil, err
+	}
+
+	hypervisor, _ = data.GetString("hypervisor")
+	if hypervisor != HYPERVISOR_CONTAINER {
+		// support sku here
+		var sku *SServerSku
+		skuName := jsonutils.GetAnyString(data, []string{"sku", "flavor", "instance_type"})
+		if len(skuName) > 0 {
+			sku, err := ServerSkuManager.FetchSkuByNameAndHypervisor(skuName, hypervisor, true)
+			if err != nil {
+				return nil, err
+			}
+
+			data.Add(jsonutils.NewString(sku.Name), "instance_type")
+			data.Add(jsonutils.NewInt(int64(sku.MemorySizeMB)), "vmem_size")
+			data.Add(jsonutils.NewInt(int64(sku.CpuCoreCount)), "vcpu_count")
+		} else {
+			vmemSize, vcpuCount, err := ValidateMemCpuData(data)
+			if err != nil {
+				return nil, err
+			}
+
+			if vmemSize == 0 {
+				return nil, httperrors.NewInputParameterError("Missing memory size")
+			}
+			if vcpuCount == 0 {
+				vcpuCount = 1
+			}
+			data.Add(jsonutils.NewInt(int64(vmemSize)), "vmem_size")
+			data.Add(jsonutils.NewInt(int64(vcpuCount)), "vcpu_count")
+		}
+
+		dataDiskDefs := make([]string, 0)
+		if sku != nil && sku.AttachedDiskCount > 0 {
+			for i := 0; i < sku.AttachedDiskCount; i += 1 {
+				dataDiskDefs = append(dataDiskDefs, fmt.Sprintf("%dgb:%s", sku.AttachedDiskSizeGB, sku.AttachedDiskType))
+			}
+		}
 
 		// start from data disk
-		for idx := 1; data.Contains(fmt.Sprintf("disk.%d", idx)); idx += 1 {
-			diskJson, err := data.Get(fmt.Sprintf("disk.%d", idx))
+		jsonArray := jsonutils.GetArrayOfPrefix(data, "disk")
+		for idx := 1; idx < len(jsonArray); idx += 1 { // data.Contains(fmt.Sprintf("disk.%d", idx))
+			diskJson, err := jsonArray[idx].GetString() // data.GetString(fmt.Sprintf("disk.%d", idx))
 			if err != nil {
 				return nil, httperrors.NewInputParameterError("invalid disk description %s", err)
 			}
-			diskConfig, err := parseDiskInfo(ctx, userCred, diskJson)
+			dataDiskDefs = append(dataDiskDefs, diskJson)
+		}
+
+		for i := 0; i < len(dataDiskDefs); i += 1 {
+			diskConfig, err := parseDiskInfo(ctx, userCred, jsonutils.NewString(dataDiskDefs[i]))
 			if err != nil {
 				return nil, httperrors.NewInputParameterError("parse disk description error %s", err)
+			}
+			if diskConfig.DiskType == DISK_TYPE_SYS {
+				return nil, httperrors.NewBadRequestError("Snapshot error: disk index %d > 0 but disk type is %s", i+1, DISK_TYPE_SYS)
 			}
 			if len(diskConfig.Backend) == 0 {
 				diskConfig.Backend = rootStorageType
@@ -657,22 +906,43 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 			if len(diskConfig.Driver) == 0 {
 				diskConfig.Driver = osProf.DiskDriver
 			}
-			data.Add(jsonutils.Marshal(diskConfig), fmt.Sprintf("disk.%d", idx))
+			data.Add(jsonutils.Marshal(diskConfig), fmt.Sprintf("disk.%d", i+1))
+		}
+
+		resourceTypeStr := jsonutils.GetAnyString(data, []string{"resource_type"})
+		durationStr := jsonutils.GetAnyString(data, []string{"duration"})
+
+		if len(durationStr) > 0 {
+
+			if !userCred.IsAdminAllow(consts.GetServiceType(), manager.KeywordPlural(), "renew") {
+				return nil, httperrors.NewForbiddenError("only admin can create prepaid resource")
+			}
+
+			if resourceTypeStr == HostResourceTypePrepaidRecycle {
+				return nil, httperrors.NewConflictError("cannot create prepaid server on prepaid resource type")
+			}
+
+			billingCycle, err := billing.ParseBillingCycle(durationStr)
+			if err != nil {
+				return nil, httperrors.NewInputParameterError("invalid duration %s", durationStr)
+			}
+
+			if !GetDriver(hypervisor).IsSupportedBillingCycle(billingCycle) {
+				return nil, httperrors.NewInputParameterError("unsupported duration %s", durationStr)
+			}
+
+			data.Add(jsonutils.NewString(BILLING_TYPE_PREPAID), "billing_type")
+			data.Add(jsonutils.NewString(billingCycle.String()), "billing_cycle")
+			// expired_at will be set later by callback
+			// data.Add(jsonutils.NewTimeString(billingCycle.EndAt(time.Time{})), "expired_at")
+
+			data.Set("duration", jsonutils.NewString(billingCycle.String()))
 		}
 	}
 
-	data, err = ValidateScheduleCreateData(ctx, userCred, data, hypervisor)
-	if err != nil {
-		return nil, err
-	}
-	hypervisor, _ = data.GetString("hypervisor")
-
-	for idx := 0; data.Contains(fmt.Sprintf("net.%d", idx)); idx += 1 {
-		netJson, err := data.Get(fmt.Sprintf("net.%d", idx))
-		if err != nil {
-			return nil, httperrors.NewInputParameterError("invalid network description %s", err)
-		}
-		netConfig, err := parseNetworkInfo(userCred, netJson)
+	netJsonArray := jsonutils.GetArrayOfPrefix(data, "net")
+	for idx := 0; idx < len(netJsonArray); idx += 1 { // .Contains(fmt.Sprintf("net.%d", idx)); idx += 1 {
+		netConfig, err := parseNetworkInfo(userCred, netJsonArray[idx])
 		if err != nil {
 			return nil, httperrors.NewInputParameterError("parse network description error %s", err)
 		}
@@ -683,15 +953,15 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 		if len(netConfig.Driver) == 0 {
 			netConfig.Driver = osProf.NetDriver
 		}
-		data.Add(jsonutils.Marshal(netConfig), fmt.Sprintf("net.%d", idx))
+		data.Set(fmt.Sprintf("net.%d", idx), jsonutils.Marshal(netConfig))
 	}
 
-	for idx := 0; data.Contains(fmt.Sprintf("isolated_device.%d", idx)); idx += 1 {
-		devJson, err := data.Get(fmt.Sprintf("isolated_device.%d", idx))
-		if err != nil {
-			return nil, httperrors.NewInputParameterError("invalid isolated device description %s", err)
+	isoDevArray := jsonutils.GetArrayOfPrefix(data, "isolated_device")
+	for idx := 0; idx < len(isoDevArray); idx += 1 { // .Contains(fmt.Sprintf("isolated_device.%d", idx)); idx += 1 {
+		if jsonutils.QueryBoolean(data, "backup", false) {
+			return nil, httperrors.NewBadRequestError("Cannot create backup with isolated device")
 		}
-		devConfig, err := IsolatedDeviceManager.parseDeviceInfo(userCred, devJson)
+		devConfig, err := IsolatedDeviceManager.parseDeviceInfo(userCred, isoDevArray[idx])
 		if err != nil {
 			return nil, httperrors.NewInputParameterError("parse isolated device description error %s", err)
 		}
@@ -699,19 +969,7 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 		if err != nil {
 			return nil, err
 		}
-		data.Add(jsonutils.Marshal(devConfig), fmt.Sprintf("isolated_device.%d", idx))
-	}
-
-	if data.Contains("cdrom") {
-		cdromStr, err := data.GetString("cdrom")
-		if err != nil {
-			return nil, httperrors.NewInputParameterError("invalid cdrom device description %s", err)
-		}
-		cdromId, err := parseIsoInfo(ctx, userCred, cdromStr)
-		if err != nil {
-			return nil, httperrors.NewInputParameterError("parse cdrom device info error %s", err)
-		}
-		data.Add(jsonutils.NewString(cdromId), "cdrom")
+		data.Set(fmt.Sprintf("isolated_device.%d", idx), jsonutils.Marshal(devConfig))
 	}
 
 	keypairId, _ := data.GetString("keypair")
@@ -739,6 +997,42 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 		data.Add(jsonutils.NewString("default"), "secgrp_id")
 	}
 
+	eipStr, _ := data.GetString("eip")
+	eipBw, _ := data.Int("eip_bw")
+	if len(eipStr) > 0 || eipBw > 0 {
+		if !GetDriver(hypervisor).IsSupportEip() {
+			return nil, httperrors.NewNotImplementedError("eip not supported for %s", hypervisor)
+		}
+		if len(eipStr) > 0 {
+			eipObj, err := ElasticipManager.FetchByIdOrName(userCred, eipStr)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return nil, httperrors.NewResourceNotFoundError2(ElasticipManager.Keyword(), eipStr)
+				} else {
+					return nil, httperrors.NewGeneralError(err)
+				}
+			}
+
+			eip := eipObj.(*SElasticip)
+			if eip.Status != EIP_STATUS_READY {
+				return nil, httperrors.NewInvalidStatusError("eip %s status invalid %s", eipStr, eip.Status)
+			}
+			if eip.IsAssociated() {
+				return nil, httperrors.NewResourceBusyError("eip %s has been associated", eipStr)
+			}
+			data.Set("eip_id", jsonutils.NewString(eipObj.GetId()))
+
+			eipRegion := eip.GetRegion()
+			preferRegionId, _ := data.GetString("prefer_region_id")
+			if len(preferRegionId) > 0 && preferRegionId != eipRegion.Id {
+				return nil, httperrors.NewConflictError("cannot assoicate with eip %s: different region", eipStr)
+			}
+			data.Set("prefer_region_id", jsonutils.NewString(eipRegion.Id))
+		} else {
+			// create new eip
+		}
+	}
+
 	/*
 		TODO
 		group
@@ -756,22 +1050,9 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 		return nil, err
 	}
 
-	vmemSize, vcpuCount, err := validateMemCpuData(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if vmemSize == 0 {
-		return nil, httperrors.NewInputParameterError("Missing memory size")
-	}
-	if vcpuCount == 0 {
-		vcpuCount = 1
-	}
-	data.Add(jsonutils.NewInt(int64(vmemSize)), "vmem_size")
-	data.Add(jsonutils.NewInt(int64(vcpuCount)), "vcpu_count")
-
 	if !jsonutils.QueryBoolean(data, "is_system", false) {
-		err = manager.checkCreateQuota(ctx, userCred, ownerProjId, data)
+		err = manager.checkCreateQuota(ctx, userCred, ownerProjId, data,
+			jsonutils.QueryBoolean(data, "backup", false))
 		if err != nil {
 			return nil, err
 		}
@@ -781,8 +1062,8 @@ func (manager *SGuestManager) ValidateCreateData(ctx context.Context, userCred m
 	return data, nil
 }
 
-func (manager *SGuestManager) checkCreateQuota(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, data *jsonutils.JSONDict) error {
-	req := getGuestResourceRequirements(ctx, userCred, data, 1)
+func (manager *SGuestManager) checkCreateQuota(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, data *jsonutils.JSONDict, hasBackup bool) error {
+	req := getGuestResourceRequirements(ctx, userCred, data, 1, hasBackup)
 	err := QuotaManager.CheckSetPendingQuota(ctx, userCred, ownerProjId, &req)
 	if err != nil {
 		return httperrors.NewOutOfQuotaError(err.Error())
@@ -807,7 +1088,7 @@ func (self *SGuest) checkUpdateQuota(ctx context.Context, userCred mcclient.Toke
 	return err
 }
 
-func getGuestResourceRequirements(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject, count int) SQuota {
+func getGuestResourceRequirements(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject, count int, hasBackup bool) SQuota {
 	vcpuCount, _ := data.Int("vcpu_count")
 	if vcpuCount == 0 {
 		vcpuCount = 1
@@ -817,24 +1098,25 @@ func getGuestResourceRequirements(ctx context.Context, userCred mcclient.TokenCr
 
 	diskSize := 0
 
-	for idx := 0; data.Contains(fmt.Sprintf("disk.%d", idx)); idx += 1 {
-		dataJson, _ := data.Get(fmt.Sprintf("disk.%d", idx))
-		diskConfig, _ := parseDiskInfo(ctx, userCred, dataJson)
-		diskSize += diskConfig.Size
+	diskJsonArray := jsonutils.GetArrayOfPrefix(data, "disk")
+	for idx := 0; idx < len(diskJsonArray); idx += 1 { // data.Contains(fmt.Sprintf("disk.%d", idx)); idx += 1 {
+		diskConfig, _ := parseDiskInfo(ctx, userCred, diskJsonArray[idx])
+		diskSize += diskConfig.SizeMb
 	}
 
-	devCount := 0
-	for idx := 0; data.Contains(fmt.Sprintf("isolated_device.%d", idx)); idx += 1 {
-		devCount += 1
-	}
+	isoDevArray := jsonutils.GetArrayOfPrefix(data, "isolated_device")
+	devCount := len(isoDevArray)
+	// for idx := 0; data.Contains(fmt.Sprintf("isolated_device.%d", idx)); idx += 1 {
+	// 	devCount += 1
+	//}
 
 	eNicCnt := 0
 	iNicCnt := 0
 	eBw := 0
 	iBw := 0
-	for idx := 0; data.Contains(fmt.Sprintf("net.%d", idx)); idx += 1 {
-		netJson, _ := data.Get(fmt.Sprintf("net.%d", idx))
-		netConfig, _ := parseNetworkInfo(userCred, netJson)
+	netJsonArray := jsonutils.GetArrayOfPrefix(data, "net")
+	for idx := 0; idx < len(netJsonArray); idx += 1 { // .Contains(fmt.Sprintf("net.%d", idx)); idx += 1 {
+		netConfig, _ := parseNetworkInfo(userCred, netJsonArray[idx])
 		if isExitNetworkInfo(netConfig) {
 			eNicCnt += 1
 			eBw += netConfig.BwLimit
@@ -843,6 +1125,18 @@ func getGuestResourceRequirements(ctx context.Context, userCred mcclient.TokenCr
 			iBw += netConfig.BwLimit
 		}
 	}
+	if hasBackup {
+		vcpuCount = vcpuCount * 2
+		vmemSize = vmemSize * 2
+		diskSize = diskSize * 2
+	}
+
+	eipCnt := 0
+	eipBw, _ := data.Int("eip_bw")
+	if eipBw > 0 {
+		eipCnt = 1
+	}
+
 	return SQuota{
 		Cpu:            int(vcpuCount) * count,
 		Memory:         int(vmemSize) * count,
@@ -852,6 +1146,16 @@ func getGuestResourceRequirements(ctx context.Context, userCred mcclient.TokenCr
 		Bw:             iBw * count,
 		Ebw:            eBw * count,
 		IsolatedDevice: devCount * count,
+		Eip:            eipCnt * count,
+	}
+}
+
+func (guest *SGuest) getGuestBackupResourceRequirements(ctx context.Context, userCred mcclient.TokenCredential) SQuota {
+	guestDisksSize := guest.getDiskSize()
+	return SQuota{
+		Cpu:     int(guest.VcpuCount),
+		Memory:  guest.VmemSize,
+		Storage: guestDisksSize,
 	}
 }
 
@@ -884,7 +1188,8 @@ func (guest *SGuest) setApptags(ctx context.Context, appTags []string, userCred 
 }
 
 func (manager *SGuestManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	pendingUsage := getGuestResourceRequirements(ctx, userCred, data, len(items))
+	pendingUsage := getGuestResourceRequirements(ctx, userCred, data, len(items),
+		jsonutils.QueryBoolean(data, "backup", false))
 	RunBatchCreateTask(ctx, items, userCred, data, pendingUsage, "GuestBatchCreateTask")
 }
 
@@ -901,7 +1206,10 @@ func (guest *SGuest) GetGroups() []SGroupguest {
 
 func (self *SGuest) getBandwidth(isExit bool) int {
 	bw := 0
-	networks := self.GetNetworks()
+	networks, err := self.GetNetworks("")
+	if err != nil {
+		return bw
+	}
 	if networks != nil && len(networks) > 0 {
 		for i := 0; i < len(networks); i += 1 {
 			if networks[i].IsExit() == isExit {
@@ -919,7 +1227,7 @@ func (self *SGuest) getExtBandwidth() int {
 func (self *SGuest) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := self.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
 
-	if userCred.IsSystemAdmin() {
+	if db.IsAdminAllowGet(userCred, self) {
 		host := self.GetHost()
 		if host != nil {
 			extra.Add(jsonutils.NewString(host.Name), "host")
@@ -938,6 +1246,10 @@ func (self *SGuest) GetCustomizeColumns(ctx context.Context, userCred mcclient.T
 	extra.Add(jsonutils.NewInt(int64(self.getExtBandwidth())), "ext_bw")
 
 	extra.Add(jsonutils.NewString(self.GetSecgroupName()), "secgroup")
+
+	if secgroups := self.getSecgroupJson(); len(secgroups) > 0 {
+		extra.Add(jsonutils.NewArray(secgroups...), "secgroups")
+	}
 
 	if self.PendingDeleted {
 		pendingDeletedAt := self.PendingDeletedAt.Add(time.Second * time.Duration(options.Options.PendingDeleteExpireSeconds))
@@ -959,7 +1271,7 @@ func (self *SGuest) GetCustomizeColumns(ctx context.Context, userCred mcclient.T
 }
 
 func (self *SGuest) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
-	zone := self.getZone()
+	/*zone := self.getZone()
 	if zone != nil {
 		extra.Add(jsonutils.NewString(zone.GetId()), "zone_id")
 		extra.Add(jsonutils.NewString(zone.GetName()), "zone")
@@ -985,15 +1297,35 @@ func (self *SGuest) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict
 				extra.Add(jsonutils.NewString(provider.GetName()), "manager")
 			}
 		}
+	}*/
+
+	extra.Add(self.getDisksInfoDetails(), "disks_info")
+	extra.Add(jsonutils.NewString(self.getIsolatedDeviceDetails()), "isolated_devices")
+
+	host := self.GetHost()
+	if host != nil {
+		info := host.getCloudProviderInfo()
+		extra.Update(jsonutils.Marshal(&info))
 	}
+
+	err := self.CanPerformPrepaidRecycle()
+	if err != nil {
+		extra.Add(jsonutils.JSONFalse, "can_recycle")
+	} else {
+		extra.Add(jsonutils.JSONTrue, "can_recycle")
+	}
+
 	return extra
 }
 
-func (self *SGuest) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+func (self *SGuest) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+
 	extra.Add(jsonutils.NewString(self.getNetworksDetails()), "networks")
 	extra.Add(jsonutils.NewString(self.getDisksDetails()), "disks")
-	extra.Add(self.getDisksInfoDetails(), "disks_info")
 	extra.Add(jsonutils.NewInt(int64(self.getDiskSize())), "disk")
 	cdrom := self.getCdrom()
 	if cdrom != nil {
@@ -1002,17 +1334,24 @@ func (self *SGuest) GetExtraDetails(ctx context.Context, userCred mcclient.Token
 	// extra.Add(jsonutils.NewString(self.getFlavorName()), "flavor")
 	extra.Add(jsonutils.NewString(self.getKeypairName()), "keypair")
 	extra.Add(jsonutils.NewString(self.GetSecgroupName()), "secgroup")
+
+	if secgroups := self.getSecgroupJson(); len(secgroups) > 0 {
+		extra.Add(jsonutils.NewArray(secgroups...), "secgroups")
+	}
+
 	extra.Add(jsonutils.NewString(strings.Join(self.getIPs(), ",")), "ips")
-	extra.Add(jsonutils.NewString(self.getSecurityRules()), "security_rules")
-	extra.Add(jsonutils.NewString(self.getIsolatedDeviceDetails()), "isolated_devices")
+	extra.Add(jsonutils.NewString(self.getSecurityGroupsRules()), "security_rules")
 	osName := self.GetOS()
 	if len(osName) > 0 {
 		extra.Add(jsonutils.NewString(osName), "os_name")
+		if len(self.OsType) == 0 {
+			extra.Add(jsonutils.NewString(osName), "os_type")
+		}
 	}
 	if metaData, err := self.GetAllMetadata(userCred); err == nil {
 		extra.Add(jsonutils.Marshal(metaData), "metadata")
 	}
-	if userCred.IsSystemAdmin() {
+	if db.IsAdminAllowGet(userCred, self) {
 		host := self.GetHost()
 		if host != nil {
 			extra.Add(jsonutils.NewString(host.GetName()), "host")
@@ -1031,7 +1370,13 @@ func (self *SGuest) GetExtraDetails(ctx context.Context, userCred mcclient.Token
 	}
 	extra.Add(isGpu, "is_gpu")
 
-	return self.moreExtraInfo(extra)
+	if self.IsPrepaidRecycle() {
+		extra.Add(jsonutils.JSONTrue, "is_prepaid_recycle")
+	} else {
+		extra.Add(jsonutils.JSONFalse, "is_prepaid_recycle")
+	}
+
+	return self.moreExtraInfo(extra), nil
 }
 
 func (manager *SGuestManager) ListItemExportKeys(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
@@ -1128,8 +1473,12 @@ func (manager *SGuestManager) GetExportExtraKeys(ctx context.Context, query json
 }
 
 func (self *SGuest) getNetworksDetails() string {
+	guestnets, err := self.GetNetworks("")
+	if err != nil {
+		return ""
+	}
 	var buf bytes.Buffer
-	for _, nic := range self.GetNetworks() {
+	for _, nic := range guestnets {
 		buf.WriteString(nic.GetDetailedString())
 		buf.WriteString("\n")
 	}
@@ -1211,18 +1560,22 @@ func (self *SGuest) getKeypairName() string {
 	return ""
 }
 
-func (self *SGuest) getNotifyIps() []string {
+func (self *SGuest) getNotifyIps() string {
 	ips := self.getRealIPs()
 	vips := self.getVirtualIPs()
 	if vips != nil {
 		ips = append(ips, vips...)
 	}
-	return ips
+	return strings.Join(ips, ",")
 }
 
 func (self *SGuest) getRealIPs() []string {
+	guestnets, err := self.GetNetworks("")
+	if err != nil {
+		return nil
+	}
 	ips := make([]string, 0)
-	for _, nic := range self.GetNetworks() {
+	for _, nic := range guestnets {
 		if !nic.Virtual {
 			ips = append(ips, nic.IpAddr)
 		}
@@ -1244,7 +1597,11 @@ func (self *SGuest) getVirtualIPs() []string {
 	ips := make([]string, 0)
 	for _, guestgroup := range self.GetGroups() {
 		group := guestgroup.GetGroup()
-		for _, groupnetwork := range group.GetNetworks() {
+		groupnets, err := group.GetNetworks()
+		if err != nil {
+			continue
+		}
+		for _, groupnetwork := range groupnets {
 			ips = append(ips, groupnetwork.IpAddr)
 		}
 	}
@@ -1303,6 +1660,30 @@ func (self *SGuest) IsWindows() bool {
 	}
 }
 
+func (self *SGuest) getSecgroupJson() []jsonutils.JSONObject {
+	secgroups := []jsonutils.JSONObject{}
+	for _, secGrp := range self.GetSecgroups() {
+		secgroups = append(secgroups, secGrp.getDesc())
+	}
+	return secgroups
+}
+
+func (self *SGuest) GetSecgroups() []SSecurityGroup {
+	secgrpQuery := SecurityGroupManager.Query()
+	secgrpQuery.Filter(
+		sqlchemy.OR(
+			sqlchemy.Equals(secgrpQuery.Field("id"), self.SecgrpId),
+			sqlchemy.In(secgrpQuery.Field("id"), GuestsecgroupManager.Query("secgroup_id").Equals("guest_id", self.Id).SubQuery()),
+		),
+	)
+	secgroups := []SSecurityGroup{}
+	if err := db.FetchModelObjects(SecurityGroupManager, secgrpQuery, &secgroups); err != nil {
+		log.Errorf("Get security group error: %v", err)
+		return nil
+	}
+	return secgroups
+}
+
 func (self *SGuest) getSecgroup() *SSecurityGroup {
 	return SecurityGroupManager.FetchSecgroupById(self.SecgrpId)
 }
@@ -1333,7 +1714,7 @@ func (self *SGuest) GetSecRules() []secrules.SecurityRule {
 
 func (self *SGuest) getSecRules() []secrules.SecurityRule {
 	if secgrp := self.getSecgroup(); secgrp != nil {
-		return secgrp.getSecRules("")
+		return secgrp.GetSecRules("")
 	}
 	if rule, err := secrules.ParseSecurityRule(options.Options.DefaultSecurityRules); err == nil {
 		return []secrules.SecurityRule{*rule}
@@ -1350,6 +1731,27 @@ func (self *SGuest) getSecurityRules() string {
 	} else {
 		return options.Options.DefaultSecurityRules
 	}
+}
+
+//获取多个安全组规则，优先级降序排序
+func (self *SGuest) getSecurityGroupsRules() string {
+	secgroups := self.GetSecgroups()
+	secgroupids := []string{}
+	for _, secgroup := range secgroups {
+		secgroupids = append(secgroupids, secgroup.Id)
+	}
+	q := SecurityGroupRuleManager.Query()
+	q.Filter(sqlchemy.In(q.Field("secgroup_id"), secgroupids)).Desc(q.Field("priority"))
+	secrules := []SSecurityGroupRule{}
+	if err := db.FetchModelObjects(SecurityGroupRuleManager, q, &secrules); err != nil {
+		log.Errorf("Get rules error: %v", err)
+		return options.Options.DefaultSecurityRules
+	}
+	rules := []string{}
+	for _, rule := range secrules {
+		rules = append(rules, rule.String())
+	}
+	return strings.Join(rules, SECURITY_GROUP_SEPARATOR)
 }
 
 func (self *SGuest) getAdminSecurityRules() string {
@@ -1369,22 +1771,49 @@ func (self *SGuest) GetIsolatedDevices() []SIsolatedDevice {
 	return IsolatedDeviceManager.findAttachedDevicesOfGuest(self)
 }
 
-func (self *SGuest) syncWithCloudVM(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, extVM cloudprovider.ICloudVM, projectId string, projectSync bool) error {
+func (self *SGuest) syncWithCloudVM(ctx context.Context, userCred mcclient.TokenCredential, provider cloudprovider.ICloudProvider, host *SHost, extVM cloudprovider.ICloudVM, projectId string, projectSync bool) error {
+	lockman.LockObject(ctx, self)
+	defer lockman.ReleaseObject(ctx, self)
+
+	recycle := false
+
+	if provider.SupportPrepaidResources() && self.IsPrepaidRecycle() {
+		recycle = true
+	}
+
 	metaData := extVM.GetMetadata()
 	diff, err := GuestManager.TableSpec().Update(self, func() error {
 		extVM.Refresh()
-		self.Name = extVM.GetName()
+		// self.Name = extVM.GetName()
 		self.Status = extVM.GetStatus()
 		self.VcpuCount = extVM.GetVcpuCount()
-		self.VmemSize = extVM.GetVmemSizeMB()
 		self.BootOrder = extVM.GetBootOrder()
 		self.Vga = extVM.GetVga()
 		self.Vdi = extVM.GetVdi()
 		self.OsType = extVM.GetOSType()
 		self.Bios = extVM.GetBios()
 		self.Machine = extVM.GetMachine()
-		self.HostId = host.Id
-		self.ProjectId = userCred.GetProjectId()
+		if !recycle {
+			self.HostId = host.Id
+		}
+
+		metaData := extVM.GetMetadata()
+		instanceType := extVM.GetInstanceType()
+
+		if len(instanceType) > 0 {
+			self.InstanceType = instanceType
+		}
+
+		if extVM.GetHypervisor() == HYPERVISOR_AWS {
+			sku, err := ServerSkuManager.FetchSkuByNameAndHypervisor(instanceType, extVM.GetHypervisor(), false)
+			if err == nil {
+				self.VmemSize = sku.MemorySizeMB
+			} else {
+				self.VmemSize = extVM.GetVmemSizeMB()
+			}
+		} else {
+			self.VmemSize = extVM.GetVmemSizeMB()
+		}
 
 		if projectSync && len(projectId) > 0 {
 			self.ProjectId = projectId
@@ -1394,15 +1823,28 @@ func (self *SGuest) syncWithCloudVM(ctx context.Context, userCred mcclient.Token
 
 		self.IsEmulated = extVM.IsEmulated()
 
-		self.BillingType = extVM.GetBillingType()
-		self.ExpiredAt = extVM.GetExpiredAt()
+		if provider.SupportPrepaidResources() && !recycle {
+			self.BillingType = extVM.GetBillingType()
+			self.ExpiredAt = extVM.GetExpiredAt()
+		}
 
-		if metaData != nil && metaData.Contains("secgroupId") {
-			if secgroupId, err := metaData.GetString("secgroupId"); err == nil && len(secgroupId) > 0 {
-				if secgrp, err := SecurityGroupManager.FetchByExternalId(secgroupId); err == nil && secgrp != nil {
-					self.SecgrpId = secgrp.GetId()
-				} else {
-					log.Errorf("Failed find secgroup %s for guest %s error: %v", secgroupId, self.Name, err)
+		if metaData != nil && metaData.Contains("secgroupIds") {
+			secgroupIds := []string{}
+			if err := metaData.Unmarshal(&secgroupIds, "secgroupIds"); err == nil {
+				for _, secgroupId := range secgroupIds {
+					secgrp, err := SecurityGroupManager.FetchByExternalId(secgroupId)
+					if err != nil {
+						log.Errorf("Failed find secgroup %s for guest %s error: %v", secgroupId, self.Name, err)
+						continue
+					}
+					secgroup := secgrp.(*SSecurityGroup)
+					if len(self.SecgrpId) == 0 {
+						self.SecgrpId = secgroup.Id
+					} else {
+						if _, err := GuestsecgroupManager.newGuestSecgroup(ctx, userCred, self, secgroup); err != nil {
+							log.Errorf("failed to bind secgroup %s for guest %s error: %v", secgroup.Name, self.Name, err)
+						}
+					}
 				}
 			}
 		}
@@ -1430,10 +1872,19 @@ func (self *SGuest) syncWithCloudVM(ctx context.Context, userCred mcclient.Token
 			}
 		}
 	}
+
+	if provider.SupportPrepaidResources() && recycle {
+		vhost := self.GetHost()
+		err = vhost.syncWithCloudPrepaidVM(extVM, host, projectSync)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (manager *SGuestManager) newCloudVM(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, extVM cloudprovider.ICloudVM, projectId string) (*SGuest, error) {
+func (manager *SGuestManager) newCloudVM(ctx context.Context, userCred mcclient.TokenCredential, provider cloudprovider.ICloudProvider, host *SHost, extVM cloudprovider.ICloudVM, projectId string) (*SGuest, error) {
 
 	guest := SGuest{}
 	guest.SetModelManager(manager)
@@ -1442,7 +1893,6 @@ func (manager *SGuestManager) newCloudVM(ctx context.Context, userCred mcclient.
 	guest.ExternalId = extVM.GetGlobalId()
 	guest.Name = extVM.GetName()
 	guest.VcpuCount = extVM.GetVcpuCount()
-	guest.VmemSize = extVM.GetVmemSizeMB()
 	guest.BootOrder = extVM.GetBootOrder()
 	guest.Vga = extVM.GetVga()
 	guest.Vdi = extVM.GetVdi()
@@ -1453,24 +1903,64 @@ func (manager *SGuestManager) newCloudVM(ctx context.Context, userCred mcclient.
 
 	guest.IsEmulated = extVM.IsEmulated()
 
-	guest.BillingType = extVM.GetBillingType()
-	guest.ExpiredAt = extVM.GetExpiredAt()
+	if provider.SupportPrepaidResources() {
+		guest.BillingType = extVM.GetBillingType()
+		guest.ExpiredAt = extVM.GetExpiredAt()
+	}
 
 	guest.HostId = host.Id
+
+	metaData := extVM.GetMetadata()
+	instanceType := extVM.GetInstanceType()
+
+	/*zoneExtId, err := metaData.GetString("zone_ext_id")
+	if err != nil {
+		log.Errorf("get zone external id fail %s", err)
+	}
+
+	isku, err := ServerSkuManager.FetchByZoneExtId(zoneExtId, instanceType)
+	if err != nil {
+		log.Errorf("get sku zone %s instance type %s fail %s", zoneExtId, instanceType, err)
+	} else {
+		guest.SkuId = isku.GetId()
+	}*/
+
+	if len(instanceType) > 0 {
+		guest.InstanceType = instanceType
+	}
+
+	if extVM.GetHypervisor() == HYPERVISOR_AWS {
+		sku, err := ServerSkuManager.FetchSkuByNameAndHypervisor(instanceType, extVM.GetHypervisor(), false)
+		if err == nil {
+			guest.VmemSize = sku.MemorySizeMB
+		} else {
+			guest.VmemSize = extVM.GetVmemSizeMB()
+		}
+	} else {
+		guest.VmemSize = extVM.GetVmemSizeMB()
+	}
 
 	guest.ProjectId = userCred.GetProjectId()
 	if len(projectId) > 0 {
 		guest.ProjectId = projectId
 	}
 
-	metaData := extVM.GetMetadata()
-
-	if metaData != nil && metaData.Contains("secgroupId") {
-		if secgroupId, err := metaData.GetString("secgroupId"); err == nil && len(secgroupId) > 0 {
-			if secgrp, err := SecurityGroupManager.FetchByExternalId(secgroupId); err == nil && secgrp != nil {
-				guest.SecgrpId = secgrp.GetId()
-			} else {
-				log.Errorf("Failed find secgroup %s for guest %s error: %v", secgroupId, guest.Name, err)
+	extraSecgroups := []*SSecurityGroup{}
+	if metaData != nil && metaData.Contains("secgroupIds") {
+		secgroupIds := []string{}
+		if err := metaData.Unmarshal(&secgroupIds, "secgroupIds"); err == nil {
+			for _, secgroupId := range secgroupIds {
+				secgrp, err := SecurityGroupManager.FetchByExternalId(secgroupId)
+				if err != nil {
+					log.Errorf("Failed find secgroup %s for guest %s error: %v", secgroupId, guest.Name, err)
+					continue
+				}
+				secgroup := secgrp.(*SSecurityGroup)
+				if len(guest.SecgrpId) == 0 {
+					guest.SecgrpId = secgroup.Id
+				} else {
+					extraSecgroups = append(extraSecgroups, secgroup)
+				}
 			}
 		}
 	}
@@ -1478,6 +1968,13 @@ func (manager *SGuestManager) newCloudVM(ctx context.Context, userCred mcclient.
 	err := manager.TableSpec().Insert(&guest)
 	if err != nil {
 		log.Errorf("Insert fail %s", err)
+		return nil, err
+	}
+
+	for _, secgroup := range extraSecgroups {
+		if _, err := GuestsecgroupManager.newGuestSecgroup(ctx, userCred, &guest, secgroup); err != nil {
+			log.Errorf("failed to bind secgroup %s for guest %s error: %v", secgroup.Name, guest.Name, err)
+		}
 	}
 
 	if metaData != nil {
@@ -1493,22 +1990,21 @@ func (manager *SGuestManager) newCloudVM(ctx context.Context, userCred mcclient.
 		}
 	}
 
-	db.OpsLog.LogEvent(&guest, db.ACT_SYNC_CLOUD_SERVER, guest.GetShortDesc(), userCred)
+	db.OpsLog.LogEvent(&guest, db.ACT_SYNC_CLOUD_SERVER, guest.GetShortDesc(ctx), userCred)
 	return &guest, nil
 }
 
 func (manager *SGuestManager) TotalCount(
 	projectId string, rangeObj db.IStandaloneModel,
 	status []string, hypervisors []string,
-	includeSystem bool, pendingDelete bool, hostType string,
+	includeSystem bool, pendingDelete bool,
+	hostTypes []string, resourceTypes []string, providers []string,
 ) SGuestCountStat {
-	return totalGuestResourceCount(projectId, rangeObj, status, hypervisors, includeSystem, pendingDelete, hostType)
+	return totalGuestResourceCount(projectId, rangeObj, status, hypervisors, includeSystem, pendingDelete, hostTypes, resourceTypes, providers)
 }
 
-func (self *SGuest) detachNetwork(ctx context.Context, userCred mcclient.TokenCredential, network *SNetwork, reserve bool, deploy bool) error {
-	// Portmaps.delete_guest_network_portmaps(self, user_cred,
-	//                                                    network_id=net.id)
-	err := GuestnetworkManager.DeleteGuestNics(ctx, self, userCred, network, reserve)
+func (self *SGuest) detachNetworks(ctx context.Context, userCred mcclient.TokenCredential, gns []SGuestnetwork, reserve bool, deploy bool) error {
+	err := GuestnetworkManager.DeleteGuestNics(ctx, userCred, gns, reserve)
 	if err != nil {
 		return err
 	}
@@ -1522,14 +2018,17 @@ func (self *SGuest) detachNetwork(ctx context.Context, userCred mcclient.TokenCr
 	return nil
 }
 
-func (self *SGuest) isAttach2Network(net *SNetwork) bool {
+func (self *SGuest) getAttach2NetworkCount(net *SNetwork) int {
 	q := GuestnetworkManager.Query()
 	q = q.Equals("guest_id", self.Id).Equals("network_id", net.Id)
-	return q.Count() > 0
+	return q.Count()
 }
 
 func (self *SGuest) getMaxNicIndex() int8 {
-	nics := self.GetNetworks()
+	nics, err := self.GetNetworks("")
+	if err != nil {
+		return -1
+	}
 	return int8(len(nics))
 }
 
@@ -1550,9 +2049,14 @@ func (self *SGuest) getOSProfile() osprofile.SOSProfile {
 	return osProf
 }
 
-func (self *SGuest) Attach2Network(ctx context.Context, userCred mcclient.TokenCredential, network *SNetwork, pendingUsage quotas.IQuota,
-	address string, mac string, driver string, bwLimit int, virtual bool, index int8, reserved bool, allocDir IPAddlocationDirection, requireDesignatedIP bool) error {
-	if self.isAttach2Network(network) {
+func (self *SGuest) Attach2Network(ctx context.Context, userCred mcclient.TokenCredential, network *SNetwork,
+	pendingUsage quotas.IQuota,
+	address string, mac string, driver string, bwLimit int, virtual bool, index int8,
+	reserved bool, allocDir IPAddlocationDirection, requireDesignatedIP bool, ifName string) error {
+	/*
+		allow a guest attach to a network 2 times
+	*/
+	if self.getAttach2NetworkCount(network) > MAX_GUESTNIC_TO_SAME_NETWORK {
 		return fmt.Errorf("Guest has been attached to network %s", network.Name)
 	}
 	if index < 0 {
@@ -1567,7 +2071,7 @@ func (self *SGuest) Attach2Network(ctx context.Context, userCred mcclient.TokenC
 
 	guestnic, err := GuestnetworkManager.newGuestNetwork(ctx, userCred, self, network,
 		index, address, mac, driver, bwLimit, virtual, reserved,
-		allocDir, requireDesignatedIP)
+		allocDir, requireDesignatedIP, ifName)
 	if err != nil {
 		return err
 	}
@@ -1593,7 +2097,7 @@ func (self *SGuest) Attach2Network(ctx context.Context, userCred mcclient.TokenC
 		address = guestnic.IpAddr
 	}
 	notes.Add(jsonutils.NewString(address), "ip_addr")
-	db.OpsLog.LogAttachEvent(self, network, userCred, notes)
+	db.OpsLog.LogAttachEvent(ctx, self, network, userCred, notes)
 	return nil
 }
 
@@ -1630,7 +2134,12 @@ func getCloudNicNetwork(vnic cloudprovider.ICloudNic, host *SHost) (*SNetwork, e
 func (self *SGuest) SyncVMNics(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, vnics []cloudprovider.ICloudNic) compare.SyncResult {
 	result := compare.SyncResult{}
 
-	guestnics := self.GetNetworks()
+	guestnics, err := self.GetNetworks("")
+	if err != nil {
+		result.Error(err)
+		return result
+	}
+
 	removed := make([]sRemoveGuestnic, 0)
 	adds := make([]sAddGuestnic, 0)
 
@@ -1680,7 +2189,7 @@ func (self *SGuest) SyncVMNics(ctx context.Context, userCred mcclient.TokenCrede
 	}
 
 	for _, remove := range removed {
-		err := self.detachNetwork(ctx, userCred, remove.nic.GetNetwork(), remove.reserve, false)
+		err := self.detachNetworks(ctx, userCred, []SGuestnetwork{*remove.nic}, remove.reserve, false)
 		if err != nil {
 			result.DeleteError(err)
 		} else {
@@ -1709,7 +2218,7 @@ func (self *SGuest) SyncVMNics(ctx context.Context, userCred mcclient.TokenCrede
 			}
 		}
 		err = self.Attach2Network(ctx, userCred, add.net, nil, add.nic.GetIP(),
-			add.nic.GetMAC(), add.nic.GetDriver(), 0, false, -1, add.reserve, IPAllocationDefault, true)
+			add.nic.GetMAC(), add.nic.GetDriver(), 0, false, -1, add.reserve, IPAllocationDefault, true, "")
 		if err != nil {
 			result.AddError(err)
 		} else {
@@ -1730,11 +2239,11 @@ func (self *SGuest) getMaxDiskIndex() int8 {
 	return int8(len(guestdisks))
 }
 
-func (self *SGuest) AttachDisk(disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string) error {
-	return self.attach2Disk(disk, userCred, driver, cache, mountpoint)
+func (self *SGuest) AttachDisk(ctx context.Context, disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string) error {
+	return self.attach2Disk(ctx, disk, userCred, driver, cache, mountpoint)
 }
 
-func (self *SGuest) attach2Disk(disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string) error {
+func (self *SGuest) attach2Disk(ctx context.Context, disk *SDisk, userCred mcclient.TokenCredential, driver string, cache string, mountpoint string) error {
 	if self.isAttach2Disk(disk) {
 		return fmt.Errorf("Guest has been attached to disk")
 	}
@@ -1751,7 +2260,7 @@ func (self *SGuest) attach2Disk(disk *SDisk, userCred mcclient.TokenCredential, 
 	guestdisk.Index = index
 	err := guestdisk.DoSave(driver, cache, mountpoint)
 	if err == nil {
-		db.OpsLog.LogAttachEvent(self, disk, userCred, nil)
+		db.OpsLog.LogAttachEvent(ctx, self, disk, userCred, nil)
 	}
 	return err
 }
@@ -1761,7 +2270,7 @@ type sSyncDiskPair struct {
 	vdisk cloudprovider.ICloudDisk
 }
 
-func (self *SGuest) SyncVMDisks(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, vdisks []cloudprovider.ICloudDisk, projectId string, projectSync bool) compare.SyncResult {
+func (self *SGuest) SyncVMDisks(ctx context.Context, userCred mcclient.TokenCredential, provider cloudprovider.ICloudProvider, host *SHost, vdisks []cloudprovider.ICloudDisk, projectId string, projectSync bool) compare.SyncResult {
 	result := compare.SyncResult{}
 
 	newdisks := make([]sSyncDiskPair, 0)
@@ -1769,7 +2278,7 @@ func (self *SGuest) SyncVMDisks(ctx context.Context, userCred mcclient.TokenCred
 		if len(vdisks[i].GetGlobalId()) == 0 {
 			continue
 		}
-		disk, err := DiskManager.syncCloudDisk(ctx, userCred, vdisks[i], i, projectId, projectSync)
+		disk, err := DiskManager.syncCloudDisk(ctx, userCred, provider, vdisks[i], i, projectId, projectSync)
 		if err != nil {
 			log.Errorf("syncCloudDisk error: %v", err)
 			result.Error(err)
@@ -1819,7 +2328,7 @@ func (self *SGuest) SyncVMDisks(ctx context.Context, userCred mcclient.TokenCred
 	}
 	for i := 0; i < len(needAdds); i += 1 {
 		vdisk := needAdds[i].vdisk
-		err := self.attach2Disk(needAdds[i].disk, userCred, vdisk.GetDriver(), vdisk.GetCacheMode(), vdisk.GetMountpoint())
+		err := self.attach2Disk(ctx, needAdds[i].disk, userCred, vdisk.GetDriver(), vdisk.GetCacheMode(), vdisk.GetMountpoint())
 		if err != nil {
 			log.Errorf("attach2Disk error: %v", err)
 			result.AddError(err)
@@ -1830,27 +2339,27 @@ func (self *SGuest) SyncVMDisks(ctx context.Context, userCred mcclient.TokenCred
 	return result
 }
 
-func filterGuestByRange(q *sqlchemy.SQuery, rangeObj db.IStandaloneModel, hostType string) *sqlchemy.SQuery {
+func filterGuestByRange(q *sqlchemy.SQuery, rangeObj db.IStandaloneModel, hostTypes []string, resourceTypes []string, providers []string) *sqlchemy.SQuery {
 	hosts := HostManager.Query().SubQuery()
-	q = q.Join(hosts, sqlchemy.AND(
-		sqlchemy.Equals(hosts.Field("id"), q.Field("host_id")),
-		sqlchemy.IsFalse(hosts.Field("deleted")),
-		sqlchemy.IsTrue(hosts.Field("enabled")),
-		sqlchemy.Equals(hosts.Field("host_status"), HOST_ONLINE)))
-	hostTypes := []string{}
-	if len(hostType) != 0 {
-		hostTypes = append(hostTypes, hostType)
-	}
-	q = AttachUsageQuery(q, hosts, hosts.Field("id"), hostTypes, rangeObj)
+
+	q = q.Join(hosts, sqlchemy.Equals(hosts.Field("id"), q.Field("host_id")))
+	q = q.Filter(sqlchemy.IsTrue(hosts.Field("enabled")))
+	// q = q.Filter(sqlchemy.Equals(hosts.Field("host_status"), HOST_ONLINE))
+
+	q = AttachUsageQuery(q, hosts, hostTypes, resourceTypes, providers, rangeObj)
 	return q
 }
 
 type SGuestCountStat struct {
-	TotalGuestCount    int
-	TotalCpuCount      int
-	TotalMemSize       int
-	TotalDiskSize      int
-	TotalIsolatedCount int
+	TotalGuestCount       int
+	TotalCpuCount         int
+	TotalMemSize          int
+	TotalDiskSize         int
+	TotalIsolatedCount    int
+	TotalBackupGuestCount int
+	TotalBackupCpuCount   int
+	TotalBackupMemSize    int
+	TotalBackupDiskSize   int
 }
 
 func totalGuestResourceCount(
@@ -1860,18 +2369,26 @@ func totalGuestResourceCount(
 	hypervisors []string,
 	includeSystem bool,
 	pendingDelete bool,
-	hostType string,
+	hostTypes []string,
+	resourceTypes []string,
+	providers []string,
 ) SGuestCountStat {
 
 	guestdisks := GuestdiskManager.Query().SubQuery()
 	disks := DiskManager.Query().SubQuery()
 
 	diskQuery := guestdisks.Query(guestdisks.Field("guest_id"), sqlchemy.SUM("guest_disk_size", disks.Field("disk_size")))
-	diskQuery = diskQuery.Join(disks, sqlchemy.AND(sqlchemy.Equals(guestdisks.Field("disk_id"), disks.Field("id")),
-		sqlchemy.IsFalse(disks.Field("deleted"))))
+	diskQuery = diskQuery.Join(disks, sqlchemy.Equals(guestdisks.Field("disk_id"), disks.Field("id")))
 	diskQuery = diskQuery.GroupBy(guestdisks.Field("guest_id"))
-
 	diskSubQuery := diskQuery.SubQuery()
+
+	backupDiskQuery := guestdisks.Query(guestdisks.Field("guest_id"), sqlchemy.SUM("guest_disk_size", disks.Field("disk_size")))
+	backupDiskQuery = backupDiskQuery.LeftJoin(disks, sqlchemy.Equals(guestdisks.Field("disk_id"), disks.Field("id")))
+	backupDiskQuery = backupDiskQuery.Filter(sqlchemy.IsNotEmpty(disks.Field("backup_storage_id")))
+	backupDiskQuery = backupDiskQuery.GroupBy(guestdisks.Field("guest_id"))
+
+	diskBackupSubQuery := backupDiskQuery.SubQuery()
+	// diskBackupSubQuery := diskQuery.IsNotEmpty("backup_storage_id").SubQuery()
 
 	isolated := IsolatedDeviceManager.Query().SubQuery()
 
@@ -1882,18 +2399,31 @@ func totalGuestResourceCount(
 	isoDevSubQuery := isoDevQuery.SubQuery()
 
 	guests := GuestManager.Query().SubQuery()
+	guestBackupSubQuery := GuestManager.Query(
+		"id",
+		"vcpu_count",
+		"vmem_size",
+	).IsNotEmpty("backup_host_id").SubQuery()
 
 	q := guests.Query(sqlchemy.COUNT("total_guest_count"),
 		sqlchemy.SUM("total_cpu_count", guests.Field("vcpu_count")),
 		sqlchemy.SUM("total_mem_size", guests.Field("vmem_size")),
 		sqlchemy.SUM("total_disk_size", diskSubQuery.Field("guest_disk_size")),
-		sqlchemy.SUM("total_isolated_count", isoDevSubQuery.Field("device_sum")))
+		sqlchemy.SUM("total_isolated_count", isoDevSubQuery.Field("device_sum")),
+		sqlchemy.SUM("total_backup_disk_size", diskBackupSubQuery.Field("guest_disk_size")),
+		sqlchemy.SUM("total_backup_cpu_count", guestBackupSubQuery.Field("vcpu_count")),
+		sqlchemy.SUM("total_backup_mem_size", guestBackupSubQuery.Field("vmem_size")),
+		sqlchemy.COUNT("total_backup_guest_count", guestBackupSubQuery.Field("id")),
+	)
+
+	q = q.LeftJoin(guestBackupSubQuery, sqlchemy.Equals(guestBackupSubQuery.Field("id"), guests.Field("id")))
 
 	q = q.LeftJoin(diskSubQuery, sqlchemy.Equals(diskSubQuery.Field("guest_id"), guests.Field("id")))
+	q = q.LeftJoin(diskBackupSubQuery, sqlchemy.Equals(diskBackupSubQuery.Field("guest_id"), guests.Field("id")))
 
 	q = q.LeftJoin(isoDevSubQuery, sqlchemy.Equals(isoDevSubQuery.Field("guest_id"), guests.Field("id")))
 
-	q = filterGuestByRange(q, rangeObj, hostType)
+	q = filterGuestByRange(q, rangeObj, hostTypes, resourceTypes, providers)
 
 	if len(projectId) > 0 {
 		q = q.Filter(sqlchemy.Equals(guests.Field("tenant_id"), projectId))
@@ -1918,6 +2448,9 @@ func totalGuestResourceCount(
 	if err != nil {
 		log.Errorf("%s", err)
 	}
+	stat.TotalCpuCount += stat.TotalBackupCpuCount
+	stat.TotalMemSize += stat.TotalBackupMemSize
+	stat.TotalDiskSize += stat.TotalBackupDiskSize
 	return stat
 }
 
@@ -1930,13 +2463,24 @@ func (self *SGuest) getDefaultNetworkConfig() *SNetworkConfig {
 }
 
 func (self *SGuest) CreateNetworksOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, data *jsonutils.JSONDict, pendingUsage quotas.IQuota) error {
-	idx := 0
+	netJsonArray := jsonutils.GetArrayOfPrefix(data, "net")
+	/* idx := 0
 	for idx = 0; data.Contains(fmt.Sprintf("net.%d", idx)); idx += 1 {
 		netJson, err := data.Get(fmt.Sprintf("net.%d", idx))
 		if err != nil {
 			return err
 		}
-		netConfig, err := parseNetworkInfo(userCred, netJson)
+		if netJson == jsonutils.JSONNull {
+			break
+		}
+
+	}*/
+	if len(netJsonArray) == 0 {
+		netConfig := self.getDefaultNetworkConfig()
+		return self.attach2RandomNetwork(ctx, userCred, host, netConfig, pendingUsage)
+	}
+	for idx := 0; idx < len(netJsonArray); idx += 1 {
+		netConfig, err := parseNetworkInfo(userCred, netJsonArray[idx])
 		if err != nil {
 			return err
 		}
@@ -1944,10 +2488,6 @@ func (self *SGuest) CreateNetworksOnHost(ctx context.Context, userCred mcclient.
 		if err != nil {
 			return err
 		}
-	}
-	if idx == 0 {
-		netConfig := self.getDefaultNetworkConfig()
-		return self.attach2RandomNetwork(ctx, userCred, host, netConfig, pendingUsage)
 	}
 	return nil
 }
@@ -1975,7 +2515,7 @@ func (self *SGuest) attach2NamedNetworkDesc(ctx context.Context, userCred mcclie
 	driver := self.GetDriver()
 	net, mac, idx, allocDir := driver.GetNamedNetworkConfiguration(self, userCred, host, netConfig)
 	if net != nil {
-		err := self.Attach2Network(ctx, userCred, net, pendingUsage, netConfig.Address, mac, netConfig.Driver, netConfig.BwLimit, netConfig.Vip, idx, netConfig.Reserved, allocDir, false)
+		err := self.Attach2Network(ctx, userCred, net, pendingUsage, netConfig.Address, mac, netConfig.Driver, netConfig.BwLimit, netConfig.Vip, idx, netConfig.Reserved, allocDir, false, netConfig.Ifname)
 		if err != nil {
 			return err
 		} else {
@@ -1991,26 +2531,28 @@ func (self *SGuest) attach2RandomNetwork(ctx context.Context, userCred mcclient.
 	return driver.Attach2RandomNetwork(self, ctx, userCred, host, netConfig, pendingUsage)
 }
 
-func (self *SGuest) CreateDisksOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, data *jsonutils.JSONDict, pendingUsage quotas.IQuota) error {
-	for idx := 0; data.Contains(fmt.Sprintf("disk.%d", idx)); idx += 1 {
-		diskJson, err := data.Get(fmt.Sprintf("disk.%d", idx))
+func (self *SGuest) CreateDisksOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost,
+	data *jsonutils.JSONDict, pendingUsage quotas.IQuota, inheritBilling bool) error {
+	diskJsonArray := jsonutils.GetArrayOfPrefix(data, "disk")
+	for idx := 0; idx < len(diskJsonArray); idx += 1 { // .Contains(fmt.Sprintf("disk.%d", idx)); idx += 1 {
+		diskConfig, err := parseDiskInfo(ctx, userCred, diskJsonArray[idx])
 		if err != nil {
 			return err
 		}
-		diskConfig, err := parseDiskInfo(ctx, userCred, diskJson)
-		if err != nil {
-			return err
-		}
-		disk, err := self.createDiskOnHost(ctx, userCred, host, diskConfig, pendingUsage)
+		disk, err := self.createDiskOnHost(ctx, userCred, host, diskConfig, pendingUsage, inheritBilling)
 		if err != nil {
 			return err
 		}
 		data.Add(jsonutils.NewString(disk.Id), fmt.Sprintf("disk.%d.id", idx))
+		if len(diskConfig.SnapshotId) > 0 {
+			data.Add(jsonutils.NewString(diskConfig.SnapshotId), fmt.Sprintf("disk.%d.snapshot", idx))
+		}
 	}
 	return nil
 }
 
-func (self *SGuest) createDiskOnStorage(ctx context.Context, userCred mcclient.TokenCredential, storage *SStorage, diskConfig *SDiskConfig, pendingUsage quotas.IQuota) (*SDisk, error) {
+func (self *SGuest) createDiskOnStorage(ctx context.Context, userCred mcclient.TokenCredential, storage *SStorage,
+	diskConfig *SDiskConfig, pendingUsage quotas.IQuota, inheritBilling bool) (*SDisk, error) {
 	lockman.LockObject(ctx, storage)
 	defer lockman.ReleaseObject(ctx, storage)
 
@@ -2018,7 +2560,20 @@ func (self *SGuest) createDiskOnStorage(ctx context.Context, userCred mcclient.T
 	defer lockman.ReleaseClass(ctx, QuotaManager, self.ProjectId)
 
 	diskName := fmt.Sprintf("vdisk_%s_%d", self.Name, time.Now().UnixNano())
-	disk, err := storage.createDisk(diskName, diskConfig, userCred, self.ProjectId, true, self.IsSystem)
+
+	billingType := BILLING_TYPE_POSTPAID
+	billingCycle := ""
+	if inheritBilling {
+		billingType = self.BillingType
+		billingCycle = self.BillingCycle
+	}
+
+	autoDelete := false
+	if storage.IsLocal() || billingType == BILLING_TYPE_PREPAID {
+		autoDelete = true
+	}
+	disk, err := storage.createDisk(diskName, diskConfig, userCred, self.ProjectId, autoDelete, self.IsSystem,
+		billingType, billingCycle)
 
 	if err != nil {
 		return nil, err
@@ -2031,26 +2586,36 @@ func (self *SGuest) createDiskOnStorage(ctx context.Context, userCred mcclient.T
 	return disk, nil
 }
 
-func (self *SGuest) createDiskOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, diskConfig *SDiskConfig, pendingUsage quotas.IQuota) (*SDisk, error) {
+func (self *SGuest) createDiskOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost,
+	diskConfig *SDiskConfig, pendingUsage quotas.IQuota, inheritBilling bool) (*SDisk, error) {
 	storage := self.GetDriver().ChooseHostStorage(host, diskConfig.Backend)
 	if storage == nil {
-		return nil, fmt.Errorf("No storage to create disk")
+		return nil, fmt.Errorf("No storage on %s to create disk for %s", host.GetName(), diskConfig.Backend)
 	}
-	disk, err := self.createDiskOnStorage(ctx, userCred, storage, diskConfig, pendingUsage)
+	disk, err := self.createDiskOnStorage(ctx, userCred, storage, diskConfig, pendingUsage, inheritBilling)
 	if err != nil {
 		return nil, err
 	}
-	err = self.attach2Disk(disk, userCred, diskConfig.Driver, diskConfig.Cache, diskConfig.Mountpoint)
+	if len(self.BackupHostId) > 0 {
+		backupHost := HostManager.FetchHostById(self.BackupHostId)
+		backupStorage := self.GetDriver().ChooseHostStorage(backupHost, diskConfig.Backend)
+		_, err = disk.GetModelManager().TableSpec().Update(disk, func() error {
+			disk.BackupStorageId = backupStorage.Id
+			return nil
+		})
+		if err != nil {
+			log.Errorf("Disk save backup storage error")
+			return disk, err
+		}
+	}
+	err = self.attach2Disk(ctx, disk, userCred, diskConfig.Driver, diskConfig.Cache, diskConfig.Mountpoint)
 	return disk, err
 }
 
 func (self *SGuest) CreateIsolatedDeviceOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, data *jsonutils.JSONDict, pendingUsage quotas.IQuota) error {
-	for idx := 0; data.Contains(fmt.Sprintf("isolated_device.%d", idx)); idx += 1 {
-		devJson, err := data.Get(fmt.Sprintf("isolated_device.%d", idx))
-		if err != nil {
-			return err
-		}
-		devConfig, err := IsolatedDeviceManager.parseDeviceInfo(userCred, devJson)
+	devJsonArray := jsonutils.GetArrayOfPrefix(data, "isolated_device")
+	for idx := 0; idx < len(devJsonArray); idx += 1 { // .Contains(fmt.Sprintf("isolated_device.%d", idx)); idx += 1 {
+		devConfig, err := IsolatedDeviceManager.parseDeviceInfo(userCred, devJsonArray[idx])
 		if err != nil {
 			return err
 		}
@@ -2066,7 +2631,7 @@ func (self *SGuest) createIsolatedDeviceOnHost(ctx context.Context, userCred mcc
 	lockman.LockClass(ctx, QuotaManager, self.ProjectId)
 	defer lockman.ReleaseClass(ctx, QuotaManager, self.ProjectId)
 
-	err := IsolatedDeviceManager.attachHostDeviceToGuestByDesc(self, host, devConfig, userCred)
+	err := IsolatedDeviceManager.attachHostDeviceToGuestByDesc(ctx, self, host, devConfig, userCred)
 	if err != nil {
 		return err
 	}
@@ -2076,7 +2641,7 @@ func (self *SGuest) createIsolatedDeviceOnHost(ctx context.Context, userCred mcc
 	return err
 }
 
-func (self *SGuest) attachIsolatedDevice(userCred mcclient.TokenCredential, dev *SIsolatedDevice) error {
+func (self *SGuest) attachIsolatedDevice(ctx context.Context, userCred mcclient.TokenCredential, dev *SIsolatedDevice) error {
 	if len(dev.GuestId) > 0 {
 		return fmt.Errorf("Isolated device already attached to another guest: %s", dev.GuestId)
 	}
@@ -2090,16 +2655,12 @@ func (self *SGuest) attachIsolatedDevice(userCred mcclient.TokenCredential, dev 
 	if err != nil {
 		return err
 	}
-	db.OpsLog.LogEvent(self, db.ACT_GUEST_ATTACH_ISOLATED_DEVICE, dev.GetShortDesc(), userCred)
+	db.OpsLog.LogEvent(self, db.ACT_GUEST_ATTACH_ISOLATED_DEVICE, dev.GetShortDesc(ctx), userCred)
 	return nil
 }
 
 func (self *SGuest) JoinGroups(userCred mcclient.TokenCredential, params *jsonutils.JSONDict) {
 	// TODO
-}
-
-func (self *SGuest) StartGuestCreateTask(ctx context.Context, userCred mcclient.TokenCredential, params *jsonutils.JSONDict, pendingUsage quotas.IQuota, parentTaskId string) error {
-	return self.GetDriver().StartGuestCreateTask(self, ctx, userCred, params, pendingUsage, parentTaskId)
 }
 
 type SGuestDiskCategory struct {
@@ -2138,9 +2699,9 @@ type SGuestNicCategory struct {
 func (self *SGuest) CategorizeNics() SGuestNicCategory {
 	netCat := SGuestNicCategory{}
 
-	guestnics := self.GetNetworks()
-	if guestnics == nil {
-		log.Errorf("no nics for this server!!!")
+	guestnics, err := self.GetNetworks("")
+	if err != nil {
+		log.Errorf("no nics for this server!!! %s", err)
 		return netCat
 	}
 
@@ -2154,7 +2715,7 @@ func (self *SGuest) CategorizeNics() SGuestNicCategory {
 	return netCat
 }
 
-func (self *SGuest) LeaveAllGroups(userCred mcclient.TokenCredential) {
+func (self *SGuest) LeaveAllGroups(ctx context.Context, userCred mcclient.TokenCredential) {
 	groupGuests := make([]SGroupguest, 0)
 	q := GroupguestManager.Query()
 	err := q.Filter(sqlchemy.Equals(q.Field("guest_id"), self.Id)).All(&groupGuests)
@@ -2171,14 +2732,18 @@ func (self *SGuest) LeaveAllGroups(userCred mcclient.TokenCredential) {
 			log.Errorln(err.Error())
 			return
 		}
-		db.OpsLog.LogDetachEvent(self, &group, userCred, nil)
+		db.OpsLog.LogDetachEvent(ctx, self, &group, userCred, nil)
 	}
 }
 
 func (self *SGuest) DetachAllNetworks(ctx context.Context, userCred mcclient.TokenCredential) error {
 	// from clouds.models.portmaps import Portmaps
 	// Portmaps.delete_guest_network_portmaps(self, user_cred)
-	return GuestnetworkManager.DeleteGuestNics(ctx, self, userCred, nil, false)
+	gns, err := self.GetNetworks("")
+	if err != nil {
+		return err
+	}
+	return GuestnetworkManager.DeleteGuestNics(ctx, userCred, gns, false)
 }
 
 func (self *SGuest) EjectIso(userCred mcclient.TokenCredential) bool {
@@ -2207,14 +2772,14 @@ func (self *SGuest) RealDelete(ctx context.Context, userCred mcclient.TokenCrede
 func (self *SGuest) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	overridePendingDelete := false
 	purge := false
-	if data != nil {
-		overridePendingDelete = jsonutils.QueryBoolean(data, "override_pending_delete", false)
-		purge = jsonutils.QueryBoolean(data, "purge", false)
+	if query != nil {
+		overridePendingDelete = jsonutils.QueryBoolean(query, "override_pending_delete", false)
+		purge = jsonutils.QueryBoolean(query, "purge", false)
 	}
-	if (overridePendingDelete || purge) && !userCred.IsSystemAdmin() {
+	if (overridePendingDelete || purge) && !db.IsAdminAllowDelete(userCred, self) {
 		return false
 	}
-	return self.IsOwner(userCred)
+	return self.IsOwner(userCred) || db.IsAdminAllowDelete(userCred, self)
 }
 
 func (self *SGuest) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -2250,10 +2815,10 @@ type SDeployConfig struct {
 	Content string
 }
 
-func (self *SGuest) GetDeployConfigOnHost(ctx context.Context, host *SHost, params *jsonutils.JSONDict) *jsonutils.JSONDict {
+func (self *SGuest) GetDeployConfigOnHost(ctx context.Context, userCred mcclient.TokenCredential, host *SHost, params *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	config := jsonutils.NewDict()
 
-	desc := self.GetDriver().GetJsonDescAtHost(ctx, self, host)
+	desc := self.GetDriver().GetJsonDescAtHost(ctx, userCred, self, host)
 	config.Add(desc, "desc")
 
 	deploys := make([]SDeployConfig, 0)
@@ -2322,7 +2887,55 @@ func (self *SGuest) GetDeployConfigOnHost(ctx context.Context, host *SHost, para
 
 	config.Add(jsonutils.NewString(onFinish), "on_finish")
 
-	return config
+	if deployAction == "create" && !utils.IsInStringArray(self.Hypervisor, []string{HYPERVISOR_KVM, HYPERVISOR_BAREMETAL, HYPERVISOR_CONTAINER, HYPERVISOR_ESXI, HYPERVISOR_XEN}) {
+		nets, err := self.GetNetworks("")
+		if err != nil || len(nets) == 0 {
+			return nil, fmt.Errorf("failed to find network for guest %s: %s", self.Name, err)
+		}
+		net := nets[0].GetNetwork()
+		vpc := net.GetVpc()
+		registerVpcId := vpc.ExternalId
+		externalVpcId := vpc.ExternalId
+		switch self.Hypervisor {
+		case HYPERVISOR_ALIYUN, HYPERVISOR_AWS, HYPERVISOR_OPENSTACK, HYPERVISOR_HUAWEI:
+			break
+		case HYPERVISOR_QCLOUD:
+			registerVpcId = "normal"
+		case HYPERVISOR_AZURE:
+			registerVpcId, externalVpcId = "normal", "normal"
+			if strings.HasSuffix(host.Name, "-classic") {
+				registerVpcId, externalVpcId = "classic", "classic"
+			}
+		default:
+			return nil, fmt.Errorf("Unknown guest %s hypervisor %s for sync secgroup", self.Name, self.Hypervisor)
+		}
+		iregion, err := host.GetIRegion()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get iregion for host %s error: %v", host.Name, err)
+		}
+		secgroupIds := jsonutils.NewArray()
+		secgroups := self.GetSecgroups()
+		for i, secgroup := range secgroups {
+			secgroupCache := SecurityGroupCacheManager.Register(ctx, userCred, secgroup.Id, registerVpcId, vpc.CloudregionId, vpc.ManagerId)
+			if secgroupCache == nil {
+				return nil, fmt.Errorf("failed to registor secgroupCache for secgroup: %s(%s), vpc: %s", secgroup.Name, secgroup.Id, vpc.Name)
+			}
+
+			externalSecgroupId, err := iregion.SyncSecurityGroup(secgroupCache.ExternalId, externalVpcId, secgroup.Name, secgroup.Description, secgroup.GetSecRules(""))
+			if err != nil {
+				return nil, fmt.Errorf("SyncSecurityGroup fail %s", err)
+			}
+			if err := secgroupCache.SetExternalId(externalSecgroupId); err != nil {
+				return nil, fmt.Errorf("failed to set externalId for secgroup %s(%s) externalId %s: error: %v", secgroup.Name, secgroup.Id, externalSecgroupId, err)
+			}
+			secgroupIds.Add(jsonutils.NewString(externalSecgroupId))
+			if i == 0 {
+				config.Add(jsonutils.NewString(externalSecgroupId), "desc", "external_secgroup_id")
+			}
+		}
+		config.Add(secgroupIds, "desc", "external_secgroup_ids")
+	}
+	return config, nil
 }
 
 func (self *SGuest) getVga() string {
@@ -2361,16 +2974,6 @@ func (self *SGuest) getExtraOptions() jsonutils.JSONObject {
 	return self.GetMetadataJson("extra_options", nil)
 }
 
-/*
-func (self *SGuest) GetFlavor() *SFlav {
-
-}
-
-func (self *SGuest) getFlavorName() string {
-	f := self.GetFlavor()
-}
-*/
-
 func (self *SGuest) GetJsonDescAtHypervisor(ctx context.Context, host *SHost) *jsonutils.JSONDict {
 	desc := jsonutils.NewDict()
 
@@ -2387,13 +2990,25 @@ func (self *SGuest) GetJsonDescAtHypervisor(ctx context.Context, host *SHost) *j
 	desc.Add(jsonutils.NewString(self.getBios()), "bios")
 	desc.Add(jsonutils.NewString(self.BootOrder), "boot_order")
 
+	if len(self.BackupHostId) > 0 {
+		if self.HostId == host.Id {
+			desc.Set("is_master", jsonutils.JSONTrue)
+			desc.Set("host_id", jsonutils.NewString(self.HostId))
+		} else if self.BackupHostId == host.Id {
+			desc.Set("is_slave", jsonutils.JSONTrue)
+			desc.Set("host_id", jsonutils.NewString(self.BackupHostId))
+		}
+	}
+
 	// isolated devices
 	isolatedDevs := IsolatedDeviceManager.generateJsonDescForGuest(self)
 	desc.Add(jsonutils.NewArray(isolatedDevs...), "isolated_devices")
 
 	// nics, domain
 	jsonNics := make([]jsonutils.JSONObject, 0)
-	nics := self.GetNetworks()
+
+	nics, _ := self.GetNetworks("")
+
 	domain := options.Options.DNSDomain
 	if nics != nil && len(nics) > 0 {
 		for _, nic := range nics {
@@ -2451,13 +3066,17 @@ func (self *SGuest) GetJsonDescAtHypervisor(ctx context.Context, host *SHost) *j
 		desc.Add(jsonutils.NewString(secGrp.Name), "secgroup")
 	}
 
+	if secgroups := self.getSecgroupJson(); len(secgroups) > 0 {
+		desc.Add(jsonutils.NewArray(secgroups...), "secgroups")
+	}
+
 	/*
 		TODO
 		srs := self.getSecurityRuleSet()
 		if srs.estimatedSinglePortRuleCount() <= options.FirewallFlowCountLimit {
 	*/
 
-	rules := self.getSecurityRules()
+	rules := self.getSecurityGroupsRules()
 	if len(rules) > 0 {
 		desc.Add(jsonutils.NewString(rules), "security_rules")
 	}
@@ -2571,7 +3190,7 @@ func (self *SGuest) GetJsonDescAtBaremetal(ctx context.Context, host *SHost) *js
 		desc.Add(jsonutils.NewStringArray(netRoles), "network_roles")
 	}
 
-	rules := self.getSecurityRules()
+	rules := self.getSecurityGroupsRules()
 	if len(rules) > 0 {
 		desc.Add(jsonutils.NewString(rules), "security_rules")
 	}
@@ -2651,7 +3270,8 @@ func (self *SGuest) GetSpec(checkStatus bool) *jsonutils.JSONDict {
 	spec.Set("disk", diskSpecs)
 
 	// get nic spec
-	guestnics := self.GetNetworks()
+	guestnics, _ := self.GetNetworks("")
+
 	nicSpecs := jsonutils.NewArray()
 	for _, guestnic := range guestnics {
 		nicSpec := jsonutils.NewDict()
@@ -2751,8 +3371,8 @@ func (self *SGuest) GetTemplateId() string {
 	return ""
 }
 
-func (self *SGuest) GetShortDesc() *jsonutils.JSONDict {
-	desc := self.SStandaloneResourceBase.GetShortDesc()
+func (self *SGuest) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
+	desc := self.SVirtualResourceBase.GetShortDesc(ctx)
 	desc.Set("mem", jsonutils.NewInt(int64(self.VmemSize)))
 	desc.Set("cpu", jsonutils.NewInt(int64(self.VcpuCount)))
 
@@ -2771,7 +3391,7 @@ func (self *SGuest) GetShortDesc() *jsonutils.JSONDict {
 
 	templateId := self.GetTemplateId()
 	if len(templateId) > 0 {
-		desc.Set("cpu", jsonutils.NewString(templateId))
+		desc.Set("template_id", jsonutils.NewString(templateId))
 	}
 	extBw := self.getBandwidth(true)
 	intBw := self.getBandwidth(false)
@@ -2786,20 +3406,16 @@ func (self *SGuest) GetShortDesc() *jsonutils.JSONDict {
 		desc.Add(jsonutils.NewString(self.OsType), "os_type")
 	}
 
-	if priceKey := self.GetMetadata("price_key", nil); len(priceKey) > 0 {
-		desc.Add(jsonutils.NewString(priceKey), "price_key")
-	}
-
-	desc.Add(jsonutils.NewString(self.GetChargeType()), "charge_type")
-
 	if len(self.ExternalId) > 0 {
 		desc.Add(jsonutils.NewString(self.ExternalId), "externalId")
 	}
 
 	desc.Set("hypervisor", jsonutils.NewString(self.GetHypervisor()))
+
+	host := self.GetHost()
+
 	spec := self.GetSpec(false)
 	if self.GetHypervisor() == HYPERVISOR_BAREMETAL {
-		host := self.GetHost()
 		if host != nil {
 			hostSpec := host.GetSpec(false)
 			hostSpecIdent := HostManager.GetSpecIdent(hostSpec)
@@ -2809,6 +3425,21 @@ func (self *SGuest) GetShortDesc() *jsonutils.JSONDict {
 	if spec != nil {
 		desc.Update(spec)
 	}
+
+	var billingInfo SCloudBillingInfo
+
+	if host != nil {
+		billingInfo.SCloudProviderInfo = host.getCloudProviderInfo()
+	}
+
+	if priceKey := self.GetMetadata("price_key", nil); len(priceKey) > 0 {
+		billingInfo.PriceKey = priceKey
+	}
+
+	billingInfo.SBillingBaseInfo = self.getBillingBaseInfo()
+
+	desc.Update(jsonutils.Marshal(billingInfo))
+
 	return desc
 }
 
@@ -2821,6 +3452,7 @@ func (self *SGuest) saveOsType(osType string) error {
 }
 
 func (self *SGuest) SaveDeployInfo(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) {
+	log.Infof("------SaveDeployInfo: %s", data.PrettyString())
 	info := make(map[string]interface{})
 	if data.Contains("os") {
 		osName, _ := data.GetString("os")
@@ -2891,10 +3523,8 @@ func (manager *SGuestManager) GetIpInProjectWithName(projectId, name string, isE
 		sqlchemy.AND(
 			sqlchemy.Equals(guests.Field("id"), guestnics.Field("guest_id")),
 			sqlchemy.OR(sqlchemy.IsNull(guests.Field("pending_deleted")),
-				sqlchemy.IsFalse(guests.Field("pending_deleted"))),
-			sqlchemy.IsFalse(guests.Field("deleted")))).
-		Join(networks, sqlchemy.AND(sqlchemy.Equals(networks.Field("id"), guestnics.Field("network_id")),
-			sqlchemy.IsFalse(networks.Field("deleted")))).
+				sqlchemy.IsFalse(guests.Field("pending_deleted"))))).
+		Join(networks, sqlchemy.Equals(networks.Field("id"), guestnics.Field("network_id"))).
 		Filter(sqlchemy.Equals(guests.Field("name"), name)).
 		Filter(sqlchemy.NotEquals(guestnics.Field("ip_addr"), "")).
 		Filter(sqlchemy.IsNotNull(guestnics.Field("ip_addr"))).
@@ -2905,6 +3535,7 @@ func (manager *SGuestManager) GetIpInProjectWithName(projectId, name string, isE
 		log.Errorf("Get guest ip with name query err: %v", err)
 		return ips
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var ip string
 		err = rows.Scan(&ip)
@@ -2940,7 +3571,7 @@ func (manager *SGuestManager) getExpiredPendingDeleteGuests() []SGuest {
 	deadline := time.Now().Add(time.Duration(options.Options.PendingDeleteExpireSeconds*-1) * time.Second)
 
 	q := manager.Query()
-	q = q.IsTrue("pending_deleted").LT("pending_deleted_at", deadline).In("hypervisor", []string{"aliyun"}).Limit(options.Options.PendingDeleteMaxCleanBatchSize)
+	q = q.IsTrue("pending_deleted").LT("pending_deleted_at", deadline).Limit(options.Options.PendingDeleteMaxCleanBatchSize)
 
 	guests := make([]SGuest, 0)
 	err := db.FetchModelObjects(GuestManager, q, &guests)
@@ -2952,13 +3583,63 @@ func (manager *SGuestManager) getExpiredPendingDeleteGuests() []SGuest {
 	return guests
 }
 
-func (manager *SGuestManager) CleanPendingDeleteServers(ctx context.Context, userCred mcclient.TokenCredential) {
+func (manager *SGuestManager) CleanPendingDeleteServers(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
 	guests := manager.getExpiredPendingDeleteGuests()
 	if guests == nil {
 		return
 	}
 	for i := 0; i < len(guests); i += 1 {
 		guests[i].StartDeleteGuestTask(ctx, userCred, "", false, true)
+	}
+}
+
+func (manager *SGuestManager) getExpiredPrepaidGuests() []SGuest {
+	deadline := time.Now().Add(time.Duration(options.Options.PrepaidExpireCheckSeconds*-1) * time.Second)
+
+	q := manager.Query()
+	q = q.Equals("billing_type", BILLING_TYPE_PREPAID).LT("expired_at", deadline).Limit(options.Options.ExpiredPrepaidMaxCleanBatchSize)
+
+	guests := make([]SGuest, 0)
+	err := db.FetchModelObjects(GuestManager, q, &guests)
+	if err != nil {
+		log.Errorf("fetch guests error %s", err)
+		return nil
+	}
+
+	return guests
+}
+
+func (self *SGuest) doExternalSync(ctx context.Context, userCred mcclient.TokenCredential) error {
+	host := self.GetHost()
+	if host == nil {
+		return fmt.Errorf("no host???")
+	}
+	ihost, iprovider, err := host.GetIHostAndProvider()
+	if err != nil {
+		return err
+	}
+	iVM, err := ihost.GetIVMById(self.ExternalId)
+	if err != nil {
+		return err
+	}
+	return self.syncWithCloudVM(ctx, userCred, iprovider, host, iVM, "", false)
+}
+
+func (manager *SGuestManager) DeleteExpiredPrepaidServers(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	guests := manager.getExpiredPrepaidGuests()
+	if guests == nil {
+		return
+	}
+	for i := 0; i < len(guests); i += 1 {
+		// fake delete expired prepaid servers
+		if len(guests[i].ExternalId) > 0 {
+			err := guests[i].doExternalSync(ctx, userCred)
+			if err == nil && guests[i].IsValidPrePaid() {
+				continue
+			}
+		}
+		guests[i].SetDisableDelete(false)
+		guests[i].StartDeleteGuestTask(ctx, userCred, "", false, false)
 	}
 }
 
@@ -2983,12 +3664,12 @@ func (self *SGuest) SyncVMEip(ctx context.Context, userCred mcclient.TokenCreden
 		// do nothing
 	} else if eip == nil && extEip != nil {
 		// add
-		neip, err := ElasticipManager.getEipByExtEip(userCred, extEip, self.getRegion(), projectId)
+		neip, err := ElasticipManager.getEipByExtEip(ctx, userCred, extEip, self.getRegion(), projectId)
 		if err != nil {
 			log.Errorf("getEipByExtEip error %v", err)
 			result.AddError(err)
 		} else {
-			err = neip.AssociateVM(userCred, self)
+			err = neip.AssociateVM(ctx, userCred, self)
 			if err != nil {
 				log.Errorf("AssociateVM error %v", err)
 				result.AddError(err)
@@ -3014,11 +3695,11 @@ func (self *SGuest) SyncVMEip(ctx context.Context, userCred mcclient.TokenCreden
 				result.DeleteError(err)
 			} else {
 				result.Delete()
-				neip, err := ElasticipManager.getEipByExtEip(userCred, extEip, self.getRegion(), projectId)
+				neip, err := ElasticipManager.getEipByExtEip(ctx, userCred, extEip, self.getRegion(), projectId)
 				if err != nil {
 					result.AddError(err)
 				} else {
-					err = neip.AssociateVM(userCred, self)
+					err = neip.AssociateVM(ctx, userCred, self)
 					if err != nil {
 						result.AddError(err)
 					} else {
@@ -3124,7 +3805,7 @@ func (self *SGuest) getSchedDesc() jsonutils.JSONObject {
 		}
 	}
 
-	gns := self.GetNetworks()
+	gns, _ := self.GetNetworks("")
 	if gns != nil {
 		for i := 0; i < len(gns); i += 1 {
 			desc.Add(jsonutils.NewString(fmt.Sprintf("%s:%s", gns[i].NetworkId, gns[i].IpAddr)), fmt.Sprintf("net.%d", i))
@@ -3207,4 +3888,27 @@ func (self *SGuest) FillNetSchedDesc(desc *jsonutils.JSONDict) {
 			jsonutils.NewString(fmt.Sprintf("%s:%s",
 				guestNetworks[i].NetworkId, guestNetworks[i].IpAddr)))
 	}
+}
+
+func (self *SGuest) GuestDisksHasSnapshot() bool {
+	guestDisks := self.GetDisks()
+	for i := 0; i < len(guestDisks); i++ {
+		if SnapshotManager.GetDiskSnapshotCount(guestDisks[i].DiskId) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (self *SGuest) OnScheduleToHost(ctx context.Context, userCred mcclient.TokenCredential, hostId string) error {
+	err := self.SetHostId(hostId)
+	if err != nil {
+		return err
+	}
+
+	notes := jsonutils.NewDict()
+	notes.Add(jsonutils.NewString(hostId), "host_id")
+	db.OpsLog.LogEvent(self, db.ACT_SCHEDULE, notes, userCred)
+
+	return nil
 }

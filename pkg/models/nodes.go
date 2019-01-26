@@ -11,7 +11,6 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	cloudmodels "yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -49,12 +48,10 @@ func init() {
 
 type SNodeManager struct {
 	db.SStatusStandaloneResourceBaseManager
-	cloudmodels.SInfrastructureManager
 }
 
 type SNode struct {
 	db.SStatusStandaloneResourceBase
-	cloudmodels.SInfrastructure
 
 	ClusterId        string `nullable:"false" create:"required" list:"user"`
 	Etcd             bool   `nullable:"true" create:"required" list:"user"`
@@ -615,11 +612,14 @@ func (n *SNode) GetCustomizeColumns(ctx context.Context, userCred mcclient.Token
 	return extra
 }
 
-func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := n.SStatusStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
+func (n *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := n.SStatusStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
 	extra.Add(jsonutils.NewString(n.getClusterName()), "cluster")
 	extra.Add(jsonutils.NewString(rolesString(n)), "roles")
-	return extra
+	return extra, nil
 }
 
 func (n *SNode) StartAgentStartTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
@@ -686,7 +686,7 @@ func (n *SNode) StartAgentStopTask(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (n *SNode) AllowGetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return n.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, n)
 }
 
 func (n *SNode) GetDetailsDockerConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {

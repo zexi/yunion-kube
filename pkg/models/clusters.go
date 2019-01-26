@@ -19,7 +19,6 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -87,12 +86,10 @@ var (
 
 type SClusterManager struct {
 	db.SStatusStandaloneResourceBaseManager
-	models.SInfrastructureManager
 }
 
 type SCluster struct {
 	db.SStatusStandaloneResourceBase
-	models.SInfrastructure
 	Mode          string `nullable:"false" create:"required" list:"user"`
 	K8sVersion    string `nullable:"false" create:"required" list:"user" update:"user"`
 	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
@@ -948,7 +945,7 @@ func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	var conf string
 	var err error
-	if userCred.IsSystemAdmin() {
+	if userCred.HasSystemAdminPrivelege() {
 		//directly := jsonutils.QueryBoolean(data, "directly", false)
 		//getF := c.GetAdminProxyKubeConfig
 		//if directly {
@@ -1011,7 +1008,7 @@ func (c *SCluster) GetAdminKubeconfig() (string, error) {
 }
 
 func (c *SCluster) AllowGetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1052,7 +1049,7 @@ func (c *SCluster) PerformUpdateEngineConfig(ctx context.Context, userCred mccli
 }
 
 func (c *SCluster) AllowGetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1066,7 +1063,7 @@ func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclie
 }
 
 func (c *SCluster) AllowGetDetailsCloudHosts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) GetDetailsCloudHosts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {

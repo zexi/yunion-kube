@@ -7,11 +7,12 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/utils"
+	"yunion.io/x/sqlchemy"
+
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/utils"
-	"yunion.io/x/sqlchemy"
 )
 
 type SchedStrategyType string
@@ -30,7 +31,6 @@ var STRATEGY_LIST = []string{STRATEGY_REQUIRE, STRATEGY_EXCLUDE, STRATEGY_PREFER
 
 type SSchedtagManager struct {
 	db.SStandaloneResourceBaseManager
-	SInfrastructureManager
 }
 
 var SchedtagManager *SSchedtagManager
@@ -48,7 +48,6 @@ func init() {
 
 type SSchedtag struct {
 	db.SStandaloneResourceBase
-	SInfrastructure
 
 	DefaultStrategy string `width:"16" charset:"ascii" nullable:"true" default:"" list:"user" update:"admin" create:"admin_optional"` // Column(VARCHAR(16, charset='ascii'), nullable=True, default='')
 }
@@ -59,6 +58,18 @@ func (manager *SSchedtagManager) AllowListItems(ctx context.Context, userCred mc
 
 func (self *SSchedtag) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return true
+}
+
+func (self *SSchedtagManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowCreate(userCred, self)
+}
+
+func (self *SSchedtag) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return db.IsAdminAllowUpdate(userCred, self)
+}
+
+func (self *SSchedtag) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowDelete(userCred, self)
 }
 
 func (manager *SSchedtagManager) ValidateSchedtags(userCred mcclient.TokenCredential, schedtags map[string]string) (map[string]string, error) {
@@ -182,19 +193,20 @@ func (self *SSchedtag) GetCustomizeColumns(ctx context.Context, userCred mcclien
 	return self.getMoreColumns(extra)
 }
 
-func (self *SSchedtag) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
-	return self.getMoreColumns(extra)
+func (self *SSchedtag) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+	return self.getMoreColumns(extra), nil
 }
 
 /*func (self *SSchedtag) PostUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	self.SStandaloneResourceBase.PostUpdate(ctx, userCred, query, data)
 }*/
 
-func (self *SSchedtag) GetShortDesc() *jsonutils.JSONDict {
-	desc := jsonutils.NewDict()
-	desc.Add(jsonutils.NewString(self.Id), "id")
-	desc.Add(jsonutils.NewString(self.Name), "name")
+func (self *SSchedtag) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
+	desc := self.SStandaloneResourceBase.GetShortDesc(ctx)
 	desc.Add(jsonutils.NewString(self.DefaultStrategy), "default")
 	return desc
 }

@@ -5,11 +5,15 @@ import (
 	"database/sql"
 
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/mcclient/auth"
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
+
+	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 type STenantCacheManager struct {
@@ -78,9 +82,12 @@ func (manager *STenantCacheManager) FetchTenantByName(ctx context.Context, idStr
 }
 
 func (manager *STenantCacheManager) fetchTenantFromKeystone(ctx context.Context, idStr string) (*STenant, error) {
-	s := auth.GetAdminSession(consts.GetRegion(), "v1")
+	s := auth.GetAdminSession(ctx, consts.GetRegion(), "v1")
 	tenant, err := modules.Projects.Get(s, idStr, nil)
 	if err != nil {
+		if je, ok := err.(*httputils.JSONClientError); ok && je.Code == 404 {
+			return nil, sql.ErrNoRows
+		}
 		log.Errorf("fetch project fail %s", err)
 		return nil, err
 	}
@@ -90,8 +97,8 @@ func (manager *STenantCacheManager) fetchTenantFromKeystone(ctx context.Context,
 }
 
 func (manager *STenantCacheManager) Save(ctx context.Context, idStr string, name string, domainId string, domain string) (*STenant, error) {
-	lockman.LockRawObject(ctx, manager.keyword, idStr)
-	defer lockman.ReleaseRawObject(ctx, manager.keyword, idStr)
+	lockman.LockRawObject(ctx, manager.KeywordPlural(), idStr)
+	defer lockman.ReleaseRawObject(ctx, manager.KeywordPlural(), idStr)
 
 	objo, err := manager.FetchById(idStr)
 	if err != nil && err != sql.ErrNoRows {
@@ -126,4 +133,15 @@ func (manager *STenantCacheManager) Save(ctx context.Context, idStr string, name
 			return obj, nil
 		}
 	}
+}
+
+func (manager *STenantCacheManager) GenerateProjectUserCred(ctx context.Context, projectName string) (mcclient.TokenCredential, error) {
+	project, err := manager.FetchTenantByIdOrName(ctx, projectName)
+	if err != nil {
+		return nil, err
+	}
+	return &mcclient.SSimpleToken{
+		Project:   project.Name,
+		ProjectId: project.Id,
+	}, nil
 }

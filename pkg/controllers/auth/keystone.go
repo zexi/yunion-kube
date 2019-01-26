@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -88,7 +89,7 @@ func (k *KeystoneAuthenticator) getRoleAssignmentsFromCache(userId string) (Role
 
 func getRoleAssignmentsFromKeystone(userId string) (RoleAssignments, error) {
 	var ret RoleAssignments = make([]RoleAssignment, 0)
-	s := auth.AdminSession(o.Options.Region, "", "", "")
+	s := auth.AdminSession(context.TODO(), o.Options.Region, "", "", "")
 	if s == nil {
 		return ret, fmt.Errorf("Can not get auth adminSession")
 	}

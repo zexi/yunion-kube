@@ -68,10 +68,38 @@ const (
 )
 
 const (
-	MachineStatusInit        = "init"
-	MachineCreateFail        = "create_fail"
-	MachineStatusPrepare     = "prepare"
-	MachineStatusPrepareFail = "prepare_fail"
-	MachineStatusRunning     = "running"
-	MachineStatusReady       = "ready"
+	MachineStatusInit          = "init"
+	MachineStatusCreating      = "creating"
+	MachineStatusCreateFail    = "create_fail"
+	MachineStatusPrepare       = "prepare"
+	MachineStatusPrepareFail   = "prepare_fail"
+	MachineStatusRunning       = "running"
+	MachineStatusReady         = "ready"
+	MachineStatusDeleting      = "deleting"
+	MachineStatusTerminating   = "terminating"
+	MachineStatusTerminateFail = "terminate_fail"
+)
+
+type Machine struct {
+	Id         string `json:"id"`
+	Name       string `json:"name"`
+	Provider   string `json:"provider"`
+	ClusterId  string `json:"cluster_id"`
+	Role       string `json:"role"`
+	InstanceId string `json:"instance_id"`
+}
+
+type KeyPair struct {
+	// base64 encoded cert and key
+	Cert []byte `json:"cert"`
+	Key  []byte `json:"key"`
+}
+
+func (kp KeyPair) HasCertAndKey() bool {
+	return len(kp.Cert) != 0 && len(kp.Key) != 0
+}
+
+const (
+	ContainerSchedtag = "container"
+	DefaultCluster    = "default"
 )

@@ -5,7 +5,9 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/logclient"
 )
 
 type SEnabledStatusStandaloneResourceBase struct {
@@ -23,7 +25,7 @@ func NewEnabledStatusStandaloneResourceBaseManager(dt interface{}, tableName str
 }
 
 func (self *SEnabledStatusStandaloneResourceBase) AllowPerformEnable(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return IsAdminAllowPerform(userCred, self, "enable")
 }
 
 func (self *SEnabledStatusStandaloneResourceBase) PerformEnable(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -37,12 +39,13 @@ func (self *SEnabledStatusStandaloneResourceBase) PerformEnable(ctx context.Cont
 			return nil, err
 		}
 		OpsLog.LogEvent(self, ACT_ENABLE, "", userCred)
+		logclient.AddActionLog(self, logclient.ACT_ENABLE, nil, userCred, true)
 	}
 	return nil, nil
 }
 
 func (self *SEnabledStatusStandaloneResourceBase) AllowPerformDisable(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return IsAdminAllowPerform(userCred, self, "disable")
 }
 
 func (self *SEnabledStatusStandaloneResourceBase) PerformDisable(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -56,6 +59,7 @@ func (self *SEnabledStatusStandaloneResourceBase) PerformDisable(ctx context.Con
 			return nil, err
 		}
 		OpsLog.LogEvent(self, ACT_DISABLE, "", userCred)
+		logclient.AddActionLog(self, logclient.ACT_DISABLE, nil, userCred, true)
 	}
 	return nil, nil
 }

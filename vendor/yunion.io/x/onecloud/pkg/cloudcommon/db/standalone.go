@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -20,11 +19,11 @@ type SStandaloneResourceBase struct {
 
 	Id         string `width:"128" charset:"ascii" primary:"true" list:"user"`
 	Name       string `width:"128" charset:"utf8" nullable:"false" index:"true" list:"user" update:"user" create:"required"`
-	ExternalId string `width:"256" charset:"utf8" index:"true" list:"admin" create:"admin_optional"`
+	ExternalId string `width:"256" charset:"utf8" index:"true" list:"user" create:"admin_optional"`
 
 	Description string `width:"256" charset:"utf8" get:"user" list:"user" update:"user" create:"optional"`
 
-	IsEmulated bool `nullable:"false" default:"false" list:"admin" update:"true" create:"admin_optional"`
+	IsEmulated bool `nullable:"false" default:"false" list:"admin" create:"admin_optional"`
 }
 
 func (model *SStandaloneResourceBase) BeforeInsert() {
@@ -64,7 +63,7 @@ func (manager *SStandaloneResourceBaseManager) ValidateName(name string) error {
 		return httperrors.NewInputParameterError("name starts with letter, and contains letter, number and ._@- only")
 	}
 	if manager.NameLength > 0 && len(name) > manager.NameLength {
-		return httperrors.NewInputParameterError(fmt.Sprintf("name longer than %d", manager.NameLength))
+		return httperrors.NewInputParameterError("name longer than %d", manager.NameLength)
 	}
 	return nil
 }
@@ -128,8 +127,8 @@ func (model *SStandaloneResourceBase) GetName() string {
 	return model.Name
 }
 
-func (model *SStandaloneResourceBase) GetShortDesc() *jsonutils.JSONDict {
-	desc := model.SResourceBase.GetShortDesc()
+func (model *SStandaloneResourceBase) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
+	desc := model.SResourceBase.GetShortDesc(ctx)
 	desc.Add(jsonutils.NewString(model.GetName()), "name")
 	desc.Add(jsonutils.NewString(model.GetId()), "id")
 	return desc
@@ -147,7 +146,7 @@ func (model *SStandaloneResourceBase) GetMetadataJson(key string, userCred mccli
 }
 
 func (model *SStandaloneResourceBase) SetMetadata(ctx context.Context, key string, value interface{}, userCred mcclient.TokenCredential) error {
-	if Metadata.IsSystemAdminKey(key) && !userCred.IsSystemAdmin() {
+	if Metadata.IsSystemAdminKey(key) && !IsAdminAllowPerform(userCred, model, "metadata") {
 		return httperrors.NewNotSufficientPrivilegeError("cannot set system key")
 	}
 	return Metadata.SetValue(ctx, model, key, value, userCred)
@@ -155,8 +154,8 @@ func (model *SStandaloneResourceBase) SetMetadata(ctx context.Context, key strin
 
 func (model *SStandaloneResourceBase) SetAllMetadata(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
 	for k := range dictstore {
-		if Metadata.IsSystemAdminKey(k) && !userCred.IsSystemAdmin() {
-			return httperrors.NewNotSufficientPrivilegeError(fmt.Sprintf("not allow to set system key %s", k))
+		if Metadata.IsSystemAdminKey(k) && !IsAdminAllowPerform(userCred, model, "metadata") {
+			return httperrors.NewNotSufficientPrivilegeError("not allow to set system key %s", k)
 		}
 	}
 	return Metadata.SetAll(ctx, model, dictstore, userCred)
@@ -175,7 +174,7 @@ func (model *SStandaloneResourceBase) GetAllMetadata(userCred mcclient.TokenCred
 }
 
 func (model *SStandaloneResourceBase) AllowGetDetailsMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return IsAdminAllowGetSpec(userCred, model, "metadata")
 }
 
 func (model *SStandaloneResourceBase) GetDetailsMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -188,7 +187,7 @@ func (model *SStandaloneResourceBase) GetDetailsMetadata(ctx context.Context, us
 }
 
 func (model *SStandaloneResourceBase) AllowPerformMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return IsAdminAllowPerform(userCred, model, "metadata")
 }
 
 func (model *SStandaloneResourceBase) PerformMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -202,10 +201,10 @@ func (model *SStandaloneResourceBase) PerformMetadata(ctx context.Context, userC
 	}
 	dictStore := make(map[string]interface{})
 	for k, v := range dictMap {
-		dictStore[k] = v
+		dictStore[k], _ = v.GetString()
 	}
-	model.SetAllMetadata(ctx, dictStore, userCred)
-	return nil, nil
+	err = model.SetAllMetadata(ctx, dictStore, userCred)
+	return nil, err
 }
 
 func (model *SStandaloneResourceBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {

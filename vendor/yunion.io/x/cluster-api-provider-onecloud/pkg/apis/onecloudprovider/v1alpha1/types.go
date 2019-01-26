@@ -53,14 +53,43 @@ type OneCloudClusterProviderSpec struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// NetworkSpec encapsulates all things related to network.
+	NetworkSpec NetworkSpec `json:"networkSpec,omitempty"`
+
 	// The Yunion Region the cluster lives in.
 	Region string `json:"region,omitempty"`
 
-	// CACertificate is a PEM encoded CA Certificate for the control plane nodes.
-	CACertificate []byte `json:"caCertificate,omitempty"`
+	// SSHKeyName is the name of the ssh key to attach to the bastion host
+	SSHKeyName string `json:"sshKeyName,omitempty"`
 
-	// CAPrivateKey is a PEM encoded PKCS1 CA PrivateKey for the control plane nodes.
-	CAPrivateKey []byte `json:"caKey,omitempty"`
+	// CAKeyPair is the key pair for ca certs.
+	CAKeyPair KeyPair `json:"caKeyPair,omitempty"`
+
+	// EtcdCAKeyPair is the key pair for etcd.
+	EtcdCAKeyPair KeyPair `json:"etcdCAKeyPair,omitempty"`
+
+	// FrontProxyCAKeyPair is the key pair for FrontProxyKeyPair.
+	FrontProxyCAKeyPair KeyPair `json:"frontProxyCAKeyPair,omitempty"`
+
+	// SAKeyPair is the service account key pair.
+	SAKeyPair KeyPair `json:"saKeyPair,omitempty"`
+}
+
+// NetworkSpec encapsulates all things related to network
+type NetworkSpec struct {
+	StaticLB *StaticLB `json:"staticLB,omitempty"`
+}
+
+// KeyPair is how operators can supply custom keypairs for kubeadm to use
+type KeyPair struct {
+	// base64 encoded cert and key
+	Cert []byte `json:"cert"`
+	Key  []byte `json:"key"`
+}
+
+// HasCertAndKey returns whether a keypair contains cert and key of non-zero length.
+func (kp *KeyPair) HasCertAndKey() bool {
+	return len(kp.Cert) != 0 && len(kp.Key) != 0
 }
 
 // +genclient
@@ -72,6 +101,45 @@ type OneCloudClusterProviderSpec struct {
 type OneCloudClusterProviderStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Network Network `json:"network,omitempty"`
+}
+
+// Network encapsulates networking resources.
+type Network struct {
+	// APIServerELB is the Kubernetes api server classic load balancer.
+	APIServerELB Loadbalancer
+}
+
+type StaticLB struct {
+	// DNSName is the dns name of the load balancer.
+	DNSName string `json:"dnsName,omitempty"`
+
+	// IPAddress is the ip address of the load balancer.
+	IPAddress string `json:"ipAddress,omitempty"`
+}
+
+type ClassicELB struct {
+	// DNSName is the dns name of the load balancer.
+	DNSName string `json:"dnsName,omitempty"`
+
+	// IPAddress is the ip address of the load balancer.
+	IPAddress string `json:"ipAddress,omitempty"`
+}
+
+type Loadbalancer struct {
+	ClassicELB *ClassicELB `json:"classicELB,omitempty"`
+	StaticLB   *StaticLB   `json:"staticLB,omitempty"`
+}
+
+func (lb Loadbalancer) GetDNSName() string {
+	if lb.StaticLB != nil {
+		if len(lb.StaticLB.DNSName) != 0 {
+			return lb.StaticLB.DNSName
+		}
+		return lb.StaticLB.IPAddress
+	}
+	return lb.ClassicELB.DNSName
 }
 
 // +genclient
@@ -87,6 +155,9 @@ type OneCloudMachineProviderSpec struct {
 	// ResourceType determine machine platform to run. Example: baremetal or vm
 	ResourceType string `json:"resourceType"`
 	Provider     string `json:"provider"`
+	MachineID    string `json:"machineID"`
+	Role         string `json:"role"`
+	PrivateIP    string `json:"privateIP,omitempty"`
 }
 
 // +genclient
@@ -98,13 +169,13 @@ type OneCloudMachineProviderSpec struct {
 type OneCloudMachineProviderStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// InstanceID is the instance ID of the machine created in Yunion
+	// Machine is the machine created in Yunion
 	// +optional
-	InstanceID *string `json:"instanceID,omitempty"`
+	Machine *Machine `json:"machine,omitempty"`
 
 	// InstanceState is the state for this machine
 	// +optional
-	InstanceState *string `json:"instanceState,omitempty"`
+	//InstanceState *string `json:"instanceState,omitempty"`
 
 	// Conditions is a set of conditions associated with the Machine to indicate
 	// errors or other status
@@ -112,15 +183,51 @@ type OneCloudMachineProviderStatus struct {
 	Conditions []OneCloudMachineProviderCondition `json:"conditions,omitempty"`
 }
 
-// Instance describe an OneCloud guest or host
-type Instance struct {
-	ID        string `json:"id"`
-	Status    string `json:"status"`
-	ProjectId string `json:"project_id"`
-	Provider  string `json:"provider"`
-	Cluster   string `json:"cluster"`
-	Role      string `json:"role"`
-	Type      string `json:"type"`
+const (
+	MachineStatusInit     = "init"
+	MachineStatusCreating = "creating"
+	MachineStatusPrepare  = "prepare"
+	MachineStatusRunning  = "running"
+	MachineStatusDeleting = "deleting"
+)
+
+var MachineDeployStatus []string = []string{
+	MachineStatusPrepare,
+	MachineStatusRunning,
+}
+
+const (
+	RoleControlplane = "controlplane"
+	RoleNode         = "node"
+)
+
+type Cluster struct {
+	ID          string `json:"id"`
+	ProjectId   string `json:"tenant_id"`
+	Name        string `json:"name"`
+	ClusterType string `json:"cluster_type"`
+	CloudType   string `json:"cloud_type"`
+	Mode        string `json:"mode"`
+	Provider    string `json:"provider"`
+}
+
+// Machine describe an OneCloud guest or host
+type Machine struct {
+	ID         string `json:"id"`
+	Status     string `json:"status"`
+	ProjectId  string `json:"tenant_id"`
+	Provider   string `json:"provider"`
+	ClusterId  string `json:"cluster"`
+	Role       string `json:"role"`
+	ResourceID string `json:"resource_id"`
+}
+
+func (m Machine) NeedPrepare() bool {
+	switch m.Status {
+	case MachineStatusRunning, MachineStatusPrepare:
+		return false
+	}
+	return true
 }
 
 func init() {
