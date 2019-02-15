@@ -36,6 +36,8 @@ const (
 type ProviderType string
 
 const (
+	// system provider type by yunion YKE deploy
+	ProviderTypeSystem ProviderType = "system"
 	// default provider type by yunion onecloud
 	ProviderTypeOnecloud ProviderType = "onecloud"
 	// AWS provider
@@ -79,6 +81,26 @@ const (
 	MachineStatusTerminating   = "terminating"
 	MachineStatusTerminateFail = "terminate_fail"
 )
+
+type CreateClusterData struct {
+	Name          string `json:"name"`
+	ClusterType   string `json:"cluster_type"`
+	CloudType     string `json:"cloud_type"`
+	Mode          string `json:"mode"`
+	Provider      string `json:"provider"`
+	ServiceCidr   string `json:"service_cidr"`
+	ServiceDomain string `json:"service_domain"`
+	PodCidr       string `json:"pod_cidr"`
+	Version       string `json:"version"`
+}
+
+type CreateMachineData struct {
+	Name         string `json:"name"`
+	ClusterId    string `json:"cluster_id"`
+	Role         string `json:"role"`
+	ResourceType string `json:"resource_type"`
+	ResourceId   string `json:"resource_id"`
+}
 
 type Machine struct {
 	Id         string `json:"id"`

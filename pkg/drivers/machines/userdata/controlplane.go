@@ -46,6 +46,15 @@ apiServer:
     - "{{.ELBAddress}}"
   extraArgs:
     cloud-provider: external
+    feature-gates: "CSIPersistentVolume=true,MountPropagation=true"
+    runtime-config: "storage.k8s.io/v1alpha1=true,admissionregistration.k8s.io/v1alpha1=true,settings.k8s.io/v1alpha1=true"
+controllerManager:
+  extraArgs:
+    cloud-provider: external
+    feature-gates: "CSIPersistentVolume=true,MountPropagation=true"
+scheduler:
+  extraArgs:
+    feature-gates: "CSIPersistentVolume=true,MountPropagation=true"
 controlPlaneEndpoint: "{{.ELBAddress}}:6443"
 imageRepository: "registry.cn-beijing.aliyuncs.com/yunionio"
 clusterName: "{{.ClusterName}}"
@@ -62,7 +71,10 @@ nodeRegistration:
   #criSocket: /var/run/containerd/containerd.sock
   kubeletExtraArgs:
     cloud-provider: external
+    read-only-port: "10255"
     pod-infra-container-image: registry.cn-beijing.aliyuncs.com/yunionio/pause-amd64:3.1
+    feature-gates: "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,VolumeScheduling=true"
+    eviction-hard: "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%"
 ---
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 kind: KubeProxyConfiguration

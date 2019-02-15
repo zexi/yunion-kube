@@ -33,6 +33,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
 	ykedriver "yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
+	modeltypes "yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/templates"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -108,14 +110,14 @@ type SCluster struct {
 
 func (m *SClusterManager) InitializeData() error {
 	// check if default cluster exists
-	cluster, err := m.FetchByIdOrName(nil, "default")
+	cluster, err := m.FetchByIdOrName(nil, modeltypes.DefaultCluster)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return err
 		}
 		defCluster := SCluster{}
 		defCluster.Id = stringutils.UUID4()
-		defCluster.Name = "default"
+		defCluster.Name = modeltypes.DefaultCluster
 		defCluster.K8sVersion = DEFAULT_K8S_VERSION
 		defCluster.Mode = DEFAULT_CLUSER_MODE
 		defCluster.ClusterCidr = DEFAULT_CLUSER_CIDR
@@ -127,6 +129,7 @@ func (m *SClusterManager) InitializeData() error {
 		if err != nil {
 			return fmt.Errorf("Insert default cluster error: %v", err)
 		}
+		cluster = &defCluster
 	} else {
 		c := cluster.(*SCluster)
 		if c.ClusterCidr != DEFAULT_SERVICE_CLUSTER_IP_RANGE {
@@ -1582,4 +1585,81 @@ func (c *SCluster) PerformRestartAgent(ctx context.Context, userCred mcclient.To
 	}
 	err = c.StartClusterRestartNodesAgentTask(ctx, userCred, nil, "", targets...)
 	return nil, err
+}
+
+func (c *SCluster) v2ClusterCreateData() modeltypes.CreateClusterData {
+	return modeltypes.CreateClusterData{
+		Name:          c.GetName(),
+		ClusterType:   string(modeltypes.ClusterTypeDefault),
+		CloudType:     string(modeltypes.CloudTypePrivate),
+		Mode:          string(modeltypes.ModeTypeImport),
+		Provider:      string(modeltypes.ProviderTypeSystem),
+		ServiceCidr:   c.ClusterCidr,
+		ServiceDomain: c.ClusterDomain,
+		Version:       c.K8sVersion,
+	}
+}
+
+func (c *SCluster) GetV2Cluster() (manager.ICluster, error) {
+	userCred := GetAdminCred()
+	return manager.ClusterManager().FetchClusterByIdOrName(userCred, c.GetName())
+}
+
+func (man *SClusterManager) StartMigrate() error {
+	defaultCluster, err := man.FetchClusterByIdOrName(nil, modeltypes.DefaultCluster)
+	if err != nil {
+		return err
+	}
+	return defaultCluster.MigrateToV2Cluster()
+}
+
+func (c *SCluster) getMigrateNodes() ([]*SNode, error) {
+	nodes, err := c.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+	mNodes := make([]*SNode, len(nodes))
+	firstNodeIdx := 0
+	for i, node := range nodes {
+		isFirstNode, err := node.IsFirstNode()
+		if err != nil {
+			return nil, err
+		}
+		if isFirstNode {
+			firstNodeIdx = i
+			mNodes[0] = node
+		}
+	}
+	for i, node := range nodes {
+		if i == firstNodeIdx {
+			continue
+		}
+		mNodes = append(mNodes, node)
+	}
+	return mNodes, nil
+}
+
+func (c *SCluster) MigrateToV2Cluster() error {
+	ctx := context.TODO()
+	userCred := GetAdminCred()
+	v2Cluster, exists, err := manager.ClusterManager().IsClusterExists(userCred, c.GetName())
+	if err != nil {
+		return err
+	}
+	if !exists {
+		v2Cluster, err = manager.ClusterManager().CreateCluster(ctx, userCred, c.v2ClusterCreateData())
+		if err != nil {
+			return fmt.Errorf("Create to v2 cluster: %v", err)
+		}
+	}
+	nodes, err := c.getMigrateNodes()
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		if err := node.MigrateToV2Machine(ctx, userCred, v2Cluster); err != nil {
+			return err
+		}
+	}
+	return nil
 }

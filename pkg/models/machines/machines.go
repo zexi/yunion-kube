@@ -2,6 +2,7 @@ package machines
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -50,7 +51,7 @@ type SMachine struct {
 	ResourceId string `nullable:"true" create:"optional" list:"user"`
 	// TODO: cloudprovider
 	// FirstNode determine machine is first controlplane
-	FirstNode tristate.TriState `nullable:"true" list:"user"`
+	FirstNode tristate.TriState `nullable:"true" create:"required" list:"user"`
 }
 
 func (man *SMachineManager) GetCluster(userCred mcclient.TokenCredential, clusterId string) (*clusters.SCluster, error) {
@@ -80,8 +81,77 @@ func (man *SMachineManager) GetMachines(clusterId string) ([]manager.IMachine, e
 	return ret, nil
 }
 
+func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, id string) (manager.IMachine, bool, error) {
+	obj, err := man.FetchByIdOrName(userCred, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return obj.(*SMachine), true, nil
+}
+
+func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateMachineData) (manager.IMachine, error) {
+	input := jsonutils.Marshal(data)
+	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*SMachine), nil
+}
+
+func (man *SMachineManager) GetClusterControlplaneMachines(clusterId string) ([]*SMachine, error) {
+	machines, err := man.GetClusterMachines(clusterId)
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]*SMachine, 0)
+	for _, m := range machines {
+		if m.Role == string(types.RoleTypeControlplane) {
+			ret = append(ret, m)
+		}
+	}
+	return ret, nil
+}
+
+func (man *SMachineManager) GetClusterMachines(clusterId string) ([]*SMachine, error) {
+	machines := MachineManager.Query().SubQuery()
+	q := machines.Query().Filter(sqlchemy.Equals(machines.Field("cluster_id"), clusterId))
+	objs := make([]SMachine, 0)
+	err := db.FetchModelObjects(MachineManager, q, &objs)
+	if err != nil {
+		return nil, err
+	}
+	return ConvertPtrMachines(objs), nil
+}
+
+func (man *SMachineManager) GetMachineByResourceId(resId string) *SMachine {
+	machines := MachineManager.Query().SubQuery()
+	q := machines.Query().Filter(sqlchemy.Equals(machines.Field("resource_id"), resId))
+	m := SMachine{}
+	err := q.First(&m)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		log.Errorf("Get machine by resource_id: %v", err)
+		return nil
+	}
+	return &m
+}
+
+func ConvertPtrMachines(objs []SMachine) []*SMachine {
+	ret := make([]*SMachine, len(objs))
+	for i, obj := range objs {
+		temp := obj
+		ret[i] = &temp
+	}
+	return ret
+}
+
 func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	clusterId, _ := data.GetString("cluster")
+	clusterId := jsonutils.GetAnyString(data, []string{"cluster", "cluster_id"})
 	if len(clusterId) == 0 {
 		return nil, httperrors.NewInputParameterError("Cluster must specified")
 	}
@@ -99,9 +169,24 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 		return nil, httperrors.NewInputParameterError("Invalid resource type: %q", resourceType)
 	}
 
-	if role, _ := data.GetString("role"); !utils.IsInStringArray(role, []string{string(types.RoleTypeControlplane), string(types.RoleTypeNode)}) {
+	role, _ := data.GetString("role")
+	if !utils.IsInStringArray(role, []string{string(types.RoleTypeControlplane), string(types.RoleTypeNode)}) {
 		return nil, httperrors.NewInputParameterError("Invalid role: %q", role)
 	}
+
+	clusterMachines, err := man.GetClusterMachines(clusterId)
+	if err != nil {
+		return nil, err
+	}
+	if len(clusterMachines) == 0 && role != string(types.RoleTypeControlplane) {
+		return nil, httperrors.NewInputParameterError("First machine's role must %s", types.RoleTypeControlplane)
+	}
+	firstNode := jsonutils.JSONFalse
+	if len(clusterMachines) == 0 {
+		firstNode = jsonutils.JSONTrue
+	}
+	data.Set("first_node", firstNode)
+
 	driver := GetDriver(types.ProviderType(cluster.Provider))
 	session, err := man.GetSession()
 	if err != nil {
@@ -318,13 +403,4 @@ func (m *SMachine) IsRunning() bool {
 
 func (m *SMachine) IsFirstNode() bool {
 	return m.FirstNode.Bool()
-}
-
-func (m *SMachine) GetKubeConfig() (string, error) {
-	driver := m.GetDriver()
-	session, err := MachineManager.GetSession()
-	if err != nil {
-		return "", err
-	}
-	return driver.GetKubeConfig(session, m)
 }

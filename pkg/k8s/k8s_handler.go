@@ -106,6 +106,9 @@ func getUserCredential(ctx context.Context) mcclient.TokenCredential {
 func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredential) (*clusters.SCluster, error) {
 	var clusterId string
 	for _, src := range []*jsonutils.JSONDict{query, data} {
+		if src == nil {
+			continue
+		}
 		clusterId, _ = src.GetString("cluster")
 		if clusterId != "" {
 			break
@@ -118,7 +121,7 @@ func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredenti
 	if err != nil {
 		return nil, err
 	}
-	return cluster, nil
+	return cluster.(*clusters.SCluster), nil
 }
 
 /*func newK8sUserClient(cluster *clusters.SCluster, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {

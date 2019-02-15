@@ -37,6 +37,10 @@ nodeRegistration:
   name: "$(hostname)"
   kubeletExtraArgs:
     cloud-provider: external
+    read-only-port: "10255"
+    pod-infra-container-image: registry.cn-beijing.aliyuncs.com/yunionio/pause-amd64:3.1
+    feature-gates: "CSIPersistentVolume=true,MountPropagation=true,KubeletPluginsWatcher=true,VolumeScheduling=true"
+    eviction-hard: "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%"
 EOF
 
 kubeadm join --config /tmp/kubeadm-node.yaml

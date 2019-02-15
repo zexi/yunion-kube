@@ -15,15 +15,23 @@ func CompileTemplateFromMap(tmplt string, configMap interface{}) (string, error)
 }
 
 type ManifestConfig struct {
-	ClusterCIDR        string
-	AuthURL            string
-	AdminUser          string
-	AdminPassword      string
-	AdminProject       string
-	KubeCluster        string
-	Region             string
-	CNIImage           string
+	ClusterCIDR   string
+	AuthURL       string
+	AdminUser     string
+	AdminPassword string
+	AdminProject  string
+	KubeCluster   string
+	Region        string
+
+	// cni config
+	CNIImage string
+	// cloudprovider config
 	CloudProviderImage string
+	// csi config
+	CSIAttacher    string
+	CSIProvisioner string
+	CSIRegistrar   string
+	CSIImage       string
 }
 
 func GetYunionManifest(config ManifestConfig) (string, error) {

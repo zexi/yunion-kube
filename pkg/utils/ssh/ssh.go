@@ -1,32 +1,40 @@
 package ssh
 
 import (
+	"encoding/base64"
 	"fmt"
-	"os/exec"
 	"strings"
 
-	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/util/ssh"
+	"yunion.io/x/pkg/util/seclib"
 )
 
 // RemoteSSHBashScript executes command on remote machine
-func RemoteSSHBashScript(user, ip, password, cmd string) (string, error) {
-	c := exec.Command("sshpass", "-p", password, "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-q", user+"@"+ip, "bash", "-c", cmd)
-	log.Infof("cmd args %s", c.Args)
-	out, err := c.CombinedOutput()
+func RemoteSSHBashScript(host string, port int, username string, privateKey, content string) (string, error) {
+	cli, err := ssh.NewClient(host, port, username, "", privateKey)
 	if err != nil {
-		return "", fmt.Errorf("error: %v, output: %s", err, string(out))
+		return "", err
 	}
-	result := strings.TrimSpace(string(out))
-	return result, nil
+	content = base64.StdEncoding.EncodeToString([]byte(content))
+	tmpFile := fmt.Sprintf("/tmp/script-%s", seclib.RandomPassword(8))
+	writeScript := fmt.Sprintf("echo '%s' | base64 -d > %s", content, tmpFile)
+	execScript := fmt.Sprintf("bash %s", tmpFile)
+	rmScript := fmt.Sprintf("rm %s", tmpFile)
+	ret, err := cli.RawRun(writeScript, execScript, rmScript)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(ret, "\n"), nil
 }
 
-func RemoteSSHCommand(user, ip, password, cmd string) (string, error) {
-	c := exec.Command("sshpass", "-p", password, "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-q", user+"@"+ip, cmd)
-	log.Infof("cmd args %s", c.Args)
-	out, err := c.CombinedOutput()
+func RemoteSSHCommand(host string, port int, username string, privateKey, cmd string) (string, error) {
+	cli, err := ssh.NewClient(host, port, username, "", privateKey)
 	if err != nil {
-		return "", fmt.Errorf("error: %v, output: %s", err, string(out))
+		return "", err
 	}
-	result := strings.TrimSpace(string(out))
-	return result, nil
+	ret, err := cli.RawRun(cmd)
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(ret, "\n"), nil
 }

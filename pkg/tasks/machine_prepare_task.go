@@ -42,6 +42,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 		t.OnError(ctx, machine, err)
 		return
 	}
+	machine.SetStatus(t.UserCred, types.MachineStatusRunning, "")
 
 	cluster, err := machine.GetCluster()
 	if err != nil {
@@ -50,19 +51,12 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	}
 
 	if machine.IsFirstNode() {
-		kubeconfig, err := machine.GetKubeConfig()
-		if err != nil {
-			t.OnError(ctx, machine, err)
-			return
-		}
-
-		if err := driver.ApplyAddons(cluster, kubeconfig); err != nil {
+		if err := ApplyAddons(cluster); err != nil {
 			t.OnError(ctx, machine, err)
 			return
 		}
 	}
 	log.Infof("Prepare machine complete")
-	machine.SetStatus(t.UserCred, types.MachineStatusRunning, "")
 	t.SetStageComplete(ctx, nil)
 }
 

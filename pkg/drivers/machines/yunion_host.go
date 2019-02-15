@@ -2,15 +2,7 @@ package machines
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"os/exec"
 	"strings"
-	"time"
-
-	tcmd "k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/cluster-api/cmd/clusterctl/clientcmd"
-	"sigs.k8s.io/cluster-api/pkg/util"
 
 	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates"
 	"yunion.io/x/jsonutils"
@@ -21,12 +13,12 @@ import (
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/utils"
 
-	"yunion.io/x/yunion-kube/pkg/drivers/machines/addons"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
+	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
 )
 
@@ -35,12 +27,14 @@ const (
 	HostTypeKubelet = "kubelet"
 )
 
-const (
-	retryIntervalKubectlApply = 10 * time.Second
-	timeoutKubectlApply       = 15 * time.Minute
-)
-
 type SYunionHostDriver struct {
+	*sBaseDriver
+}
+
+func NewYunionHostDriver() *SYunionHostDriver {
+	return &SYunionHostDriver{
+		sBaseDriver: newBaseDriver(),
+	}
 }
 
 func init() {
@@ -64,6 +58,23 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 	if len(resId) == 0 {
 		return httperrors.NewInputParameterError("Resource id must provide")
 	}
+
+	role, err := data.GetString("role")
+	if err != nil {
+		return err
+	}
+	clusterId, _ := data.GetString("cluster_id")
+	if err != nil {
+		return err
+	}
+	controlplaneMachines, err := machines.MachineManager.GetClusterControlplaneMachines(clusterId)
+	if err != nil {
+		return err
+	}
+	if role == string(types.RoleTypeControlplane) && len(controlplaneMachines) != 0 {
+		return httperrors.NewInputParameterError("Only support one controlplane as for now")
+	}
+
 	ret, err := cloudmod.Hosts.Get(session, resId, nil)
 	if err != nil {
 		return err
@@ -73,10 +84,14 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 		return httperrors.NewInputParameterError("Host %q invalid host_type %q", resId, hostType)
 	}
 	resId, _ = ret.GetString("id")
+	if m := machines.MachineManager.GetMachineByResourceId(resId); m != nil {
+		return httperrors.NewInputParameterError("Machine %s already use host %s", m.GetName(), resId)
+	}
+
 	data.Set("resource_id", jsonutils.NewString(resId))
 	name, _ := ret.Get("name")
 	data.Set("name", name)
-	return nil
+	return d.sBaseDriver.ValidateCreateData(session, userCred, ownerProjId, query, data)
 }
 
 func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters.SCluster, machine *machines.SMachine) userdata.BaseConfigure {
@@ -255,7 +270,11 @@ func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, mac
 	if err != nil {
 		return nil, err
 	}
-	_, err = ssh.RemoteSSHBashScript("root", accessIP, "123@openmag", userdata)
+	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
+	if err != nil {
+		return nil, err
+	}
+	_, err = ssh.RemoteSSHBashScript(accessIP, 22, "root", privateKey, userdata)
 	return nil, err
 }
 
@@ -271,7 +290,11 @@ func (d *SYunionHostDriver) TerminateResource(session *mcclient.ClientSession, m
 	if err := removeMachineFromContainerSchedtag(session, machine); err != nil {
 		log.Errorf("remove machine from container schedtag error: %v", err)
 	}
-	_, err = ssh.RemoteSSHBashScript("root", accessIP, "123@openmag", "'kubeadm reset -f'")
+	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
+	if err != nil {
+		return err
+	}
+	_, err = ssh.RemoteSSHCommand(accessIP, 22, "root", privateKey, "kubeadm reset -f")
 	return err
 }
 
@@ -282,155 +305,4 @@ func (d *SYunionHostDriver) GetPrivateIP(session *mcclient.ClientSession, id str
 	}
 	accessIP, _ := ret.GetString("access_ip")
 	return accessIP, nil
-}
-
-func (d *SYunionHostDriver) GetKubeConfig(session *mcclient.ClientSession, machine *machines.SMachine) (string, error) {
-	hostId := machine.ResourceId
-	accessIP, err := d.GetPrivateIP(session, hostId)
-	if err != nil {
-		return "", err
-	}
-	out, err := ssh.RemoteSSHBashScript("root", accessIP, "123@openmag", "'cat /etc/kubernetes/admin.conf'")
-	return out, err
-}
-
-func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
-	o := options.Options
-	return addons.GetYunionManifest(addons.ManifestConfig{
-		ClusterCIDR:        cluster.ServiceCidr,
-		AuthURL:            o.AuthURL,
-		AdminUser:          o.AdminUser,
-		AdminPassword:      o.AdminPassword,
-		AdminProject:       o.AdminProject,
-		Region:             o.Region,
-		KubeCluster:        cluster.Name,
-		CNIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/cni:latest",
-		CloudProviderImage: "registry.cn-beijing.aliyuncs.com/yunionio/cloud-controller-manager:latest",
-	})
-}
-
-func (d *SYunionHostDriver) ApplyAddons(cluster *clusters.SCluster, kubeconfig string) error {
-	cli, err := NewClientFromKubeconfig(kubeconfig)
-	if err != nil {
-		return err
-	}
-	manifest, err := d.GetAddonsManifest(cluster)
-	if err != nil {
-		return err
-	}
-	return cli.Apply(manifest)
-}
-
-type client struct {
-	kubeconfigFile  string
-	configOverrides tcmd.ConfigOverrides
-	closeFn         func() error
-}
-
-func NewClientFromKubeconfig(kubeconfig string) (*client, error) {
-	f, err := createTempFile(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	defer ifErrRemove(err, f)
-	//c, err := NewFromDefaultSearchPath(f, clientcmd.NewConfigOverrides())
-	//if err != nil {
-	//return nil, err
-	//}
-	c := &client{
-		kubeconfigFile:  f,
-		configOverrides: clientcmd.NewConfigOverrides(),
-	}
-	c.closeFn = c.removeKubeconfigFile
-	return c, nil
-}
-
-func createTempFile(contents string) (string, error) {
-	f, err := ioutil.TempFile("", "")
-	if err != nil {
-		return "", err
-	}
-	defer ifErrRemove(err, f.Name())
-	if err = f.Close(); err != nil {
-		return "", err
-	}
-	err = ioutil.WriteFile(f.Name(), []byte(contents), 0644)
-	if err != nil {
-		return "", err
-	}
-	return f.Name(), nil
-}
-
-func ifErrRemove(err error, path string) {
-	if err != nil {
-		if err := os.Remove(path); err != nil {
-			log.Warningf("Error removing file '%s': %v", path, err)
-		}
-	}
-}
-
-func (c *client) removeKubeconfigFile() error {
-	return os.Remove(c.kubeconfigFile)
-}
-
-func (c *client) kubectlManifestCmd(commandName, manifest string) error {
-	cmd := exec.Command("kubectl", c.buildKubectlArgs(commandName)...)
-	cmd.Stdin = strings.NewReader(manifest)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("couldn't kubectl apply, output: %s, error: %v", string(output), err)
-	}
-	return nil
-}
-
-func (c *client) buildKubectlArgs(commandName string) []string {
-	args := []string{commandName}
-	if c.kubeconfigFile != "" {
-		args = append(args, "--kubeconfig", c.kubeconfigFile)
-	}
-	if c.configOverrides.Context.Cluster != "" {
-		args = append(args, "--cluster", c.configOverrides.Context.Cluster)
-	}
-	if c.configOverrides.Context.Namespace != "" {
-		args = append(args, "--namespace", c.configOverrides.Context.Namespace)
-	}
-	if c.configOverrides.Context.AuthInfo != "" {
-		args = append(args, "--user", c.configOverrides.Context.AuthInfo)
-	}
-	return append(args, "-f", "-")
-}
-
-func (c *client) Apply(manifest string) error {
-	return c.waitForKubectlApply(manifest)
-}
-
-func (c *client) kubectlDelete(manifest string) error {
-	return c.kubectlManifestCmd("delete", manifest)
-}
-
-func (c *client) kubectlApply(manifest string) error {
-	return c.kubectlManifestCmd("apply", manifest)
-}
-
-func (c *client) waitForKubectlApply(manifest string) error {
-	err := util.PollImmediate(retryIntervalKubectlApply, timeoutKubectlApply, func() (bool, error) {
-		log.Infof("Waiting for kubectl apply...")
-		err := c.kubectlApply(manifest)
-		if err != nil {
-			if strings.Contains(err.Error(), "refused") {
-				// Connection was refused, probably because the API server is not ready yet.
-				log.Infof("aiting for kubectl apply... server not yet available: %v", err)
-				return false, nil
-			}
-			if strings.Contains(err.Error(), "unable to recognize") {
-				log.Infof("Waiting for kubectl apply... api not yet available: %v", err)
-				return false, nil
-			}
-			log.Warningf("Waiting for kubectl apply... unknown error %v", err)
-			return false, err
-		}
-
-		return true, nil
-	})
-	return err
 }

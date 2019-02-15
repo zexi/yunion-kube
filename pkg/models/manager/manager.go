@@ -1,27 +1,34 @@
 package manager
 
 import (
-	//"context"
+	"context"
 
 	"yunion.io/x/log"
-	//"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/mcclient"
+
+	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type ICluster interface {
+	GetId() string
 }
 
 type IClusterManager interface {
-	//CreateCluster(ctx context.Context, ) (ICluster, error)
+	IsClusterExists(userCred mcclient.TokenCredential, id string) (ICluster, bool, error)
+	FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (ICluster, error)
+	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (ICluster, error)
 }
 
 type IMachine interface {
 	IsControlplane() bool
 	IsRunning() bool
-	GetKubeConfig() (string, error)
+	GetPrivateIP() (string, error)
 }
 
 type IMachineManager interface {
 	GetMachines(clusterId string) ([]IMachine, error)
+	IsMachineExists(userCred mcclient.TokenCredential, id string) (IMachine, bool, error)
+	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateMachineData) (IMachine, error)
 }
 
 var (

@@ -1437,7 +1437,7 @@
 
 [[projects]]
   branch = "release/2.6.0"
-  digest = "1:185f05785ad419714c3820858a013acf8b7bec287c00c2d11c16639ffc7686a4"
+  digest = "1:db6a55ff2b47f5128f69d43ad5776d7962b0a605aca2459d22fcaabfbbf88090"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
@@ -1476,9 +1476,10 @@
     "pkg/util/logclient",
     "pkg/util/rbacutils",
     "pkg/util/seclib2",
+    "pkg/util/ssh",
   ]
   pruneopts = "UT"
-  revision = "abfe3f4c3c2c9395d84c68bc4e5c2fd22b30fd96"
+  revision = "8b24b34da1d19d09628132c786d83a82358bd923"
 
 [[projects]]
   branch = "master"
@@ -1658,6 +1659,7 @@
     "yunion.io/x/onecloud/pkg/mcclient/modules",
     "yunion.io/x/onecloud/pkg/util/httputils",
     "yunion.io/x/onecloud/pkg/util/k8s",
+    "yunion.io/x/onecloud/pkg/util/ssh",
     "yunion.io/x/pkg/gotypes",
     "yunion.io/x/pkg/tristate",
     "yunion.io/x/pkg/util/cache",

@@ -20,6 +20,8 @@ import (
 	yketypes "yunion.io/x/yke/pkg/types"
 
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
+	modeltypes "yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -470,6 +472,17 @@ func (n *SNode) PerformPurge(ctx context.Context, userCred mcclient.TokenCredent
 	return nil, n.RealDelete(ctx, userCred)
 }
 
+func (n *SNode) IsFirstNode() (bool, error) {
+	cluster, err := n.GetCluster()
+	if err != nil {
+		return false, err
+	}
+	if cluster.ApiEndpoint == "" {
+		return false, fmt.Errorf("Cluster no ApiEndpoint")
+	}
+	return strings.Contains(cluster.ApiEndpoint, n.Address), nil
+}
+
 func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	cluster, err := n.GetCluster()
 	if err != nil {
@@ -812,4 +825,37 @@ func (n *SNode) updateRolesByConfig(node *yketypes.ConfigNode) error {
 		return nil
 	})
 	return err
+}
+
+func (n *SNode) getV2Role() modeltypes.RoleType {
+	if n.Etcd || n.Controlplane {
+		return modeltypes.RoleTypeControlplane
+	}
+	return modeltypes.RoleTypeNode
+}
+
+func (n *SNode) v2MachineCreateData(v2Cluster manager.ICluster) modeltypes.CreateMachineData {
+	return modeltypes.CreateMachineData{
+		Name:         n.GetName(),
+		ClusterId:    v2Cluster.GetId(),
+		Role:         string(n.getV2Role()),
+		ResourceType: string(modeltypes.MachineResourceTypeBaremetal),
+		ResourceId:   n.HostId,
+	}
+}
+
+func (n *SNode) MigrateToV2Machine(ctx context.Context, userCred mcclient.TokenCredential, v2Cluster manager.ICluster) error {
+	v2Machine, exists, err := manager.MachineManager().IsMachineExists(userCred, n.GetName())
+	if err != nil {
+		return err
+	}
+	if !exists {
+		data := n.v2MachineCreateData(v2Cluster)
+		v2Machine, err = manager.MachineManager().CreateMachine(ctx, userCred, data)
+		if err != nil {
+			return fmt.Errorf("Create to v2 machine: %v", err)
+		}
+	}
+	log.Infof("Node %s migrate to v2 machine: %v", n.GetName(), v2Machine)
+	return nil
 }

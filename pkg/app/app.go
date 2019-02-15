@@ -20,9 +20,12 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/server"
-	_ "yunion.io/x/yunion-kube/pkg/tasks"
 	"yunion.io/x/yunion-kube/pkg/types/config"
 	"yunion.io/x/yunion-kube/pkg/ykedialerfactory"
+
+	_ "yunion.io/x/yunion-kube/pkg/drivers/clusters"
+	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
+	_ "yunion.io/x/yunion-kube/pkg/tasks"
 )
 
 func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
@@ -80,6 +83,9 @@ func Run(ctx context.Context) error {
 		go func() {
 			controllers.Start()
 		}()
+		if err := models.ClusterManager.StartMigrate(); err != nil {
+			log.Fatalf("Migrate cluster error: %v", err)
+		}
 	})
 
 	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {

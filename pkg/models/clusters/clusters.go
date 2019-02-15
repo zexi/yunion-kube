@@ -2,18 +2,16 @@ package clusters
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
-	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
-	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -66,6 +64,15 @@ func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) str
 	return val
 }
 
+func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (manager.ICluster, error) {
+	input := jsonutils.Marshal(data)
+	obj, err := db.DoCreate(m, ctx, userCred, nil, input, userCred.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*SCluster), nil
+}
+
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	var (
 		clusterType  string
@@ -85,12 +92,18 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 	}
 
 	modeType = SetJSONDataDefault(data, "mode", string(types.ModeTypeSelfBuild))
-	if !utils.IsInStringArray(modeType, []string{string(types.ModeTypeSelfBuild)}) {
+	if !utils.IsInStringArray(modeType, []string{
+		string(types.ModeTypeSelfBuild),
+		string(types.ModeTypeImport),
+	}) {
 		return nil, httperrors.NewInputParameterError("Invalid mode type: %q", modeType)
 	}
 
 	providerType = SetJSONDataDefault(data, "provider", string(types.ProviderTypeOnecloud))
-	if !utils.IsInStringArray(providerType, []string{string(types.ProviderTypeOnecloud)}) {
+	if !utils.IsInStringArray(providerType, []string{
+		string(types.ProviderTypeOnecloud),
+		string(types.ProviderTypeSystem),
+	}) {
 		return nil, httperrors.NewInputParameterError("Invalid provider type: %q", providerType)
 	}
 
@@ -104,8 +117,13 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, httperrors.NewInputParameterError("service domain must provided")
 	}
 
-	//if err := ValidateCreateData
-	res := clusterCreateResource{}
+	driver := GetDriver(types.ProviderType(providerType))
+
+	if err := driver.ValidateCreateData(userCred, ownerId, query, data); err != nil {
+		return nil, err
+	}
+
+	res := ClusterCreateResource{}
 	if err := data.Unmarshal(&res); err != nil {
 		return nil, httperrors.NewInputParameterError("Unmarshal: %v", err)
 	}
@@ -119,96 +137,20 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		res.Vip = vip
 	}
 
-	if err := m.createResource(&res); err != nil {
+	if err := driver.CreateClusterResource(m, &res); err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
 
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-type clusterCreateResource struct {
+type ClusterCreateResource struct {
 	Name          string `json:"name"`
 	Namespace     string `json:"namespace"`
 	ServiceCIDR   string `json:"service_cidr"`
 	ServiceDomain string `json:"service_domain"`
 	PodCIDR       string `json:"pod_cidr"`
 	Vip           string `json:"vip"`
-}
-
-func (m *SClusterManager) EnsureNamespace(namespaceName string) error {
-	cli, err := m.GetGlobalK8sClient()
-	if err != nil {
-		return fmt.Errorf("Creating core clientset: %v", err)
-	}
-	namespace := apiv1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: namespaceName,
-		},
-	}
-	_, err = cli.CoreV1().Namespaces().Create(&namespace)
-	if err != nil && !errors.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
-}
-
-func (m *SClusterManager) DeleteNamespace(namespaceName string) error {
-	if namespaceName == apiv1.NamespaceDefault {
-		return nil
-	}
-
-	cli, err := m.GetGlobalK8sClient()
-	if err != nil {
-		return fmt.Errorf("Creating core clientset: %v", err)
-	}
-	err = cli.CoreV1().Namespaces().Delete(namespaceName, &v1.DeleteOptions{})
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-	return nil
-}
-
-func (m *SClusterManager) createResource(data *clusterCreateResource) error {
-	cli, err := ClusterManager.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	namespace := data.Namespace
-	if err := m.EnsureNamespace(namespace); err != nil {
-		return err
-	}
-
-	clusterSpec := &providerv1.OneCloudClusterProviderSpec{}
-	if data.Vip != "" {
-		clusterSpec.NetworkSpec = providerv1.NetworkSpec{
-			StaticLB: &providerv1.StaticLB{IPAddress: data.Vip},
-		}
-	}
-
-	providerValue, err := providerv1.EncodeClusterSpec(clusterSpec)
-	if err != nil {
-		return err
-	}
-
-	cluster := &clusterv1.Cluster{
-		ObjectMeta: v1.ObjectMeta{
-			Name: data.Name,
-		},
-		Spec: clusterv1.ClusterSpec{
-			ClusterNetwork: clusterv1.ClusterNetworkingConfig{
-				Services:      clusterv1.NetworkRanges{[]string{data.ServiceCIDR}},
-				Pods:          clusterv1.NetworkRanges{[]string{data.PodCIDR}},
-				ServiceDomain: data.ServiceDomain,
-			},
-			ProviderSpec: clusterv1.ProviderSpec{
-				Value: providerValue,
-			},
-		},
-	}
-	if _, err := cli.ClusterV1alpha1().Clusters(namespace).Create(cluster); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (m *SClusterManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
@@ -219,9 +161,23 @@ func (m *SClusterManager) OnCreateComplete(ctx context.Context, items []db.IMode
 	models.RunBatchTask(ctx, clusters, userCred, data, "ClusterBatchCreateTask", "")
 }
 
-func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (*SCluster, error) {
+func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id string) (manager.ICluster, bool, error) {
+	obj, err := m.FetchByIdOrName(userCred, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return obj.(*SCluster), true, nil
+}
+
+func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (manager.ICluster, error) {
 	cluster, err := m.FetchByIdOrName(userCred, id)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, httperrors.NewNotFoundError("Cluster %s", id)
+		}
 		return nil, err
 	}
 	return cluster.(*SCluster), nil
@@ -259,18 +215,13 @@ func (m *SClusterManager) GetCluster(id string) (*SCluster, error) {
 	return obj.(*SCluster), nil
 }
 
-func (m *SCluster) ValidateAddMachine(machine *types.Machine) error {
-	cli, err := ClusterManager.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if _, err := cli.ClusterV1alpha1().Machines(m.Name).Get(machine.Name, v1.GetOptions{}); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-	return httperrors.NewDuplicateResourceError("Machine %s", m.Name)
+func (c *SCluster) GetDriver() IClusterDriver {
+	return GetDriver(types.ProviderType(c.Provider))
+}
+
+func (c *SCluster) ValidateAddMachine(machine *types.Machine) error {
+	driver := c.GetDriver()
+	return driver.ValidateAddMachine(ClusterManager, machine)
 }
 
 func (c *SCluster) GetNamespace() string {
@@ -288,7 +239,7 @@ func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
 	if len(machines) > 0 {
 		return httperrors.NewNotEmptyError("Not an empty cluster")
 	}
-	return nil
+	return c.GetDriver().ValidateDeleteCondition()
 }
 
 func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -352,11 +303,7 @@ func (c *SCluster) GetControlplaneMachine() (manager.IMachine, error) {
 }
 
 func (c *SCluster) GetKubeConfig() (string, error) {
-	masterMachine, err := c.GetControlplaneMachine()
-	if err != nil {
-		return "", httperrors.NewInternalServerError("Generate kubeconfig err: %v", err)
-	}
-	return masterMachine.GetKubeConfig()
+	return c.GetDriver().GetKubeconfig(c)
 }
 
 func (c *SCluster) GetDetailsKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -408,5 +355,3 @@ func (c *SCluster) StartApplyAddonsTask(ctx context.Context, userCred mcclient.T
 	task.ScheduleRun(nil)
 	return nil
 }
-
-//func RunBatchTask(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject)
