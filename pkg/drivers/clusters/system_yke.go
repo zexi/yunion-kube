@@ -1,7 +1,11 @@
 package clusters
 
 import (
+	"context"
+
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
@@ -32,6 +36,10 @@ func (d *SSystemYKEDriver) GetKubeconfig(cluster *clusters.SCluster) (string, er
 		return "", err
 	}
 	return c.GetAdminKubeconfig()
+}
+
+func (d *SSystemYKEDriver) RequestCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData, task taskman.ITask) error {
+	return httperrors.NewUnsupportOperationError("Global system cluster can't be machines")
 }
 
 func (d *SSystemYKEDriver) ValidateDeleteCondition() error {

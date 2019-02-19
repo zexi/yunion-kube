@@ -1,6 +1,8 @@
 package clusters
 
 import (
+	"fmt"
+
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +28,7 @@ func (d *sBaseDriver) ValidateDeleteCondition() error {
 	return nil
 }
 
-func (d *sBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *clusters.ClusterCreateResource) error {
+func (d *sBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
 	// do nothing
 	return nil
 }
@@ -39,6 +41,14 @@ func (d *sBaseDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, err
 	return "", nil
 }
 
+func (d *sBaseDriver) UseClusterAPI() bool {
+	return false
+}
+
+func (d *sBaseDriver) RequestDeleteCluster(c *clusters.SCluster) error {
+	return fmt.Errorf("Not supported")
+}
+
 type sClusterAPIDriver struct {
 	*sBaseDriver
 }
@@ -47,6 +57,10 @@ func newClusterAPIDriver() *sClusterAPIDriver {
 	return &sClusterAPIDriver{
 		sBaseDriver: newBaseDriver(),
 	}
+}
+
+func (d *sClusterAPIDriver) UseClusterAPI() bool {
+	return true
 }
 
 func (d *sClusterAPIDriver) EnsureNamespace(cli *kubernetes.Clientset, namespace string) error {

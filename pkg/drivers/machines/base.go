@@ -7,7 +7,6 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 )
 
@@ -39,6 +38,10 @@ func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *
 	return nil, nil
 }
 
+func (d *sBaseDriver) PostDelete(m *machines.SMachine) error {
+	return nil
+}
+
 func (d *sBaseDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {
 	return nil
 }
@@ -47,7 +50,6 @@ func (d *sBaseDriver) GetPrivateIP(session *mcclient.ClientSession, id string) (
 	return "", fmt.Errorf("not impl")
 }
 
-// TODO: mv to cluster driver
-func (d *sBaseDriver) ApplyAddons(cluster *clusters.SCluster, kubeconfig string) error {
-	return fmt.Errorf("not impl")
+func (d *sBaseDriver) UseClusterAPI() bool {
+	return false
 }

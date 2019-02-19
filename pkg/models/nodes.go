@@ -161,6 +161,26 @@ func validateDockerConfig(data *jsonutils.JSONDict) error {
 	return nil
 }
 
+func (m *SNodeManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (m *SNodeManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (n *SNode) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (n *SNode) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
 func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
 	q, err := m.SStatusStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
 	if err != nil {
@@ -199,7 +219,9 @@ func NewNode(ctx context.Context, userCred mcclient.TokenCredential, data *jsonu
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
-	return model.(*SNode), nil
+	n := model.(*SNode)
+	n.PostCreate(ctx, userCred, "", nil, data)
+	return n, nil
 }
 
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -362,6 +384,24 @@ func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCred
 	return n.SStatusStandaloneResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
 }
 
+func (n *SNode) GetV2Cluster() (manager.ICluster, error) {
+	c, err := n.GetCluster()
+	if err != nil {
+		return nil, err
+	}
+	return c.GetV2Cluster()
+}
+
+func (n *SNode) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	n.SStatusStandaloneResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+	v2Cluster, err := n.GetV2Cluster()
+	if err != nil {
+		log.Errorf("Get v2 cluster error: %v", err)
+		return
+	}
+	n.MigrateToV2Machine(ctx, userCred, v2Cluster)
+}
+
 // Register set node status to ready, means node is ready for deploy
 func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 	if n.ClusterId != data.ClusterId {
@@ -478,6 +518,13 @@ func (n *SNode) IsFirstNode() (bool, error) {
 		return false, err
 	}
 	if cluster.ApiEndpoint == "" {
+		nodes, err := cluster.GetNodes()
+		if err != nil {
+			return false, err
+		}
+		if len(nodes) == 1 {
+			return true, nil
+		}
 		return false, fmt.Errorf("Cluster no ApiEndpoint")
 	}
 	return strings.Contains(cluster.ApiEndpoint, n.Address), nil
@@ -496,8 +543,14 @@ func (n *SNode) ValidateDeleteCondition(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	if len(n.Address) != 0 && strings.Contains(cluster.ApiEndpoint, n.Address) && len(oldNodes) != 1 {
+		isEmpty, err := cluster.IsNonSystemClustersEmpty()
+		if err != nil {
+			return err
+		}
+		if !isEmpty {
+			return httperrors.NewNotAcceptableError("None system clusters exists, please delete them firstly")
+		}
 		return httperrors.NewInputParameterError("First control node %q must deleted at last", n.Name)
 	}
 
@@ -509,7 +562,19 @@ func (n *SNode) Delete(ctx context.Context, userCred mcclient.TokenCredential) e
 	return nil
 }
 
+func (n *SNode) GetV2Machine() (manager.IMachine, error) {
+	userCred := GetAdminCred()
+	return manager.MachineManager().FetchMachineByIdOrName(userCred, n.GetName())
+}
+
 func (n *SNode) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	machine, err := n.GetV2Machine()
+	if err != nil {
+		return err
+	}
+	if err := machine.RealDelete(ctx, userCred); err != nil {
+		return err
+	}
 	return n.SStatusStandaloneResourceBase.Delete(ctx, userCred)
 }
 
@@ -530,9 +595,15 @@ func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 }
 
 func (n *SNode) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-
 	n.SetStatus(GetAdminCred(), NODE_STATUS_DELETING, "")
 	return n.StartDeleteNodeTask(ctx, userCred, "", data)
+}
+
+func (n *SNode) SetStatus(userCred mcclient.TokenCredential, status, reason string) error {
+	if m, _ := n.GetV2Machine(); m != nil {
+		m.SetStatus(userCred, status, reason)
+	}
+	return n.SStatusStandaloneResourceBase.SetStatus(userCred, status, reason)
 }
 
 func (n *SNode) StartDeleteNodeTask(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string, data jsonutils.JSONObject) error {
@@ -851,7 +922,7 @@ func (n *SNode) MigrateToV2Machine(ctx context.Context, userCred mcclient.TokenC
 	}
 	if !exists {
 		data := n.v2MachineCreateData(v2Cluster)
-		v2Machine, err = manager.MachineManager().CreateMachine(ctx, userCred, data)
+		v2Machine, err = manager.MachineManager().CreateMachine(ctx, userCred, &data)
 		if err != nil {
 			return fmt.Errorf("Create to v2 machine: %v", err)
 		}

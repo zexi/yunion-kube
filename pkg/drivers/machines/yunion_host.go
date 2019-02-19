@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -11,20 +13,15 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/tristate"
-	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
+	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
-)
-
-const (
-	HostTypeKVM     = "hypervisor"
-	HostTypeKubelet = "kubelet"
 )
 
 type SYunionHostDriver struct {
@@ -46,13 +43,17 @@ func (d *SYunionHostDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeOnecloud
 }
 
+func (d *SYunionHostDriver) UseClusterAPI() bool {
+	return true
+}
+
 func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	if !userCred.HasSystemAdminPrivelege() {
 		return httperrors.NewForbiddenError("Only system admin can use host resource")
 	}
 	resType, _ := data.GetString("resource_type")
-	if resType != types.MachineResourceTypeBaremetal {
-		return httperrors.NewInputParameterError("Invalid resource type: %q", resType)
+	if err := yunion_host.ValidateResourceType(resType); err != nil {
+		return err
 	}
 	resId := jsonutils.GetAnyString(data, []string{"instance", "resource_id"})
 	if len(resId) == 0 {
@@ -75,17 +76,9 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 		return httperrors.NewInputParameterError("Only support one controlplane as for now")
 	}
 
-	ret, err := cloudmod.Hosts.Get(session, resId, nil)
+	ret, err := yunion_host.ValidateHostId(session, resId)
 	if err != nil {
 		return err
-	}
-	hostType, _ := ret.GetString("host_type")
-	if !utils.IsInStringArray(hostType, []string{HostTypeKVM, HostTypeKubelet}) {
-		return httperrors.NewInputParameterError("Host %q invalid host_type %q", resId, hostType)
-	}
-	resId, _ = ret.GetString("id")
-	if m := machines.MachineManager.GetMachineByResourceId(resId); m != nil {
-		return httperrors.NewInputParameterError("Machine %s already use host %s", m.GetName(), resId)
 	}
 
 	data.Set("resource_id", jsonutils.NewString(resId))
@@ -276,6 +269,20 @@ func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, mac
 	}
 	_, err = ssh.RemoteSSHBashScript(accessIP, 22, "root", privateKey, userdata)
 	return nil, err
+}
+
+func (d *SYunionHostDriver) PostDelete(m *machines.SMachine) error {
+	cli, err := m.GetGlobalClient()
+	if err != nil {
+		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
+	}
+	if err := cli.ClusterV1alpha1().Machines(m.GetNamespace()).Delete(m.Name, &v1.DeleteOptions{}); err != nil {
+		if !errors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (d *SYunionHostDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {

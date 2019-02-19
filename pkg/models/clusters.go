@@ -144,7 +144,23 @@ func (m *SClusterManager) InitializeData() error {
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return true
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (m *SClusterManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (c *SCluster) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (c *SCluster) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (c *SCluster) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -629,6 +645,24 @@ func (c *SCluster) GetYKEConfig() (conf *yketypes.KubernetesEngineConfig, err er
 	return utils.ConvertToYkeConfig(confStr)
 }
 
+func (c *SCluster) IsSystemDefault() bool {
+	return c.GetName() == modeltypes.DefaultCluster
+}
+
+func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
+	if !c.IsSystemDefault() {
+		return nil
+	}
+	isEmpty, err := c.IsNonSystemClustersEmpty()
+	if err != nil {
+		return err
+	}
+	if !isEmpty {
+		return httperrors.NewNotAcceptableError("None system clusters exists, please delete them firstly")
+	}
+	return nil
+}
+
 func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
 	// override
 	log.Infof("Cluster delete do nothing")
@@ -636,7 +670,21 @@ func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential
 }
 
 func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	cluster, err := c.GetV2Cluster()
+	if err != nil {
+		return err
+	}
+	if err := cluster.RealDelete(ctx, userCred); err != nil {
+		return err
+	}
 	return c.SStatusStandaloneResourceBase.Delete(ctx, userCred)
+}
+
+func (c *SCluster) SetStatus(userCred mcclient.TokenCredential, status, reason string) error {
+	if cluster, _ := c.GetV2Cluster(); cluster != nil {
+		cluster.SetStatus(userCred, status, reason)
+	}
+	return c.SStatusStandaloneResourceBase.SetStatus(userCred, status, reason)
 }
 
 func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -1466,10 +1514,33 @@ func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.To
 
 	for _, node := range nodes {
 		if len(node.Address) != 0 && strings.Contains(c.ApiEndpoint, node.Address) && len(nodes) != len(oldNodes) {
+			isEmpty, err := c.IsNonSystemClustersEmpty()
+			if err != nil {
+				return nil, err
+			}
+			if !isEmpty {
+				return nil, httperrors.NewNotAcceptableError("None system clusters exists, please delete them firstly")
+			}
 			return nil, httperrors.NewInputParameterError("First control node %q must deleted at last, address %q", node.Name, node.Address)
 		}
 	}
 	return nodes, nil
+}
+
+func (c *SCluster) IsNonSystemClustersEmpty() (bool, error) {
+	cnt, err := c.GetNonSystemClustersCount()
+	if err != nil {
+		return false, err
+	}
+	return cnt == 0, nil
+}
+
+func (c *SCluster) GetNonSystemClustersCount() (int, error) {
+	clusters, err := manager.ClusterManager().GetNonSystemClusters()
+	if err != nil {
+		return 0, err
+	}
+	return len(clusters), nil
 }
 
 func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

@@ -31,7 +31,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	}
 
 	prepareData.InstanceId = machine.ResourceId
-	driver := machines.GetDriver(types.ProviderType(machine.Provider))
+	driver := machine.GetDriver()
 	session, err := machines.MachineManager.GetSession()
 	if err != nil {
 		t.OnError(ctx, machine, err)

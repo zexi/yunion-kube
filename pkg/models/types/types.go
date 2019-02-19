@@ -78,20 +78,31 @@ const (
 	MachineStatusRunning       = "running"
 	MachineStatusReady         = "ready"
 	MachineStatusDeleting      = "deleting"
+	MachineStatusDeleteFail    = "delete_fail"
 	MachineStatusTerminating   = "terminating"
 	MachineStatusTerminateFail = "terminate_fail"
+
+	ClusterStatusInit       = "init"
+	ClusterStatusCreating   = "creating"
+	ClusterStatusCreateFail = "create_fail"
+	ClusterStatusReady      = "ready"
+	ClusterStatusDeleting   = "deleting"
+	ClusterStatusDeleteFail = "delete_fail"
 )
 
 type CreateClusterData struct {
-	Name          string `json:"name"`
-	ClusterType   string `json:"cluster_type"`
-	CloudType     string `json:"cloud_type"`
-	Mode          string `json:"mode"`
-	Provider      string `json:"provider"`
-	ServiceCidr   string `json:"service_cidr"`
-	ServiceDomain string `json:"service_domain"`
-	PodCidr       string `json:"pod_cidr"`
-	Version       string `json:"version"`
+	Name          string               `json:"name"`
+	Namespace     string               `json:"namespace"`
+	ClusterType   string               `json:"cluster_type"`
+	CloudType     string               `json:"cloud_type"`
+	Mode          string               `json:"mode"`
+	Provider      string               `json:"provider"`
+	ServiceCidr   string               `json:"service_cidr"`
+	ServiceDomain string               `json:"service_domain"`
+	PodCidr       string               `json:"pod_cidr"`
+	Version       string               `json:"version"`
+	HA            bool                 `json:"ha"`
+	Machines      []*CreateMachineData `json:"machines"`
 }
 
 type CreateMachineData struct {

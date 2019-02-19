@@ -11,24 +11,31 @@ import (
 
 type ICluster interface {
 	GetId() string
+	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
+	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
 }
 
 type IClusterManager interface {
 	IsClusterExists(userCred mcclient.TokenCredential, id string) (ICluster, bool, error)
 	FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (ICluster, error)
 	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (ICluster, error)
+	GetNonSystemClusters() ([]ICluster, error)
 }
 
 type IMachine interface {
 	IsControlplane() bool
 	IsRunning() bool
 	GetPrivateIP() (string, error)
+	DoSyncDelete(ctx context.Context, userCred mcclient.TokenCredential) error
+	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
+	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
 }
 
 type IMachineManager interface {
+	FetchMachineByIdOrName(userCred mcclient.TokenCredential, id string) (IMachine, error)
 	GetMachines(clusterId string) ([]IMachine, error)
 	IsMachineExists(userCred mcclient.TokenCredential, id string) (IMachine, bool, error)
-	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateMachineData) (IMachine, error)
+	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (IMachine, error)
 }
 
 var (

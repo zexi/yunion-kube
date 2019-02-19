@@ -4,19 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/tristate"
+	"yunion.io/x/pkg/util/wait"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
@@ -92,12 +92,18 @@ func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, i
 	return obj.(*SMachine), true, nil
 }
 
-func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
 	input := jsonutils.Marshal(data)
 	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred.GetTenantId())
 	if err != nil {
 		return nil, err
 	}
+	m := obj.(*SMachine)
+	func() {
+		lockman.LockObject(ctx, m)
+		defer lockman.ReleaseObject(ctx, m)
+		m.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, input)
+	}()
 	return obj.(*SMachine), nil
 }
 
@@ -150,6 +156,32 @@ func ConvertPtrMachines(objs []SMachine) []*SMachine {
 	return ret
 }
 
+func (man *SMachineManager) FetchMachineById(id string) (*SMachine, error) {
+	obj, err := man.FetchById(id)
+	if err != nil {
+		return nil, err
+	}
+	return obj.(*SMachine), nil
+}
+
+func (man *SMachineManager) FetchMachineByIdOrName(userCred mcclient.TokenCredential, id string) (manager.IMachine, error) {
+	m, err := man.FetchByIdOrName(userCred, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, httperrors.NewNotFoundError("Machine %s", id)
+		}
+		return nil, err
+	}
+	return m.(*SMachine), nil
+}
+
+func ValidateRole(role string) error {
+	if !utils.IsInStringArray(role, []string{string(types.RoleTypeControlplane), string(types.RoleTypeNode)}) {
+		return httperrors.NewInputParameterError("Invalid role: %q", role)
+	}
+	return nil
+}
+
 func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	clusterId := jsonutils.GetAnyString(data, []string{"cluster", "cluster_id"})
 	if len(clusterId) == 0 {
@@ -170,8 +202,8 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 
 	role, _ := data.GetString("role")
-	if !utils.IsInStringArray(role, []string{string(types.RoleTypeControlplane), string(types.RoleTypeNode)}) {
-		return nil, httperrors.NewInputParameterError("Invalid role: %q", role)
+	if err := ValidateRole(role); err != nil {
+		return nil, err
 	}
 
 	clusterMachines, err := man.GetClusterMachines(clusterId)
@@ -207,6 +239,10 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 
 func (m *SMachine) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	m.SVirtualResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+	// TODO: replace this
+	if !m.GetDriver().UseClusterAPI() {
+		return
+	}
 	if err := m.StartMachineCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("StartMachineCreateTask error: %v", err)
 	}
@@ -338,21 +374,18 @@ func (m *SMachine) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (m *SMachine) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-	m.SetStatus(userCred, types.MachineStatusDeleting, "")
-	return m.startRemoveMachine(ctx, userCred)
+	return m.StartMachineDeleteTask(ctx, userCred, nil, "")
 }
 
-func (m *SMachine) startRemoveMachine(ctx context.Context, userCred mcclient.TokenCredential) error {
-	cli, err := m.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if err := cli.ClusterV1alpha1().Machines(m.GetNamespace()).Delete(m.Name, &v1.DeleteOptions{}); err != nil {
-		if !errors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
-			return nil
-		}
+func (m *SMachine) StartMachineDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	if err := m.SetStatus(userCred, types.MachineStatusDeleting, ""); err != nil {
 		return err
 	}
+	task, err := taskman.TaskManager.NewTask(ctx, "MachineDeleteTask", m, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
 	return nil
 }
 
@@ -403,4 +436,48 @@ func (m *SMachine) IsRunning() bool {
 
 func (m *SMachine) IsFirstNode() bool {
 	return m.FirstNode.Bool()
+}
+
+func WaitMachineRunning(machine *SMachine) error {
+	interval := 30 * time.Second
+	timeout := 15 * time.Minute
+	return wait.Poll(interval, timeout, func() (bool, error) {
+		machine, err := MachineManager.FetchMachineById(machine.GetId())
+		if err != nil {
+			return false, err
+		}
+		if machine.Status == types.MachineStatusRunning {
+			return true, nil
+		}
+		if utils.IsInStringArray(machine.Status, []string{types.MachineStatusPrepare, types.MachineStatusCreating}) {
+			return false, nil
+		}
+		return false, fmt.Errorf("Machine %s status is %s", machine.GetName(), machine.Status)
+	})
+}
+
+func WaitMachineDelete(machine *SMachine) error {
+	interval := 30 * time.Second
+	timeout := 15 * time.Minute
+	return wait.Poll(interval, timeout, func() (bool, error) {
+		m, exists, err := MachineManager.IsMachineExists(nil, machine.GetId())
+		if err != nil {
+			return false, err
+		}
+		if !exists {
+			return true, nil
+		}
+		machine := m.(*SMachine)
+		if utils.IsInStringArray(machine.Status, []string{types.MachineStatusDeleting, types.MachineStatusTerminating}) {
+			return false, nil
+		}
+		return false, fmt.Errorf("Machine %s status is %s", machine.GetName(), machine.Status)
+	})
+}
+
+func (m *SMachine) DoSyncDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	if err := m.StartMachineDeleteTask(ctx, userCred, nil, ""); err != nil {
+		return nil
+	}
+	return WaitMachineDelete(m)
 }

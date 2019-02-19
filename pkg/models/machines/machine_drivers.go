@@ -11,9 +11,11 @@ import (
 type IMachineDriver interface {
 	GetProvider() types.ProviderType
 	GetPrivateIP(session *mcclient.ClientSession, id string) (string, error)
+	UseClusterAPI() bool
 
 	ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error
 	PrepareResource(session *mcclient.ClientSession, machine *SMachine, data *MachinePrepareData) (jsonutils.JSONObject, error)
+	PostDelete(machine *SMachine) error
 	TerminateResource(session *mcclient.ClientSession, machine *SMachine) error
 }
 

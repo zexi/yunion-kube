@@ -4,10 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
@@ -19,8 +16,10 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/k8s"
+	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/utils"
+	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -43,16 +42,16 @@ type SClusterManager struct {
 
 type SCluster struct {
 	db.SVirtualResourceBase
-	ClusterType   string `nullable:"false" create:"required" list:"user"`
-	CloudType     string `nullable:"false" create:"required" list:"user"`
-	Mode          string `nullable:"false" create:"required" list:"user"`
-	Provider      string `nullable:"false" create:"required" list:"user"`
-	ServiceCidr   string `nullable:"false" create:"required" list:"user"`
-	ServiceDomain string `nullable:"false" create:"required" list:"user"`
-	PodCidr       string `nullable:"true" create:"optional" list:"user"`
-	Version       string `nullable:"true" create:"optional" list:"user"`
-	Namespace     string `nullable:"true" create:"optional" list:"user"`
-	Vip           string `nullable:"true" create:"optional" list:"user"`
+	ClusterType   string            `nullable:"false" create:"required" list:"user"`
+	CloudType     string            `nullable:"false" create:"required" list:"user"`
+	Mode          string            `nullable:"false" create:"required" list:"user"`
+	Provider      string            `nullable:"false" create:"required" list:"user"`
+	ServiceCidr   string            `nullable:"false" create:"required" list:"user"`
+	ServiceDomain string            `nullable:"false" create:"required" list:"user"`
+	PodCidr       string            `nullable:"true" create:"optional" list:"user"`
+	Version       string            `nullable:"true" create:"optional" list:"user"`
+	Namespace     string            `nullable:"true" create:"optional" list:"user"`
+	Ha            tristate.TriState `nullable:"true" create:"required" list:"user"`
 }
 
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
@@ -62,6 +61,10 @@ func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) str
 		data.Set(key, jsonutils.NewString(val))
 	}
 	return val
+}
+
+func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
+	return models.GetAdminSession()
 }
 
 func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (manager.ICluster, error) {
@@ -123,42 +126,29 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, err
 	}
 
-	res := ClusterCreateResource{}
+	if jsonutils.QueryBoolean(data, "ha", false) {
+		data.Set("ha", jsonutils.JSONTrue)
+	} else {
+		data.Set("ha", jsonutils.JSONFalse)
+	}
+
+	res := types.CreateClusterData{}
 	if err := data.Unmarshal(&res); err != nil {
 		return nil, httperrors.NewInputParameterError("Unmarshal: %v", err)
 	}
-	// TODO: support namespace by userCred
-	res.Namespace = res.Name
 
-	if vip := jsonutils.GetAnyString(data, []string{"vip"}); vip != "" {
-		if _, err := netutils.NewIPV4Addr(vip); err != nil {
-			return nil, httperrors.NewInputParameterError("Invalid vip: %s", vip)
-		}
-		res.Vip = vip
+	if res.Provider != string(types.ProviderTypeSystem) && len(res.Machines) == 0 {
+		return nil, httperrors.NewInputParameterError("Machines desc not provider")
 	}
+
+	// TODO: support namespace by userCred??
+	res.Namespace = res.Name
 
 	if err := driver.CreateClusterResource(m, &res); err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
 
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
-}
-
-type ClusterCreateResource struct {
-	Name          string `json:"name"`
-	Namespace     string `json:"namespace"`
-	ServiceCIDR   string `json:"service_cidr"`
-	ServiceDomain string `json:"service_domain"`
-	PodCIDR       string `json:"pod_cidr"`
-	Vip           string `json:"vip"`
-}
-
-func (m *SClusterManager) OnCreateComplete(ctx context.Context, items []db.IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	clusters := make([]db.IStandaloneModel, len(items))
-	for i := range items {
-		clusters[i] = items[i]
-	}
-	models.RunBatchTask(ctx, clusters, userCred, data, "ClusterBatchCreateTask", "")
 }
 
 func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id string) (manager.ICluster, bool, error) {
@@ -170,6 +160,21 @@ func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id 
 		return nil, false, err
 	}
 	return obj.(*SCluster), true, nil
+}
+
+func (m *SClusterManager) GetNonSystemClusters() ([]manager.ICluster, error) {
+	clusters := m.Query().SubQuery()
+	q := clusters.Query().Filter(sqlchemy.NotEquals(clusters.Field("provider"), string(types.ProviderTypeSystem)))
+	objs := make([]SCluster, 0)
+	err := db.FetchModelObjects(m, q, &objs)
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]manager.ICluster, len(objs))
+	for i := range objs {
+		ret[i] = &objs[i]
+	}
+	return ret, nil
 }
 
 func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (manager.ICluster, error) {
@@ -220,6 +225,9 @@ func (c *SCluster) GetDriver() IClusterDriver {
 }
 
 func (c *SCluster) ValidateAddMachine(machine *types.Machine) error {
+	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusInit, types.ClusterStatusCreating, types.ClusterStatusReady}) {
+		return httperrors.NewNotAcceptableError("Can't add machine when cluster status is %s", c.Status)
+	}
 	driver := c.GetDriver()
 	return driver.ValidateAddMachine(ClusterManager, machine)
 }
@@ -231,14 +239,31 @@ func (c *SCluster) GetNamespace() string {
 	return c.Namespace
 }
 
+func (c *SCluster) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	c.SVirtualResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+	if err := c.StartClusterCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
+		log.Errorf("StartClusterCreateTask error: %v", err)
+	}
+}
+
+func (c *SCluster) StartClusterCreateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	c.SetStatus(userCred, types.ClusterStatusCreating, "")
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterCreateTask", c, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
 func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
-	machines, err := manager.MachineManager().GetMachines(c.Id)
+	/*machines, err := manager.MachineManager().GetMachines(c.Id)
 	if err != nil {
 		return err
 	}
 	if len(machines) > 0 {
 		return httperrors.NewNotEmptyError("Not an empty cluster")
-	}
+	}*/
 	return c.GetDriver().ValidateDeleteCondition()
 }
 
@@ -252,21 +277,18 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-	//c.SetStatus(userCred, CLUSTER_STATUS_DELETING, "")
-	return c.startRemoveCluster(ctx, userCred)
+	return c.StartClusterDeleteTask(ctx, userCred, data.(*jsonutils.JSONDict), "")
 }
 
-func (c *SCluster) startRemoveCluster(ctx context.Context, userCred mcclient.TokenCredential) error {
-	cli, err := ClusterManager.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if err := cli.ClusterV1alpha1().Clusters(c.GetNamespace()).Delete(c.Name, &v1.DeleteOptions{}); err != nil {
-		if !errors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
-			return nil
-		}
+func (c *SCluster) StartClusterDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	if err := c.SetStatus(userCred, types.ClusterStatusDeleting, ""); err != nil {
 		return err
 	}
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteTask", c, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
 	return nil
 }
 
@@ -290,7 +312,7 @@ func (c *SCluster) AllowGetDetailsKubeconfig(ctx context.Context, userCred mccli
 }
 
 func (c *SCluster) GetControlplaneMachine() (manager.IMachine, error) {
-	machines, err := manager.MachineManager().GetMachines(c.Id)
+	machines, err := c.GetMachines()
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +322,10 @@ func (c *SCluster) GetControlplaneMachine() (manager.IMachine, error) {
 		}
 	}
 	return nil, fmt.Errorf("Not found a ready controlplane machine")
+}
+
+func (c *SCluster) GetMachines() ([]manager.IMachine, error) {
+	return manager.MachineManager().GetMachines(c.Id)
 }
 
 func (c *SCluster) GetKubeConfig() (string, error) {
@@ -353,5 +379,19 @@ func (c *SCluster) StartApplyAddonsTask(ctx context.Context, userCred mcclient.T
 		return err
 	}
 	task.ScheduleRun(nil)
+	return nil
+}
+
+func (c *SCluster) DeleteMachines(ctx context.Context, userCred mcclient.TokenCredential) error {
+	machines, err := c.GetMachines()
+	if err != nil {
+		return err
+	}
+	for _, m := range machines {
+		// TODO: parralle
+		if err := m.DoSyncDelete(ctx, userCred); err != nil {
+			return err
+		}
+	}
 	return nil
 }
