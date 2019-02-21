@@ -22,10 +22,20 @@ type ClusterSyncstatusTask struct {
 
 func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*clusters.SCluster)
-	kubeconfig, err := cluster.GetKubeconfig()
+	k8sCli, err := cluster.GetK8sClient()
 	if err != nil {
-
+		t.onError(ctx, cluster, err)
+		return
 	}
+	info, err := k8sCli.Discovery().ServerVersion()
+	if err != nil {
+		t.onError(ctx, cluster, err)
+		return
+	}
+	log.Infof("Get %s cluster k8s version: %#v", cluster.GetName(), info)
+	cluster.SetStatus(t.UserCred, types.ClusterStatusRunning, "")
+	cluster.SetK8sVersion(info.String())
+	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandaloneModel, err error) {
@@ -34,6 +44,6 @@ func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandal
 
 func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*clusters.SCluster)
-	//cluster.SetStatus(t.UserCred, types.Cluster)
+	cluster.SetStatus(t.UserCred, types.ClusterStatusUnknown, "")
 	t.STask.SetStageFailed(ctx, reason)
 }

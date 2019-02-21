@@ -1,6 +1,7 @@
 package clusters
 
 import (
+	"context"
 	"fmt"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -50,7 +51,7 @@ func (d *sBaseDriver) RequestDeleteCluster(c *clusters.SCluster) error {
 	return fmt.Errorf("Not supported")
 }
 
-func (d *sBaseDriver) StartSyncStatus(cluster *SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+func (d *sBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterSyncstatusTask", cluster, userCred, nil, parentTaskId, "", nil)
 	if err != nil {
 		return err

@@ -372,6 +372,14 @@ func (c *SCluster) GetKubeconfig() (string, error) {
 	return kubeconfig, c.SetKubeconfig(kubeconfig)
 }
 
+func (c *SCluster) SetK8sVersion(version string) error {
+	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+		c.Version = version
+		return nil
+	})
+	return err
+}
+
 func (c *SCluster) SetKubeconfig(kubeconfig string) error {
 	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
 		c.Kubeconfig = kubeconfig
@@ -444,11 +452,11 @@ func (c *SCluster) DeleteMachines(ctx context.Context, userCred mcclient.TokenCr
 	return nil
 }
 
-func (c *SCluster) AllowPerformSyncStatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+func (c *SCluster) AllowPerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
 	return c.allowPerformAction(userCred, query, data)
 }
 
-func (c *SCluster) PerformSyncStatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (c *SCluster) PerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	return nil, c.StartSyncStatus(ctx, userCred, "")
 }
 

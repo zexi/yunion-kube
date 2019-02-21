@@ -70,11 +70,19 @@ func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *clus
 
 func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*clusters.SCluster)
-	cluster.SetStatus(t.UserCred, types.ClusterStatusRunning, "")
-	t.SetStageComplete(ctx, nil)
+	t.SetStage("OnSyncStatus", nil)
+	cluster.StartSyncStatus(ctx, t.UserCred, t.GetTaskId())
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsCompleteFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetFailed(ctx, obj, data.String())
+}
+
+func (t *ClusterCreateTask) OnSyncStatus(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterCreateTask) OnSyncStatusFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetFailed(ctx, obj, data.String())
 }
 
