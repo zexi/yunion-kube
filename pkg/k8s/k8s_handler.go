@@ -174,6 +174,7 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 		return nil, err
 	}
 	req := &common.Request{
+		Cluster: cluster,
 		//K8sClient:       k8sCli,
 		//K8sConfig:       config,
 		K8sAdminClient:  k8sAdminCli,

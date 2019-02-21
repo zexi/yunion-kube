@@ -52,6 +52,7 @@ type SCluster struct {
 	Version       string            `nullable:"true" create:"optional" list:"user"`
 	Namespace     string            `nullable:"true" create:"optional" list:"user"`
 	Ha            tristate.TriState `nullable:"true" create:"required" list:"user"`
+	Kubeconfig    string            `nullable:"true" create:"optional"`
 }
 
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
@@ -224,8 +225,39 @@ func (c *SCluster) GetDriver() IClusterDriver {
 	return GetDriver(types.ProviderType(c.Provider))
 }
 
+func (c *SCluster) GetMachinesCount() (int, error) {
+	ms, err := c.GetMachines()
+	if err != nil {
+		return 0, err
+	}
+	return len(ms), nil
+}
+
+func (c *SCluster) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
+	extra := c.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
+	return c.moreExtraInfo(extra)
+}
+
+func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := c.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.moreExtraInfo(extra), nil
+}
+
+func (c *SCluster) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
+	if cnt, err := c.GetMachinesCount(); err != nil {
+		log.Errorf("GetMachines error: %v", err)
+	} else {
+		extra.Add(jsonutils.NewInt(int64(cnt)), "machines")
+	}
+	return extra
+}
+
 func (c *SCluster) ValidateAddMachine(machine *types.Machine) error {
-	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusInit, types.ClusterStatusCreating, types.ClusterStatusReady}) {
+	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusInit, types.ClusterStatusCreating, types.ClusterStatusRunning}) {
 		return httperrors.NewNotAcceptableError("Can't add machine when cluster status is %s", c.Status)
 	}
 	driver := c.GetDriver()
@@ -328,12 +360,28 @@ func (c *SCluster) GetMachines() ([]manager.IMachine, error) {
 	return manager.MachineManager().GetMachines(c.Id)
 }
 
-func (c *SCluster) GetKubeConfig() (string, error) {
-	return c.GetDriver().GetKubeconfig(c)
+func (c *SCluster) GetKubeconfig() (string, error) {
+	// TODO: check kubeconfig
+	if len(c.Kubeconfig) != 0 {
+		return c.Kubeconfig, nil
+	}
+	kubeconfig, err := c.GetDriver().GetKubeconfig(c)
+	if err != nil {
+		return "", err
+	}
+	return kubeconfig, c.SetKubeconfig(kubeconfig)
+}
+
+func (c *SCluster) SetKubeconfig(kubeconfig string) error {
+	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+		c.Kubeconfig = kubeconfig
+		return nil
+	})
+	return err
 }
 
 func (c *SCluster) GetDetailsKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	conf, err := c.GetKubeConfig()
+	conf, err := c.GetKubeconfig()
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +391,7 @@ func (c *SCluster) GetDetailsKubeconfig(ctx context.Context, userCred mcclient.T
 }
 
 func (c *SCluster) GetAdminKubeconfig() (string, error) {
-	return c.GetKubeConfig()
+	return c.GetKubeconfig()
 }
 
 func (c *SCluster) GetK8sRestConfig() (*rest.Config, error) {
@@ -394,4 +442,16 @@ func (c *SCluster) DeleteMachines(ctx context.Context, userCred mcclient.TokenCr
 		}
 	}
 	return nil
+}
+
+func (c *SCluster) AllowPerformSyncStatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return c.allowPerformAction(userCred, query, data)
+}
+
+func (c *SCluster) PerformSyncStatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, c.StartSyncStatus(ctx, userCred, "")
+}
+
+func (c *SCluster) StartSyncStatus(ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+	return c.GetDriver().StartSyncStatus(c, ctx, userCred, parentTaskId)
 }

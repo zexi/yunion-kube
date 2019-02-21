@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"path"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	"yunion.io/x/onecloud/pkg/compute/options"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/logclient"
 )
 
 const (
@@ -94,6 +92,7 @@ var (
 		STORAGE_GP2_SSD, STORAGE_IO1_SSD, STORAGE_ST1_HDD, STORAGE_SC1_HDD, STORAGE_STANDARD_HDD,
 		STORAGE_LOCAL_BASIC, STORAGE_LOCAL_SSD, STORAGE_CLOUD_BASIC, STORAGE_CLOUD_PREMIUM,
 		STORAGE_HUAWEI_SSD, STORAGE_HUAWEI_SAS, STORAGE_HUAWEI_SATA,
+		STORAGE_OPENSTACK_ISCSI,
 	}
 
 	STORAGE_LIMITED_TYPES = []string{STORAGE_LOCAL, STORAGE_BAREMETAL, STORAGE_NAS, STORAGE_RBD, STORAGE_NFS}
@@ -158,6 +157,19 @@ func (self *SStorage) AllowUpdateItem(ctx context.Context, userCred mcclient.Tok
 	return db.IsAdminAllowUpdate(userCred, self)
 }
 
+func (self *SStorage) PostUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	self.SStandaloneResourceBase.PostUpdate(ctx, userCred, query, data)
+
+	if data.Contains("cmtbound") {
+		hosts := self.GetAttachedHosts()
+		for _, host := range hosts {
+			if err := host.ClearSchedDescCache(); err != nil {
+				log.Errorf("clear host %s sched cache failed %v", host.GetName(), err)
+			}
+		}
+	}
+}
+
 func (self *SStorage) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return db.IsAdminAllowDelete(userCred, self)
 }
@@ -166,7 +178,7 @@ func (manager *SStorageManager) ValidateCreateData(ctx context.Context, userCred
 	storageType, _ := data.GetString("storage_type")
 	mediumType, _ := data.GetString("medium_type")
 	capacity, _ := data.Int("capacity")
-	if capacity <= 0 {
+	if capacity < 0 {
 		return nil, httperrors.NewInputParameterError("Invalid capacity")
 	}
 	data.Set("capacity", jsonutils.NewInt(capacity))
@@ -344,9 +356,9 @@ func (self *SStorage) SetStatus(userCred mcclient.TokenCredential, status string
 			notes = fmt.Sprintf("%s: %s", notes, reason)
 		}
 		db.OpsLog.LogEvent(self, db.ACT_UPDATE_STATUS, notes, userCred)
-		if strings.Contains(notes, "fail") {
-			logclient.AddActionLog(self, logclient.ACT_VM_SYNC_STATUS, notes, userCred, false)
-		}
+		// if strings.Contains(notes, "fail") {
+		// 	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_VM_SYNC_STATUS, notes, userCred, false)
+		// }
 	}
 	return nil
 }
@@ -1038,7 +1050,7 @@ func (self *SStorage) GetIStorage() (cloudprovider.ICloudStorage, error) {
 		return nil, err
 	}
 	var iRegion cloudprovider.ICloudRegion
-	if provider.IsOnPremiseInfrastructure() {
+	if provider.GetFactory().IsOnPremise() {
 		iRegion, err = provider.GetOnPremiseIRegion()
 	} else {
 		region := self.GetRegion()
@@ -1114,7 +1126,14 @@ func (manager *SStorageManager) InitializeData() error {
 }
 
 func (manager *SStorageManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	q, err := manager.SStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+	var err error
+	q, err = managedResourceFilterByAccount(q, query, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	q = managedResourceFilterByCloudType(q, query, "", nil)
+
+	q, err = manager.SStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
 	if err != nil {
 		return nil, err
 	}
@@ -1149,7 +1168,7 @@ func (manager *SStorageManager) ListItemFilter(ctx context.Context, q *sqlchemy.
 			Filter(sqlchemy.IsTrue(q.Field("enabled")))
 	}
 
-	managerStr := jsonutils.GetAnyString(query, []string{"manager", "cloudprovider", "cloudprovider_id", "manager_id"})
+	/*managerStr := jsonutils.GetAnyString(query, []string{"manager", "cloudprovider", "cloudprovider_id", "manager_id"})
 	if len(managerStr) > 0 {
 		provider, err := CloudproviderManager.FetchByIdOrName(nil, managerStr)
 		if err != nil {
@@ -1178,7 +1197,7 @@ func (manager *SStorageManager) ListItemFilter(ctx context.Context, q *sqlchemy.
 	if len(providerStr) > 0 {
 		subq := CloudproviderManager.Query("id").Equals("provider", providerStr).SubQuery()
 		q = q.Filter(sqlchemy.In(q.Field("manager_id"), subq))
-	}
+	}*/
 
 	return q, err
 }

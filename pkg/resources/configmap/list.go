@@ -34,10 +34,10 @@ func (l *ConfigMapList) GetConfigMaps() []ConfigMap {
 }
 
 func (man *SConfigMapManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SConfigMapManager) ListV2(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+func (man *SConfigMapManager) ListV2(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
 	return man.GetConfigMapList(client, nsQuery, dsQuery)
 }
 

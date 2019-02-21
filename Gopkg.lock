@@ -1436,8 +1436,8 @@
   revision = "5185c49f6d361f61e561fbccba1bedcc7c62748b"
 
 [[projects]]
-  branch = "release/2.6.0"
-  digest = "1:db6a55ff2b47f5128f69d43ad5776d7962b0a605aca2459d22fcaabfbbf88090"
+  branch = "release/2.7.0"
+  digest = "1:e68b0817c10557d2c7dea41689250ef45528074ae501eee59cc1dc5918f3d317"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
@@ -1479,11 +1479,11 @@
     "pkg/util/ssh",
   ]
   pruneopts = "UT"
-  revision = "8b24b34da1d19d09628132c786d83a82358bd923"
+  revision = "16aa2fd6324857c3d21a6b57bd01df1b6bc5e72a"
 
 [[projects]]
   branch = "master"
-  digest = "1:defa9ce7b7f04438c6d46eb7dca251e7a8d9f30e9f1319618fabd99af316d59a"
+  digest = "1:4f6207fbdcc5b83fb3869e3c1b29712443345733eb50640f0d19a203150cce09"
   name = "yunion.io/x/pkg"
   packages = [
     "gotypes",
@@ -1503,6 +1503,7 @@
     "util/seclib",
     "util/secrules",
     "util/sets",
+    "util/signalutils",
     "util/stringutils",
     "util/timeutils",
     "util/version",
@@ -1530,8 +1531,8 @@
   revision = "f39549642b91f03f0b46403f9856d4750e3e59eb"
 
 [[projects]]
-  branch = "release/2.4.0"
-  digest = "1:34afd155479a8ad5ed1a2d7b436b4ae0f4caa47b205d894aa523e1cbbdf449cd"
+  branch = "release/2.7.0"
+  digest = "1:c3404f80721d5d1d98eff098af57c865ec8adb4590bf20a2f424bea465aff0f7"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1551,7 +1552,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "c1d164023d465b7e8284b1cbfea2550fd6c87653"
+  revision = "8f781c9008153ed894a8ce4e30efbddc1a43b4f9"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1651,6 +1652,7 @@
     "yunion.io/x/onecloud/pkg/appsrv/dispatcher",
     "yunion.io/x/onecloud/pkg/cloudcommon",
     "yunion.io/x/onecloud/pkg/cloudcommon/db",
+    "yunion.io/x/onecloud/pkg/cloudcommon/db/lockman",
     "yunion.io/x/onecloud/pkg/cloudcommon/db/taskman",
     "yunion.io/x/onecloud/pkg/compute/models",
     "yunion.io/x/onecloud/pkg/httperrors",
@@ -1667,6 +1669,7 @@
     "yunion.io/x/pkg/util/netutils",
     "yunion.io/x/pkg/util/regutils",
     "yunion.io/x/pkg/util/runtime",
+    "yunion.io/x/pkg/util/seclib",
     "yunion.io/x/pkg/util/sets",
     "yunion.io/x/pkg/util/stringutils",
     "yunion.io/x/pkg/util/version",

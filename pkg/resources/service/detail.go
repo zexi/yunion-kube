@@ -54,10 +54,15 @@ type ServiceDetail struct {
 
 func (man *SServiceManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetServiceDetail(req.GetK8sClient(), namespace, id, req.ToQuery())
+	return GetServiceDetail(req.GetK8sClient(), req.GetCluster(), namespace, id, req.ToQuery())
 }
 
-func GetServiceDetail(client client.Interface, namespace, name string, dsQuery *dataselect.DataSelectQuery) (*ServiceDetail, error) {
+func GetServiceDetail(
+	client client.Interface,
+	cluster api.ICluster,
+	namespace, name string,
+	dsQuery *dataselect.DataSelectQuery,
+) (*ServiceDetail, error) {
 	log.Infof("Getting details of %s service in %s namespace", name, namespace)
 	serviceData, err := client.CoreV1().Services(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
@@ -68,7 +73,7 @@ func GetServiceDetail(client client.Interface, namespace, name string, dsQuery *
 		return nil, err
 	}
 
-	podList, err := GetServicePods(client, namespace, name, dsQuery)
+	podList, err := GetServicePods(client, cluster, namespace, name, dsQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +88,12 @@ func GetServiceDetail(client client.Interface, namespace, name string, dsQuery *
 }
 
 // GetServicePods gets list of pods targeted by given label selector in given namespace.
-func GetServicePods(cli client.Interface, namespace,
-	name string, dsQuery *dataselect.DataSelectQuery) (*pod.PodList, error) {
+func GetServicePods(
+	cli client.Interface,
+	cluster api.ICluster,
+	namespace, name string,
+	dsQuery *dataselect.DataSelectQuery,
+) (*pod.PodList, error) {
 	service, err := cli.CoreV1().Services(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -113,7 +122,7 @@ func GetServicePods(cli client.Interface, namespace,
 		return nil, err
 	}
 
-	return pod.ToPodList(apiPodList.Items, events, dsQuery)
+	return pod.ToPodList(apiPodList.Items, events, dsQuery, cluster)
 }
 
 // GetServiceEvents returns model events for a service with the given name in the given namespace.

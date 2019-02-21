@@ -45,10 +45,10 @@ func (man *SServiceManager) List(req *common.Request) (common.ListResource, erro
 		filter := query.FilterQuery
 		filter.Append(dataselect.NewFilterBy(dataselect.ServiceTypeProperty, svcType))
 	}
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), query)
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), query)
 }
 
-func (man *SServiceManager) ListV2(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+func (man *SServiceManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
 	return man.GetServiceList(client, nsQuery, dsQuery)
 }
 

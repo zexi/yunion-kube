@@ -190,6 +190,7 @@ func (c *Cluster) setClusterImageDefaults() {
 		&c.SystemImages.Ingress:                   d(imageDefaults.Ingress, privRegURL),
 		&c.SystemImages.IngressBackend:            d(imageDefaults.IngressBackend, privRegURL),
 		&c.SystemImages.MetricsServer:             d(imageDefaults.MetricsServer, privRegURL),
+		&c.SystemImages.OnecloudClusterapi:        d(imageDefaults.OnecloudClusterapi, privRegURL),
 	}
 
 	for k, v := range systemImagesDefaultsMap {

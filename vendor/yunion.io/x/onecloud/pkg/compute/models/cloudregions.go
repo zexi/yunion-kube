@@ -160,9 +160,9 @@ func (self *SCloudregion) GetExtraDetails(ctx context.Context, userCred mcclient
 	return self.getMoreDetails(extra), nil
 }
 
-func (manager *SCloudregionManager) GetRegionByProvider(provider string) ([]SCloudregion, error) {
+func (manager *SCloudregionManager) GetRegionByExternalIdPrefix(prefix string) ([]SCloudregion, error) {
 	regions := make([]SCloudregion, 0)
-	q := manager.Query().Startswith("external_id", provider)
+	q := manager.Query().Startswith("external_id", prefix)
 	err := db.FetchModelObjects(manager, q, &regions)
 	if err != nil {
 		log.Errorf("%s", err)
@@ -171,17 +171,28 @@ func (manager *SCloudregionManager) GetRegionByProvider(provider string) ([]SClo
 	return regions, nil
 }
 
-func (manager *SCloudregionManager) SyncRegions(ctx context.Context, userCred mcclient.TokenCredential, provider string, regions []cloudprovider.ICloudRegion) ([]SCloudregion, []cloudprovider.ICloudRegion, compare.SyncResult) {
+func (manager *SCloudregionManager) GetRegionByProvider(provider string) ([]SCloudregion, error) {
+	regions := make([]SCloudregion, 0)
+	q := manager.Query().Equals("provider", provider)
+	err := db.FetchModelObjects(manager, q, &regions)
+	if err != nil {
+		log.Errorf("%s", err)
+		return nil, err
+	}
+	return regions, nil
+}
+
+func (manager *SCloudregionManager) SyncRegions(ctx context.Context, userCred mcclient.TokenCredential, externalIdPrefix string, regions []cloudprovider.ICloudRegion) ([]SCloudregion, []cloudprovider.ICloudRegion, compare.SyncResult) {
 	syncResult := compare.SyncResult{}
 	localRegions := make([]SCloudregion, 0)
 	remoteRegions := make([]cloudprovider.ICloudRegion, 0)
 
-	dbRegions, err := manager.GetRegionByProvider(provider)
+	dbRegions, err := manager.GetRegionByExternalIdPrefix(externalIdPrefix)
 	if err != nil {
 		syncResult.Error(err)
 		return nil, nil, syncResult
 	}
-	log.Debugf("Region with provider %s %d", provider, len(dbRegions))
+	log.Debugf("Region with provider %s %d", externalIdPrefix, len(dbRegions))
 
 	removed := make([]SCloudregion, 0)
 	commondb := make([]SCloudregion, 0)
@@ -349,14 +360,29 @@ func (manager *SCloudregionManager) ListItemFilter(ctx context.Context, q *sqlch
 	if err != nil {
 		return nil, err
 	}
-	if jsonutils.QueryBoolean(query, "is_private", false) {
-		q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("external_id")),
-			sqlchemy.IsEmpty(q.Field("external_id"))))
+
+	if jsonutils.QueryBoolean(query, "is_public", false) || jsonutils.QueryBoolean(query, "public_cloud", false) {
+		q = q.In("provider", cloudprovider.GetPublicProviders())
 	}
-	if jsonutils.QueryBoolean(query, "is_public", false) {
-		q = q.Filter(sqlchemy.AND(sqlchemy.IsNotNull(q.Field("external_id")),
-			sqlchemy.IsNotEmpty(q.Field("external_id"))))
+
+	if jsonutils.QueryBoolean(query, "is_private", false) || jsonutils.QueryBoolean(query, "private_cloud", false) {
+		q = q.Filter(sqlchemy.OR(
+			sqlchemy.In(q.Field("provider"), cloudprovider.GetPrivateProviders()),
+			sqlchemy.IsNullOrEmpty(q.Field("provider")),
+		))
 	}
+
+	if jsonutils.QueryBoolean(query, "is_on_premise", false) {
+		q = q.Filter(sqlchemy.OR(
+			sqlchemy.In(q.Field("provider"), cloudprovider.GetOnPremiseProviders()),
+			sqlchemy.IsNullOrEmpty(q.Field("provider")),
+		))
+	}
+
+	if jsonutils.QueryBoolean(query, "is_managed", false) {
+		q = q.IsNotEmpty("external_id")
+	}
+
 	managerStr, _ := query.GetString("manager")
 	if len(managerStr) > 0 {
 		managerObj, err := CloudproviderManager.FetchByIdOrName(userCred, managerStr)

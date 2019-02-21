@@ -69,7 +69,7 @@ func (man *SSecretManager) List(req *common.Request) (common.ListResource, error
 		filter := query.FilterQuery
 		filter.Append(dataselect.NewFilterBy(dataselect.SecretTypeProperty, secType))
 	}
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), query)
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), query)
 }
 
 func (man *SRegistrySecretManager) List(req *common.Request) (common.ListResource, error) {
@@ -81,7 +81,11 @@ func (man *SRegistrySecretManager) List(req *common.Request) (common.ListResourc
 	return SecretManager.List(req)
 }
 
-func (man *SSecretManager) ListV2(client kubernetes.Interface, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+func (man *SSecretManager) ListV2(
+	client kubernetes.Interface,
+	cluster api.ICluster,
+	namespace *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
 	return GetSecretList(client, namespace, dsQuery)
 }
 

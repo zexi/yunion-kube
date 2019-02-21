@@ -70,7 +70,7 @@ func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *clus
 
 func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*clusters.SCluster)
-	cluster.SetStatus(t.UserCred, types.ClusterStatusReady, "")
+	cluster.SetStatus(t.UserCred, types.ClusterStatusRunning, "")
 	t.SetStageComplete(ctx, nil)
 }
 

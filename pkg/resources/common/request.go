@@ -17,11 +17,13 @@ import (
 
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
+	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type Request struct {
+	Cluster         *clusters.SCluster
 	K8sClient       client.Interface
 	K8sAdminClient  client.Interface
 	K8sConfig       *rest.Config
@@ -83,6 +85,10 @@ func (r *Request) GetK8sAdminRestConfig() *rest.Config {
 
 func (r *Request) GetK8sAdminClient() client.Interface {
 	return r.K8sAdminClient
+}
+
+func (r *Request) GetCluster() *clusters.SCluster {
+	return r.Cluster
 }
 
 func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {

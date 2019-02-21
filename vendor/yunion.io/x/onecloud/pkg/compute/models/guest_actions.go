@@ -432,10 +432,10 @@ func (self *SGuest) PerformAttachdisk(ctx context.Context, userCred mcclient.Tok
 	return nil, nil
 }
 
-func (self *SGuest) StartSyncTask(ctx context.Context, userCred mcclient.TokenCredential, fw_only bool, parentTaskId string) error {
+func (self *SGuest) StartSyncTask(ctx context.Context, userCred mcclient.TokenCredential, fwOnly bool, parentTaskId string) error {
 
 	data := jsonutils.NewDict()
-	if fw_only {
+	if fwOnly {
 		data.Add(jsonutils.JSONTrue, "fw_only")
 	} else if err := self.SetStatus(userCred, VM_SYNC_CONFIG, ""); err != nil {
 		log.Errorf(err.Error())
@@ -516,6 +516,7 @@ func (self *SGuest) NotifyServerEvent(userCred mcclient.TokenCredential, event s
 	}
 	kwargs := jsonutils.NewDict()
 	kwargs.Add(jsonutils.NewString(self.Name), "name")
+	kwargs.Add(jsonutils.NewString(self.Hypervisor), "hypervisor")
 	if loginInfo {
 		kwargs.Add(jsonutils.NewString(self.getNotifyIps()), "ips")
 		osName := meta["os_name"]
@@ -545,6 +546,7 @@ func (self *SGuest) NotifyServerEvent(userCred mcclient.TokenCredential, event s
 func (self *SGuest) NotifyAdminServerEvent(ctx context.Context, event string, priority notify.TNotifyPriority) {
 	kwargs := jsonutils.NewDict()
 	kwargs.Add(jsonutils.NewString(self.Name), "name")
+	kwargs.Add(jsonutils.NewString(self.Hypervisor), "hypervisor")
 	tc, _ := self.GetTenantCache(ctx)
 	if tc != nil {
 		kwargs.Add(jsonutils.NewString(tc.Name), "tenant")
@@ -762,7 +764,7 @@ func (self *SGuest) PerformAddSecgroup(ctx context.Context, userCred mcclient.To
 		}
 	}
 
-	logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(newSecgroupNames, ",")), userCred, true)
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_VM_ASSIGNSECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(newSecgroupNames, ",")), userCred, true)
 	return nil, self.StartSyncTask(ctx, userCred, true, "")
 }
 
@@ -845,7 +847,7 @@ func (self *SGuest) PerformRevokeSecgroup(ctx context.Context, userCred mcclient
 			return nil, err
 		}
 	}
-	logclient.AddActionLog(self, logclient.ACT_VM_REVOKESECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(revokeSecgroupNames, ",")), userCred, true)
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_VM_REVOKESECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(revokeSecgroupNames, ",")), userCred, true)
 	return nil, self.StartSyncTask(ctx, userCred, true, "")
 }
 
@@ -869,7 +871,7 @@ func (self *SGuest) PerformAssignSecgroup(ctx context.Context, userCred mcclient
 		return nil, err
 	}
 
-	logclient.AddActionLog(self, logclient.ACT_VM_ASSIGNSECGROUP, fmt.Sprintf("secgroup: %s", secgrpV.Model.GetName()), userCred, true)
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_VM_ASSIGNSECGROUP, fmt.Sprintf("secgroup: %s", secgrpV.Model.GetName()), userCred, true)
 	return nil, self.StartSyncTask(ctx, userCred, true, "")
 }
 
@@ -934,7 +936,7 @@ func (self *SGuest) PerformSetSecgroup(ctx context.Context, userCred mcclient.To
 			}
 		}
 	}
-	logclient.AddActionLog(self, logclient.ACT_VM_SETSECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(setSecgroupNames, ",")), userCred, true)
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_VM_SETSECGROUP, fmt.Sprintf("secgroups: %s", strings.Join(setSecgroupNames, ",")), userCred, true)
 	return nil, self.StartSyncTask(ctx, userCred, true, "")
 }
 
@@ -1096,14 +1098,14 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 
 	diskDefArray := jsonutils.GetArrayOfPrefix(data, "disk")
 	if len(diskDefArray) == 0 {
-		logclient.AddActionLog(self, logclient.ACT_CREATE, "No Disk Info Provided", userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, "No Disk Info Provided", userCred, false)
 		return nil, httperrors.NewBadRequestError("No Disk Info Provided")
 	}
 
 	for diskIdx := 0; diskIdx < len(diskDefArray); diskIdx += 1 {
 		diskInfo, err := parseDiskInfo(ctx, userCred, diskDefArray[diskIdx])
 		if err != nil {
-			logclient.AddActionLog(self, logclient.ACT_CREATE, err.Error(), userCred, false)
+			logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, err.Error(), userCred, false)
 			return nil, httperrors.NewBadRequestError(err.Error())
 		}
 		if len(diskInfo.Backend) == 0 {
@@ -1119,17 +1121,17 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 	}
 	host := self.GetHost()
 	if host == nil {
-		logclient.AddActionLog(self, logclient.ACT_CREATE, "No valid host", userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, "No valid host", userCred, false)
 		return nil, httperrors.NewBadRequestError("No valid host")
 	}
 	for backend, size := range diskSizes {
 		storage := host.GetLeastUsedStorage(backend)
 		if storage == nil {
-			logclient.AddActionLog(self, logclient.ACT_CREATE, "No valid storage on current host", userCred, false)
+			logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, "No valid storage on current host", userCred, false)
 			return nil, httperrors.NewBadRequestError("No valid storage on current host")
 		}
 		if storage.GetCapacity() > 0 && storage.GetCapacity() < size {
-			logclient.AddActionLog(self, logclient.ACT_CREATE, "Not eough storage space on current host", userCred, false)
+			logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, "Not eough storage space on current host", userCred, false)
 			return nil, httperrors.NewBadRequestError("Not eough storage space on current host")
 		}
 	}
@@ -1138,7 +1140,7 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 	}
 	err := QuotaManager.CheckSetPendingQuota(ctx, userCred, self.ProjectId, pendingUsage)
 	if err != nil {
-		logclient.AddActionLog(self, logclient.ACT_CREATE, err.Error(), userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, err.Error(), userCred, false)
 		return nil, httperrors.NewOutOfQuotaError(err.Error())
 	}
 
@@ -1148,7 +1150,7 @@ func (self *SGuest) PerformCreatedisk(ctx context.Context, userCred mcclient.Tok
 	err = self.CreateDisksOnHost(ctx, userCred, host, disksConf, pendingUsage, false)
 	if err != nil {
 		QuotaManager.CancelPendingUsage(ctx, userCred, self.ProjectId, nil, pendingUsage)
-		logclient.AddActionLog(self, logclient.ACT_CREATE, err.Error(), userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_CREATE, err.Error(), userCred, false)
 		return nil, httperrors.NewBadRequestError(err.Error())
 	}
 	err = self.StartGuestCreateDiskTask(ctx, userCred, disksConf, "")
@@ -1233,19 +1235,19 @@ func (self *SGuest) PerformDetachIsolatedDevice(ctx context.Context, userCred mc
 	}
 	if self.Status != VM_READY {
 		msg := "Only allowed to attach isolated device when guest is ready"
-		logclient.AddActionLog(self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
 		return nil, httperrors.NewInvalidStatusError(msg)
 	}
 	device, err := data.GetString("device")
 	if err != nil {
 		msg := "Missing isolated device"
-		logclient.AddActionLog(self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
 		return nil, httperrors.NewBadRequestError(msg)
 	}
 	iDev, err := IsolatedDeviceManager.FetchByIdOrName(userCred, device)
 	if err != nil {
 		msg := fmt.Sprintf("Isolated device %s not found", device)
-		logclient.AddActionLog(self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
 		return nil, httperrors.NewBadRequestError(msg)
 	}
 	dev := iDev.(*SIsolatedDevice)
@@ -1259,7 +1261,7 @@ func (self *SGuest) PerformDetachIsolatedDevice(ctx context.Context, userCred mc
 func (self *SGuest) detachIsolateDevice(ctx context.Context, userCred mcclient.TokenCredential, dev *SIsolatedDevice) error {
 	if dev.GuestId != self.Id {
 		msg := "Isolated device is not attached to this guest"
-		logclient.AddActionLog(self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_DETACH_ISOLATED_DEVICE, msg, userCred, false)
 		return httperrors.NewBadRequestError(msg)
 	}
 	_, err := dev.GetModelManager().TableSpec().Update(dev, func() error {
@@ -1283,19 +1285,19 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	}
 	if self.Status != VM_READY {
 		msg := "Only allowed to attach isolated device when guest is ready"
-		logclient.AddActionLog(self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, false)
 		return nil, httperrors.NewInvalidStatusError(msg)
 	}
 	device, err := data.GetString("device")
 	if err != nil {
 		msg := "Missing isolated device"
-		logclient.AddActionLog(self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, false)
 		return nil, httperrors.NewBadRequestError(msg)
 	}
 	iDev, err := IsolatedDeviceManager.FetchByIdOrName(userCred, device)
 	if err != nil {
 		msg := fmt.Sprintf("Isolated device %s not found", device)
-		logclient.AddActionLog(self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, false)
 		return nil, httperrors.NewBadRequestError(msg)
 	}
 	dev := iDev.(*SIsolatedDevice)
@@ -1307,7 +1309,7 @@ func (self *SGuest) PerformAttachIsolatedDevice(ctx context.Context, userCred mc
 	if err != nil {
 		msg = err.Error()
 	}
-	logclient.AddActionLog(self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, err == nil)
+	logclient.AddActionLogWithContext(ctx, self, logclient.ACT_GUEST_ATTACH_ISOLATED_DEVICE, msg, userCred, err == nil)
 	return nil, err
 }
 
@@ -1553,7 +1555,7 @@ func (self *SGuest) PerformChangeBandwidth(ctx context.Context, userCred mcclien
 			return nil
 		})
 		err := self.StartSyncTask(ctx, userCred, false, "")
-		logclient.AddActionLog(self, logclient.ACT_VM_CHANGE_BANDWIDTH, err, userCred, err == nil)
+		logclient.AddActionLogWithContext(ctx, self, logclient.ACT_VM_CHANGE_BANDWIDTH, err, userCred, err == nil)
 		return nil, err
 	}
 	return nil, nil
@@ -1710,8 +1712,8 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 		diskIdx += 1
 	}
 
-	provider, e := self.GetHost().GetDriver()
-	if e != nil || !provider.IsPublicCloud() {
+	provider, e := self.GetHost().GetProviderFactory()
+	if e != nil || !provider.IsOnPremise() {
 		for storageId, needSize := range diskSizes {
 			iStorage, err := StorageManager.FetchById(storageId)
 			if err != nil {
@@ -1723,7 +1725,7 @@ func (self *SGuest) PerformChangeConfig(ctx context.Context, userCred mcclient.T
 			}
 		}
 	} else {
-		log.Debugf("Skip storage free capacity validating for public cloud: %s", provider.GetName())
+		log.Debugf("Skip storage free capacity validating for public cloud: %s", provider.GetId())
 	}
 
 	if newDisks.Length() > 0 {
@@ -2250,7 +2252,7 @@ func (self *SGuest) AllowPerformSwitchToBackup(ctx context.Context, userCred mcc
 }
 
 func (self *SGuest) PerformSwitchToBackup(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if self.Status == VM_BLOCK_STREAM {
+	if !utils.IsInStringArray(self.Status, []string{VM_READY, VM_RUNNING}) {
 		return nil, httperrors.NewBadRequestError("Cannot swith to backup when guest in status %s", self.Status)
 	}
 	if len(self.BackupHostId) == 0 {
@@ -2370,6 +2372,9 @@ func (self *SGuest) PerformDeleteBackup(ctx context.Context, userCred mcclient.T
 	taskData := jsonutils.NewDict()
 	taskData.Set("pruge", jsonutils.NewBool(jsonutils.QueryBoolean(data, "purge", false)))
 	taskData.Set("host_id", jsonutils.NewString(self.BackupHostId))
+	taskData.Set("failed_status", jsonutils.NewString(VM_BACKUP_DELETE_FAILED))
+
+	self.SetStatus(userCred, VM_DELETING_BACKUP, "delete backup server")
 	if task, err := taskman.TaskManager.NewTask(
 		ctx, "GuestDeleteOnHostTask", self, userCred, taskData, "", "", nil); err != nil {
 		log.Errorf(err.Error())
@@ -2708,7 +2713,7 @@ func (self *SGuest) importNics(ctx context.Context, userCred mcclient.TokenCrede
 		return httperrors.NewInputParameterError("Empty import nics")
 	}
 	for _, nic := range nics {
-		net, err := NetworkManager.GetNetworkOfIP(nic.Ip, "", tristate.None)
+		net, err := NetworkManager.GetOnPremiseNetworkOfIP(nic.Ip, "", tristate.None)
 		if err != nil {
 			return httperrors.NewNotFoundError("Not found network by ip %s", nic.Ip)
 		}

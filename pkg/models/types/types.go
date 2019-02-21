@@ -85,7 +85,8 @@ const (
 	ClusterStatusInit       = "init"
 	ClusterStatusCreating   = "creating"
 	ClusterStatusCreateFail = "create_fail"
-	ClusterStatusReady      = "ready"
+	ClusterStatusRunning    = "running"
+	ClusterStatusUnhealthy  = "unhealthy"
 	ClusterStatusDeleting   = "deleting"
 	ClusterStatusDeleteFail = "delete_fail"
 )

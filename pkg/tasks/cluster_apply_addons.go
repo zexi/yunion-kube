@@ -29,7 +29,7 @@ func (t *ClusterApplyAddonsTask) OnInit(ctx context.Context, obj db.IStandaloneM
 }
 
 func ApplyAddons(cluster *clusters.SCluster) error {
-	kubeconfig, err := cluster.GetKubeConfig()
+	kubeconfig, err := cluster.GetKubeconfig()
 	if err != nil {
 		return err
 	}

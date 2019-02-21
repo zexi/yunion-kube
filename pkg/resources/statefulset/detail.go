@@ -13,6 +13,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // StatefulSetDetail is a presentation layer view of Kubernetes Stateful Set resource. This means it is Stateful
@@ -26,11 +27,11 @@ type StatefulSetDetail struct {
 
 func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetStatefulSetDetail(req.GetK8sClient(), namespace, id)
+	return GetStatefulSetDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
 }
 
 // GetStatefulSetDetail gets Stateful Set details.
-func GetStatefulSetDetail(client kubernetes.Interface, namespace, name string) (*StatefulSetDetail, error) {
+func GetStatefulSetDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*StatefulSetDetail, error) {
 	log.Printf("Getting details of %s statefulset in %s namespace", name, namespace)
 
 	ss, err := client.AppsV1beta2().StatefulSets(namespace).Get(name, metaV1.GetOptions{})
@@ -51,7 +52,7 @@ func GetStatefulSetDetail(client kubernetes.Interface, namespace, name string) (
 		return nil, err
 	}
 
-	podList, err := GetStatefulSetPods(client, ds.DefaultDataSelect(), name, namespace)
+	podList, err := GetStatefulSetPods(client, cluster, ds.DefaultDataSelect(), name, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func getStatefulSetDetail(
 }
 
 // GetStatefulSetPods return list of pods targeting pet set.
-func GetStatefulSetPods(client kubernetes.Interface, dsQuery *ds.DataSelectQuery, name, namespace string) (*pod.PodList, error) {
+func GetStatefulSetPods(client kubernetes.Interface, cluster api.ICluster, dsQuery *ds.DataSelectQuery, name, namespace string) (*pod.PodList, error) {
 
 	log.Infof("Getting replication controller %s pods in namespace %s", name, namespace)
 
@@ -103,7 +104,7 @@ func GetStatefulSetPods(client kubernetes.Interface, dsQuery *ds.DataSelectQuery
 		return nil, err
 	}
 
-	return pod.ToPodList(pods, events, dsQuery)
+	return pod.ToPodList(pods, events, dsQuery, cluster)
 }
 
 // getRawStatefulSetPods return array of api pods targeting pet set with given name.

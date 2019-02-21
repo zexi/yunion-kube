@@ -19,6 +19,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PodDetail struct {
@@ -65,10 +66,10 @@ type EnvVar struct {
 
 func (man *SPodManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetPodDetail(req.GetK8sClient(), namespace, id)
+	return GetPodDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
 }
 
-func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, error) {
+func GetPodDetail(client client.Interface, cluster api.ICluster, namespace, name string) (*PodDetail, error) {
 	log.Infof("Getting details of %s pod in %s namespace", name, namespace)
 	channels := &common.ResourceChannels{
 		ConfigMapList: common.GetConfigMapListChannel(client, common.NewSameNamespaceQuery(namespace)),
@@ -104,7 +105,7 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 	}
 
 	warnings := event.GetPodsEventWarnings(rawEventList.Items, []v1.Pod{*pod})
-	commonPod := ToPod(*pod, warnings)
+	commonPod := ToPod(*pod, warnings, cluster)
 
 	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, namespace, name, dataselect.DefaultDataSelect())
 

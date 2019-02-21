@@ -31,6 +31,8 @@ type IClusterDriver interface {
 	ValidateAddMachine(man *SClusterManager, machine *types.Machine) error
 	// GetAddonsManifest return addons yaml manifest to be applied to cluster
 	GetAddonsManifest(cluster *SCluster) (string, error)
+	// StartSyncStatus start cluster sync status task
+	StartSyncStatus(cluster *SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error
 }
 
 var clusterDrivers map[types.ProviderType]IClusterDriver

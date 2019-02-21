@@ -107,11 +107,16 @@ type NodeDetail struct {
 }
 
 func (man *SNodeManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetNodeDetail(req.GetK8sClient(), id, dataselect.DefaultDataSelect())
+	return GetNodeDetail(req.GetK8sClient(), req.GetCluster(), id, dataselect.DefaultDataSelect())
 }
 
 // GetNodeDetail gets node details.
-func GetNodeDetail(client k8sClient.Interface, name string, dsQuery *dataselect.DataSelectQuery) (*NodeDetail, error) {
+func GetNodeDetail(
+	client k8sClient.Interface,
+	cluster api.ICluster,
+	name string,
+	dsQuery *dataselect.DataSelectQuery,
+) (*NodeDetail, error) {
 	log.Infof("Getting details of %s node", name)
 	node, err := client.CoreV1().Nodes().Get(name, metaV1.GetOptions{})
 	if err != nil {
@@ -123,7 +128,7 @@ func GetNodeDetail(client k8sClient.Interface, name string, dsQuery *dataselect.
 		return nil, err
 	}
 
-	podList, err := GetNodePods(client, dsQuery, name)
+	podList, err := GetNodePods(client, cluster, dsQuery, name)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +260,12 @@ func PodRequestsAndLimits(pod *v1.Pod) (reqs map[v1.ResourceName]resource.Quanti
 }
 
 // GetNodePods return pods list in given named node
-func GetNodePods(client k8sClient.Interface, dsQuery *dataselect.DataSelectQuery, name string) (*pod.PodList, error) {
+func GetNodePods(
+	client k8sClient.Interface,
+	cluster api.ICluster,
+	dsQuery *dataselect.DataSelectQuery,
+	name string,
+) (*pod.PodList, error) {
 	podList := pod.PodList{
 		Pods: []pod.Pod{},
 	}
@@ -275,7 +285,7 @@ func GetNodePods(client k8sClient.Interface, dsQuery *dataselect.DataSelectQuery
 		return &podList, err
 	}
 
-	return pod.ToPodList(pods.Items, events, dsQuery)
+	return pod.ToPodList(pods.Items, events, dsQuery, cluster)
 }
 
 func getNodePods(client k8sClient.Interface, node v1.Node) (*v1.PodList, error) {
