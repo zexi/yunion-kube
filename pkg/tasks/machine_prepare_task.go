@@ -44,19 +44,13 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	}
 	machine.SetStatus(t.UserCred, types.MachineStatusRunning, "")
 
+	log.Infof("Prepare machine complete")
 	cluster, err := machine.GetCluster()
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
 	}
-
-	if machine.IsFirstNode() {
-		if err := ApplyAddons(cluster); err != nil {
-			t.OnError(ctx, machine, err)
-			return
-		}
-	}
-	log.Infof("Prepare machine complete")
+	cluster.StartSyncStatus(ctx, t.UserCred, "")
 	t.SetStageComplete(ctx, nil)
 }
 

@@ -55,8 +55,13 @@
 
 [[override]]
     name = "k8s.io/kubernetes"
-    branch = "release-1.13"
-    #version = "v1.12.3"
+    #branch = "release-1.13"
+    version = "v1.13.0"
+
+[[override]]
+    name = "k8s.io/kube-proxy"
+    #branch = "release-1.13"
+    version = "kubernetes-1.13.0"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"

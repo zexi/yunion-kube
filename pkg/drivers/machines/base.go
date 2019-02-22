@@ -1,12 +1,15 @@
 package machines
 
 import (
+	"context"
 	"fmt"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 )
 
@@ -38,7 +41,8 @@ func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *
 	return nil, nil
 }
 
-func (d *sBaseDriver) PostDelete(m *machines.SMachine) error {
+func (d *sBaseDriver) PostDelete(ctx context.Context, userCred mcclient.TokenCredential, m *machines.SMachine, t taskman.ITask) error {
+	t.SetStageComplete(ctx, nil)
 	return nil
 }
 
@@ -52,4 +56,8 @@ func (d *sBaseDriver) GetPrivateIP(session *mcclient.ClientSession, id string) (
 
 func (d *sBaseDriver) UseClusterAPI() bool {
 	return false
+}
+
+func (d *sBaseDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine) error {
+	return nil
 }

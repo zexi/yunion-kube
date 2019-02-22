@@ -32,6 +32,10 @@ type ManifestConfig struct {
 	CSIProvisioner string
 	CSIRegistrar   string
 	CSIImage       string
+	// tiller
+	TillerImage string
+	// metrics server
+	MetricsServerImage string
 }
 
 func GetYunionManifest(config ManifestConfig) (string, error) {

@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/tristate"
+	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/util/wait"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
@@ -42,16 +43,19 @@ type SMachineManager struct {
 type SMachine struct {
 	db.SVirtualResourceBase
 	// Provider determine which cloud provider this node used, e.g. onecloud, aliyun, aws
-	Provider  string `nullable:"false" create:"required" list:"user"`
-	ClusterId string `nullable:"false" create:"required" list:"user"`
-	Role      string `nullable:"false" create:"required" list:"user"`
+	Provider  string `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
+	ClusterId string `width:"128" charset:"ascii" nullable:"false" create:"required" list:"user"`
+	Role      string `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	// ResourceType determine which resource type this node used
-	ResourceType string `nullable:"false" create:"required" list:"user"`
+	ResourceType string `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	// ResourceId related to cloud host or guest id
-	ResourceId string `nullable:"true" create:"optional" list:"user"`
+	ResourceId string `width:"128" charset:"ascii" nullable:"true" create:"optional" list:"user"`
 	// TODO: cloudprovider
 	// FirstNode determine machine is first controlplane
 	FirstNode tristate.TriState `nullable:"true" create:"required" list:"user"`
+
+	// Private IP address
+	Address string `width:"16" charset:"ascii" nullable:"true" list:"user"`
 }
 
 func (man *SMachineManager) GetCluster(userCred mcclient.TokenCredential, clusterId string) (*clusters.SCluster, error) {
@@ -66,12 +70,35 @@ func (man *SMachineManager) GetSession() (*mcclient.ClientSession, error) {
 	return models.GetAdminSession()
 }
 
+func (man *SMachineManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	q, err := man.SStatusStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var sq *sqlchemy.SSubQuery
+	if cluster, _ := query.GetString("cluster"); len(cluster) > 0 {
+		clusters := clusters.ClusterManager.Query().SubQuery()
+		sq = clusters.Query(clusters.Field("id")).
+			Filter(sqlchemy.OR(
+				sqlchemy.Equals(clusters.Field("name"), cluster),
+				sqlchemy.Equals(clusters.Field("id"), cluster))).SubQuery()
+	}
+	if sq != nil {
+		q = q.In("cluster_id", sq)
+	}
+	return q, nil
+}
+
 func (man *SMachineManager) GetMachines(clusterId string) ([]manager.IMachine, error) {
 	machines := man.Query().SubQuery()
 	q := machines.Query().Filter(sqlchemy.Equals(machines.Field("cluster_id"), clusterId))
 	objs := make([]SMachine, 0)
 	err := db.FetchModelObjects(man, q, &objs)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, err
 	}
 	ret := make([]manager.IMachine, len(objs))
@@ -92,13 +119,23 @@ func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, i
 	return obj.(*SMachine), true, nil
 }
 
-func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
 	input := jsonutils.Marshal(data)
 	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred.GetTenantId())
 	if err != nil {
 		return nil, err
 	}
 	m := obj.(*SMachine)
+	return m, err
+}
+
+func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
+	obj, err := man.CreateMachineNoHook(ctx, userCred, data)
+	if err != nil {
+		return nil, err
+	}
+	m := obj.(*SMachine)
+	input := jsonutils.Marshal(data)
 	func() {
 		lockman.LockObject(ctx, m)
 		defer lockman.ReleaseObject(ctx, m)
@@ -132,19 +169,19 @@ func (man *SMachineManager) GetClusterMachines(clusterId string) ([]*SMachine, e
 	return ConvertPtrMachines(objs), nil
 }
 
-func (man *SMachineManager) GetMachineByResourceId(resId string) *SMachine {
+func (man *SMachineManager) GetMachineByResourceId(resId string) (*SMachine, error) {
 	machines := MachineManager.Query().SubQuery()
 	q := machines.Query().Filter(sqlchemy.Equals(machines.Field("resource_id"), resId))
 	m := SMachine{}
 	err := q.First(&m)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil
+			return nil, nil
 		}
 		log.Errorf("Get machine by resource_id: %v", err)
-		return nil
+		return nil, err
 	}
-	return &m
+	return &m, nil
 }
 
 func ConvertPtrMachines(objs []SMachine) []*SMachine {
@@ -228,7 +265,7 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 		return nil, err
 	}
 
-	machine := types.Machine{}
+	machine := types.CreateMachineData{}
 	data.Unmarshal(&machine)
 	if err := cluster.ValidateAddMachine(&machine); err != nil {
 		return nil, err
@@ -239,10 +276,6 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 
 func (m *SMachine) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	m.SVirtualResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
-	// TODO: replace this
-	if !m.GetDriver().UseClusterAPI() {
-		return
-	}
 	if err := m.StartMachineCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("StartMachineCreateTask error: %v", err)
 	}
@@ -374,9 +407,21 @@ func (m *SMachine) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (m *SMachine) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-	return m.StartMachineDeleteTask(ctx, userCred, nil, "")
+	cluster, err := m.GetCluster()
+	if err != nil {
+		return err
+	}
+	if err := m.GetDriver().ValidateDeleteCondition(ctx, userCred, cluster, m); err != nil {
+		return err
+	}
+	deleteData := jsonutils.NewDict()
+	objs := jsonutils.NewArray()
+	objs.Add(jsonutils.NewString(m.GetId()))
+	deleteData.Add(objs, "machines")
+	return cluster.StartDeleteMachinesTask(ctx, userCred, deleteData, "")
 }
 
+// StartMachineDeleteTask invoke by ClusterDeleteMachines
 func (m *SMachine) StartMachineDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	if err := m.SetStatus(userCred, types.MachineStatusDeleting, ""); err != nil {
 		return err
@@ -410,12 +455,31 @@ func (m *SMachine) StartTerminateTask(ctx context.Context, userCred mcclient.Tok
 }
 
 func (m *SMachine) GetPrivateIP() (string, error) {
+	if len(m.Address) != 0 {
+		return m.Address, nil
+	}
 	driver := m.GetDriver()
 	session, err := MachineManager.GetSession()
 	if err != nil {
 		return "", err
 	}
-	return driver.GetPrivateIP(session, m.ResourceId)
+	addr, err := driver.GetPrivateIP(session, m.ResourceId)
+	if err != nil {
+		return "", err
+	}
+	return addr, m.SetPrivateIP(addr)
+}
+
+func (m *SMachine) SetPrivateIP(address string) error {
+	_, err := netutils.NewIPV4Addr(address)
+	if err != nil {
+		return err
+	}
+	_, err = m.GetModelManager().TableSpec().Update(m, func() error {
+		m.Address = address
+		return nil
+	})
+	return err
 }
 
 func (m *SMachine) GetDriver() IMachineDriver {
@@ -480,4 +544,12 @@ func (m *SMachine) DoSyncDelete(ctx context.Context, userCred mcclient.TokenCred
 		return nil
 	}
 	return WaitMachineDelete(m)
+}
+
+func (m *SMachine) GetResourceId() string {
+	return m.ResourceId
+}
+
+func (m *SMachine) GetStatus() string {
+	return m.Status
 }

@@ -3,12 +3,7 @@ package tasks
 import (
 	"context"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-
-	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
@@ -24,57 +19,17 @@ type MachineCreateTask struct {
 	taskman.STask
 }
 
-func (t *MachineCreateTask) newMachine(machine *machines.SMachine) (*clusterv1.Machine, error) {
-	privateIP, err := machine.GetPrivateIP()
-	if err != nil {
-		return nil, err
-	}
-	spec := &providerv1.OneCloudMachineProviderSpec{
-		ResourceType: machine.ResourceType,
-		Provider:     machine.Provider,
-		MachineID:    machine.Id,
-		Role:         machine.Role,
-		PrivateIP:    privateIP,
-	}
-	specVal, err := providerv1.EncodeMachineSpec(spec)
-	if err != nil {
-		return nil, err
-	}
-	//status := &providerv1.OneCloudMachineProviderStatus{}
-	return &clusterv1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: machine.Name,
-			Labels: map[string]string{
-				"set": machine.Role,
-			},
-		},
-		Spec: clusterv1.MachineSpec{
-			ProviderSpec: clusterv1.ProviderSpec{
-				Value: specVal,
-			},
-		},
-	}, nil
-}
-
 func (t *MachineCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	machine := obj.(*machines.SMachine)
-	// TODO: create to cluster api here
-	client, err := machine.GetGlobalClient()
+	cluster, err := machine.GetCluster()
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
 	}
-	machineObj, err := t.newMachine(machine)
-	if err != nil {
+	if err := machine.GetDriver().PostCreate(ctx, t.UserCred, cluster, machine, t.GetParams()); err != nil {
 		t.OnError(ctx, machine, err)
 		return
 	}
-	_, err = client.ClusterV1alpha1().Machines(machine.GetNamespace()).Create(machineObj)
-	if err != nil {
-		t.OnError(ctx, machine, err)
-		return
-	}
-	log.Infof("Create machines object: %#v", machineObj)
 	t.SetStageComplete(ctx, nil)
 }
 

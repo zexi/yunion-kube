@@ -87,6 +87,7 @@ const (
 	ClusterStatusCreateFail = "create_fail"
 	ClusterStatusRunning    = "running"
 	ClusterStatusUnknown    = "unknown"
+	ClusterStatusError      = "error"
 	ClusterStatusDeleting   = "deleting"
 	ClusterStatusDeleteFail = "delete_fail"
 )
@@ -112,6 +113,8 @@ type CreateMachineData struct {
 	Role         string `json:"role"`
 	ResourceType string `json:"resource_type"`
 	ResourceId   string `json:"resource_id"`
+	Address      string `json:"address"`
+	FirstNode    bool   `json:"first_node"`
 }
 
 type Machine struct {
@@ -137,3 +140,9 @@ const (
 	ContainerSchedtag = "container"
 	DefaultCluster    = "default"
 )
+
+type UsableInstance struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}

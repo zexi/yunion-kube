@@ -206,20 +206,11 @@ func NewNode(ctx context.Context, userCred mcclient.TokenCredential, data *jsonu
 	if err != nil {
 		return nil, err
 	}
-	model, err := db.NewModelObject(NodeManager)
+	obj, err := db.DoCreate(NodeManager, ctx, userCred, nil, data, userCred.GetTenantId())
 	if err != nil {
 		return nil, err
 	}
-	filterData := data.CopyIncludes(ModelCreateFields(NodeManager, userCred)...)
-	err = filterData.Unmarshal(model)
-	if err != nil {
-		return nil, httperrors.NewGeneralError(err)
-	}
-	err = model.CustomizeCreate(ctx, userCred, "", nil, data)
-	if err != nil {
-		return nil, httperrors.NewGeneralError(err)
-	}
-	n := model.(*SNode)
+	n := obj.(*SNode)
 	n.PostCreate(ctx, userCred, "", nil, data)
 	return n, nil
 }
@@ -396,10 +387,12 @@ func (n *SNode) PostCreate(ctx context.Context, userCred mcclient.TokenCredentia
 	n.SStatusStandaloneResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
 	v2Cluster, err := n.GetV2Cluster()
 	if err != nil {
-		log.Errorf("Get v2 cluster error: %v", err)
+		log.Fatalf("Get v2 cluster error: %v", err)
 		return
 	}
-	n.MigrateToV2Machine(ctx, userCred, v2Cluster)
+	if err := n.MigrateToV2Machine(ctx, userCred, v2Cluster); err != nil {
+		log.Fatalf("MigrateToV2Machine error: %v", err)
+	}
 }
 
 // Register set node status to ready, means node is ready for deploy
@@ -568,12 +561,11 @@ func (n *SNode) GetV2Machine() (manager.IMachine, error) {
 }
 
 func (n *SNode) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	machine, err := n.GetV2Machine()
-	if err != nil {
-		return err
-	}
-	if err := machine.RealDelete(ctx, userCred); err != nil {
-		return err
+	machine, _ := n.GetV2Machine()
+	if machine != nil {
+		if err := machine.RealDelete(ctx, userCred); err != nil {
+			return err
+		}
 	}
 	return n.SStatusStandaloneResourceBase.Delete(ctx, userCred)
 }
@@ -585,6 +577,9 @@ func (n *SNode) RemoveNodeFromCluster(ctx context.Context) error {
 	}
 	config, err := cluster.GetYKEConfig()
 	if err != nil {
+		if strings.Contains(err.Error(), "is empty") {
+			return nil
+		}
 		return err
 	}
 	if config == nil {
@@ -912,6 +907,7 @@ func (n *SNode) v2MachineCreateData(v2Cluster manager.ICluster) modeltypes.Creat
 		Role:         string(n.getV2Role()),
 		ResourceType: string(modeltypes.MachineResourceTypeBaremetal),
 		ResourceId:   n.HostId,
+		Address:      n.Address,
 	}
 }
 
@@ -926,6 +922,8 @@ func (n *SNode) MigrateToV2Machine(ctx context.Context, userCred mcclient.TokenC
 		if err != nil {
 			return fmt.Errorf("Create to v2 machine: %v", err)
 		}
+		v2Machine.SetStatus(userCred, n.Status, "")
+		v2Machine.SetPrivateIP(n.Address)
 	}
 	log.Infof("Node %s migrate to v2 machine: %v", n.GetName(), v2Machine)
 	return nil

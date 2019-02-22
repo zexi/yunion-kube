@@ -90,12 +90,17 @@
   revision = "bf70f2a70fb1b1f36d90d671a72795984eab0fcb"
 
 [[projects]]
-  digest = "1:ece8cff953ed3dbbbf5d5aa41e24f61ac4c1b601004aea9d56d572af363b71e7"
+  digest = "1:21e52e60f92d8c9d4c82768a238ed5bc9f6581a349a02b10db47a0d2f7fa9874"
   name = "github.com/coreos/etcd"
   packages = [
+    "auth/authpb",
     "client",
+    "etcdserver/api/v3rpc/rpctypes",
+    "etcdserver/etcdserverpb",
+    "mvcc/mvccpb",
     "pkg/pathutil",
     "pkg/srv",
+    "pkg/tlsutil",
     "pkg/types",
     "version",
   ]
@@ -313,10 +318,12 @@
   version = "v0.2.3"
 
 [[projects]]
-  digest = "1:34e709f36fd4f868fb00dbaf8a6cab4c1ae685832d392874ba9d7c5dec2429d1"
+  digest = "1:db238461f652ddb7c7057bc6fc503f6003a29987b1485ecbb96d92287db65bc9"
   name = "github.com/gogo/protobuf"
   packages = [
+    "gogoproto",
     "proto",
+    "protoc-gen-gogo/descriptor",
     "sortkeys",
   ]
   pruneopts = "UT"
@@ -720,6 +727,17 @@
   revision = "8c308e8bbf447626bd146f48c7b80699cbe77620"
 
 [[projects]]
+  digest = "1:13411b0cff6edf67296a5cfe6c318fbcba971643e217f4a05c2df82135374665"
+  name = "go.etcd.io/etcd"
+  packages = [
+    "clientv3",
+    "pkg/transport",
+  ]
+  pruneopts = "UT"
+  revision = "d57e8b8d97adfc4a6c224fe116714bf1a1f3beb9"
+  version = "v3.3.12"
+
+[[projects]]
   branch = "master"
   digest = "1:1d36d6eae1ae4de65b3661f4e2d42ba166aed7f4a6c3df98eee54741459e2d8d"
   name = "golang.org/x/crypto"
@@ -1007,7 +1025,7 @@
   version = "kubernetes-1.13.0"
 
 [[projects]]
-  digest = "1:c076bb67e2538f3e37aa93d44de53cac1daf159ef7a68eccf0c1a38c9e35d67c"
+  digest = "1:4e747b0e99ff5936beddb78a205b5efc79d014a7463becba19d6e36040f88361"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -1015,6 +1033,8 @@
     "pkg/api/meta",
     "pkg/api/resource",
     "pkg/api/validation",
+    "pkg/apis/config",
+    "pkg/apis/config/v1alpha1",
     "pkg/apis/meta/internalversion",
     "pkg/apis/meta/v1",
     "pkg/apis/meta/v1/unstructured",
@@ -1056,6 +1076,7 @@
     "pkg/util/strategicpatch",
     "pkg/util/validation",
     "pkg/util/validation/field",
+    "pkg/util/version",
     "pkg/util/wait",
     "pkg/util/yaml",
     "pkg/version",
@@ -1182,6 +1203,17 @@
   version = "kubernetes-1.13.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:28fd6a61b5220aab30c6f7344676ff5aaea4a5f14407d95f33e238b13da2d2ef"
+  name = "k8s.io/cluster-bootstrap"
+  packages = [
+    "token/api",
+    "token/util",
+  ]
+  pruneopts = "UT"
+  revision = "fab9a0a63c5548759135f6cc365e6eedacdba590"
+
+[[projects]]
   digest = "1:af1a9d5637b31bad415254853353dd331301dcb4b3fcd626643730d5ec2a1026"
   name = "k8s.io/helm"
   packages = [
@@ -1239,10 +1271,37 @@
   revision = "c45f27d6c6f59f29099e552cc6bb6119539e0559"
 
 [[projects]]
-  branch = "release-1.13"
-  digest = "1:37644705d810d8e7cd08989be593ad9720de020cfd896841886fea168f6dba3d"
+  digest = "1:db247d39f228ff5f87299baaf1848eb1eabbca1172861d77ddeca2360b6865d2"
+  name = "k8s.io/kube-proxy"
+  packages = ["config/v1alpha1"]
+  pruneopts = "UT"
+  revision = "a862fd2d6f878f40cc1e99c93a0c1e67ced235ee"
+  version = "kubernetes-1.13.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:c315e859e0da8b226202d60b2df6c48b17568468503ba080b4e3a30ad99887b4"
+  name = "k8s.io/kubelet"
+  packages = ["config/v1beta1"]
+  pruneopts = "UT"
+  revision = "80add6525af10c696792916ee25d651c0f89ff20"
+
+[[projects]]
+  digest = "1:7545ec555a44f1db604554d994ebceb31d12b48e4efa4a8e0990bb59ced2b985"
   name = "k8s.io/kubernetes"
   packages = [
+    "cmd/kubeadm/app/apis/kubeadm",
+    "cmd/kubeadm/app/apis/kubeadm/scheme",
+    "cmd/kubeadm/app/apis/kubeadm/v1alpha3",
+    "cmd/kubeadm/app/apis/kubeadm/v1beta1",
+    "cmd/kubeadm/app/apis/kubeadm/validation",
+    "cmd/kubeadm/app/componentconfigs",
+    "cmd/kubeadm/app/constants",
+    "cmd/kubeadm/app/features",
+    "cmd/kubeadm/app/images",
+    "cmd/kubeadm/app/util",
+    "cmd/kubeadm/app/util/config",
+    "cmd/kubeadm/app/util/config/strict",
     "pkg/api/legacyscheme",
     "pkg/api/service",
     "pkg/api/v1/pod",
@@ -1281,6 +1340,7 @@
     "pkg/apis/core/pods",
     "pkg/apis/core/v1",
     "pkg/apis/core/v1/helper",
+    "pkg/apis/core/v1/helper/qos",
     "pkg/apis/core/validation",
     "pkg/apis/events",
     "pkg/apis/events/install",
@@ -1327,10 +1387,19 @@
     "pkg/kubectl/util/term",
     "pkg/kubectl/validation",
     "pkg/kubelet/apis",
+    "pkg/kubelet/apis/config",
+    "pkg/kubelet/apis/config/v1beta1",
+    "pkg/kubelet/apis/config/validation",
+    "pkg/kubelet/qos",
     "pkg/kubelet/types",
     "pkg/master/ports",
     "pkg/printers",
     "pkg/printers/internalversion",
+    "pkg/proxy/apis/config",
+    "pkg/proxy/apis/config/v1alpha1",
+    "pkg/proxy/apis/config/validation",
+    "pkg/registry/core/service/allocator",
+    "pkg/registry/core/service/ipallocator",
     "pkg/scheduler/api",
     "pkg/security/apparmor",
     "pkg/serviceaccount",
@@ -1348,7 +1417,8 @@
     "pkg/version",
   ]
   pruneopts = "UT"
-  revision = "6260c81b70c04e00ad3939a79235555c87fea3fd"
+  revision = "721bfa751924da8d1680787490c54b9179b1fed0"
+  version = "v1.13.3"
 
 [[projects]]
   branch = "master"
@@ -1532,7 +1602,7 @@
 
 [[projects]]
   branch = "release/2.7.0"
-  digest = "1:c3404f80721d5d1d98eff098af57c865ec8adb4590bf20a2f424bea465aff0f7"
+  digest = "1:b30290fcb7b2bc26b2219629f485dd2e918c820ae824aa64599684b35f5789d9"
   name = "yunion.io/x/yke"
   packages = [
     "cmd",
@@ -1552,7 +1622,7 @@
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "8f781c9008153ed894a8ce4e30efbddc1a43b4f9"
+  revision = "99f7893823753b15897f4eda967077fa97d033d7"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -1571,7 +1641,10 @@
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",
     "github.com/zexi/golosetup",
+    "go.etcd.io/etcd/clientv3",
+    "go.etcd.io/etcd/pkg/transport",
     "golang.org/x/net/context",
+    "golang.org/x/sync/errgroup",
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
     "google.golang.org/grpc/reflection",
@@ -1638,6 +1711,11 @@
     "k8s.io/helm/pkg/timeconv",
     "k8s.io/helm/pkg/tlsutil",
     "k8s.io/helm/pkg/version",
+    "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm",
+    "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/scheme",
+    "k8s.io/kubernetes/cmd/kubeadm/app/componentconfigs",
+    "k8s.io/kubernetes/cmd/kubeadm/app/constants",
+    "k8s.io/kubernetes/cmd/kubeadm/app/util/config",
     "k8s.io/kubernetes/pkg/util/mount",
     "sigs.k8s.io/cluster-api/cmd/clusterctl/clientcmd",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",

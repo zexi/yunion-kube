@@ -1,14 +1,19 @@
 package machines
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+
+	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -18,6 +23,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
@@ -60,7 +66,7 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 		return httperrors.NewInputParameterError("Resource id must provide")
 	}
 
-	role, err := data.GetString("role")
+	/*role, err := data.GetString("role")
 	if err != nil {
 		return err
 	}
@@ -74,9 +80,13 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 	}
 	if role == string(types.RoleTypeControlplane) && len(controlplaneMachines) != 0 {
 		return httperrors.NewInputParameterError("Only support one controlplane as for now")
-	}
+	}*/
 
 	ret, err := yunion_host.ValidateHostId(session, resId)
+	if err != nil {
+		return err
+	}
+	resId, err = ret.GetString("id")
 	if err != nil {
 		return err
 	}
@@ -85,6 +95,55 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 	name, _ := ret.Get("name")
 	data.Set("name", name)
 	return d.sBaseDriver.ValidateCreateData(session, userCred, ownerProjId, query, data)
+}
+
+func (d *SYunionHostDriver) newClusterAPIMachine(machine *machines.SMachine) (*clusterv1.Machine, error) {
+	privateIP, err := machine.GetPrivateIP()
+	if err != nil {
+		return nil, err
+	}
+	spec := &providerv1.OneCloudMachineProviderSpec{
+		ResourceType: machine.ResourceType,
+		Provider:     machine.Provider,
+		MachineID:    machine.Id,
+		Role:         machine.Role,
+		PrivateIP:    privateIP,
+	}
+	specVal, err := providerv1.EncodeMachineSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	//status := &providerv1.OneCloudMachineProviderStatus{}
+	return &clusterv1.Machine{
+		ObjectMeta: v1.ObjectMeta{
+			Name: machine.Name,
+			Labels: map[string]string{
+				"set": machine.Role,
+			},
+		},
+		Spec: clusterv1.MachineSpec{
+			ProviderSpec: clusterv1.ProviderSpec{
+				Value: specVal,
+			},
+		},
+	}, nil
+}
+
+func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
+	client, err := machine.GetGlobalClient()
+	if err != nil {
+		return err
+	}
+	machineObj, err := d.newClusterAPIMachine(machine)
+	if err != nil {
+		return err
+	}
+	_, err = client.ClusterV1alpha1().Machines(machine.GetNamespace()).Create(machineObj)
+	if err != nil {
+		return err
+	}
+	log.Infof("Create machines object: %#v", machineObj)
+	return nil
 }
 
 func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters.SCluster, machine *machines.SMachine) userdata.BaseConfigure {
@@ -271,14 +330,18 @@ func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, mac
 	return nil, err
 }
 
-func (d *SYunionHostDriver) PostDelete(m *machines.SMachine) error {
+func (d *SYunionHostDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine) error {
+	return cluster.GetDriver().ValidateDeleteMachines(ctx, userCred, cluster, []manager.IMachine{machine})
+}
+
+func (d *SYunionHostDriver) PostDelete(ctx context.Context, userCred mcclient.TokenCredential, m *machines.SMachine, task taskman.ITask) error {
 	cli, err := m.GetGlobalClient()
 	if err != nil {
 		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
 	}
 	if err := cli.ClusterV1alpha1().Machines(m.GetNamespace()).Delete(m.Name, &v1.DeleteOptions{}); err != nil {
 		if !errors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
-			return nil
+			return m.StartTerminateTask(ctx, userCred, nil, task.GetTaskId())
 		}
 		return err
 	}

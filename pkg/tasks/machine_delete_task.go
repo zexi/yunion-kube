@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -22,12 +23,20 @@ type MachineDeleteTask struct {
 func (t *MachineDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	machine := obj.(*machines.SMachine)
 	driver := machine.GetDriver()
-	err := driver.PostDelete(machine)
+	t.SetStage("OnPostDeleteComplete", nil)
+	err := driver.PostDelete(ctx, t.UserCred, machine, t)
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
 	}
+}
+
+func (t *MachineDeleteTask) OnPostDeleteComplete(ctx context.Context, machine *machines.SMachine, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
+}
+
+func (t *MachineDeleteTask) OnPostDeleteCompleteFailed(ctx context.Context, machine *machines.SMachine, data jsonutils.JSONObject) {
+	t.OnError(ctx, machine, fmt.Errorf(data.String()))
 }
 
 func (t *MachineDeleteTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {

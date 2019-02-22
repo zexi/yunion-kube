@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
@@ -35,7 +36,7 @@ func (d *sBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data 
 	return nil
 }
 
-func (d *sBaseDriver) ValidateAddMachine(man *clusters.SClusterManager, machine *types.Machine) error {
+func (d *sBaseDriver) ValidateAddMachine(man *clusters.SClusterManager, machine *types.CreateMachineData) error {
 	return nil
 }
 
@@ -49,6 +50,10 @@ func (d *sBaseDriver) UseClusterAPI() bool {
 
 func (d *sBaseDriver) RequestDeleteCluster(c *clusters.SCluster) error {
 	return fmt.Errorf("Not supported")
+}
+
+func (d *sBaseDriver) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+	return nil
 }
 
 func (d *sBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
@@ -95,6 +100,17 @@ func (d *sClusterAPIDriver) DeleteNamespace(cli *kubernetes.Clientset, namespace
 	err := cli.CoreV1().Namespaces().Delete(namespace, &v1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
+	}
+	return nil
+}
+
+func (d *sClusterAPIDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+	ok, err := clusters.ClusterManager.IsSystemClusterReady()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return httperrors.NewNotAcceptableError("System k8s cluster default not running")
 	}
 	return nil
 }

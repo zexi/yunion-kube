@@ -22,6 +22,26 @@ type ClusterSyncstatusTask struct {
 
 func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*clusters.SCluster)
+	mCnt, err := cluster.GetMachinesCount()
+	if err != nil {
+		t.onError(ctx, cluster, err)
+		return
+	}
+	if mCnt == 0 {
+		cluster.SetStatus(t.UserCred, types.ClusterStatusInit, "")
+		t.SetStageComplete(ctx, nil)
+		return
+	}
+
+	log.Errorf("-----------get kubeconfig")
+	// refresh kubeconfig
+	kubeconfig, err := cluster.GetDriver().GetKubeconfig(cluster)
+	if err != nil {
+		t.onError(ctx, cluster, err)
+		return
+	}
+	cluster.SetKubeconfig(kubeconfig)
+
 	k8sCli, err := cluster.GetK8sClient()
 	if err != nil {
 		t.onError(ctx, cluster, err)

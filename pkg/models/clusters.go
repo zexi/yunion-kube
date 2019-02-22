@@ -619,7 +619,15 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 		c.YkeConfig = clusterInfo.Config
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if v2c, err := c.GetV2Cluster(); err == nil {
+		if config, err := c.GetAdminKubeconfig(); err == nil {
+			v2c.SetKubeconfig(config)
+		}
+	}
+	return nil
 }
 
 func (c *SCluster) SetYKEConfig(config *yketypes.KubernetesEngineConfig) error {
@@ -637,10 +645,11 @@ func (c *SCluster) SetYKEConfig(config *yketypes.KubernetesEngineConfig) error {
 	return err
 }
 
-func (c *SCluster) GetYKEConfig() (conf *yketypes.KubernetesEngineConfig, err error) {
+func (c *SCluster) GetYKEConfig() (*yketypes.KubernetesEngineConfig, error) {
 	confStr := c.YkeConfig
 	if confStr == "" {
-		return
+		//return nil, fmt.Errorf("cluster yke config is empty")
+		return nil, nil
 	}
 	return utils.ConvertToYkeConfig(confStr)
 }
@@ -1462,12 +1471,6 @@ func (c *SCluster) PerformAddNodes(ctx context.Context, userCred mcclient.TokenC
 	if err != nil {
 		return nil, err
 	}
-	for _, node := range nodes {
-		err = NodeManager.TableSpec().Insert(node)
-		if err != nil {
-			return nil, err
-		}
-	}
 	autoDeploy := jsonutils.QueryBoolean(data, "auto_deploy", false)
 	if !autoDeploy {
 		return nil, nil
@@ -1480,7 +1483,7 @@ func (c *SCluster) AllowPerformDeleteNodes(ctx context.Context, userCred mcclien
 	return allowPerformAction(ctx, userCred, query, data)
 }
 
-func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
+func (c *SCluster) ValidateDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
 	if ClusterProcessingStatus.Has(c.Status) {
 		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
 	}
@@ -1544,7 +1547,7 @@ func (c *SCluster) GetNonSystemClustersCount() (int, error) {
 }
 
 func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	nodes, err := c.validateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
+	nodes, err := c.ValidateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
 	if err != nil {
 		return nil, err
 	}
@@ -1689,7 +1692,7 @@ func (c *SCluster) getMigrateNodes() ([]*SNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	mNodes := make([]*SNode, len(nodes))
+	mNodes := make([]*SNode, 0)
 	firstNodeIdx := 0
 	for i, node := range nodes {
 		isFirstNode, err := node.IsFirstNode()
@@ -1698,7 +1701,7 @@ func (c *SCluster) getMigrateNodes() ([]*SNode, error) {
 		}
 		if isFirstNode {
 			firstNodeIdx = i
-			mNodes[0] = node
+			mNodes = append(mNodes, node)
 		}
 	}
 	for i, node := range nodes {
@@ -1722,7 +1725,9 @@ func (c *SCluster) MigrateToV2Cluster() error {
 		if err != nil {
 			return fmt.Errorf("Create to v2 cluster: %v", err)
 		}
+		v2Cluster.SetStatus(userCred, c.Status, "")
 	}
+	log.Infof("Cluster migrate finished: %v", v2Cluster)
 	nodes, err := c.getMigrateNodes()
 	if err != nil {
 		return err
