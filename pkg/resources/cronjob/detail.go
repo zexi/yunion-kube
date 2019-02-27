@@ -30,37 +30,37 @@ type CronJobDetail struct {
 }
 
 func (man *SCronJobManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCronJobDetail(req.GetK8sClient(), req.ToQuery(), req.GetNamespaceQuery().ToRequestParam(), id)
+	return GetCronJobDetail(req.GetK8sClient(), req.GetCluster(), req.ToQuery(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
 // GetCronJobDetail gets Cron Job details.
-func GetCronJobDetail(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*CronJobDetail, error) {
+func GetCronJobDetail(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*CronJobDetail, error) {
 	rawObject, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	activeJobs, err := GetCronJobJobs(client, dsQuery, namespace, name)
+	activeJobs, err := GetCronJobJobs(client, cluster, dsQuery, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	inactiveJobs, err := GetCronJobCompletedJobs(client, dsQuery, namespace, name)
+	inactiveJobs, err := GetCronJobCompletedJobs(client, cluster, dsQuery, namespace, name)
 
-	events, err := GetCronJobEvents(client, dsQuery, namespace, name)
+	events, err := GetCronJobEvents(client, cluster, dsQuery, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	cj := toCronJobDetail(rawObject, *activeJobs, *inactiveJobs, *events)
+	cj := toCronJobDetail(rawObject, *activeJobs, *inactiveJobs, *events, cluster)
 	return &cj, nil
 }
 
-func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs job.JobList, events common.EventList) CronJobDetail {
+func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs job.JobList, events common.EventList, cluster api.ICluster) CronJobDetail {
 	return CronJobDetail{
-		ObjectMeta:              api.NewObjectMeta(cj.ObjectMeta),
+		ObjectMeta:              api.NewObjectMetaV2(cj.ObjectMeta, cluster),
 		TypeMeta:                api.NewTypeMeta(api.ResourceKindCronJob),
-		CronJob:                 toCronJob(cj),
+		CronJob:                 toCronJob(cj, cluster),
 		ConcurrencyPolicy:       string(cj.Spec.ConcurrencyPolicy),
 		StartingDeadLineSeconds: cj.Spec.StartingDeadlineSeconds,
 		ActiveJobs:              activeJobs.Jobs,
@@ -70,7 +70,7 @@ func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs jo
 }
 
 // GetCronJobJobs returns list of jobs owned by cron job.
-func GetCronJobJobs(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
+func GetCronJobJobs(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
 
 	cronJob, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
@@ -104,11 +104,11 @@ func GetCronJobJobs(client kubernetes.Interface, dsQuery *dataselect.DataSelectQ
 	jobs.Items = filterJobsByOwnerUID(cronJob.UID, jobs.Items)
 	jobs.Items = filterJobsByState(true, jobs.Items)
 
-	return job.ToJobList(jobs.Items, pods.Items, events.Items, dsQuery)
+	return job.ToJobList(jobs.Items, pods.Items, events.Items, dsQuery, cluster)
 }
 
 // GetCronJobJobs returns list of jobs owned by cron job.
-func GetCronJobCompletedJobs(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
+func GetCronJobCompletedJobs(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
 	var err error
 
 	cronJob, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
@@ -143,7 +143,7 @@ func GetCronJobCompletedJobs(client kubernetes.Interface, dsQuery *dataselect.Da
 	jobs.Items = filterJobsByOwnerUID(cronJob.UID, jobs.Items)
 	jobs.Items = filterJobsByState(false, jobs.Items)
 
-	return job.ToJobList(jobs.Items, pods.Items, events.Items, dsQuery)
+	return job.ToJobList(jobs.Items, pods.Items, events.Items, dsQuery, cluster)
 }
 
 // TriggerCronJob manually triggers a cron job and creates a new job.
@@ -215,12 +215,12 @@ func filterJobsByState(active bool, jobs []batch.Job) (matchingJobs []batch.Job)
 }
 
 // GetCronJobEvents gets events associated to cron job.
-func GetCronJobEvents(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
+func GetCronJobEvents(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
 	raw, err := event.GetEvents(client, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := event.CreateEventList(raw, dsQuery)
+	events, err := event.CreateEventList(raw, dsQuery, cluster)
 	return &events, err
 }

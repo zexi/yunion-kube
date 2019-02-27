@@ -14,7 +14,7 @@ import (
 
 // CronJobList contains a list of CronJobs in the cluster.
 type CronJobList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	Items []CronJob
 
 	// Basic information about resources status on the list.
@@ -32,23 +32,23 @@ type CronJob struct {
 }
 
 func (man *SCronJobManager) List(req *common.Request) (common.ListResource, error) {
-	return GetCronJobList(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return GetCronJobList(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
 // GetCronJobList returns a list of all CronJobs in the cluster.
-func GetCronJobList(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*CronJobList, error) {
+func GetCronJobList(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*CronJobList, error) {
 	log.Infof("Getting list of all cron jobs in the cluster")
 
 	channels := &common.ResourceChannels{
 		CronJobList: common.GetCronJobListChannel(client, nsQuery),
 	}
 
-	return GetCronJobListFromChannels(channels, dsQuery)
+	return GetCronJobListFromChannels(channels, dsQuery, cluster)
 }
 
 // GetCronJobListFromChannels returns a list of all CronJobs in the cluster reading required resource
 // list once from the channels.
-func GetCronJobListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*CronJobList, error) {
+func GetCronJobListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*CronJobList, error) {
 
 	cronJobs := <-channels.CronJobList.List
 	err := <-channels.CronJobList.Error
@@ -56,7 +56,7 @@ func GetCronJobListFromChannels(channels *common.ResourceChannels, dsQuery *data
 		return nil, err
 	}
 
-	cronJobList, err := toCronJobList(cronJobs.Items, dsQuery)
+	cronJobList, err := toCronJobList(cronJobs.Items, dsQuery, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -64,10 +64,10 @@ func GetCronJobListFromChannels(channels *common.ResourceChannels, dsQuery *data
 	return cronJobList, nil
 }
 
-func toCronJobList(cronJobs []v1beta1.CronJob, dsQuery *dataselect.DataSelectQuery) (*CronJobList, error) {
+func toCronJobList(cronJobs []v1beta1.CronJob, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*CronJobList, error) {
 	list := &CronJobList{
+		BaseList: common.NewBaseList(cluster),
 		Items:    make([]CronJob, 0),
-		ListMeta: dataselect.NewListMeta(),
 	}
 
 	err := dataselect.ToResourceList(
@@ -81,7 +81,7 @@ func toCronJobList(cronJobs []v1beta1.CronJob, dsQuery *dataselect.DataSelectQue
 
 func (l *CronJobList) Append(obj interface{}) {
 	cronJob := obj.(v1beta1.CronJob)
-	l.Items = append(l.Items, toCronJob(&cronJob))
+	l.Items = append(l.Items, toCronJob(&cronJob, l.GetCluster()))
 }
 
 func (l *CronJobList) GetResponseData() interface{} {
@@ -105,9 +105,9 @@ func getStatus(list *v1beta1.CronJobList) common.ResourceStatus {
 	return info
 }
 
-func toCronJob(cj *v1beta1.CronJob) CronJob {
+func toCronJob(cj *v1beta1.CronJob, cluster api.ICluster) CronJob {
 	return CronJob{
-		ObjectMeta:   api.NewObjectMeta(cj.ObjectMeta),
+		ObjectMeta:   api.NewObjectMetaV2(cj.ObjectMeta, cluster),
 		TypeMeta:     api.NewTypeMeta(api.ResourceKindCronJob),
 		Schedule:     cj.Spec.Schedule,
 		Suspend:      cj.Spec.Suspend,

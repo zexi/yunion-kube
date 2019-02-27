@@ -49,32 +49,32 @@ func (man *SServiceManager) List(req *common.Request) (common.ListResource, erro
 }
 
 func (man *SServiceManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetServiceList(client, nsQuery, dsQuery)
+	return man.GetServiceList(client, cluster, nsQuery, dsQuery)
 }
 
-func (man *SServiceManager) GetServiceList(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {
+func (man *SServiceManager) GetServiceList(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {
 	log.Infof("Getting list of all services in the cluster")
 	channels := &common.ResourceChannels{
 		ServiceList: common.GetServiceListChannel(client, nsQuery),
 	}
 
-	return GetServiceListFromChannels(channels, dsQuery)
+	return GetServiceListFromChannels(channels, dsQuery, cluster)
 }
 
 type ServiceList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	Services []Service
 }
 
 func (l *ServiceList) Append(obj interface{}) {
-	l.Services = append(l.Services, ToService(obj.(v1.Service)))
+	l.Services = append(l.Services, ToService(obj.(v1.Service), l.GetCluster()))
 }
 
 func (l *ServiceList) GetResponseData() interface{} {
 	return l.Services
 }
 
-func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {
+func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ServiceList, error) {
 	services := <-channels.ServiceList.List
 	err := <-channels.ServiceList.Error
 	if err != nil {
@@ -82,7 +82,7 @@ func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *data
 	}
 
 	serviceList := &ServiceList{
-		ListMeta: dataselect.NewListMeta(),
+		BaseList: common.NewBaseList(cluster),
 		Services: make([]Service, 0),
 	}
 	err = dataselect.ToResourceList(

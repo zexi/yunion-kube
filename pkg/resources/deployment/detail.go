@@ -119,24 +119,24 @@ func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespac
 		return nil, err
 	}
 
-	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect())
+	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect(), cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items)
+	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items, cluster)
 
 	podList, err := GetDeploymentPods(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := event.GetResourceEvents(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	eventList, err := event.GetResourceEvents(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespac
 		}
 
 		newRsPodInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
-		newReplicaSet = replicaset.ToReplicaSet(newRs, &newRsPodInfo)
+		newReplicaSet = replicaset.ToReplicaSet(newRs, &newRsPodInfo, cluster)
 	}
 
 	// Extra Info

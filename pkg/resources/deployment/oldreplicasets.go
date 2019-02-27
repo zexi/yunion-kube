@@ -8,14 +8,15 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 //GetDeploymentOldReplicaSets returns old replica sets targeting Deployment with given name
-func GetDeploymentOldReplicaSets(client client.Interface, dsQuery *dataselect.DataSelectQuery,
+func GetDeploymentOldReplicaSets(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery,
 	namespace string, deploymentName string) (*replicaset.ReplicaSetList, error) {
 
 	oldReplicaSetList := &replicaset.ReplicaSetList{
-		ListMeta:    dataselect.NewListMeta(),
+		BaseList:    common.NewBaseList(cluster),
 		ReplicaSets: make([]replicaset.ReplicaSet, 0),
 	}
 
@@ -69,6 +70,6 @@ func GetDeploymentOldReplicaSets(client client.Interface, dsQuery *dataselect.Da
 		oldReplicaSets[i] = *replicaSet
 	}
 
-	oldReplicaSetList, err = replicaset.ToReplicaSetList(oldReplicaSets, rawPods.Items, rawEvents.Items, dsQuery)
+	oldReplicaSetList, err = replicaset.ToReplicaSetList(oldReplicaSets, rawPods.Items, rawEvents.Items, dsQuery, cluster)
 	return oldReplicaSetList, err
 }

@@ -14,7 +14,7 @@ func (man *SDeploymentManager) Delete(req *common.Request, id string) error {
 	if err != nil {
 		return err
 	}
-	err = app.DeleteServices(cli, namespace, deployment.Spec.Selector)
+	err = app.DeleteServices(cli, req.GetCluster(), namespace, deployment.Spec.Selector)
 	if err != nil {
 		return err
 	}

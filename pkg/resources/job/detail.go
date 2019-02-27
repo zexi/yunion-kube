@@ -50,12 +50,12 @@ func GetJobDetail(client kubernetes.Interface, cluster api.ICluster, namespace, 
 		return nil, err
 	}
 
-	eventList, err := GetJobEvents(client, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
+	eventList, err := GetJobEvents(client, cluster, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	commonJob := toJob(jobData, podInfo)
+	commonJob := toJob(jobData, podInfo, cluster)
 
 	job := toJobDetail(commonJob, *eventList, *podList, *podInfo)
 	return &job, nil
@@ -141,12 +141,12 @@ func toJobDetail(job Job, eventList common.EventList, podList pod.PodList, podIn
 }
 
 // GetJobEvents gets events associated to job.
-func GetJobEvents(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
+func GetJobEvents(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
 	jobEvents, err := event.GetEvents(client, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	list, err := event.CreateEventList(jobEvents, dsQuery)
+	list, err := event.CreateEventList(jobEvents, dsQuery, cluster)
 	return &list, err
 }

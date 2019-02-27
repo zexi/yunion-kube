@@ -12,7 +12,7 @@ import (
 )
 
 type PersistentVolumeList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	Items []PersistentVolume
 }
 
@@ -30,22 +30,22 @@ type PersistentVolume struct {
 }
 
 func (man *SPersistentVolumeManager) List(req *common.Request) (common.ListResource, error) {
-	return GetPersistentVolumeList(req.GetK8sClient(), req.ToQuery())
+	return GetPersistentVolumeList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
 }
 
 // GetPersistentVolumeList returns a list of all Persistent Volumes in the cluster.
-func GetPersistentVolumeList(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
+func GetPersistentVolumeList(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
 	log.Infof("Getting list persistent volumes")
 	channels := &common.ResourceChannels{
 		PersistentVolumeList: common.GetPersistentVolumeListChannel(client),
 	}
 
-	return GetPersistentVolumeListFromChannels(channels, dsQuery)
+	return GetPersistentVolumeListFromChannels(channels, dsQuery, cluster)
 }
 
 // GetPersistentVolumeListFromChannels returns a list of all Persistent Volumes in the cluster
 // reading required resource list once from the channels.
-func GetPersistentVolumeListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
+func GetPersistentVolumeListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeList, error) {
 	persistentVolumes := <-channels.PersistentVolumeList.List
 	err := <-channels.PersistentVolumeList.Error
 
@@ -53,13 +53,13 @@ func GetPersistentVolumeListFromChannels(channels *common.ResourceChannels, dsQu
 		return nil, err
 	}
 
-	return toPersistentVolumeList(persistentVolumes.Items, dsQuery)
+	return toPersistentVolumeList(persistentVolumes.Items, dsQuery, cluster)
 }
 
-func toPersistentVolumeList(persistentVolumes []v1.PersistentVolume, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
+func toPersistentVolumeList(persistentVolumes []v1.PersistentVolume, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeList, error) {
 	result := &PersistentVolumeList{
+		BaseList: common.NewBaseList(cluster),
 		Items:    make([]PersistentVolume, 0),
-		ListMeta: dataselect.NewListMeta(),
 	}
 
 	err := dataselect.ToResourceList(
@@ -76,7 +76,7 @@ func (l *PersistentVolumeList) Append(obj interface{}) {
 	item := obj.(v1.PersistentVolume)
 	l.Items = append(l.Items,
 		PersistentVolume{
-			ObjectMeta:    api.NewObjectMeta(item.ObjectMeta),
+			ObjectMeta:    api.NewObjectMetaV2(item.ObjectMeta, l.GetCluster()),
 			TypeMeta:      api.NewTypeMeta(api.ResourceKindPersistentVolume),
 			Capacity:      item.Spec.Capacity,
 			AccessModes:   item.Spec.AccessModes,

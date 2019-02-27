@@ -14,7 +14,7 @@ import (
 )
 
 type StatefulSetList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 
 	StatefulSets []StatefulSet
 	Pods         []v1.Pod
@@ -45,11 +45,11 @@ func (man *SStatefuleSetManager) List(req *common.Request) (common.ListResource,
 }
 
 func (man *SStatefuleSetManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return GetStatefulSetList(client, nsQuery, dsQuery)
+	return GetStatefulSetList(client, cluster, nsQuery, dsQuery)
 }
 
 // GetStatefulSetList returns a list of all Stateful Sets in the cluster.
-func GetStatefulSetList(client kubernetes.Interface, nsQuery *common.NamespaceQuery,
+func GetStatefulSetList(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery) (*StatefulSetList, error) {
 	log.Infof("Getting list of all pet sets in the cluster")
 
@@ -59,12 +59,12 @@ func GetStatefulSetList(client kubernetes.Interface, nsQuery *common.NamespaceQu
 		EventList:       common.GetEventListChannel(client, nsQuery),
 	}
 
-	return GetStatefulSetListFromChannels(channels, dsQuery)
+	return GetStatefulSetListFromChannels(cluster, channels, dsQuery)
 }
 
 // GetStatefulSetListFromChannels returns a list of all Stateful Sets in the cluster reading
 // required resource list once from the channels.
-func GetStatefulSetListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*StatefulSetList, error) {
+func GetStatefulSetListFromChannels(cluster api.ICluster, channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*StatefulSetList, error) {
 	statefulSets := <-channels.StatefulSetList.List
 	err := <-channels.StatefulSetList.Error
 	if err != nil {
@@ -83,13 +83,13 @@ func GetStatefulSetListFromChannels(channels *common.ResourceChannels, dsQuery *
 		return nil, err
 	}
 
-	return ToStatefulSetList(statefulSets.Items, pods.Items, events.Items, dsQuery)
+	return ToStatefulSetList(statefulSets.Items, pods.Items, events.Items, dsQuery, cluster)
 }
 
-func ToStatefulSetList(statefulSets []apps.StatefulSet, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery) (*StatefulSetList, error) {
+func ToStatefulSetList(statefulSets []apps.StatefulSet, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StatefulSetList, error) {
 	statefulSetList := &StatefulSetList{
+		BaseList:     common.NewBaseList(cluster),
 		StatefulSets: make([]StatefulSet, 0),
-		ListMeta:     dataselect.NewListMeta(),
 		Pods:         pods,
 		Events:       events,
 	}
@@ -112,16 +112,16 @@ func GetPodInfo(statefulSet apps.StatefulSet, pods []v1.Pod, events []v1.Event) 
 func (l *StatefulSetList) Append(obj interface{}) {
 	statefulSet := obj.(apps.StatefulSet)
 	podInfo := GetPodInfo(statefulSet, l.Pods, l.Events)
-	l.StatefulSets = append(l.StatefulSets, ToStatefulSet(&statefulSet, &podInfo))
+	l.StatefulSets = append(l.StatefulSets, ToStatefulSet(&statefulSet, &podInfo, l.GetCluster()))
 }
 
 func (l *StatefulSetList) GetResponseData() interface{} {
 	return l.StatefulSets
 }
 
-func ToStatefulSet(statefulSet *apps.StatefulSet, podInfo *common.PodInfo) StatefulSet {
+func ToStatefulSet(statefulSet *apps.StatefulSet, podInfo *common.PodInfo, cluster api.ICluster) StatefulSet {
 	return StatefulSet{
-		ObjectMeta:          api.NewObjectMeta(statefulSet.ObjectMeta),
+		ObjectMeta:          api.NewObjectMetaV2(statefulSet.ObjectMeta, cluster),
 		TypeMeta:            api.NewTypeMeta(api.ResourceKindStatefulSet),
 		ContainerImages:     common.GetContainerImages(&statefulSet.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&statefulSet.Spec.Template.Spec),

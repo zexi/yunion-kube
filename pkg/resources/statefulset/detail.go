@@ -47,7 +47,7 @@ func GetStatefulSetDetail(client kubernetes.Interface, cluster api.ICluster, nam
 	channels := &common.ResourceChannels{
 		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace), options),
 	}
-	svcList, err := service.GetServiceListFromChannels(channels, ds.DefaultDataSelect())
+	svcList, err := service.GetServiceListFromChannels(channels, ds.DefaultDataSelect(), cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +62,12 @@ func GetStatefulSetDetail(client kubernetes.Interface, cluster api.ICluster, nam
 		return nil, err
 	}
 
-	events, err := event.GetResourceEvents(client, ds.DefaultDataSelect(), ss.Namespace, ss.Name)
+	events, err := event.GetResourceEvents(client, cluster, ds.DefaultDataSelect(), ss.Namespace, ss.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	commonSs := ToStatefulSet(ss, podInfo)
+	commonSs := ToStatefulSet(ss, podInfo, cluster)
 
 	ssDetail := getStatefulSetDetail(commonSs, ss, *events, *podList, *podInfo, *svcList)
 	return &ssDetail, nil

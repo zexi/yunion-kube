@@ -27,11 +27,11 @@ type PersistentVolumeDetail struct {
 }
 
 func (man *SPersistentVolumeManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetPersistentVolumeDetail(req.GetK8sClient(), id)
+	return GetPersistentVolumeDetail(req.GetK8sClient(), req.GetCluster(), id)
 }
 
 // GetPersistentVolumeDetail returns detailed information about a persistent volume
-func GetPersistentVolumeDetail(client kubernetes.Interface, name string) (*PersistentVolumeDetail, error) {
+func GetPersistentVolumeDetail(client kubernetes.Interface, cluster api.ICluster, name string) (*PersistentVolumeDetail, error) {
 	log.Infof("Getting details of %s persistent volume", name)
 
 	rawPersistentVolume, err := client.CoreV1().PersistentVolumes().Get(name, metaV1.GetOptions{})
@@ -39,12 +39,12 @@ func GetPersistentVolumeDetail(client kubernetes.Interface, name string) (*Persi
 		return nil, err
 	}
 
-	return getPersistentVolumeDetail(rawPersistentVolume), nil
+	return getPersistentVolumeDetail(rawPersistentVolume, cluster), nil
 }
 
-func getPersistentVolumeDetail(persistentVolume *v1.PersistentVolume) *PersistentVolumeDetail {
+func getPersistentVolumeDetail(persistentVolume *v1.PersistentVolume, cluster api.ICluster) *PersistentVolumeDetail {
 	return &PersistentVolumeDetail{
-		ObjectMeta:             api.NewObjectMeta(persistentVolume.ObjectMeta),
+		ObjectMeta:             api.NewObjectMetaV2(persistentVolume.ObjectMeta, cluster),
 		TypeMeta:               api.NewTypeMeta(api.ResourceKindPersistentVolume),
 		Status:                 persistentVolume.Status.Phase,
 		Claim:                  getPersistentVolumeClaim(persistentVolume),

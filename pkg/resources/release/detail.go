@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"k8s.io/helm/pkg/chartutil"
-	"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/log"
 
@@ -15,7 +14,7 @@ import (
 )
 
 type ReleaseDetail struct {
-	*release.Release
+	*Release
 	Resources    map[string]interface{} `json:"resources"`
 	ConfigValues chartutil.Values       `json:"config_values"`
 }
@@ -82,7 +81,7 @@ func GetReleaseDetail(
 	}
 
 	return &ReleaseDetail{
-		Release:      rls.Release,
+		Release:      ToRelease(rls.Release, cluster),
 		ConfigValues: cfg,
 		Resources:    res,
 	}, nil

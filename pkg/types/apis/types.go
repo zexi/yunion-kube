@@ -44,6 +44,11 @@ type ObjectMeta struct {
 	// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
 	CreationTimestamp v1.Time `json:"creationTimestamp,omitempty"`
 
+	// onecloud cluster meta info
+	*ClusterMeta
+}
+
+type ClusterMeta struct {
 	// Onecloud cluster data
 	Cluster   string `json:"cluster"`
 	ClusterId string `json:"clusterID"`
@@ -95,16 +100,8 @@ type ICluster interface {
 
 // NewObjectMeta returns internal endpoint name for the given service properties, e.g.,
 // NewObjectMeta creates a new instance of ObjectMeta struct based on K8s object meta.
-func NewObjectMeta(k8SObjectMeta metaV1.ObjectMeta) ObjectMeta {
-	return ObjectMeta{
-		Name:              k8SObjectMeta.Name,
-		Namespace:         k8SObjectMeta.Namespace,
-		Labels:            k8SObjectMeta.Labels,
-		CreationTimestamp: k8SObjectMeta.CreationTimestamp,
-		Annotations:       k8SObjectMeta.Annotations,
-		//Cluster:           cluster.GetName(),
-		//ClusterId:         cluster.GetId(),
-	}
+func NewObjectMeta(k8SObjectMeta metaV1.ObjectMeta, cluster ICluster) ObjectMeta {
+	return NewObjectMetaV2(k8SObjectMeta, cluster)
 }
 
 func NewObjectMetaV2(k8SObjectMeta metaV1.ObjectMeta, cluster ICluster) ObjectMeta {
@@ -114,8 +111,14 @@ func NewObjectMetaV2(k8SObjectMeta metaV1.ObjectMeta, cluster ICluster) ObjectMe
 		Labels:            k8SObjectMeta.Labels,
 		CreationTimestamp: k8SObjectMeta.CreationTimestamp,
 		Annotations:       k8SObjectMeta.Annotations,
-		Cluster:           cluster.GetName(),
-		ClusterId:         cluster.GetId(),
+		ClusterMeta:       NewClusterMeta(cluster),
+	}
+}
+
+func NewClusterMeta(cluster ICluster) *ClusterMeta {
+	return &ClusterMeta{
+		Cluster:   cluster.GetName(),
+		ClusterId: cluster.GetId(),
 	}
 }
 

@@ -35,11 +35,11 @@ type NamespaceDetail struct {
 }
 
 func (man *SNamespaceManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetNamespaceDetail(req.GetK8sClient(), id)
+	return GetNamespaceDetail(req.GetK8sClient(), req.GetCluster(), id)
 }
 
 // GetNamespaceDetail gets namespace details.
-func GetNamespaceDetail(client k8sClient.Interface, name string) (*NamespaceDetail, error) {
+func GetNamespaceDetail(client k8sClient.Interface, cluster api.ICluster, name string) (*NamespaceDetail, error) {
 	log.Infof("Getting details of %s namespace", name)
 
 	namespace, err := client.CoreV1().Namespaces().Get(name, metaV1.GetOptions{})
@@ -47,12 +47,12 @@ func GetNamespaceDetail(client k8sClient.Interface, name string) (*NamespaceDeta
 		return nil, err
 	}
 
-	events, err := event.GetNamespaceEvents(client, dataselect.DefaultDataSelect(), namespace.Name)
+	events, err := event.GetNamespaceEvents(client, cluster, dataselect.DefaultDataSelect(), namespace.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	resourceQuotaList, err := getResourceQuotas(client, *namespace)
+	resourceQuotaList, err := getResourceQuotas(client, cluster, *namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -62,14 +62,14 @@ func GetNamespaceDetail(client k8sClient.Interface, name string) (*NamespaceDeta
 		return nil, err
 	}
 
-	namespaceDetails := toNamespaceDetail(*namespace, events, resourceQuotaList, resourceLimits)
+	namespaceDetails := toNamespaceDetail(*namespace, events, resourceQuotaList, resourceLimits, cluster)
 	return &namespaceDetails, nil
 }
 
-func toNamespaceDetail(namespace v1.Namespace, events common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []limitrange.LimitRangeItem) NamespaceDetail {
+func toNamespaceDetail(namespace v1.Namespace, events common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []limitrange.LimitRangeItem, cluster api.ICluster) NamespaceDetail {
 
 	return NamespaceDetail{
-		ObjectMeta:        api.NewObjectMeta(namespace.ObjectMeta),
+		ObjectMeta:        api.NewObjectMeta(namespace.ObjectMeta, cluster),
 		TypeMeta:          api.NewTypeMeta(api.ResourceKindNamespace),
 		Phase:             namespace.Status.Phase,
 		EventList:         events,
@@ -78,7 +78,7 @@ func toNamespaceDetail(namespace v1.Namespace, events common.EventList, resource
 	}
 }
 
-func getResourceQuotas(client k8sClient.Interface, namespace v1.Namespace) (*rq.ResourceQuotaDetailList, error) {
+func getResourceQuotas(client k8sClient.Interface, cluster api.ICluster, namespace v1.Namespace) (*rq.ResourceQuotaDetailList, error) {
 	list, err := client.CoreV1().ResourceQuotas(namespace.Name).List(api.ListEverything)
 
 	result := &rq.ResourceQuotaDetailList{
@@ -87,7 +87,7 @@ func getResourceQuotas(client k8sClient.Interface, namespace v1.Namespace) (*rq.
 	}
 
 	for _, item := range list.Items {
-		detail := rq.ToResourceQuotaDetail(&item)
+		detail := rq.ToResourceQuotaDetail(&item, cluster)
 		result.Items = append(result.Items, *detail)
 	}
 

@@ -133,7 +133,7 @@ func GetNodeDetail(
 		return nil, err
 	}
 
-	eventList, err := event.GetNodeEvents(client, dsQuery, node.Name)
+	eventList, err := event.GetNodeEvents(client, cluster, dsQuery, node.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func GetNodeDetail(
 		return nil, err
 	}
 
-	nodeDetails := toNodeDetail(*node, podList, &eventList, allocatedResources)
+	nodeDetails := toNodeDetail(*node, podList, &eventList, allocatedResources, cluster)
 	return &nodeDetails, nil
 }
 
@@ -303,10 +303,10 @@ func getNodePods(client k8sClient.Interface, node v1.Node) (*v1.PodList, error) 
 }
 
 func toNodeDetail(node v1.Node, pods *pod.PodList, eventList *common.EventList,
-	allocatedResources NodeAllocatedResources) NodeDetail {
+	allocatedResources NodeAllocatedResources, cluster api.ICluster) NodeDetail {
 
 	return NodeDetail{
-		ObjectMeta:         api.NewObjectMeta(node.ObjectMeta),
+		ObjectMeta:         api.NewObjectMetaV2(node.ObjectMeta, cluster),
 		TypeMeta:           api.NewTypeMeta(api.ResourceKindNode),
 		Phase:              node.Status.Phase,
 		ProviderID:         node.Spec.ProviderID,

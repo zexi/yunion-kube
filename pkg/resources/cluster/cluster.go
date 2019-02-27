@@ -13,6 +13,7 @@ import (
 	pv "yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 var ClusterManager *SClusterManager
@@ -37,11 +38,11 @@ type Cluster struct {
 }
 
 func (man *SClusterManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCluster(req.GetK8sClient(), dataselect.DefaultDataSelect())
+	return GetCluster(req.GetK8sClient(), req.GetCluster(), dataselect.DefaultDataSelect())
 }
 
 // GetCluster returns a list of all cluster resources in the cluster.
-func GetCluster(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery) (*Cluster, error) {
+func GetCluster(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*Cluster, error) {
 	log.Infof("Getting cluster category")
 	channels := &common.ResourceChannels{
 		NamespaceList:        common.GetNamespaceListChannel(client),
@@ -52,11 +53,11 @@ func GetCluster(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery
 		StorageClassList:     common.GetStorageClassListChannel(client),
 	}
 
-	return GetClusterFromChannels(client, channels, dsQuery)
+	return GetClusterFromChannels(client, cluster, channels, dsQuery)
 }
 
 // GetClusterFromChannels returns a list of all cluster in the cluster, from the channel sources.
-func GetClusterFromChannels(client kubernetes.Interface, channels *common.ResourceChannels,
+func GetClusterFromChannels(client kubernetes.Interface, cluster api.ICluster, channels *common.ResourceChannels,
 	dsQuery *dataselect.DataSelectQuery) (*Cluster, error) {
 
 	numErrs := 5
@@ -68,31 +69,31 @@ func GetClusterFromChannels(client kubernetes.Interface, channels *common.Resour
 	storageChan := make(chan *storageclass.StorageClassList)
 
 	go func() {
-		items, err := namespace.GetNamespaceListFromChannels(channels, dsQuery)
+		items, err := namespace.GetNamespaceListFromChannels(channels, dsQuery, cluster)
 		errChan <- err
 		nsChan <- items
 	}()
 
 	go func() {
-		items, err := node.GetNodeListFromChannels(client, channels, dsQuery)
+		items, err := node.GetNodeListFromChannels(client, channels, dsQuery, cluster)
 		errChan <- err
 		nodeChan <- items
 	}()
 
 	go func() {
-		items, err := pv.GetPersistentVolumeListFromChannels(channels, dsQuery)
+		items, err := pv.GetPersistentVolumeListFromChannels(channels, dsQuery, cluster)
 		errChan <- err
 		pvChan <- items
 	}()
 
 	go func() {
-		items, err := rbacroles.GetRbacRoleListFromChannels(channels, dsQuery)
+		items, err := rbacroles.GetRbacRoleListFromChannels(channels, dsQuery, cluster)
 		errChan <- err
 		roleChan <- items
 	}()
 
 	go func() {
-		items, err := storageclass.GetStorageClassListFromChannels(channels, dsQuery)
+		items, err := storageclass.GetStorageClassListFromChannels(channels, dsQuery, cluster)
 		errChan <- err
 		storageChan <- items
 	}()
@@ -104,7 +105,7 @@ func GetClusterFromChannels(client kubernetes.Interface, channels *common.Resour
 		}
 	}
 
-	cluster := &Cluster{
+	clusterObj := &Cluster{
 		NamespaceList:        *(<-nsChan),
 		NodeList:             *(<-nodeChan),
 		PersistentVolumeList: *(<-pvChan),
@@ -112,5 +113,5 @@ func GetClusterFromChannels(client kubernetes.Interface, channels *common.Resour
 		StorageClassList:     *(<-storageChan),
 	}
 
-	return cluster, nil
+	return clusterObj, nil
 }

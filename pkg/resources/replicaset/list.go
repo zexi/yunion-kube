@@ -30,9 +30,9 @@ type ReplicaSet struct {
 }
 
 // ToReplicaSet converts replica set api object to replica set model object.
-func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *common.PodInfo) ReplicaSet {
+func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *common.PodInfo, cluster api.ICluster) ReplicaSet {
 	return ReplicaSet{
-		ObjectMeta:          api.NewObjectMeta(replicaSet.ObjectMeta),
+		ObjectMeta:          api.NewObjectMeta(replicaSet.ObjectMeta, cluster),
 		TypeMeta:            api.NewTypeMeta(api.ResourceKindReplicaSet),
 		ContainerImages:     common.GetContainerImages(&replicaSet.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&replicaSet.Spec.Template.Spec),
@@ -41,7 +41,7 @@ func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *common.PodInfo) ReplicaS
 }
 
 type ReplicaSetList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	ReplicaSets []ReplicaSet
 	events      []v1.Event
 	pods        []v1.Pod
@@ -51,7 +51,7 @@ type ReplicaSetList struct {
 
 // GetReplicaSetList returns a list of all Replica Sets in the cluster.
 func GetReplicaSetList(client client.Interface, nsQuery *common.NamespaceQuery,
-	dsQuery *dataselect.DataSelectQuery) (*ReplicaSetList, error) {
+	dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ReplicaSetList, error) {
 	log.Infof("Getting list of all replica sets in the cluster")
 
 	channels := &common.ResourceChannels{
@@ -60,13 +60,13 @@ func GetReplicaSetList(client client.Interface, nsQuery *common.NamespaceQuery,
 		EventList:      common.GetEventListChannel(client, nsQuery),
 	}
 
-	return GetReplicaSetListFromChannels(channels, dsQuery)
+	return GetReplicaSetListFromChannels(channels, dsQuery, cluster)
 }
 
 // GetReplicaSetListFromChannels returns a list of all Replica Sets in the cluster
 // reading required resource list once from the channels.
 func GetReplicaSetListFromChannels(channels *common.ResourceChannels,
-	dsQuery *dataselect.DataSelectQuery) (*ReplicaSetList, error) {
+	dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ReplicaSetList, error) {
 
 	replicaSets := <-channels.ReplicaSetList.List
 	err := <-channels.ReplicaSetList.Error
@@ -86,7 +86,7 @@ func GetReplicaSetListFromChannels(channels *common.ResourceChannels,
 		return nil, err
 	}
 
-	rsList, err := ToReplicaSetList(replicaSets.Items, pods.Items, events.Items, dsQuery)
+	rsList, err := ToReplicaSetList(replicaSets.Items, pods.Items, events.Items, dsQuery, cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -103,15 +103,15 @@ func (l *ReplicaSetList) Append(obj interface{}) {
 		matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
 
-	l.ReplicaSets = append(l.ReplicaSets, ToReplicaSet(&replicaSet, &podInfo))
+	l.ReplicaSets = append(l.ReplicaSets, ToReplicaSet(&replicaSet, &podInfo, l.GetCluster()))
 }
 
 // ToReplicaSetList creates paginated list of Replica Set model
 // objects based on Kubernetes Replica Set objects array and related resources arrays.
-func ToReplicaSetList(replicaSets []apps.ReplicaSet, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery) (*ReplicaSetList, error) {
+func ToReplicaSetList(replicaSets []apps.ReplicaSet, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ReplicaSetList, error) {
 
 	replicaSetList := &ReplicaSetList{
-		ListMeta:    dataselect.NewListMeta(),
+		BaseList:    common.NewBaseList(cluster),
 		ReplicaSets: make([]ReplicaSet, 0),
 		events:      events,
 		pods:        pods,

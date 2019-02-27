@@ -99,7 +99,7 @@ func GetPodDetail(client client.Interface, cluster api.ICluster, namespace, name
 		return nil, err
 	}
 
-	eventList, err := GetEventsForPod(client, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
+	eventList, err := GetEventsForPod(client, cluster, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
