@@ -11,24 +11,30 @@ import (
 	"yunion.io/x/yunion-kube/pkg/helm/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type Release struct {
 	*release.Release
+	// Onecloud cluster data
+	*api.ClusterMeta
 }
 
 var emptyList = &ReleaseList{
-	ListMeta: dataselect.NewListMeta(),
+	BaseList: common.NewBaseList(nil),
 	Releases: make([]*Release, 0),
 }
 
 type ReleaseList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	Releases []*Release
 }
 
-func ToRelease(release *release.Release) *Release {
-	return &Release{release}
+func ToRelease(release *release.Release, cluster api.ICluster) *Release {
+	return &Release{
+		Release:     release,
+		ClusterMeta: api.NewClusterMeta(cluster),
+	}
 }
 
 func (r Release) ToListItem() jsonutils.JSONObject {
@@ -47,7 +53,7 @@ func (man *SReleaseManager) List(req *common.Request) (common.ListResource, erro
 		return nil, err
 	}
 	q.Namespace = req.GetNamespaceQuery().ToRequestParam()
-	return man.GetReleaseList(cli, q, req.ToQuery())
+	return man.GetReleaseList(cli, req.GetCluster(), q, req.ToQuery())
 }
 
 type ReleaseListQuery struct {
@@ -110,7 +116,7 @@ func (q ReleaseListQuery) statusCodes() []release.Status_Code {
 	return status
 }
 
-func (man *SReleaseManager) GetReleaseList(helmclient *client.HelmTunnelClient, q ReleaseListQuery, dsQuery *dataselect.DataSelectQuery) (*ReleaseList, error) {
+func (man *SReleaseManager) GetReleaseList(helmclient *client.HelmTunnelClient, cluster api.ICluster, q ReleaseListQuery, dsQuery *dataselect.DataSelectQuery) (*ReleaseList, error) {
 	list, err := ListReleases(helmclient, q)
 	if err != nil {
 		return nil, err
@@ -118,21 +124,21 @@ func (man *SReleaseManager) GetReleaseList(helmclient *client.HelmTunnelClient, 
 	if list == nil {
 		return emptyList, nil
 	}
-	releaseList, err := ToReleaseList(list, dsQuery)
+	releaseList, err := ToReleaseList(list, cluster, dsQuery)
 	return releaseList, err
 }
 
 func (l *ReleaseList) Append(obj interface{}) {
-	l.Releases = append(l.Releases, ToRelease(obj.(*release.Release)))
+	l.Releases = append(l.Releases, ToRelease(obj.(*release.Release), l.GetCluster()))
 }
 
 func (l *ReleaseList) GetResponseData() interface{} {
 	return l.Releases
 }
 
-func ToReleaseList(releases []*release.Release, dsQuery *dataselect.DataSelectQuery) (*ReleaseList, error) {
+func ToReleaseList(releases []*release.Release, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*ReleaseList, error) {
 	list := &ReleaseList{
-		ListMeta: dataselect.NewListMeta(),
+		BaseList: common.NewBaseList(cluster),
 		Releases: make([]*Release, 0),
 	}
 	err := dataselect.ToResourceList(

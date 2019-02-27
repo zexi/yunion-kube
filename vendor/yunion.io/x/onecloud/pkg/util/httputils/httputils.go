@@ -11,19 +11,29 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/moul/http2curl"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/trace"
-
-	"yunion.io/x/onecloud/pkg/appctx"
 )
+
+type THttpMethod string
 
 const (
 	USER_AGENT = "yunioncloud-go/201708"
+
+	GET    = THttpMethod("GET")
+	HEAD   = THttpMethod("HEAD")
+	POST   = THttpMethod("POST")
+	PUT    = THttpMethod("PUT")
+	PATCH  = THttpMethod("PATCH")
+	DELETE = THttpMethod("DELETE")
+	OPTION = THttpMethod("OPTION")
 )
 
 var (
@@ -45,8 +55,13 @@ type JSONClientError struct {
 	Data    Error
 }
 
+type JSONClientErrorMsg struct {
+	Error *JSONClientError
+}
+
 func (e *JSONClientError) Error() string {
-	return fmt.Sprintf("JSONClientError: %s %d %s", e.Details, e.Code, e.Class)
+	errMsg := JSONClientErrorMsg{Error: e}
+	return jsonutils.Marshal(errMsg).String()
 }
 
 func headerExists(header *http.Header, key string) bool {
@@ -92,6 +107,12 @@ func GetClient(insecure bool) *http.Client {
 	return &http.Client{Transport: tr}
 }
 
+func GetTimeoutClient(timeout time.Duration) *http.Client {
+	client := GetClient(true)
+	client.Timeout = timeout
+	return client
+}
+
 var defaultHttpClient *http.Client
 
 func init() {
@@ -102,7 +123,10 @@ func GetDefaultClient() *http.Client {
 	return defaultHttpClient
 }
 
-func Request(client *http.Client, ctx context.Context, method string, urlStr string, header http.Header, body io.Reader, debug bool) (*http.Response, error) {
+func Request(client *http.Client, ctx context.Context, method THttpMethod, urlStr string, header http.Header, body io.Reader, debug bool) (*http.Response, error) {
+	if client == nil {
+		client = defaultHttpClient
+	}
 	if header == nil {
 		header = http.Header{}
 	}
@@ -119,8 +143,7 @@ func Request(client *http.Client, ctx context.Context, method string, urlStr str
 	if len(ctxData.RequestId) > 0 {
 		header.Set("X-Request-Id", ctxData.RequestId)
 	}
-	method = strings.ToUpper(method)
-	req, err := http.NewRequest(method, urlStr, body)
+	req, err := http.NewRequest(string(method), urlStr, body)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +176,7 @@ func Request(client *http.Client, ctx context.Context, method string, urlStr str
 	return resp, err
 }
 
-func JSONRequest(client *http.Client, ctx context.Context, method string, urlStr string, header http.Header, body jsonutils.JSONObject, debug bool) (http.Header, jsonutils.JSONObject, error) {
+func JSONRequest(client *http.Client, ctx context.Context, method THttpMethod, urlStr string, header http.Header, body jsonutils.JSONObject, debug bool) (http.Header, jsonutils.JSONObject, error) {
 	bodystr := ""
 	if !gotypes.IsNil(body) {
 		bodystr = body.String()
@@ -189,7 +212,7 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 	}
 	rbody, err := ioutil.ReadAll(resp.Body)
 	if debug {
-		fmt.Fprintf(os.Stderr, "%s\n", string(rbody))
+		fmt.Fprintf(os.Stderr, "Response body: %s\n", string(rbody))
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("Fail to read body: %s", err)
@@ -221,26 +244,41 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 			return nil, nil, &ce
 		}
 
-		jrbody2, err := jrbody.Get("error")
-		if err == nil {
-			ecode, err := jrbody2.Int("code")
-			if err == nil {
-				ce.Code = int(ecode)
-				ce.Details, _ = jrbody2.GetString("message")
-				ce.Class, _ = jrbody2.GetString("title")
-				return nil, nil, &ce
-			} else {
-				ce.Code = resp.StatusCode
-				ce.Details = jrbody2.String()
-				return nil, nil, &ce
-			}
-		}
-
 		err = jrbody.Unmarshal(&ce)
-		if err != nil {
-			return nil, nil, err
-		} else {
+		if len(ce.Class) > 0 && ce.Code >= 400 && len(ce.Details) > 0 {
 			return nil, nil, &ce
 		}
+
+		jrbody1, err := jrbody.GetMap()
+		if err != nil {
+			err = jrbody.Unmarshal(&ce)
+			if err != nil {
+				ce.Details = err.Error()
+			}
+			return nil, nil, &ce
+		}
+		var jrbody2 jsonutils.JSONObject
+		if len(jrbody1) > 1 {
+			jrbody2 = jsonutils.Marshal(jrbody1)
+		} else {
+			for _, v := range jrbody1 {
+				jrbody2 = v
+			}
+		}
+		if ecode, _ := jrbody2.GetString("code"); len(ecode) > 0 {
+			code, err := strconv.Atoi(ecode)
+			if err != nil {
+				ce.Class = ecode
+			} else {
+				ce.Code = code
+			}
+		}
+		if edetail := jsonutils.GetAnyString(jrbody2, []string{"message", "detail", "error_msg"}); len(edetail) > 0 {
+			ce.Details = edetail
+		}
+		if eclass := jsonutils.GetAnyString(jrbody2, []string{"title", "type", "error_code"}); len(eclass) > 0 {
+			ce.Class = eclass
+		}
+		return nil, nil, &ce
 	}
 }

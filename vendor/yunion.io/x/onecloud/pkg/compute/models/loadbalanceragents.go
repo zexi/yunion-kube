@@ -20,7 +20,6 @@ import (
 
 type SLoadbalancerAgentManager struct {
 	db.SStandaloneResourceBaseManager
-	SInfrastructureManager
 }
 
 var LoadbalancerAgentManager *SLoadbalancerAgentManager
@@ -46,7 +45,6 @@ func init() {
 //
 type SLoadbalancerAgent struct {
 	db.SStandaloneResourceBase
-	SInfrastructure
 
 	HbLastSeen time.Time                 `nullable:"true" list:"admin" update:"admin"`
 	HbTimeout  int                       `nullable:"true" list:"admin" update:"admin" create:"optional" default:"3600"`
@@ -237,6 +235,26 @@ func (p *SLoadbalancerAgentParams) IsZero() bool {
 	return false
 }
 
+func (self *SLoadbalancerAgentManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return db.IsAdminAllowList(userCred, self)
+}
+
+func (self *SLoadbalancerAgentManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowCreate(userCred, self)
+}
+
+func (self *SLoadbalancerAgent) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return db.IsAdminAllowGet(userCred, self)
+}
+
+func (self *SLoadbalancerAgent) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return db.IsAdminAllowUpdate(userCred, self)
+}
+
+func (self *SLoadbalancerAgent) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowDelete(userCred, self)
+}
+
 func (man *SLoadbalancerAgentManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	{
 		keyV := map[string]validators.IValidator{
@@ -252,7 +270,7 @@ func (man *SLoadbalancerAgentManager) ValidateCreateData(ctx context.Context, us
 	return man.SStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
 
-func (man *SLoadbalancerAgentManager) CleanPendingDeleteLoadbalancers(ctx context.Context, userCred mcclient.TokenCredential) {
+func (man *SLoadbalancerAgentManager) CleanPendingDeleteLoadbalancers(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
 	agents := []SLoadbalancerAgent{}
 	{
 		// find active agents
@@ -312,6 +330,7 @@ func (man *SLoadbalancerAgentManager) CleanPendingDeleteLoadbalancers(ctx contex
 				log.Errorf("%s: query pending_deleted_at < %s: %s", keyPlural, minT, err)
 				continue
 			}
+			defer rows.Close()
 			m, err := db.NewModelObject(man)
 			if err != nil {
 				log.Errorf("%s: new model object failed: %s", keyPlural, err)
@@ -351,10 +370,6 @@ func (man *SLoadbalancerAgentManager) CleanPendingDeleteLoadbalancers(ctx contex
 			}
 		}
 	}
-}
-
-func (man *SLoadbalancerAgentManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
 }
 
 func (lbagent *SLoadbalancerAgent) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -400,7 +415,7 @@ func (lbagent *SLoadbalancerAgent) ValidateUpdateData(ctx context.Context, userC
 }
 
 func (lbagent *SLoadbalancerAgent) AllowPerformHb(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) bool {
-	return userCred.IsSystemAdmin()
+	return db.IsAdminAllowPerform(userCred, lbagent, "hb")
 }
 
 func (lbagent *SLoadbalancerAgent) PerformHb(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -426,7 +441,7 @@ func (lbagent *SLoadbalancerAgent) IsActive() bool {
 }
 
 func (lbagent *SLoadbalancerAgent) AllowPerformParamsPatch(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) bool {
-	return userCred.IsSystemAdmin()
+	return db.IsAdminAllowPerform(userCred, lbagent, "params-patch")
 }
 
 func (lbagent *SLoadbalancerAgent) PerformParamsPatch(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {

@@ -70,7 +70,7 @@ type STask struct {
 }
 
 func (manager *STaskManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return true
 }
 
 func (manager *STaskManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -115,7 +115,7 @@ func (manager *STaskManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sq
 }
 
 func (self *STask) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin() || userCred.GetProjectId() == self.UserCred.GetProjectId()
+	return db.IsAdminAllowGet(userCred, self) || userCred.GetProjectId() == self.UserCred.GetProjectId()
 }
 
 func (self *STask) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
@@ -287,6 +287,14 @@ func (manager *STaskManager) fetchTask(idStr string) *STask {
 	return task
 }
 
+func (manager *STaskManager) getTaskName(taskId string) string {
+	baseTask := manager.fetchTask(taskId)
+	if baseTask == nil {
+		return ""
+	}
+	return baseTask.TaskName
+}
+
 func (manager *STaskManager) execTask(taskId string, data jsonutils.JSONObject) {
 	baseTask := manager.fetchTask(taskId)
 	if baseTask == nil {
@@ -398,8 +406,8 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 		}
 		task.taskObjects = objs
 
-		// lockman.LockClass(ctx, objResManager, task.UserCred.GetProjectId())
-		// defer lockman.ReleaseClass(ctx, objResManager, task.UserCred.GetProjectId())
+		lockman.LockClass(ctx, objResManager, task.UserCred.GetProjectId())
+		defer lockman.ReleaseClass(ctx, objResManager, task.UserCred.GetProjectId())
 
 		params[1] = reflect.ValueOf(objs)
 	} else {
@@ -413,8 +421,8 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 		}
 		task.taskObject = obj
 
-		// lockman.LockObject(ctx, obj)
-		// defer lockman.ReleaseObject(ctx, obj)
+		lockman.LockObject(ctx, obj)
+		defer lockman.ReleaseObject(ctx, obj)
 
 		params[1] = reflect.ValueOf(obj)
 	}
@@ -427,7 +435,7 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 		return
 	}
 
-	log.Debugf("Call %s %s", task.TaskName, stageName)
+	log.Debugf("Call %s %s %#v", task.TaskName, stageName, params)
 	funcValue.Call(params)
 
 	// call save request context
@@ -470,30 +478,37 @@ func (self *STask) SaveRequestContext(data *appctx.AppContextData) {
 	}
 }
 
-func (self *STask) SetStage(stageName string, data *jsonutils.JSONDict) {
+func (self *STask) SaveParams(data *jsonutils.JSONDict) error {
+	return self.SetStage("", data)
+}
+
+func (self *STask) SetStage(stageName string, data *jsonutils.JSONDict) error {
 	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
 		params := jsonutils.NewDict()
 		params.Update(self.Params)
 		if data != nil {
 			params.Update(data)
 		}
-		stages, _ := params.Get("__stages")
-		if stages == nil {
-			stages = jsonutils.NewArray()
-			params.Add(stages, "__stages")
+		if len(stageName) > 0 {
+			stages, _ := params.Get("__stages")
+			if stages == nil {
+				stages = jsonutils.NewArray()
+				params.Add(stages, "__stages")
+			}
+			stageList := stages.(*jsonutils.JSONArray)
+			stageData := jsonutils.NewDict()
+			stageData.Add(jsonutils.NewString(self.Stage), "name")
+			stageData.Add(jsonutils.NewTimeString(time.Now()), "complete_at")
+			stageList.Add(stageData)
+			self.Stage = stageName
 		}
-		stageList := stages.(*jsonutils.JSONArray)
-		stageData := jsonutils.NewDict()
-		stageData.Add(jsonutils.NewString(self.Stage), "name")
-		stageData.Add(jsonutils.NewTimeString(time.Now()), "complete_at")
-		stageList.Add(stageData)
-		self.Stage = stageName
 		self.Params = params
 		return nil
 	})
 	if err != nil {
 		log.Errorf("set_stage fail %s", err)
 	}
+	return err
 }
 
 func (self *STask) GetObjectIdStr() string {
@@ -651,4 +666,14 @@ func (self *STask) GetObject() db.IStandaloneModel {
 
 func (self *STask) GetObjects() []db.IStandaloneModel {
 	return self.taskObjects
+}
+
+func (task *STask) GetTaskRequestHeader() http.Header {
+	header := mcclient.GetTokenHeaders(task.GetUserCred())
+	header.Set(mcclient.TASK_ID, task.GetTaskId())
+	return header
+}
+
+func (task *STask) GetStartTime() time.Time {
+	return task.CreatedAt
 }

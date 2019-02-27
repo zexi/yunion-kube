@@ -41,15 +41,15 @@ func (d Deployment) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SDeploymentManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SDeploymentManager) ListV2(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetDeploymentList(client, nsQuery, dsQuery)
+func (man *SDeploymentManager) ListV2(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetDeploymentList(client, cluster, nsQuery, dsQuery)
 }
 
 type DeploymentList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	deployments []Deployment
 	replicasets []apps.ReplicaSet
 	pods        []v1.Pod
@@ -60,7 +60,7 @@ func (l *DeploymentList) GetDeployments() []Deployment {
 	return l.deployments
 }
 
-func (man *SDeploymentManager) GetDeploymentList(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*DeploymentList, error) {
+func (man *SDeploymentManager) GetDeploymentList(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*DeploymentList, error) {
 	log.Infof("Getting list of all deployments in the cluster")
 
 	channels := &common.ResourceChannels{
@@ -70,7 +70,7 @@ func (man *SDeploymentManager) GetDeploymentList(client client.Interface, nsQuer
 		ReplicaSetList: common.GetReplicaSetListChannel(client, nsQuery),
 	}
 
-	return GetDeploymentListFromChannels(channels, dsQuery)
+	return GetDeploymentListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *DeploymentList) Append(obj interface{}) {
@@ -79,6 +79,7 @@ func (l *DeploymentList) Append(obj interface{}) {
 		l.replicasets,
 		l.pods,
 		l.events,
+		l.GetCluster(),
 	))
 }
 
@@ -86,13 +87,13 @@ func (l *DeploymentList) GetResponseData() interface{} {
 	return l.deployments
 }
 
-func ToDeployment(deployment apps.Deployment, rs []apps.ReplicaSet, pods []v1.Pod, events []v1.Event) Deployment {
+func ToDeployment(deployment apps.Deployment, rs []apps.ReplicaSet, pods []v1.Pod, events []v1.Event, cluster api.ICluster) Deployment {
 	matchingPods := common.FilterDeploymentPodsByOwnerReference(deployment, rs, pods)
 	podInfo := common.GetPodInfo(deployment.Status.Replicas, deployment.Spec.Replicas, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
 
 	return Deployment{
-		ObjectMeta:          api.NewObjectMeta(deployment.ObjectMeta),
+		ObjectMeta:          api.NewObjectMetaV2(deployment.ObjectMeta, cluster),
 		TypeMeta:            api.NewTypeMeta(api.ResourceKindDeployment),
 		ContainerImages:     common.GetContainerImages(&deployment.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&deployment.Spec.Template.Spec),
@@ -102,7 +103,7 @@ func ToDeployment(deployment apps.Deployment, rs []apps.ReplicaSet, pods []v1.Po
 	}
 }
 
-func GetDeploymentListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*DeploymentList, error) {
+func GetDeploymentListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*DeploymentList, error) {
 	deployments := <-channels.DeploymentList.List
 	err := <-channels.DeploymentList.Error
 	if err != nil {
@@ -128,7 +129,7 @@ func GetDeploymentListFromChannels(channels *common.ResourceChannels, dsQuery *d
 	}
 
 	deploymentList := &DeploymentList{
-		ListMeta:    dataselect.NewListMeta(),
+		BaseList:    common.NewBaseList(cluster),
 		deployments: make([]Deployment, 0),
 		pods:        pods.Items,
 		events:      events.Items,

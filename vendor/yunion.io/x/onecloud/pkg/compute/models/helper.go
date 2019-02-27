@@ -3,15 +3,16 @@ package models
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strings"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/utils"
 
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
@@ -47,7 +48,7 @@ func ValidateScheduleCreateData(ctx context.Context, userCred mcclient.TokenCred
 	// base validate_create_data
 	if (data.Contains("prefer_baremetal") || data.Contains("prefer_host")) && hypervisor != HYPERVISOR_CONTAINER {
 
-		if !userCred.IsSystemAdmin() {
+		if !userCred.IsAdminAllow(consts.GetServiceType(), GuestManager.KeywordPlural(), policy.PolicyActionPerform, "assign-host") {
 			return nil, httperrors.NewNotSufficientPrivilegeError("Only system admin can specify preferred host")
 		}
 		bmName, _ := data.GetString("prefer_host")
@@ -83,6 +84,13 @@ func ValidateScheduleCreateData(ctx context.Context, userCred mcclient.TokenCred
 		if err != nil {
 			return nil, err
 		}
+
+		data.Set("prefer_baremetal_id", jsonutils.NewString(baremetal.Id))
+		data.Set("prefer_host_id", jsonutils.NewString(baremetal.Id))
+		zone := baremetal.GetZone()
+		data.Set("prefer_zone_id", jsonutils.NewString(zone.Id))
+		region := zone.GetRegion()
+		data.Set("prefer_region_id", jsonutils.NewString(region.Id))
 	} else {
 		schedtags := make(map[string]string)
 		if data.Contains("aggregate_strategy") {
@@ -91,8 +99,9 @@ func ValidateScheduleCreateData(ctx context.Context, userCred mcclient.TokenCred
 				return nil, httperrors.NewInputParameterError("invalid aggregate_strategy")
 			}
 		}
-		for idx := 0; data.Contains(fmt.Sprintf("schedtag.%d", idx)); idx += 1 {
-			aggStr, _ := data.GetString(fmt.Sprintf("schedtag.%d", idx))
+		aggArray := jsonutils.GetArrayOfPrefix(data, "schedtag")
+		for idx := 0; idx < len(aggArray); idx += 1 { // data.Contains(fmt.Sprintf("schedtag.%d", idx)); idx += 1 {
+			aggStr, _ := aggArray[idx].GetString() // .GetString(fmt.Sprintf("schedtag.%d", idx))
 			if len(aggStr) > 0 {
 				parts := strings.Split(aggStr, ":")
 				if len(parts) >= 2 && len(parts[0]) > 0 && len(parts[1]) > 0 {
@@ -119,9 +128,11 @@ func ValidateScheduleCreateData(ctx context.Context, userCred mcclient.TokenCred
 				}
 			}
 			wire := wireObj.(*SWire)
-			data.Add(jsonutils.NewString(wire.Id), "prefer_wire_id")
+			data.Set("prefer_wire_id", jsonutils.NewString(wire.Id))
 			zone := wire.GetZone()
-			data.Add(jsonutils.NewString(zone.Id), "prefer_zone_id")
+			data.Set("prefer_zone_id", jsonutils.NewString(zone.Id))
+			region := zone.GetRegion()
+			data.Set("prefer_region_id", jsonutils.NewString(region.Id))
 		} else if data.Contains("prefer_zone") {
 			zoneStr, _ := data.GetString("prefer_zone")
 			zoneObj, err := ZoneManager.FetchById(zoneStr)
@@ -133,7 +144,21 @@ func ValidateScheduleCreateData(ctx context.Context, userCred mcclient.TokenCred
 				}
 			}
 			zone := zoneObj.(*SZone)
-			data.Add(jsonutils.NewString(zone.Id), "prefer_zone_id")
+			data.Set("prefer_zone_id", jsonutils.NewString(zone.Id))
+			region := zone.GetRegion()
+			data.Set("prefer_region_id", jsonutils.NewString(region.Id))
+		} else if data.Contains("prefer_region") {
+			regionStr, _ := data.GetString("prefer_region")
+			regionObj, err := CloudregionManager.FetchById(regionStr)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return nil, httperrors.NewResourceNotFoundError("Region %s not found", regionStr)
+				} else {
+					return nil, httperrors.NewGeneralError(err)
+				}
+			}
+			region := regionObj.(*SCloudregion)
+			data.Set("prefer_region_id", jsonutils.NewString(region.Id))
 		}
 	}
 

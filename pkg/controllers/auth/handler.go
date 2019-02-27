@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"yunion.io/x/log"
-	"k8s.io/apiserver/pkg/authentication/authenticator"
 )
 
 type userInfo struct {
@@ -22,7 +21,7 @@ type status struct {
 }
 
 type WebhookHandler struct {
-	Authenticator authenticator.Token
+	Authenticator *KeystoneAuthenticator
 }
 
 func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -13,7 +13,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
-type TResourceFilter func(*mcclient.ClientSession, jsonutils.JSONObject) (jsonutils.JSONObject, error)
+type TResourceFilter func(*mcclient.ClientSession, jsonutils.JSONObject, jsonutils.JSONObject) (jsonutils.JSONObject, error)
 
 const (
 	DEFAULT_NAME_FIELD_NAME = "name"
@@ -126,7 +126,7 @@ func (this *ResourceManager) GetByIdInContexts(session *mcclient.ClientSession, 
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, obj)
+	return this.filterSingleResult(session, obj, params)
 }
 
 func (this *ResourceManager) GetByName(session *mcclient.ClientSession, name string, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -255,7 +255,7 @@ func (this *ResourceManager) ListInContexts(session *mcclient.ClientSession, par
 	if err != nil {
 		return nil, err
 	}
-	return this.filterListResults(session, results)
+	return this.filterListResults(session, results, params)
 }
 
 func (this *ResourceManager) Head(session *mcclient.ClientSession, id string, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -278,14 +278,14 @@ func (this *ResourceManager) HeadInContexts(session *mcclient.ClientSession, id 
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, result)
+	return this.filterSingleResult(session, result, params)
 }
 
 func (this *ResourceManager) params2Body(s *mcclient.ClientSession, params jsonutils.JSONObject) *jsonutils.JSONDict {
 	body := jsonutils.NewDict()
 	if params != nil {
 		if this.enableFilter && this.writeFilter != nil {
-			val, err := this.writeFilter(s, params)
+			val, err := this.writeFilter(s, params, nil)
 			if err == nil {
 				params = val
 			} else {
@@ -311,7 +311,7 @@ func (this *ResourceManager) CreateInContexts(session *mcclient.ClientSession, p
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, result)
+	return this.filterSingleResult(session, result, nil)
 }
 
 func (this *ResourceManager) BatchCreate(session *mcclient.ClientSession, params jsonutils.JSONObject, count int) []SubmitResult {
@@ -349,7 +349,7 @@ func (this *ResourceManager) BatchCreateInContexts(session *mcclient.ClientSessi
 			code, _ := json.Int("status")
 			dat, _ := json.Get("body")
 			if this.enableFilter && this.readFilter != nil {
-				val, err := this.readFilter(session, dat)
+				val, err := this.readFilter(session, dat, nil)
 				if err != nil {
 					log.Warningf("readFilter fail for %s: %s", dat, err)
 				} else {
@@ -381,7 +381,7 @@ func (this *ResourceManager) PutInContexts(session *mcclient.ClientSession, id s
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, result)
+	return this.filterSingleResult(session, result, nil)
 }
 
 func (this *ResourceManager) BatchUpdate(session *mcclient.ClientSession, idlist []string, params jsonutils.JSONObject) []SubmitResult {
@@ -416,7 +416,7 @@ func (this *ResourceManager) PatchInContexts(session *mcclient.ClientSession, id
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, result)
+	return this.filterSingleResult(session, result, nil)
 }
 
 func (this *ResourceManager) BatchPatch(session *mcclient.ClientSession, idlist []string, params jsonutils.JSONObject) []SubmitResult {
@@ -447,7 +447,7 @@ func (this *ResourceManager) PerformActionInContexts(session *mcclient.ClientSes
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, result)
+	return this.filterSingleResult(session, result, nil)
 }
 
 func (this *ResourceManager) PerformClassAction(session *mcclient.ClientSession, action string, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -485,6 +485,10 @@ func (this *ResourceManager) DeleteInContext(session *mcclient.ClientSession, id
 	return this.DeleteInContexts(session, id, body, []ManagerContext{{ctx, ctxid}})
 }
 
+func (this *ResourceManager) DeleteInContextWithParam(session *mcclient.ClientSession, id string, query jsonutils.JSONObject, body jsonutils.JSONObject, ctx Manager, ctxid string) (jsonutils.JSONObject, error) {
+	return this.DeleteInContextsWithParam(session, id, query, body, []ManagerContext{{ctx, ctxid}})
+}
+
 func (this *ResourceManager) DeleteInContexts(session *mcclient.ClientSession, id string, body jsonutils.JSONObject, ctxs []ManagerContext) (jsonutils.JSONObject, error) {
 	return this.deleteInContexts(session, id, nil, body, ctxs)
 }
@@ -508,7 +512,7 @@ func (this *ResourceManager) deleteInContexts(session *mcclient.ClientSession, i
 	if err != nil {
 		return nil, err
 	}
-	return this.filterSingleResult(session, result)
+	return this.filterSingleResult(session, result, nil)
 }
 
 func (this *ResourceManager) BatchDelete(session *mcclient.ClientSession, idlist []string, body jsonutils.JSONObject) []SubmitResult {
@@ -541,4 +545,8 @@ func (this *ResourceManager) BatchDeleteInContextsWithParam(session *mcclient.Cl
 
 func (this *ResourceManager) GetMetadata(session *mcclient.ClientSession, id string, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	return this.GetSpecific(session, id, "metadata", params)
+}
+
+func (this *ResourceManager) SetMetadata(session *mcclient.ClientSession, id string, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return this.PerformAction(session, id, "metadata", params)
 }

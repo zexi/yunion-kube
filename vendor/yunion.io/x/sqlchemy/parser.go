@@ -6,16 +6,30 @@ import (
 	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/reflectutils"
-	"yunion.io/x/pkg/utils"
 )
 
-func structField2ColumnSpec(field *reflect.StructField) IColumnSpec {
-	fieldname := reflectutils.GetStructFieldName(field)
-	tagmap := utils.TagMap(field.Tag)
+func structField2ColumnSpec(field *reflectutils.SStructFieldValue) IColumnSpec {
+	fieldname := field.Info.MarshalName()
+	tagmap := field.Info.Tags
 	if _, ok := tagmap[TAG_IGNORE]; ok {
 		return nil
 	}
-	switch field.Type {
+	fieldType := field.Value.Type()
+	var retCol = getFiledTypeCol(fieldType, fieldname, tagmap)
+	if retCol == nil && fieldType.Kind() == reflect.Ptr {
+		retCol = getFiledTypeCol(fieldType.Elem(), fieldname, tagmap)
+		if retCol != nil {
+			retCol.SetIsPointer()
+		}
+	}
+	if retCol == nil {
+		panic("unsupported colume data type %s" + fieldType.Name())
+	}
+	return retCol
+}
+
+func getFiledTypeCol(fieldType reflect.Type, fieldname string, tagmap map[string]string) IColumnSpec {
+	switch fieldType {
 	case gotypes.StringType:
 		col := NewTextColumn(fieldname, tagmap)
 		return &col
@@ -65,7 +79,7 @@ func structField2ColumnSpec(field *reflect.StructField) IColumnSpec {
 			return &col
 		} else {
 			colType := "FLOAT"
-			if field.Type == gotypes.Float64Type {
+			if fieldType == gotypes.Float64Type {
 				colType = "DOUBLE"
 			}
 			col := NewFloatColumn(fieldname, colType, tagmap)
@@ -74,34 +88,24 @@ func structField2ColumnSpec(field *reflect.StructField) IColumnSpec {
 	case gotypes.TimeType:
 		col := NewDateTimeColumn(fieldname, tagmap)
 		return &col
-	/*case jsonutils.JSONDictType:
-		col := NewJSONColumn(fieldname, tagmap)
-		return &col
-	case jsonutils.JSONArrayType:
-		col := NewJSONColumn(fieldname, tagmap)
-		return &col
-	case jsonutils.JSONObjectType:
-		col := NewJSONColumn(fieldname, tagmap)
-		return &col*/
 	default:
-		if field.Type.Implements(gotypes.ISerializableType) {
+		if fieldType.Implements(gotypes.ISerializableType) {
 			col := NewCompoundColumn(fieldname, tagmap)
 			return &col
 		}
-		panic("not supported type %s" + field.Type.Name())
 	}
+	return nil
 }
 
-func struct2TableSpec(st reflect.Type, table *STableSpec) {
-	for i := 0; i < st.NumField(); i++ {
-		f := st.Field(i)
-		if f.Type.Kind() == reflect.Struct && f.Type != gotypes.TimeType {
-			struct2TableSpec(f.Type, table)
-		} else {
-			column := structField2ColumnSpec(&f)
-			if column != nil {
-				table.columns = append(table.columns, column)
+func struct2TableSpec(sv reflect.Value, table *STableSpec) {
+	fields := reflectutils.FetchStructFieldValueSet(sv)
+	for i := 0; i < len(fields); i += 1 {
+		column := structField2ColumnSpec(&fields[i])
+		if column != nil {
+			if column.IsIndex() {
+				table.AddIndex(column.IsUnique(), column.Name())
 			}
+			table.columns = append(table.columns, column)
 		}
 	}
 }

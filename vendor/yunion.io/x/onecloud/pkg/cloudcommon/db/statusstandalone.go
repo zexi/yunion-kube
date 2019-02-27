@@ -3,11 +3,10 @@ package db
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/utils"
+
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/logclient"
 )
 
 type SStatusStandaloneResourceBase struct {
@@ -42,15 +41,15 @@ func (model *SStatusStandaloneResourceBase) SetStatus(userCred mcclient.TokenCre
 			notes = fmt.Sprintf("%s: %s", notes, reason)
 		}
 		OpsLog.LogEvent(model, ACT_UPDATE_STATUS, notes, userCred)
-		if strings.Contains(notes, "fail") {
-			logclient.AddActionLog(model, logclient.ACT_VM_SYNC_STATUS, notes, userCred, false)
-		}
+		// if strings.Contains(notes, "fail") {
+		//	logclient.AddActionLog(model, logclient.ACT_VM_SYNC_STATUS, notes, userCred, false)
+		// }
 	}
 	return nil
 }
 
 func (model *SStatusStandaloneResourceBase) AllowPerformStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return IsAdminAllowPerform(userCred, model, "status")
 }
 
 func (model *SStatusStandaloneResourceBase) PerformStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -61,4 +60,8 @@ func (model *SStatusStandaloneResourceBase) PerformStatus(ctx context.Context, u
 	reason, _ := data.GetString("reason")
 	err = model.SetStatus(userCred, status, reason)
 	return nil, err
+}
+
+func (model *SStatusStandaloneResourceBase) IsInStatus(status ...string) bool {
+	return utils.IsInStringArray(model.Status, status)
 }

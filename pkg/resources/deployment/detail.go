@@ -15,6 +15,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // RollingUpdateStrategy is behavior of a rolling update. See RollingUpdateDeployment K8s object.
@@ -77,10 +78,10 @@ type DeploymentDetail struct {
 
 func (man *SDeploymentManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetDeploymentDetail(req.GetK8sClient(), namespace, id)
+	return GetDeploymentDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
 }
 
-func GetDeploymentDetail(client client.Interface, namespace, deploymentName string) (*DeploymentDetail, error) {
+func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespace, deploymentName string) (*DeploymentDetail, error) {
 	log.Infof("Getting details of %q deployment in %q namespace", deploymentName, namespace)
 	deployment, err := client.AppsV1beta2().Deployments(namespace).Get(deploymentName, metaV1.GetOptions{})
 	if err != nil {
@@ -118,24 +119,24 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		return nil, err
 	}
 
-	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect())
+	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect(), cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items)
+	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items, cluster)
 
-	podList, err := GetDeploymentPods(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	podList, err := GetDeploymentPods(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := event.GetResourceEvents(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	eventList, err := event.GetResourceEvents(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +160,7 @@ func GetDeploymentDetail(client client.Interface, namespace, deploymentName stri
 		}
 
 		newRsPodInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
-		newReplicaSet = replicaset.ToReplicaSet(newRs, &newRsPodInfo)
+		newReplicaSet = replicaset.ToReplicaSet(newRs, &newRsPodInfo, cluster)
 	}
 
 	// Extra Info

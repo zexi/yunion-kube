@@ -12,6 +12,8 @@ type STableSpec struct {
 	structType reflect.Type
 	name       string
 	columns    []IColumnSpec
+	indexes    []STableIndex
+	contraints []STableConstraint
 }
 
 type STable struct {
@@ -26,7 +28,8 @@ type STableField struct {
 }
 
 func NewTableSpecFromStruct(s interface{}, name string) *STableSpec {
-	st := reflect.TypeOf(s)
+	val := reflect.Indirect(reflect.ValueOf(s))
+	st := val.Type()
 	if st.Kind() != reflect.Struct {
 		panic("expect Struct kind")
 	}
@@ -35,7 +38,7 @@ func NewTableSpecFromStruct(s interface{}, name string) *STableSpec {
 		name:       name,
 		structType: st,
 	}
-	struct2TableSpec(st, table)
+	struct2TableSpec(val, table)
 	return table
 }
 

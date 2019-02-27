@@ -30,7 +30,7 @@ type ResourceQuotaDetailList struct {
 	Items        []ResourceQuotaDetail `json:"items"`
 }
 
-func ToResourceQuotaDetail(rawResourceQuota *v1.ResourceQuota) *ResourceQuotaDetail {
+func ToResourceQuotaDetail(rawResourceQuota *v1.ResourceQuota, cluster api.ICluster) *ResourceQuotaDetail {
 	statusList := make(map[v1.ResourceName]ResourceStatus)
 
 	for key, value := range rawResourceQuota.Status.Hard {
@@ -41,7 +41,7 @@ func ToResourceQuotaDetail(rawResourceQuota *v1.ResourceQuota) *ResourceQuotaDet
 		}
 	}
 	return &ResourceQuotaDetail{
-		ObjectMeta: api.NewObjectMeta(rawResourceQuota.ObjectMeta),
+		ObjectMeta: api.NewObjectMetaV2(rawResourceQuota.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindResourceQuota),
 		Scopes:     rawResourceQuota.Spec.Scopes,
 		StatusList: statusList,

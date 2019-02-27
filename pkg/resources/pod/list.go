@@ -40,7 +40,7 @@ type Pod struct {
 }
 
 type PodList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	Pods   []Pod
 	Events []v1.Event
 }
@@ -54,29 +54,39 @@ func (l *PodList) GetResponseData() interface{} {
 }
 
 func (man *SPodManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SPodManager) ListV2(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetPodList(k8sCli, nsQuery, dsQuery)
+func (man *SPodManager) ListV2(
+	k8sCli kubernetes.Interface,
+	cluster api.ICluster,
+	nsQuery *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery,
+) (common.ListResource, error) {
+	return man.GetPodList(k8sCli, nsQuery, dsQuery, cluster)
 }
 
-func (man *SPodManager) GetPodList(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
+func (man *SPodManager) GetPodList(
+	k8sCli kubernetes.Interface,
+	nsQuery *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery,
+	cluster api.ICluster,
+) (*PodList, error) {
 	log.Infof("Getting list of all pods in the cluster")
 	channels := &common.ResourceChannels{
 		PodList:   common.GetPodListChannelWithOptions(k8sCli, nsQuery, metaV1.ListOptions{}),
 		EventList: common.GetEventListChannel(k8sCli, nsQuery),
 	}
-	return GetPodListFromChannels(channels, dsQuery)
+	return GetPodListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *PodList) Append(obj interface{}) {
 	pod := obj.(v1.Pod)
 	warnings := event.GetPodsEventWarnings(l.Events, []v1.Pod{pod})
-	l.Pods = append(l.Pods, ToPod(pod, warnings))
+	l.Pods = append(l.Pods, ToPod(pod, warnings, l.GetCluster()))
 }
 
-func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
+func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
 	pods := <-channels.PodList.List
 	err := <-channels.PodList.Error
 	if err != nil {
@@ -89,13 +99,13 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, err
 	}
 
-	podList, err := ToPodList(pods.Items, eventList.Items, dsQuery)
+	podList, err := ToPodList(pods.Items, eventList.Items, dsQuery, cluster)
 	return podList, err
 }
 
-func ToPodList(pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery) (*PodList, error) {
+func ToPodList(pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
 	podList := &PodList{
-		ListMeta: dataselect.NewListMeta(),
+		BaseList: common.NewBaseList(cluster),
 		Pods:     make([]Pod, 0),
 		Events:   events,
 	}

@@ -14,6 +14,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // JobDetail is a presentation layer view of Kubernetes Job resource. This means
@@ -30,16 +31,16 @@ type JobDetail struct {
 }
 
 func (man *SJobManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetJobDetail(req.GetK8sClient(), req.GetNamespaceQuery().ToRequestParam(), id)
+	return GetJobDetail(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
-func GetJobDetail(client kubernetes.Interface, namespace, name string) (*JobDetail, error) {
+func GetJobDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*JobDetail, error) {
 	jobData, err := client.BatchV1().Jobs(namespace).Get(name, metaV1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	podList, err := GetJobPods(client, dataselect.DefaultDataSelect(), namespace, name)
+	podList, err := GetJobPods(client, cluster, dataselect.DefaultDataSelect(), namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -49,19 +50,23 @@ func GetJobDetail(client kubernetes.Interface, namespace, name string) (*JobDeta
 		return nil, err
 	}
 
-	eventList, err := GetJobEvents(client, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
+	eventList, err := GetJobEvents(client, cluster, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	commonJob := toJob(jobData, podInfo)
+	commonJob := toJob(jobData, podInfo, cluster)
 
 	job := toJobDetail(commonJob, *eventList, *podList, *podInfo)
 	return &job, nil
 }
 
 // GetJobPods return list of pods targeting job.
-func GetJobPods(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace string, jobName string) (*pod.PodList, error) {
+func GetJobPods(
+	client kubernetes.Interface,
+	cluster api.ICluster,
+	dsQuery *dataselect.DataSelectQuery,
+	namespace string, jobName string) (*pod.PodList, error) {
 	log.Infof("Getting replication controller %s pods in namespace %s", jobName, namespace)
 
 	pods, err := getRawJobPods(client, jobName, namespace)
@@ -74,7 +79,7 @@ func GetJobPods(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery
 		return nil, err
 	}
 
-	return pod.ToPodList(pods, events, dsQuery)
+	return pod.ToPodList(pods, events, dsQuery, cluster)
 }
 
 // Returns array of api pods targeting job with given name.
@@ -136,12 +141,12 @@ func toJobDetail(job Job, eventList common.EventList, podList pod.PodList, podIn
 }
 
 // GetJobEvents gets events associated to job.
-func GetJobEvents(client kubernetes.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
+func GetJobEvents(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
 	jobEvents, err := event.GetEvents(client, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	list, err := event.CreateEventList(jobEvents, dsQuery)
+	list, err := event.CreateEventList(jobEvents, dsQuery, cluster)
 	return &list, err
 }

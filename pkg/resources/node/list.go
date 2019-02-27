@@ -14,7 +14,7 @@ import (
 // NodeList contains a list of nodes in the cluster.
 type NodeList struct {
 	client client.Interface
-	*dataselect.ListMeta
+	*common.BaseList
 	Nodes []Node `json:"nodes"`
 }
 
@@ -23,7 +23,7 @@ func (l *NodeList) GetResponseData() interface{} {
 }
 
 func (man *SNodeManager) List(req *common.Request) (common.ListResource, error) {
-	return GetNodeList(req.GetK8sClient(), req.ToQuery())
+	return GetNodeList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
 }
 
 // Node is a presentation layer view of Kubernetes nodes. This means it is node plus additional
@@ -36,7 +36,7 @@ type Node struct {
 }
 
 // GetNodeListFromChannels returns a list of all Nodes in the cluster.
-func GetNodeListFromChannels(client client.Interface, channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*NodeList, error) {
+func GetNodeListFromChannels(client client.Interface, channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*NodeList, error) {
 
 	nodes := <-channels.NodeList.List
 	err := <-channels.NodeList.Error
@@ -45,24 +45,24 @@ func GetNodeListFromChannels(client client.Interface, channels *common.ResourceC
 		return nil, err
 	}
 
-	return toNodeList(client, nodes.Items, dsQuery)
+	return toNodeList(client, nodes.Items, dsQuery, cluster)
 }
 
 // GetNodeList returns a list of all Nodes in the cluster.
-func GetNodeList(client client.Interface, dsQuery *dataselect.DataSelectQuery) (*NodeList, error) {
+func GetNodeList(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*NodeList, error) {
 	nodes, err := client.CoreV1().Nodes().List(api.ListEverything)
 	if err != nil {
 		return nil, err
 	}
 
-	return toNodeList(client, nodes.Items, dsQuery)
+	return toNodeList(client, nodes.Items, dsQuery, cluster)
 }
 
-func toNodeList(client client.Interface, nodes []v1.Node, dsQuery *dataselect.DataSelectQuery) (*NodeList, error) {
+func toNodeList(client client.Interface, nodes []v1.Node, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*NodeList, error) {
 	nodeList := &NodeList{
+		BaseList: common.NewBaseList(cluster),
 		client:   client,
 		Nodes:    make([]Node, 0),
-		ListMeta: dataselect.NewListMeta(),
 	}
 
 	err := dataselect.ToResourceList(
@@ -81,17 +81,17 @@ func (l *NodeList) Append(obj interface{}) {
 	if err != nil {
 		log.Errorf("Couldn't get pods of %s node: %s\n", node.Name, err)
 	}
-	l.Nodes = append(l.Nodes, toNode(node, pods))
+	l.Nodes = append(l.Nodes, toNode(node, pods, l.GetCluster()))
 }
 
-func toNode(node v1.Node, pods *v1.PodList) Node {
+func toNode(node v1.Node, pods *v1.PodList, cluster api.ICluster) Node {
 	allocatedResources, err := getNodeAllocatedResources(node, pods)
 	if err != nil {
 		log.Errorf("Couldn't get allocated resources of %s node: %s\n", node.Name, err)
 	}
 
 	return Node{
-		ObjectMeta:         api.NewObjectMeta(node.ObjectMeta),
+		ObjectMeta:         api.NewObjectMeta(node.ObjectMeta, cluster),
 		TypeMeta:           api.NewTypeMeta(api.ResourceKindNode),
 		Ready:              getNodeConditionStatus(node, v1.NodeReady),
 		AllocatedResources: allocatedResources,

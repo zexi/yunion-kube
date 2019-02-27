@@ -11,6 +11,7 @@ import (
 
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/gotypes"
+	"yunion.io/x/pkg/util/reflectutils"
 	"yunion.io/x/pkg/utils"
 )
 
@@ -87,7 +88,7 @@ func NewArgumentParser(target interface{}, prog, desc, epilog string) (*Argument
 		epilog: epilog, target: target}
 	target_type := reflect.TypeOf(target).Elem()
 	target_value := reflect.ValueOf(target).Elem()
-	e := parser.addStructArgument(target_type, target_value)
+	e := parser.addStructArgument("", target_type, target_value)
 	if e != nil {
 		return nil, e
 	}
@@ -165,7 +166,7 @@ const (
 	TAG_ALIAS = "alias"
 )
 
-func (this *ArgumentParser) addStructArgument(tp reflect.Type, val reflect.Value) error {
+func (this *ArgumentParser) addStructArgument(prefix string, tp reflect.Type, val reflect.Value) error {
 	for i := 0; i < tp.NumField(); i++ {
 		v := val.Field(i)
 		if !v.CanSet() {
@@ -173,12 +174,16 @@ func (this *ArgumentParser) addStructArgument(tp reflect.Type, val reflect.Value
 		}
 		f := tp.Field(i)
 		if f.Type.Kind() == reflect.Struct {
-			e := this.addStructArgument(f.Type, v)
+			p := prefix
+			if !f.Anonymous {
+				p += f.Name + "-"
+			}
+			e := this.addStructArgument(p, f.Type, v)
 			if e != nil {
 				return e
 			}
 		} else {
-			e := this.addArgument(f, v)
+			e := this.addArgument(prefix, f, v)
 			if e != nil {
 				return e
 			}
@@ -187,63 +192,15 @@ func (this *ArgumentParser) addStructArgument(tp reflect.Type, val reflect.Value
 	return nil
 }
 
-/*func findWord(str []byte, offset int) (string, int) {
-	var buffer bytes.Buffer
-	i := skipEmpty(str, offset)
-	if i >= len(str) {
-		return "", i
-	}
-	var endstr string
-	quote := false
-	if str[i] == '"' {
-		quote = true
-		endstr = "\""
-		i++
-	} else if str[i] == '\'' {
-		quote = true
-		endstr = "'"
-		i++
-	} else {
-		endstr = " :,\t\n}]"
-	}
-	for i < len(str) {
-		if quote && str[i] == '\\' {
-			if i+1 < len(str) {
-				i++
-				switch str[i] {
-				case 'n':
-					buffer.WriteByte('\n')
-				case 'r':
-					buffer.WriteByte('\r')
-				case 't':
-					buffer.WriteByte('\t')
-				default:
-					buffer.WriteByte(str[i])
-				}
-				i++
-			} else {
-				break
-			}
-		} else if strings.IndexByte(endstr, str[i]) >= 0 { // end
-			if quote {
-				i++
-			}
-			break
-		} else {
-			buffer.WriteByte(str[i])
-			i++
-		}
-	}
-	return buffer.String(), i
-}*/
-
-func (this *ArgumentParser) addArgument(f reflect.StructField, v reflect.Value) error {
-	tagMap := utils.TagMap(f.Tag)
+func (this *ArgumentParser) addArgument(prefix string, f reflect.StructField, v reflect.Value) error {
+	info := reflectutils.ParseStructFieldJsonInfo(f)
+	tagMap := info.Tags
 	help := tagMap[TAG_HELP]
 	token, ok := tagMap[TAG_TOKEN]
 	if !ok {
-		token = f.Name
+		token = info.MarshalName()
 	}
+	token = prefix + token
 	shorttoken := tagMap[TAG_SHORT_TOKEN]
 	alias := tagMap[TAG_ALIAS]
 	metavar := tagMap[TAG_METAVAR]
@@ -328,7 +285,9 @@ func (this *ArgumentParser) addArgument(f reflect.StructField, v reflect.Value) 
 	var arg Argument = nil
 	ovalue := reflect.New(v.Type()).Elem()
 	ovalue.Set(v)
-	sarg := SingleArgument{token: token, shortToken: shorttoken,
+	sarg := SingleArgument{
+		token:      token,
+		shortToken: shorttoken,
 		positional: positional,
 		required:   required,
 		metavar:    metavar,
@@ -339,7 +298,8 @@ func (this *ArgumentParser) addArgument(f reflect.StructField, v reflect.Value) 
 		defValue:   defval_t,
 		value:      v,
 		ovalue:     ovalue,
-		parser:     this}
+		parser:     this,
+	}
 	// fmt.Println(token, f.Type, f.Type.Kind())
 	if subcommand {
 		arg = &SubcommandArgument{SingleArgument: sarg,
@@ -394,6 +354,15 @@ func (this *ArgumentParser) AddArgument(arg Argument) error {
 		}
 		this.posArgs = append(this.posArgs, arg)
 	} else {
+		for _, argOld := range this.optArgs {
+			if argOld.Token() == arg.Token() {
+				rt := reflect.TypeOf(this.target)
+				if rt.Kind() == reflect.Ptr || rt.Kind() == reflect.Interface {
+					rt = rt.Elem()
+				}
+				return fmt.Errorf("%s: Duplicate argument %s", rt.Name(), argOld.Token())
+			}
+		}
 		// Put required at the end and try to be stable
 		if arg.IsRequired() {
 			this.optArgs = append(this.optArgs, arg)
@@ -413,7 +382,7 @@ func (this *ArgumentParser) AddArgument(arg Argument) error {
 	return nil
 }
 
-func (this *ArgumentParser) setDefault() {
+func (this *ArgumentParser) SetDefault() {
 	for _, arg := range this.posArgs {
 		arg.SetDefault()
 	}
@@ -828,6 +797,10 @@ func (this *ArgumentParser) reset() {
 }
 
 func (this *ArgumentParser) ParseArgs(args []string, ignore_unknown bool) error {
+	return this.ParseArgs2(args, ignore_unknown, true)
+}
+
+func (this *ArgumentParser) ParseArgs2(args []string, ignore_unknown bool, setDefaults bool) error {
 	var pos_idx int = 0
 	var arg Argument = nil
 	var err error = nil
@@ -897,8 +870,18 @@ func (this *ArgumentParser) ParseArgs(args []string, ignore_unknown bool) error 
 	if err == nil {
 		err = this.Validate()
 	}
-	this.setDefault()
+	if setDefaults {
+		this.SetDefault()
+	}
 	return err
+}
+
+func isQuotedByChar(str string, quoteChar byte) bool {
+	return str[0] == quoteChar && str[len(str)-1] == quoteChar
+}
+
+func isQuoted(str string) bool {
+	return isQuotedByChar(str, '"') || isQuotedByChar(str, '\'')
 }
 
 func (this *ArgumentParser) parseKeyValue(key, value string) error {
@@ -914,7 +897,15 @@ func (this *ArgumentParser) parseKeyValue(key, value string) error {
 				}
 			}
 		} else {
-			return arg.SetValue(value)
+			if !isQuoted(value) {
+				value = fmt.Sprintf("\"%s\"", value)
+			}
+			values := utils.FindWords([]byte(value), 0)
+			if len(values) == 1 {
+				return arg.SetValue(values[0])
+			} else {
+				log.Warningf("too many arguments %#v for %s", values, key)
+			}
 		}
 	} else {
 		log.Warningf("Cannot find argument %s", key)
@@ -964,8 +955,11 @@ func (this *ArgumentParser) ParseFile(filepath string) error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		line = strings.TrimSpace(removeComments(line))
-		line = removeCharacters(line, `"'`)
+		// line = removeCharacters(line, `"'`)
 		if len(line) > 0 {
+			if line[0] == '[' {
+				continue
+			}
 			key, val, e := line2KeyValue(line)
 			if e == nil {
 				this.parseKeyValue(key, val)

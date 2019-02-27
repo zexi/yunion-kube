@@ -44,7 +44,7 @@ func (m *SResourceBaseManager) List(req *common.Request) (common.ListResource, e
 }
 
 func (m *SResourceBaseManager) AllowGetItem(req *common.Request, id string) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.UserCred.HasSystemAdminPrivelege()
 }
 
 func (m *SResourceBaseManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -73,7 +73,7 @@ func (m *SResourceBaseManager) Update(req *common.Request, id string) (interface
 
 func (m *SResourceBaseManager) AllowDeleteItem(req *common.Request, id string) bool {
 	cred := req.UserCred
-	if cred.IsSystemAdmin() {
+	if cred.HasSystemAdminPrivelege() {
 		return true
 	}
 	return false
@@ -102,23 +102,23 @@ func (m *SClusterResourceManager) InNamespace() bool {
 }
 
 func (m *SClusterResourceManager) AllowListItems(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.UserCred.HasSystemAdminPrivelege()
 }
 
 func (m *SClusterResourceManager) AllowGetItem(req *common.Request, id string) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.UserCred.HasSystemAdminPrivelege()
 }
 
 func (m *SClusterResourceManager) AllowCreateItem(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.UserCred.HasSystemAdminPrivelege()
 }
 
 func (m *SClusterResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.UserCred.HasSystemAdminPrivelege()
 }
 
 func (m *SClusterResourceManager) AllowDeleteItem(req *common.Request, id string) bool {
-	return req.UserCred.IsSystemAdmin()
+	return req.UserCred.HasSystemAdminPrivelege()
 }
 
 type SNamespaceResourceManager struct {
@@ -136,7 +136,7 @@ func (m *SNamespaceResourceManager) InNamespace() bool {
 }
 
 func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
-	return req.UserCred.IsSystemAdmin() || req.GetDefaultNamespace() == types.ConvertProjectToNamespace(req.UserCred.GetProjectName())
+	return req.UserCred.HasSystemAdminPrivelege() || req.GetDefaultNamespace() == types.ConvertProjectToNamespace(req.UserCred.GetProjectName())
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {

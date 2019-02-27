@@ -1,5 +1,14 @@
 package modules
 
+func NewResourceManager(serviceType string, keyword, keywordPlural string,
+	columns, adminColumns []string) ResourceManager {
+	return ResourceManager{
+		BaseManager: BaseManager{columns: columns,
+			adminColumns: adminColumns,
+			serviceType:  serviceType},
+		Keyword: keyword, KeywordPlural: keywordPlural}
+}
+
 func NewComputeManager(keyword, keywordPlural string, columns, adminColumns []string) ResourceManager {
 	return ResourceManager{
 		BaseManager: BaseManager{columns: columns,
@@ -25,12 +34,12 @@ func NewMonitorManager(keyword, keywordPlural string, columns, adminColumns []st
 		Keyword: keyword, KeywordPlural: keywordPlural}
 }
 
-func NewCloudmonManager(keyword, keywordPlural string, columns, adminColumns []string) ResourceManager {
+func NewCloudwatcherManager(keyword, keywordPlural string, columns, adminColumns []string) ResourceManager {
 	return ResourceManager{
 		BaseManager: BaseManager{columns: columns,
 			adminColumns: adminColumns,
 			version:      "v1",
-			serviceType:  "cloudmon"},
+			serviceType:  "cloudwatcher"},
 		Keyword: keyword, KeywordPlural: keywordPlural}
 }
 
@@ -117,6 +126,14 @@ func NewMeterManager(keyword, keywordPlural string, columns, adminColumns []stri
 		Keyword: keyword, KeywordPlural: keywordPlural}
 }
 
+func NewMeterAlertManager(keyword, keywordPlural string, columns, adminColumns []string) ResourceManager {
+	return ResourceManager{
+		BaseManager: BaseManager{columns: columns,
+			adminColumns: adminColumns,
+			serviceType:  "meteralert"},
+		Keyword: keyword, KeywordPlural: keywordPlural}
+}
+
 func NewYunionAgentManager(keyword, keywordPlural string, columns, adminColumns []string) ResourceManager {
 	return ResourceManager{
 		BaseManager: BaseManager{columns: columns,
@@ -146,5 +163,13 @@ func NewWebsocketManager(keyword, keywordPlural string, columns, adminColumns []
 		BaseManager: BaseManager{columns: columns,
 			adminColumns: adminColumns,
 			serviceType:  "websocket"},
+		Keyword: keyword, KeywordPlural: keywordPlural}
+}
+
+func NewCloudmetaManager(keyword, keywordPlural string, columns, adminColumns []string) ResourceManager {
+	return ResourceManager{
+		BaseManager: BaseManager{columns: columns,
+			adminColumns: adminColumns,
+			serviceType:  "cloudmeta"},
 		Keyword: keyword, KeywordPlural: keywordPlural}
 }

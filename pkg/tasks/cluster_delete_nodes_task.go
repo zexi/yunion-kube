@@ -161,6 +161,6 @@ func removeNodeFromContainerSchedtag(node *models.SNode) error {
 	if err != nil {
 		return err
 	}
-	_, err = cloudmod.Schedtaghosts.Detach(session, CONTAINER_SCHED_TAG, node.Name)
+	_, err = cloudmod.Schedtaghosts.Detach(session, CONTAINER_SCHED_TAG, node.Name, nil)
 	return err
 }

@@ -24,7 +24,10 @@ import (
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func GetReleaseResources(cli *k8sclient.GenericClient, rls *release.Release) (map[string]interface{}, error) {
+func GetReleaseResources(
+	cli *k8sclient.GenericClient,
+	cluster apis.ICluster,
+	rls *release.Release) (map[string]interface{}, error) {
 	namespace := rls.Namespace
 	reader := bytes.NewBufferString(rls.Manifest)
 	objs, err := cli.Get(namespace, reader)
@@ -32,18 +35,19 @@ func GetReleaseResources(cli *k8sclient.GenericClient, rls *release.Release) (ma
 		return nil, err
 	}
 	k8sCli, _ := cli.KubernetesClientSet()
-	return convertRuntimeObjs(k8sCli, objs, namespace)
+	return convertRuntimeObjs(k8sCli, cluster, objs, namespace)
 }
 
 func convertRuntimeObjs(
 	cli kubernetes.Interface,
+	cluster apis.ICluster,
 	objMap map[string][]runtime.Object,
 	namespace string,
 ) (map[string]interface{}, error) {
 	nsQuery := common.NewNamespaceQuery(namespace)
 	ret := make(map[string]interface{})
 	for kind, objs := range objMap {
-		k, cObjs, err := processObjs(kind, cli, objs, nsQuery, dataselect.DefaultDataSelect())
+		k, cObjs, err := processObjs(kind, cli, cluster, objs, nsQuery, dataselect.DefaultDataSelect())
 		if err != nil {
 			return nil, err
 		}
@@ -53,12 +57,13 @@ func convertRuntimeObjs(
 }
 
 type IObjLister interface {
-	ListV2(k8sCli kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
+	ListV2(k8sCli kubernetes.Interface, cluster apis.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
 }
 
 func processObjs(
 	kind string,
 	cli kubernetes.Interface,
+	cluster apis.ICluster,
 	objs []runtime.Object,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,
@@ -79,7 +84,7 @@ func processObjs(
 	if !ok {
 		ret = objs
 	} else {
-		ret, err = processResources(cli, objs, nsQuery, dsQuery, manager)
+		ret, err = processResources(cli, cluster, objs, nsQuery, dsQuery, manager)
 	}
 	kindPlural = transToKindPlural(kind)
 	return kindPlural, ret, err
@@ -95,12 +100,13 @@ func transToKindPlural(kind string) string {
 
 func processResources(
 	cli kubernetes.Interface,
+	cluster apis.ICluster,
 	objs []runtime.Object,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,
 	ILister IObjLister,
 ) (interface{}, error) {
-	list, err := ILister.ListV2(cli, nsQuery, dsQuery)
+	list, err := ILister.ListV2(cli, cluster, nsQuery, dsQuery)
 	if err != nil {
 		log.Errorf("Get configmap list error: %v", err)
 		return nil, err

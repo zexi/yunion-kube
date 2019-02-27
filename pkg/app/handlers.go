@@ -10,6 +10,8 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/models/clusters"
+	"yunion.io/x/yunion-kube/pkg/models/machines"
 	k8sapp "yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
@@ -31,6 +33,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
+
+	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
 )
 
 func InitHandlers(app *appsrv.Application) {
@@ -50,10 +54,13 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []db.IModelManager{
-		db.OpsLog.SetKeyword("kube_event", "kube_events"),
+		//db.OpsLog.SetKeyword("kube_event", "kube_events"),
+		db.OpsLog,
 		models.ClusterManager,
 		models.NodeManager,
 		models.RepoManager,
+		clusters.ClusterManager,
+		machines.MachineManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)

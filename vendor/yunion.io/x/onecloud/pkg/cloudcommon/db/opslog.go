@@ -9,10 +9,12 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/logclient"
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/sqlchemy"
+
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 const (
@@ -27,11 +29,16 @@ const (
 	ACT_ATTACH  = "attach"
 	ACT_DETACH  = "detach"
 
-	ACT_UPDATE_STATUS = "updatestatus"
+	ACT_START_CREATE_BACKUP  = "start_create_backup"
+	ACT_CREATE_BACKUP        = "create_backup"
+	ACT_CREATE_BACKUP_FAILED = "create_backup_failed"
 
-	ACT_STARTING   = "starting"
-	ACT_START      = "start"
-	ACT_START_FAIL = "start_fail"
+	ACT_UPDATE_STATUS       = "updatestatus"
+	ACT_STARTING            = "starting"
+	ACT_START               = "start"
+	ACT_START_FAIL          = "start_fail"
+	ACT_BACKUP_START        = "backup_start"
+	ACT_BACKUP_START_FAILED = "backup_start_fail"
 
 	ACT_STOPPING  = "stopping"
 	ACT_STOP      = "stop"
@@ -45,9 +52,15 @@ const (
 	ACT_MIGRATE      = "migrate"
 	ACT_MIGRATE_FAIL = "migrate_fail"
 
+	ACT_SPLIT = "net_split"
+	ACT_MERGE = "net_merge"
+
 	ACT_SAVING    = "saving"
 	ACT_SAVE      = "save"
 	ACT_SAVE_FAIL = "save_fail"
+
+	ACT_SWITCHED      = "switched"
+	ACT_SWITCH_FAILED = "switch_failed"
 
 	ACT_SNAPSHOTING          = "snapshoting"
 	ACT_SNAPSHOT_STREAM      = "snapshot_stream"
@@ -63,9 +76,12 @@ const (
 	ACT_DISK_CLEAN_UP_SNAPSHOTS      = "disk_clean_up_snapshots"
 	ACT_DISK_CLEAN_UP_SNAPSHOTS_FAIL = "disk_clean_up_snapshots_fail"
 
-	ACT_ALLOCATING    = "allocating"
-	ACT_ALLOCATE      = "allocate"
-	ACT_ALLOCATE_FAIL = "alloc_fail"
+	ACT_ALLOCATING           = "allocating"
+	ACT_BACKUP_ALLOCATING    = "backup_allocating"
+	ACT_ALLOCATE             = "allocate"
+	ACT_BACKUP_ALLOCATE      = "backup_allocate"
+	ACT_ALLOCATE_FAIL        = "alloc_fail"
+	ACT_BACKUP_ALLOCATE_FAIL = "backup_alloc_fail"
 
 	ACT_DELOCATING    = "delocating"
 	ACT_DELOCATE      = "delocate"
@@ -93,6 +109,7 @@ const (
 	ACT_SYNCING_CONF   = "syncing_conf"
 	ACT_SYNC_CONF      = "sync_conf"
 	ACT_SYNC_CONF_FAIL = "sync_conf_fail"
+	ACT_SYNC_STATUS    = "sync_status"
 
 	ACT_CHANGE_OWNER = "change_owner"
 
@@ -110,6 +127,10 @@ const (
 	ACT_SYNCING_HOST       = "syncing_host"
 	ACT_SYNC_HOST_COMPLETE = "sync_host_end"
 
+	ACT_SYNC_LB_START    = "sync_lb_start"
+	ACT_SYNCING_LB       = "syncing_lb"
+	ACT_SYNC_LB_COMPLETE = "sync_lb_end"
+
 	ACT_CACHING_IMAGE      = "caching_image"
 	ACT_CACHE_IMAGE_FAIL   = "cache_image_fail"
 	ACT_CACHED_IMAGE       = "cached_image"
@@ -120,8 +141,6 @@ const (
 	ACT_SYNC_CLOUD_DISK   = "sync_cloud_disk"
 	ACT_SYNC_CLOUD_SERVER = "sync_cloud_server"
 	ACT_SYNC_CLOUD_EIP    = "sync_cloud_eip"
-
-	ACT_SPLIT = "net_split"
 
 	ACT_PENDING_DELETE = "pending_delete"
 	ACT_CANCEL_DELETE  = "cancel_delete"
@@ -139,6 +158,13 @@ const (
 	ACT_GUEST_DETACH_ISOLATED_DEVICE_FAIL = "guest_detach_isolated_deivce_fail"
 
 	ACT_CHANGE_BANDWIDTH = "eip_change_bandwidth"
+
+	ACT_RENEW = "renew"
+
+	ACT_SCHEDULE = "schedule"
+
+	ACT_RECYCLE_PREPAID      = "recycle_prepaid"
+	ACT_UNDO_RECYCLE_PREPAID = "undo_recycle_prepaid"
 )
 
 type SOpsLogManager struct {
@@ -148,22 +174,23 @@ type SOpsLogManager struct {
 type SOpsLog struct {
 	SModelBase
 
-	Id        int64  `primary:"true" auto_increment:"true" list:"user"`         // = Column(BigInteger, primary_key=True)
-	ObjType   string `width:"40" charset:"ascii" nullable:"false" list:"user"`  // = Column(VARCHAR(40, charset='ascii'), nullable=False)
-	ObjId     string `width:"128" charset:"ascii" nullable:"false" list:"user"` //  = Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
-	ObjName   string `width:"128" charset:"utf8" nullable:"false" list:"user"`  //= Column(VARCHAR(128, charset='utf8'), nullable=False)
-	Action    string `width:"32" charset:"ascii" nullable:"false" list:"user"`  //= Column(VARCHAR(32, charset='ascii'), nullable=False)
-	Notes     string `width:"2048" charset:"utf8" list:"user"`                  // = Column(VARCHAR(2048, charset='utf8'))
-	ProjectId string `name:"tenant_id" width:"128" charset:"ascii" list:"user"` // = Column(VARCHAR(ID_LENGTH, charset='ascii'))
-	Project   string `name:"tenant" width:"128" charset:"utf8" list:"user"`     // tenant    = Column(VARCHAR(128, charset='utf8'))
-	UserId    string `width:"128" charset:"ascii" list:"user"`                  // = Column(VARCHAR(ID_LENGTH, charset='ascii'))
-	User      string `width:"128" charset:"utf8" list:"user"`                   // = Column(VARCHAR(128, charset='utf8'))
-	DomainId  string `width:"128" charset:"ascii" list:"user"`
-	Domain    string `width:"128" charset:"utf8" list:"user"`
-	Roles     string `width:"64" charset:"ascii" list:"user"` // = Column(VARCHAR(64, charset='ascii'))
-	// billing_type = Column(VARCHAR(64, charset='ascii'), nullable=True)
-	OpsTime        time.Time `nullable:"false" list:"user"`                                   // = Column(DateTime, nullable=False)
-	OwnerProjectId string    `name:"owner_tenant_id" width:"128" charset:"ascii" list:"user"` // = Column(VARCHAR(ID_LENGTH, charset='ascii'))
+	Id        int64  `primary:"true" auto_increment:"true" list:"user"`                           // = Column(BigInteger, primary_key=True)
+	ObjType   string `width:"40" charset:"ascii" nullable:"false" list:"user" create:"required"`  // = Column(VARCHAR(40, charset='ascii'), nullable=False)
+	ObjId     string `width:"128" charset:"ascii" nullable:"false" list:"user" create:"required"` //  = Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
+	ObjName   string `width:"128" charset:"utf8" nullable:"false" list:"user" create:"required"`  //= Column(VARCHAR(128, charset='utf8'), nullable=False)
+	Action    string `width:"32" charset:"utf8" nullable:"false" list:"user" create:"required"`   //= Column(VARCHAR(32, charset='ascii'), nullable=False)
+	Notes     string `width:"2048" charset:"utf8" list:"user" create:"required"`                  // = Column(VARCHAR(2048, charset='utf8'))
+	ProjectId string `name:"tenant_id" width:"128" charset:"ascii" list:"user" create:"required"` // = Column(VARCHAR(ID_LENGTH, charset='ascii'))
+	Project   string `name:"tenant" width:"128" charset:"utf8" list:"user" create:"required"`     // tenant    = Column(VARCHAR(128, charset='utf8'))
+	UserId    string `width:"128" charset:"ascii" list:"user" create:"required"`                  // = Column(VARCHAR(ID_LENGTH, charset='ascii'))
+	User      string `width:"128" charset:"utf8" list:"user" create:"required"`                   // = Column(VARCHAR(128, charset='utf8'))
+	DomainId  string `width:"128" charset:"ascii" list:"user" create:"optional"`
+	Domain    string `width:"128" charset:"utf8" list:"user" create:"optional"`
+	Roles     string `width:"64" charset:"ascii" list:"user" create:"optional"` // = Column(VARCHAR(64, charset='ascii'))
+
+	// BillingType    string    `width:"64" charset:"ascii" default:"postpaid" list:"user" create:"user"`      // billing_type = Column(VARCHAR(64, charset='ascii'), nullable=True)
+	OpsTime        time.Time `nullable:"false" list:"user"`                                                     // = Column(DateTime, nullable=False)
+	OwnerProjectId string    `name:"owner_tenant_id" width:"128" charset:"ascii" list:"user" create:"optional"` // = Column(VARCHAR(ID_LENGTH, charset='ascii'))
 	// owner_user_id   = Column(VARCHAR(ID_LENGTH, charset='ascii'))
 }
 
@@ -174,13 +201,6 @@ var _ IModel = (*SOpsLog)(nil)
 
 func init() {
 	OpsLog = &SOpsLogManager{NewModelBaseManager(SOpsLog{}, "opslog_tbl", "event", "events")}
-
-}
-
-func (manager *SOpsLogManager) SetKeyword(kw, kwPlural string) *SOpsLogManager {
-	manager.keyword = kw
-	manager.keywordPlural = kwPlural
-	return manager
 }
 
 func (opslog *SOpsLog) GetId() string {
@@ -204,6 +224,9 @@ func (opslog *SOpsLog) GetModelManager() IModelManager {
 */
 
 func (manager *SOpsLogManager) LogEvent(model IModel, action string, notes interface{}, userCred mcclient.TokenCredential) {
+	if !consts.OpsLogEnabled() {
+		return
+	}
 	if len(model.GetId()) == 0 || len(model.GetName()) == 0 {
 		return
 	}
@@ -221,18 +244,19 @@ func (manager *SOpsLogManager) LogEvent(model IModel, action string, notes inter
 	opslog.Domain = userCred.GetDomainName()
 	opslog.Roles = strings.Join(userCred.GetRoles(), ",")
 	opslog.OpsTime = time.Now().UTC()
-	virtualModel, ok := model.(IVirtualModel)
-	if ok && virtualModel != nil {
+
+	if virtualModel, ok := model.(IVirtualModel); ok && virtualModel != nil {
 		opslog.OwnerProjectId = virtualModel.GetOwnerProjectId()
 	}
+
 	err := manager.TableSpec().Insert(&opslog)
 	if err != nil {
 		log.Errorf("fail to insert opslog: %s", err)
 	}
 }
 
-func combineNotes(m2 IModel, notes jsonutils.JSONObject) *jsonutils.JSONDict {
-	desc := m2.GetShortDesc()
+func combineNotes(ctx context.Context, m2 IModel, notes jsonutils.JSONObject) *jsonutils.JSONDict {
+	desc := m2.GetShortDesc(ctx)
 	if notes != nil {
 		if notesDict, ok := notes.(*jsonutils.JSONDict); ok {
 			notesMap, _ := notesDict.GetMap()
@@ -255,47 +279,50 @@ func combineNotes(m2 IModel, notes jsonutils.JSONObject) *jsonutils.JSONDict {
 	return desc
 }
 
-func (manager *SOpsLogManager) logOneJointEvent(m1, m2 IModel, event string, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
-	nn := combineNotes(m2, notes)
+func (manager *SOpsLogManager) logOneJointEvent(ctx context.Context, m1, m2 IModel, event string, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
+	nn := notes
+	if m2 != nil {
+		nn = combineNotes(ctx, m2, notes)
+	}
 	manager.LogEvent(m1, event, nn, userCred)
 }
 
-func (manager *SOpsLogManager) logJoinEvent(m1, m2 IModel, event string, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
-	manager.logOneJointEvent(m1, m2, event, userCred, notes)
-	manager.logOneJointEvent(m2, m1, event, userCred, notes)
+func (manager *SOpsLogManager) logJoinEvent(ctx context.Context, m1, m2 IModel, event string, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
+	if m1 != nil {
+		manager.logOneJointEvent(ctx, m1, m2, event, userCred, notes)
+	}
+	if m2 != nil {
+		manager.logOneJointEvent(ctx, m2, m1, event, userCred, notes)
+	}
 }
 
-func (manager *SOpsLogManager) LogAttachEvent(m1, m2 IModel, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
-	manager.logJoinEvent(m1, m2, ACT_ATTACH, userCred, notes)
+func (manager *SOpsLogManager) LogAttachEvent(ctx context.Context, m1, m2 IModel, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
+	manager.logJoinEvent(ctx, m1, m2, ACT_ATTACH, userCred, notes)
 }
 
-func (manager *SOpsLogManager) LogDetachEvent(m1, m2 IModel, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
-	manager.logJoinEvent(m1, m2, ACT_DETACH, userCred, notes)
+func (manager *SOpsLogManager) LogDetachEvent(ctx context.Context, m1, m2 IModel, userCred mcclient.TokenCredential, notes jsonutils.JSONObject) {
+	manager.logJoinEvent(ctx, m1, m2, ACT_DETACH, userCred, notes)
 }
 
 func (manager *SOpsLogManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	queryDict, ok := query.(*jsonutils.JSONDict)
-	if !ok {
-		return nil, fmt.Errorf("invalid query string")
-	}
-	objTypes := jsonutils.GetQueryStringArray(queryDict, "obj_type")
+	objTypes := jsonutils.GetQueryStringArray(query, "obj_type")
 	if objTypes != nil && len(objTypes) > 0 {
-		queryDict.RemoveIgnoreCase("obj_type")
 		q = q.Filter(sqlchemy.In(q.Field("obj_type"), objTypes))
 	}
-	objIds := jsonutils.GetQueryStringArray(queryDict, "obj_id")
+	objIds := jsonutils.GetQueryStringArray(query, "obj_id")
 	if objIds != nil && len(objIds) > 0 {
-		queryDict.RemoveIgnoreCase("obj_id")
 		q = q.Filter(sqlchemy.OR(sqlchemy.In(q.Field("obj_id"), objIds), sqlchemy.In(q.Field("obj_name"), objIds)))
 	}
-	action := jsonutils.GetQueryStringArray(queryDict, "action")
+	action := jsonutils.GetQueryStringArray(query, "action")
 	if action != nil && len(action) > 0 {
-		queryDict.RemoveIgnoreCase("action")
 		q = q.Filter(sqlchemy.In(q.Field("action"), action))
 	}
-	if !userCred.IsSystemAdmin() {
-		q = q.Filter(sqlchemy.OR(sqlchemy.AND(sqlchemy.IsNotNull(q.Field("owner_tenant_id")), sqlchemy.Equals(q.Field("owner_tenant_id"), userCred.GetProjectId())), sqlchemy.Equals(q.Field("tenant_id"), userCred.GetProjectId())))
-	}
+	//if !IsAdminAllowList(userCred, manager) {
+	// 	q = q.Filter(sqlchemy.OR(
+	//		sqlchemy.Equals(q.Field("owner_tenant_id"), manager.GetOwnerId(userCred)),
+	//		sqlchemy.Equals(q.Field("tenant_id"), manager.GetOwnerId(userCred)),
+	//	))
+	//}
 	since, _ := query.GetTime("since")
 	if !since.IsZero() {
 		q = q.GT("ops_time", since)
@@ -310,9 +337,8 @@ func (manager *SOpsLogManager) ListItemFilter(ctx context.Context, q *sqlchemy.S
 func (manager *SOpsLogManager) SyncOwner(m IModel, former *STenant, userCred mcclient.TokenCredential) {
 	notes := jsonutils.NewDict()
 	notes.Add(jsonutils.NewString(former.GetId()), "former_project_id")
-	notes.Add(jsonutils.NewString(former.GetName()), "form_project")
+	notes.Add(jsonutils.NewString(former.GetName()), "former_project")
 	manager.LogEvent(m, ACT_CHANGE_OWNER, notes, userCred)
-	logclient.AddActionLog(m, logclient.ACT_CHANGE_OWNER, nil, userCred, true)
 }
 
 func (manager *SOpsLogManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -324,7 +350,7 @@ func (manager *SOpsLogManager) AllowCreateItem(ctx context.Context, userCred mcc
 }
 
 func (self *SOpsLog) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin() || userCred.GetProjectId() == self.ProjectId || userCred.GetProjectId() == self.OwnerProjectId
+	return IsAdminAllowGet(userCred, self) || userCred.GetProjectId() == self.ProjectId || userCred.GetProjectId() == self.OwnerProjectId
 }
 
 func (self *SOpsLog) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
@@ -336,7 +362,7 @@ func (self *SOpsLog) AllowDeleteItem(ctx context.Context, userCred mcclient.Toke
 }
 
 func (self *SOpsLog) ValidateDeleteCondition(ctx context.Context) error {
-	return fmt.Errorf("forbidden")
+	return httperrors.NewForbiddenError("not allow to delete log")
 }
 
 func (self *SOpsLogManager) FilterById(q *sqlchemy.SQuery, idStr string) *sqlchemy.SQuery {
@@ -355,8 +381,22 @@ func (self *SOpsLogManager) FilterByName(q *sqlchemy.SQuery, name string) *sqlch
 
 func (self *SOpsLogManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
 	if len(owner) > 0 {
-		return q.Equals("owner_project_id", owner)
-	} else {
-		return q
+		q = q.Filter(sqlchemy.OR(
+			sqlchemy.Equals(q.Field("owner_tenant_id"), owner),
+			sqlchemy.Equals(q.Field("tenant_id"), owner),
+		))
 	}
+	return q
+}
+
+func (manager *SOpsLogManager) GetOwnerId(userCred mcclient.IIdentityProvider) string {
+	return userCred.GetProjectId()
+}
+
+func (self *SOpsLog) GetOwnerProjectId() string {
+	return self.OwnerProjectId
+}
+
+func (self *SOpsLog) IsSharable() bool {
+	return false
 }

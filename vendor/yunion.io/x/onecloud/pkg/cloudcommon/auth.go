@@ -1,15 +1,18 @@
 package cloudcommon
 
 import (
+	"context"
 	"fmt"
 	"os"
-
 	"time"
+
+	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 )
 
-func InitAuth(options *Options, authComplete auth.AuthCompletedCallback) {
+func InitAuth(options *CommonOptions, authComplete auth.AuthCompletedCallback) {
+
 	if len(options.AuthURL) == 0 {
 		fmt.Println("Missing AuthURL")
 		os.Exit(1)
@@ -39,6 +42,13 @@ func InitAuth(options *Options, authComplete auth.AuthCompletedCallback) {
 	// debug := options.LogLevel == "debug"
 
 	auth.Init(a, options.DebugClient, true, options.SslCertfile, options.SslKeyfile) // , authComplete)
+
+	users := options.NotifyAdminUsers
+	groups := options.NotifyAdminGroups
+	if len(users) == 0 && len(groups) == 0 {
+		users = []string{"sysadmin"}
+	}
+	notifyclient.FetchNotifyAdminRecipients(context.Background(), options.Region, users, groups)
 
 	authComplete()
 

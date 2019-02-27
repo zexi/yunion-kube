@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/trace"
+	"yunion.io/x/pkg/util/signalutils"
 	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/onecloud/pkg/appctx"
@@ -26,7 +29,7 @@ type Application struct {
 	session           *SWorkerManager
 	systemSession     *SWorkerManager
 	roots             map[string]*RadixNode
-	rootLock          *sync.Mutex
+	rootLock          *sync.RWMutex
 	connMax           int
 	idleTimeout       time.Duration
 	readTimeout       time.Duration
@@ -36,6 +39,9 @@ type Application struct {
 	defHandlerInfo    SHandlerInfo
 	cors              *Cors
 	middlewares       []MiddlewareFunc
+
+	isExiting       bool
+	idleConnsClosed chan struct{}
 }
 
 const (
@@ -47,14 +53,14 @@ const (
 	DEFAULT_PROCESS_TIMEOUT     = 15 * time.Second
 )
 
-func NewApplication(name string, connMax int) *Application {
+func NewApplication(name string, connMax int, db bool) *Application {
 	app := Application{name: name,
 		context:           context.Background(),
 		connMax:           connMax,
-		session:           NewWorkerManager("HttpRequestWorkerManager", connMax, DEFAULT_BACKLOG),
-		systemSession:     NewWorkerManager("InternalHttpRequestWorkerManager", 1, DEFAULT_BACKLOG),
+		session:           NewWorkerManager("HttpRequestWorkerManager", connMax, DEFAULT_BACKLOG, db),
+		systemSession:     NewWorkerManager("InternalHttpRequestWorkerManager", 1, DEFAULT_BACKLOG, false),
 		roots:             make(map[string]*RadixNode),
-		rootLock:          &sync.Mutex{},
+		rootLock:          &sync.RWMutex{},
 		idleTimeout:       DEFAULT_IDLE_TIMEOUT,
 		readTimeout:       DEFAULT_READ_TIMEOUT,
 		readHeaderTimeout: DEFAULT_READ_HEADER_TIMEOUT,
@@ -85,21 +91,19 @@ func (app *Application) GetName() string {
 	return app.name
 }
 
-func (app *Application) getRootLocked(method string) *RadixNode {
-	app.rootLock.Lock()
-	defer app.rootLock.Unlock()
-	if _, ok := app.roots[method]; !ok {
-		app.roots[method] = NewRadix()
-	}
-	return app.roots[method]
-}
-
 func (app *Application) getRoot(method string) *RadixNode {
+	app.rootLock.RLock()
 	if v, ok := app.roots[method]; ok {
+		app.rootLock.RUnlock()
 		return v
-	} else {
-		return app.getRootLocked(method)
 	}
+	app.rootLock.RUnlock()
+
+	v := NewRadix()
+	app.rootLock.Lock()
+	app.roots[method] = v
+	app.rootLock.Unlock()
+	return v
 }
 
 func (app *Application) AddReverseProxyHandler(prefix string, ef *proxy.SEndpointFactory) {
@@ -109,22 +113,25 @@ func (app *Application) AddReverseProxyHandler(prefix string, ef *proxy.SEndpoin
 	}
 }
 
-func (app *Application) AddHandler(method string, prefix string, handler func(context.Context, http.ResponseWriter, *http.Request)) {
-	app.AddHandler2(method, prefix, handler, nil, "", nil)
+func (app *Application) AddHandler(method string, prefix string,
+	handler func(context.Context, http.ResponseWriter, *http.Request)) *SHandlerInfo {
+	return app.AddHandler2(method, prefix, handler, nil, "", nil)
 }
 
-func (app *Application) AddHandler2(method string, prefix string, handler func(context.Context, http.ResponseWriter, *http.Request), metadata map[string]interface{}, name string, tags map[string]string) {
-	log.Debugf("%s - %s", method, prefix)
+func (app *Application) AddHandler2(method string, prefix string,
+	handler func(context.Context, http.ResponseWriter, *http.Request),
+	metadata map[string]interface{}, name string, tags map[string]string) *SHandlerInfo {
 	segs := SplitPath(prefix)
 	hi := newHandlerInfo(method, segs, handler, metadata, name, tags)
-	app.AddHandler3(hi)
+	return app.AddHandler3(hi)
 }
 
-func (app *Application) AddHandler3(hi *SHandlerInfo) {
+func (app *Application) AddHandler3(hi *SHandlerInfo) *SHandlerInfo {
 	e := app.getRoot(hi.method).Add(hi.path, hi)
 	if e != nil {
 		log.Fatalf("Fail to register %s %s: %s", hi.method, hi.path, e)
 	}
+	return hi
 }
 
 type loggingResponseWriter struct {
@@ -157,7 +164,7 @@ func (app *Application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rid := genRequestId(w, r)
 	lrw := &loggingResponseWriter{w, http.StatusOK}
 	start := time.Now()
-	hi := app.defaultHandle(lrw, r, rid)
+	hi, params := app.defaultHandle(lrw, r, rid)
 	if hi == nil {
 		hi = &app.defHandlerInfo
 	}
@@ -172,7 +179,15 @@ func (app *Application) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	duration := float64(time.Since(start).Nanoseconds()) / 1000000
 	counter.hit += 1
 	counter.duration += duration
-	if !hi.skipLog {
+	skipLog := false
+	if params != nil {
+		if params.SkipLog {
+			skipLog = true
+		}
+	} else if hi.skipLog {
+		skipLog = true
+	}
+	if !skipLog {
 		log.Infof("%d %s %s %s (%s) %.2fms", lrw.status, rid, r.Method, r.URL, r.RemoteAddr, duration)
 	}
 }
@@ -190,7 +205,7 @@ func (app *Application) handleCORS(w http.ResponseWriter, r *http.Request) bool 
 	}
 }
 
-func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, rid string) *SHandlerInfo {
+func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, rid string) (*SHandlerInfo, *SAppParams) {
 	segs := SplitPath(r.URL.Path)
 	params := make(map[string]string)
 	w.Header().Set("Server", "Yunion AppServer/Go/2018.4")
@@ -213,6 +228,9 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 			if session == nil {
 				session = app.session
 			}
+			appParams := hand.GetAppParams(params, segs)
+			appParams.Request = r
+			appParams.Response = w
 			session.Run(
 				func() {
 					if ctx.Err() == nil {
@@ -220,12 +238,18 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 						ctx = context.WithValue(ctx, appctx.APP_CONTEXT_KEY_CUR_ROOT, hand.path)
 						ctx = context.WithValue(ctx, appctx.APP_CONTEXT_KEY_CUR_PATH, segs[len(hand.path):])
 						ctx = context.WithValue(ctx, appctx.APP_CONTEXT_KEY_PARAMS, params)
+						ctx = context.WithValue(ctx, appctx.APP_CONTEXT_KEY_START_TIME, time.Now().UTC())
 						if hand.metadata != nil {
 							ctx = context.WithValue(ctx, appctx.APP_CONTEXT_KEY_METADATA, hand.metadata)
 						}
+						ctx = context.WithValue(ctx, APP_CONTEXT_KEY_APP_PARAMS, appParams)
 						func() {
-							span := trace.StartServerTrace(&fw, r, hand.GetName(params), app.GetName(), hand.GetTags())
-							defer span.EndTrace()
+							span := trace.StartServerTrace(&fw, r, appParams.Name, app.GetName(), hand.GetTags())
+							defer func() {
+								if !appParams.SkipTrace {
+									span.EndTrace()
+								}
+							}()
 							ctx = context.WithValue(ctx, appctx.APP_CONTEXT_KEY_TRACE, span)
 							hand.handler(ctx, &fw, r)
 						}()
@@ -249,7 +273,7 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 				}
 			}
 			fw.closeChannels()
-			return hand
+			return hand, appParams
 		} else {
 			log.Errorf("Invalid handler for %s", r.URL)
 			httperrors.InternalServerError(w, "Invalid handler %s", r.URL)
@@ -258,10 +282,10 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 		log.Errorf("Handler not found")
 		httperrors.NotFoundError(w, "Handler not found")
 	}
-	return nil
+	return nil, nil
 }
 
-func (app *Application) addDefaultHandler(method string, prefix string, handler func(context.Context, http.ResponseWriter, *http.Request), name string) {
+func (app *Application) AddDefaultHandler(method string, prefix string, handler func(context.Context, http.ResponseWriter, *http.Request), name string) {
 	segs := SplitPath(prefix)
 	hi := newHandlerInfo(method, segs, handler, nil, name, nil)
 	hi.SetSkipLog(true).SetWorkerManager(app.systemSession)
@@ -269,11 +293,11 @@ func (app *Application) addDefaultHandler(method string, prefix string, handler 
 }
 
 func (app *Application) addDefaultHandlers() {
-	app.addDefaultHandler("GET", "/version", VersionHandler, "version")
-	app.addDefaultHandler("GET", "/stats", StatisticHandler, "stats")
-	app.addDefaultHandler("POST", "/ping", PingHandler, "ping")
-	app.addDefaultHandler("GET", "/ping", PingHandler, "ping")
-	app.addDefaultHandler("GET", "/worker_stats", WorkerStatsHandler, "worker_stats")
+	app.AddDefaultHandler("GET", "/version", VersionHandler, "version")
+	app.AddDefaultHandler("GET", "/stats", StatisticHandler, "stats")
+	app.AddDefaultHandler("POST", "/ping", PingHandler, "ping")
+	app.AddDefaultHandler("GET", "/ping", PingHandler, "ping")
+	app.AddDefaultHandler("GET", "/worker_stats", WorkerStatsHandler, "worker_stats")
 }
 
 func timeoutHandle(h http.Handler) http.HandlerFunc {
@@ -289,11 +313,12 @@ func timeoutHandle(h http.Handler) http.HandlerFunc {
 }
 
 func (app *Application) initServer(addr string) *http.Server {
-	db := AppContextDB(app.context)
+	/* db := AppContextDB(app.context)
 	if db != nil {
 		db.SetMaxIdleConns(app.connMax + 1)
 		db.SetMaxOpenConns(app.connMax + 1)
 	}
+	*/
 	app.addDefaultHandlers()
 	s := &http.Server{
 		Addr:              addr,
@@ -307,34 +332,100 @@ func (app *Application) initServer(addr string) *http.Server {
 	return s
 }
 
+func (app *Application) registerCleanShutdown(s *http.Server, onStop func()) {
+	app.idleConnsClosed = make(chan struct{})
+
+	// dump goroutine stack
+	signalutils.RegisterSignal(func() {
+		utils.DumpAllGoroutineStack(log.Logger().Out)
+	}, syscall.SIGUSR1)
+
+	quitSignals := []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM}
+	signalutils.RegisterSignal(func() {
+		if app.isExiting {
+			log.Infof("Quit signal received!!! clean up in progress, be patient...")
+			return
+		}
+		app.isExiting = true
+		log.Infof("Quit signal received!!! do cleanup...")
+
+		if err := s.Shutdown(context.Background()); err != nil {
+			// Error from closing listeners, or context timeout:
+			log.Errorf("HTTP server Shutdown: %v", err)
+		}
+		if onStop != nil {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Errorf("app exiting error: %s", r)
+					}
+				}()
+				onStop()
+			}()
+		}
+		close(app.idleConnsClosed)
+	}, quitSignals...)
+
+	signalutils.StartTrap()
+}
+
+func (app *Application) waitCleanShutdown() {
+	<-app.idleConnsClosed
+	log.Infof("Service stopped.")
+}
+
 func (app *Application) ListenAndServe(addr string) {
-	s := app.initServer(addr)
-	err := s.ListenAndServe()
-	if err != nil {
-		log.Fatalf("ListAndServer fail: %s", err)
-	}
+	app.ListenAndServeWithCleanup(addr, nil)
 }
 
 func (app *Application) ListenAndServeTLS(addr string, certFile, keyFile string) {
+	app.ListenAndServeTLSWithCleanup(addr, certFile, keyFile, nil)
+}
+
+func (app *Application) ListenAndServeWithCleanup(addr string, onStop func()) {
+	app.ListenAndServeTLSWithCleanup(addr, "", "", onStop)
+}
+
+func (app *Application) ListenAndServeTLSWithCleanup(addr string, certFile, keyFile string, onStop func()) {
 	s := app.initServer(addr)
-	err := s.ListenAndServeTLS(certFile, keyFile)
+	app.registerCleanShutdown(s, onStop)
+	var err error
+	if len(certFile) == 0 && len(keyFile) == 0 {
+		err = s.ListenAndServe()
+	} else {
+		err = s.ListenAndServeTLS(certFile, keyFile)
+	}
 	if err != nil && err != http.ErrServerClosed {
 		log.Fatalf("ListAndServer fail: %s", err)
 	}
+	app.waitCleanShutdown()
 }
 
-func FetchEnv(ctx context.Context, w http.ResponseWriter, r *http.Request) (map[string]string, jsonutils.JSONObject, jsonutils.JSONObject) {
-	params := appctx.AppContextParams(ctx)
-	query, e := jsonutils.ParseQueryString(r.URL.RawQuery)
-	if e != nil {
-		log.Errorf("Parse query string %s failed: %s", r.URL.RawQuery, e)
+func isJsonContentType(r *http.Request) bool {
+	contType := strings.ToLower(r.Header.Get("Content-Type"))
+	if strings.HasPrefix(contType, "application/json") {
+		return true
 	}
-	var body jsonutils.JSONObject = nil
-	if r.Method == "PUT" || r.Method == "POST" || r.Method == "DELETE" || r.Method == "PATCH" {
-		body, e = FetchJSON(r)
-		if e != nil {
-			log.Errorf("Fail to decode JSON request body: %s", e)
+	return false
+}
+
+func FetchEnv(ctx context.Context, w http.ResponseWriter, r *http.Request) (params map[string]string, query jsonutils.JSONObject, body jsonutils.JSONObject) {
+	var err error
+	params = appctx.AppContextParams(ctx)
+	query, err = jsonutils.ParseQueryString(r.URL.RawQuery)
+	if err != nil {
+		log.Errorf("Parse query string %s failed: %s", r.URL.RawQuery, err)
+	}
+	//var body jsonutils.JSONObject = nil
+	if (r.Method == "PUT" || r.Method == "POST" || r.Method == "DELETE" || r.Method == "PATCH") && r.ContentLength > 0 && isJsonContentType(r) {
+		body, err = FetchJSON(r)
+		if err != nil {
+			log.Errorf("Fail to decode JSON request body: %s", err)
 		}
 	}
 	return params, query, body
+}
+
+func (app *Application) GetContext() context.Context {
+	return app.context
 }

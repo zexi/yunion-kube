@@ -32,8 +32,8 @@ func init() {
 type SGroupguest struct {
 	SGroupJointsBase
 
-	Tag     string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"user" create:"optional"`    // Column(VARCHAR(256, charset='ascii'), nullable=True)
-	GuestId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" key_index:"true"` // Column(VARCHAR(36, charset='ascii'), nullable=False)
+	Tag     string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"user" create:"optional"` // Column(VARCHAR(256, charset='ascii'), nullable=True)
+	GuestId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required"`               // Column(VARCHAR(36, charset='ascii'), nullable=False)
 }
 
 func (joint *SGroupguest) Master() db.IStandaloneModel {
@@ -49,9 +49,12 @@ func (self *SGroupguest) GetCustomizeColumns(ctx context.Context, userCred mccli
 	return db.JointModelExtra(self, extra)
 }
 
-func (self *SGroupguest) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SGroupJointsBase.GetExtraDetails(ctx, userCred, query)
-	return db.JointModelExtra(self, extra)
+func (self *SGroupguest) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SGroupJointsBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+	return db.JointModelExtra(self, extra), nil
 }
 
 func (self *SGroupguest) GetGuest() *SGuest {

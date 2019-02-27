@@ -32,8 +32,8 @@ func init() {
 type SHostschedtag struct {
 	SHostJointsBase
 
-	HostId     string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required" key_index:"true"` // Column(VARCHAR(36, charset='ascii'), nullable=False)
-	SchedtagId string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required" key_index:"true"` // =Column(VARCHAR(36, charset='ascii'), nullable=False)
+	HostId     string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"` // Column(VARCHAR(36, charset='ascii'), nullable=False)
+	SchedtagId string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"` // =Column(VARCHAR(36, charset='ascii'), nullable=False)
 }
 
 func (joint *SHostschedtag) Master() db.IStandaloneModel {
@@ -49,9 +49,12 @@ func (self *SHostschedtag) GetCustomizeColumns(ctx context.Context, userCred mcc
 	return db.JointModelExtra(self, extra)
 }
 
-func (self *SHostschedtag) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SHostJointsBase.GetExtraDetails(ctx, userCred, query)
-	return db.JointModelExtra(self, extra)
+func (self *SHostschedtag) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SHostJointsBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+	return db.JointModelExtra(self, extra), nil
 }
 
 func (self *SHostschedtag) getHost() *SHost {

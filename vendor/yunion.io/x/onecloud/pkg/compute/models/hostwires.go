@@ -38,8 +38,8 @@ type SHostwire struct {
 	IsMaster  bool   `nullable:"true" default:"false" update:"admin" create:"admin_optional"`                          // Column(Boolean, nullable=True, default=False)
 	MacAddr   string `width:"18" charset:"ascii" list:"admin" update:"admin" create:"admin_required"`                  // Column(VARCHAR(18, charset='ascii'))
 
-	HostId string `width:"128" charset:"ascii" nullable:"false" list:"admin" create:"admin_required" key_index:"true"` // = Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
-	WireId string `width:"128" charset:"ascii" nullable:"false" list:"admin" create:"admin_required" key_index:"true"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
+	HostId string `width:"128" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"` // = Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
+	WireId string `width:"128" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
 }
 
 func (joint *SHostwire) Master() db.IStandaloneModel {
@@ -56,10 +56,13 @@ func (self *SHostwire) GetCustomizeColumns(ctx context.Context, userCred mcclien
 	return self.getExtraDetails(extra)
 }
 
-func (self *SHostwire) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SHostJointsBase.GetExtraDetails(ctx, userCred, query)
+func (self *SHostwire) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SHostJointsBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
 	extra = db.JointModelExtra(self, extra)
-	return self.getExtraDetails(extra)
+	return self.getExtraDetails(extra), nil
 }
 
 func (hw *SHostwire) GetWire() *SWire {

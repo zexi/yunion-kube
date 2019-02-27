@@ -4,17 +4,17 @@ import (
 	"fmt"
 
 	"k8s.io/helm/pkg/chartutil"
-	"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type ReleaseDetail struct {
-	*release.Release
+	*Release
 	Resources    map[string]interface{} `json:"resources"`
 	ConfigValues chartutil.Values       `json:"config_values"`
 }
@@ -39,7 +39,7 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail
 		return nil, err
 	}
 
-	detail, err := GetReleaseDetail(cli, genericCli, namespace, id)
+	detail, err := GetReleaseDetail(cli, req.GetCluster(), genericCli, namespace, id)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +48,7 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail
 
 func GetReleaseDetail(
 	helmclient *client.HelmTunnelClient,
+	cluster apis.ICluster,
 	genericClient *k8sclient.GenericClient,
 	namespace, releaseName string,
 ) (*ReleaseDetail, error) {
@@ -74,13 +75,13 @@ func GetReleaseDetail(
 		return nil, fmt.Errorf("CoalesceValues: %v", err)
 	}
 
-	res, err := GetReleaseResources(genericClient, rls.Release)
+	res, err := GetReleaseResources(genericClient, cluster, rls.Release)
 	if err != nil {
 		return nil, fmt.Errorf("Get release resources: %v", err)
 	}
 
 	return &ReleaseDetail{
-		Release:      rls.Release,
+		Release:      ToRelease(rls.Release, cluster),
 		ConfigValues: cfg,
 		Resources:    res,
 	}, nil

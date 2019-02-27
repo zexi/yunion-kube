@@ -14,7 +14,7 @@ import (
 
 // NamespaceList contains a list of namespaces in the cluster.
 type NamespaceList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 
 	// Unordered list of Namespaces.
 	Namespaces []Namespace `json:"namespaces"`
@@ -38,24 +38,24 @@ func (n Namespace) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SNamespaceManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetNamespaceList(req.GetK8sClient(), req.ToQuery())
+	return man.GetNamespaceList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
 }
 
-func (man *SNamespaceManager) GetNamespaceList(client client.Interface, dsQuery *dataselect.DataSelectQuery) (*NamespaceList, error) {
+func (man *SNamespaceManager) GetNamespaceList(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*NamespaceList, error) {
 	log.Infof("Getting list of all namespaces in the cluster")
 	channels := &common.ResourceChannels{
 		NamespaceList: common.GetNamespaceListChannel(client),
 	}
-	return GetNamespaceListFromChannels(channels, dsQuery)
+	return GetNamespaceListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *NamespaceList) Append(obj interface{}) {
-	l.Namespaces = append(l.Namespaces, toNamespace(obj.(v1.Namespace)))
+	l.Namespaces = append(l.Namespaces, toNamespace(obj.(v1.Namespace), l.GetCluster()))
 }
 
-func toNamespace(namespace v1.Namespace) Namespace {
+func toNamespace(namespace v1.Namespace, cluster api.ICluster) Namespace {
 	return Namespace{
-		ObjectMeta: api.NewObjectMeta(namespace.ObjectMeta),
+		ObjectMeta: api.NewObjectMetaV2(namespace.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindNamespace),
 		Phase:      namespace.Status.Phase,
 	}
@@ -65,14 +65,14 @@ func (l *NamespaceList) GetResponseData() interface{} {
 	return l.Namespaces
 }
 
-func GetNamespaceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*NamespaceList, error) {
+func GetNamespaceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*NamespaceList, error) {
 	namespaces := <-channels.NamespaceList.List
 	err := <-channels.NamespaceList.Error
 	if err != nil {
 		return nil, err
 	}
 	namespaceList := &NamespaceList{
-		ListMeta:   dataselect.NewListMeta(),
+		BaseList:   common.NewBaseList(cluster),
 		Namespaces: make([]Namespace, 0),
 	}
 	err = dataselect.ToResourceList(

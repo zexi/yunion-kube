@@ -8,10 +8,11 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // GetDeploymentPods returns list of pods targeting deployment.
-func GetDeploymentPods(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace, deploymentName string) (*pod.PodList, error) {
+func GetDeploymentPods(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, deploymentName string) (*pod.PodList, error) {
 
 	deployment, err := client.AppsV1beta2().Deployments(namespace).Get(deploymentName, metaV1.GetOptions{})
 	if err != nil {
@@ -40,6 +41,6 @@ func GetDeploymentPods(client client.Interface, dsQuery *dataselect.DataSelectQu
 		return nil, err
 	}
 
-	podList, err := pod.ToPodList(pods, events, dsQuery)
+	podList, err := pod.ToPodList(pods, events, dsQuery, cluster)
 	return podList, err
 }
