@@ -38,15 +38,20 @@ func (n Namespace) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SNamespaceManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetNamespaceList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
+	return man.GetNamespaceList(req.GetK8sClient(), req.GetCluster(), req.ToQuery(), req.ProjectNamespaces)
 }
 
-func (man *SNamespaceManager) GetNamespaceList(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*NamespaceList, error) {
+func (man *SNamespaceManager) GetNamespaceList(
+	client client.Interface,
+	cluster api.ICluster,
+	dsQuery *dataselect.DataSelectQuery,
+	projectNamespaces *common.ProjectNamespaces,
+) (*NamespaceList, error) {
 	log.Infof("Getting list of all namespaces in the cluster")
 	channels := &common.ResourceChannels{
 		NamespaceList: common.GetNamespaceListChannel(client),
 	}
-	return GetNamespaceListFromChannels(channels, dsQuery, cluster)
+	return GetNamespaceListFromChannels(channels, dsQuery, cluster, projectNamespaces)
 }
 
 func (l *NamespaceList) Append(obj interface{}) {
@@ -65,11 +70,27 @@ func (l *NamespaceList) GetResponseData() interface{} {
 	return l.Namespaces
 }
 
-func GetNamespaceListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*NamespaceList, error) {
+func GetNamespaceListFromChannels(
+	channels *common.ResourceChannels,
+	dsQuery *dataselect.DataSelectQuery,
+	cluster api.ICluster,
+	projectNamespaces *common.ProjectNamespaces,
+) (*NamespaceList, error) {
 	namespaces := <-channels.NamespaceList.List
 	err := <-channels.NamespaceList.Error
 	if err != nil {
 		return nil, err
+	}
+	items := make([]v1.Namespace, 0)
+	allNs := namespaces.Items
+	if !projectNamespaces.HasAllNamespacePrivelege() {
+		for _, ns := range allNs {
+			if projectNamespaces.Sets().Has(ns.GetName()) {
+				items = append(items, ns)
+			}
+		}
+	} else {
+		items = allNs
 	}
 	namespaceList := &NamespaceList{
 		BaseList:   common.NewBaseList(cluster),
@@ -77,7 +98,7 @@ func GetNamespaceListFromChannels(channels *common.ResourceChannels, dsQuery *da
 	}
 	err = dataselect.ToResourceList(
 		namespaceList,
-		namespaces.Items,
+		items,
 		dataselect.NewNamespaceDataCell,
 		dsQuery,
 	)

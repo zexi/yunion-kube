@@ -142,7 +142,11 @@ func (d *SYunoinHostDriver) CreateClusterResource(man *clusters.SClusterManager,
 		if err != nil {
 			return err
 		}
-		ret, err := yunion_host.ValidateHostId(session, firstControl.ResourceId)
+		privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
+		if err != nil {
+			return err
+		}
+		ret, err := yunion_host.ValidateHostId(session, privateKey, firstControl.ResourceId)
 		if err != nil {
 			return err
 		}
@@ -321,12 +325,12 @@ func (d *SYunoinHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (strin
 		AdminProject:       o.AdminProject,
 		Region:             o.Region,
 		KubeCluster:        cluster.Name,
-		CNIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/cni:latest",
-		CloudProviderImage: "registry.cn-beijing.aliyuncs.com/yunionio/cloud-controller-manager:latest",
+		CNIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/cni:v2.7.0",
+		CloudProviderImage: "registry.cn-beijing.aliyuncs.com/yunionio/cloud-controller-manager:v2.7.0",
 		CSIAttacher:        "registry.cn-beijing.aliyuncs.com/yunionio/csi-attacher:v0.4.0",
 		CSIProvisioner:     "registry.cn-beijing.aliyuncs.com/yunionio/csi-provisioner:v0.4.0",
 		CSIRegistrar:       "registry.cn-beijing.aliyuncs.com/yunionio/driver-registrar:v0.4.0",
-		CSIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/csi-plugin:latest",
+		CSIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/csi-plugin:v2.7.0",
 		TillerImage:        "registry.cn-beijing.aliyuncs.com/yunionio/tiller:v2.11.0",
 		MetricsServerImage: "registry.cn-beijing.aliyuncs.com/yunionio/metrics-server-amd64:v0.3.1",
 	})
