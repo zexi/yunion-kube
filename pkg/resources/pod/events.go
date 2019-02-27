@@ -8,19 +8,20 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func GetEventsForPod(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace,
+func GetEventsForPod(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace,
 	podName string) (*common.EventList, error) {
 	eventList := common.EventList{
-		ListMeta: dataselect.NewListMeta(),
+		BaseList: common.NewBaseList(cluster),
 		Events:   make([]common.Event, 0),
 	}
 	podEvents, err := event.GetPodEvents(client, namespace, podName)
 	if err != nil {
 		return &eventList, err
 	}
-	eventList, err = event.CreateEventList(podEvents, dsQuery)
+	eventList, err = event.CreateEventList(podEvents, dsQuery, cluster)
 	if err != nil {
 		return &eventList, err
 	}

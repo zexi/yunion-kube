@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
+	//"net/url"
 
 	//"k8s.io/api/core/v1"
 	//"k8s.io/client-go/kubernetes/scheme"
 	//"k8s.io/client-go/tools/remotecommand"
-	"yunion.io/x/jsonutils"
+	//"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	//"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
-
-	"yunion.io/x/yunion-kube/pkg/clusterrouter/proxy"
+	//"yunion.io/x/yunion-kube/pkg/clusterrouter/proxy"
 )
 
 func AddMiscDispatcher(prefix string, app *appsrv.Application) {
@@ -30,7 +29,9 @@ func AddMiscDispatcher(prefix string, app *appsrv.Application) {
 }
 
 func handleExecShell(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	params, query, data := _fetchEnv(ctx, w, r)
+	httperrors.GeneralServerError(w, fmt.Errorf("Not impl"))
+	return
+	/*params, query, data := _fetchEnv(ctx, w, r)
 	request, err := NewCloudK8sRequest(ctx, query.(*jsonutils.JSONDict), nil)
 	if err != nil {
 		httperrors.GeneralServerError(w, err)
@@ -72,5 +73,5 @@ func handleExecShell(ctx context.Context, w http.ResponseWriter, r *http.Request
 	}
 	r.URL.Path = req.URL().Path
 	r.URL.RawQuery = vars.Encode()
-	service.ServeHTTP(w, r)
+	service.ServeHTTP(w, r)*/
 }

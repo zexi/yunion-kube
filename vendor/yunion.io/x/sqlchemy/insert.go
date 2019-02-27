@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/util/reflectutils"
 )
 
@@ -13,7 +14,7 @@ func (t *STableSpec) Insert(dt interface{}) error {
 	return t.insert(dt, false)
 }
 
-func (t *STableSpec) insertSqlPrep(dataFields map[string]interface{}) (string, []interface{}, error) {
+func (t *STableSpec) insertSqlPrep(dataFields reflectutils.SStructFieldValueSet) (string, []interface{}, error) {
 	var autoIncField string
 	createdAtFields := make([]string, 0)
 
@@ -31,13 +32,22 @@ func (t *STableSpec) insertSqlPrep(dataFields map[string]interface{}) (string, [
 		k := c.Name()
 
 		dtc, ok := c.(*SDateTimeColumn)
-		ov := dataFields[k]
+		ov, find := dataFields.GetInterface(k)
+
+		if !find {
+			continue
+		}
 
 		if ok && (dtc.IsCreatedAt || dtc.IsUpdatedAt) {
 			createdAtFields = append(createdAtFields, k)
 			names = append(names, fmt.Sprintf("`%s`", k))
 			format = append(format, "UTC_TIMESTAMP()")
-		} else if ov != nil && !c.IsZero(ov) && !isAutoInc {
+		} else if c.IsSupportDefault() && len(c.Default()) > 0 && !gotypes.IsNil(ov) && c.IsZero(ov) { // empty text value
+			val := c.ConvertFromString(c.Default())
+			values = append(values, val)
+			names = append(names, fmt.Sprintf("`%s`", k))
+			format = append(format, "?")
+		} else if !gotypes.IsNil(ov) && (!c.IsZero(ov) || (!c.IsPointer() && !c.IsText())) && !isAutoInc {
 			v := c.ConvertFromValue(ov)
 			values = append(values, v)
 			names = append(names, fmt.Sprintf("`%s`", k))
@@ -51,11 +61,6 @@ func (t *STableSpec) insertSqlPrep(dataFields map[string]interface{}) (string, [
 			} else {
 				return "", nil, fmt.Errorf("cannot insert for null primary key %q", k)
 			}
-		} else if !c.IsSupportDefault() && len(c.Default()) > 0 && ov != nil && c.IsZero(ov) { // empty text value
-			val := c.ConvertFromString(c.Default())
-			values = append(values, val)
-			names = append(names, fmt.Sprintf("`%s`", k))
-			format = append(format, "?")
 		}
 	}
 
@@ -73,14 +78,14 @@ func (t *STableSpec) insert(data interface{}, debug bool) error {
 	}
 
 	dataValue := reflect.ValueOf(data).Elem()
-	dataFields := reflectutils.FetchStructFieldNameValueInterfaces(dataValue)
+	dataFields := reflectutils.FetchStructFieldValueSet(dataValue)
 	insertSql, values, err := t.insertSqlPrep(dataFields)
 	if err != nil {
 		return err
 	}
 
 	if DEBUG_SQLCHEMY || debug {
-		log.Debugf("%s values: %s", insertSql, values)
+		log.Debugf("%s values: %v", insertSql, values)
 	}
 
 	results, err := _db.Exec(insertSql, values...)
@@ -122,7 +127,10 @@ func (t *STableSpec) insert(data interface{}, debug bool) error {
 					q = q.Equals(c.Name(), lastId)
 				}
 			} else {
-				q = q.Equals(c.Name(), dataFields[c.Name()])
+				priVal, _ := dataFields.GetInterface(c.Name())
+				if !gotypes.IsNil(priVal) {
+					q = q.Equals(c.Name(), priVal)
+				}
 			}
 		}
 	}

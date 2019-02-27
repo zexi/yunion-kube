@@ -3,11 +3,14 @@ package models
 import (
 	"context"
 
+	"time"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/billing"
 )
 
 type IGuestDriver interface {
@@ -15,8 +18,16 @@ type IGuestDriver interface {
 
 	GetMaxVCpuCount() int
 	GetMaxVMemSizeGB() int
+	GetMaxSecurityGroupCount() int
 
-	GetJsonDescAtHost(ctx context.Context, guest *SGuest, host *SHost) jsonutils.JSONObject
+	GetDefaultSysDiskBackend() string
+	GetMinimalSysDiskSizeGb() int
+
+	IsSupportedBillingCycle(bc billing.SBillingCycle) bool
+
+	RequestRenewInstance(guest *SGuest, bc billing.SBillingCycle) (time.Time, error)
+
+	GetJsonDescAtHost(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, host *SHost) jsonutils.JSONObject
 
 	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
 
@@ -67,7 +78,7 @@ type IGuestDriver interface {
 
 	StartGuestSaveImage(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, params *jsonutils.JSONDict, parentTaskId string) error
 
-	RequestStopGuestForDelete(ctx context.Context, guest *SGuest, task taskman.ITask) error
+	RequestStopGuestForDelete(ctx context.Context, guest *SGuest, host *SHost, task taskman.ITask) error
 
 	RequestDetachDisksFromGuestForDelete(ctx context.Context, guest *SGuest, task taskman.ITask) error
 
@@ -77,9 +88,9 @@ type IGuestDriver interface {
 
 	PerformStart(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, data *jsonutils.JSONDict) error
 
-	CheckDiskTemplateOnStorage(ctx context.Context, userCred mcclient.TokenCredential, imageId string, storageId string, task taskman.ITask) error
+	CheckDiskTemplateOnStorage(ctx context.Context, userCred mcclient.TokenCredential, imageId string, format string, storageId string, task taskman.ITask) error
 
-	GetGuestVncInfo(userCred mcclient.TokenCredential, guest *SGuest, host *SHost) (*jsonutils.JSONDict, error)
+	GetGuestVncInfo(ctx context.Context, userCred mcclient.TokenCredential, guest *SGuest, host *SHost) (*jsonutils.JSONDict, error)
 
 	RequestAttachDisk(ctx context.Context, guest *SGuest, task taskman.ITask) error
 	RequestDetachDisk(ctx context.Context, guest *SGuest, task taskman.ITask) error
@@ -101,7 +112,7 @@ type IGuestDriver interface {
 
 	AllowReconfigGuest() bool
 	DoGuestCreateDisksTask(ctx context.Context, guest *SGuest, task taskman.ITask) error
-	RequestChangeVmConfig(ctx context.Context, guest *SGuest, task taskman.ITask, vcpuCount, vmemSize int64) error
+	RequestChangeVmConfig(ctx context.Context, guest *SGuest, task taskman.ITask, instanceType string, vcpuCount, vmemSize int64) error
 
 	RequestGuestHotAddIso(ctx context.Context, guest *SGuest, path string, task taskman.ITask) error
 	RequestRebuildRootDisk(ctx context.Context, guest *SGuest, task taskman.ITask) error
@@ -110,6 +121,11 @@ type IGuestDriver interface {
 	RequestDiskSnapshot(ctx context.Context, guest *SGuest, task taskman.ITask, snapshotId, diskId string) error
 	RequestDeleteSnapshot(ctx context.Context, guest *SGuest, task taskman.ITask, params *jsonutils.JSONDict) error
 	RequestReloadDiskSnapshot(ctx context.Context, guest *SGuest, task taskman.ITask, params *jsonutils.JSONDict) error
+	RequestSyncToBackup(ctx context.Context, guest *SGuest, task taskman.ITask) error
+
+	IsSupportEip() bool
+
+	NeedStopForChangeSpec() bool
 }
 
 var guestDrivers map[string]IGuestDriver

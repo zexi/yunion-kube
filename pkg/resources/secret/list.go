@@ -57,7 +57,7 @@ type Secret struct {
 
 // SecretsList is a response structure for a queried secrets list.
 type SecretList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 
 	// Unordered list of Secrets.
 	Secrets []Secret
@@ -69,7 +69,7 @@ func (man *SSecretManager) List(req *common.Request) (common.ListResource, error
 		filter := query.FilterQuery
 		filter.Append(dataselect.NewFilterBy(dataselect.SecretTypeProperty, secType))
 	}
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), query)
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), query)
 }
 
 func (man *SRegistrySecretManager) List(req *common.Request) (common.ListResource, error) {
@@ -81,23 +81,27 @@ func (man *SRegistrySecretManager) List(req *common.Request) (common.ListResourc
 	return SecretManager.List(req)
 }
 
-func (man *SSecretManager) ListV2(client kubernetes.Interface, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return GetSecretList(client, namespace, dsQuery)
+func (man *SSecretManager) ListV2(
+	client kubernetes.Interface,
+	cluster api.ICluster,
+	namespace *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetSecretList(client, cluster, namespace, dsQuery)
 }
 
 // GetSecretList returns all secrets in the given namespace.
-func GetSecretList(client kubernetes.Interface, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*SecretList, error) {
+func GetSecretList(client kubernetes.Interface, cluster api.ICluster, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*SecretList, error) {
 	secretList, err := client.CoreV1().Secrets(namespace.ToRequestParam()).List(api.ListEverything)
 	if err != nil {
 		return nil, err
 	}
 
-	return toSecretList(secretList.Items, dsQuery)
+	return toSecretList(secretList.Items, dsQuery, cluster)
 }
 
-func toSecretList(secrets []v1.Secret, dsQuery *dataselect.DataSelectQuery) (*SecretList, error) {
+func toSecretList(secrets []v1.Secret, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*SecretList, error) {
 	secretList := &SecretList{
-		ListMeta: dataselect.NewListMeta(),
+		BaseList: common.NewBaseList(cluster),
 		Secrets:  make([]Secret, 0),
 	}
 	err := dataselect.ToResourceList(
@@ -110,7 +114,7 @@ func toSecretList(secrets []v1.Secret, dsQuery *dataselect.DataSelectQuery) (*Se
 }
 
 func (l *SecretList) Append(obj interface{}) {
-	l.Secrets = append(l.Secrets, *toSecret(obj.(v1.Secret)))
+	l.Secrets = append(l.Secrets, *toSecret(obj.(v1.Secret), l.GetCluster()))
 }
 
 func (l *SecretList) GetResponseData() interface{} {

@@ -29,11 +29,11 @@ type SecretDetail struct {
 
 func (man *SSecretManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetSecretDetail(req.GetK8sClient(), namespace, id)
+	return GetSecretDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
 }
 
 // GetSecretDetail returns returns detailed information about a secret
-func GetSecretDetail(client kubernetes.Interface, namespace, name string) (*SecretDetail, error) {
+func GetSecretDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*SecretDetail, error) {
 	log.Infof("Getting details of %s secret in %s namespace", name, namespace)
 
 	rawSecret, err := client.CoreV1().Secrets(namespace).Get(name, metaV1.GetOptions{})
@@ -41,12 +41,12 @@ func GetSecretDetail(client kubernetes.Interface, namespace, name string) (*Secr
 		return nil, err
 	}
 
-	return getSecretDetail(rawSecret), nil
+	return getSecretDetail(rawSecret, cluster), nil
 }
 
-func getSecretDetail(rawSecret *v1.Secret) *SecretDetail {
+func getSecretDetail(rawSecret *v1.Secret, cluster api.ICluster) *SecretDetail {
 	return &SecretDetail{
-		ObjectMeta: api.NewObjectMeta(rawSecret.ObjectMeta),
+		ObjectMeta: api.NewObjectMetaV2(rawSecret.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindSecret),
 		Data:       rawSecret.Data,
 		Type:       rawSecret.Type,

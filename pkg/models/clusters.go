@@ -19,7 +19,6 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	"yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -34,6 +33,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
 	drivertypes "yunion.io/x/yunion-kube/pkg/clusterdriver/types"
 	ykedriver "yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
+	modeltypes "yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/templates"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -87,12 +88,10 @@ var (
 
 type SClusterManager struct {
 	db.SStatusStandaloneResourceBaseManager
-	models.SInfrastructureManager
 }
 
 type SCluster struct {
 	db.SStatusStandaloneResourceBase
-	models.SInfrastructure
 	Mode          string `nullable:"false" create:"required" list:"user"`
 	K8sVersion    string `nullable:"false" create:"required" list:"user" update:"user"`
 	ClusterCidr   string `nullable:"true" create:"optional" list:"user"`
@@ -111,14 +110,14 @@ type SCluster struct {
 
 func (m *SClusterManager) InitializeData() error {
 	// check if default cluster exists
-	cluster, err := m.FetchByIdOrName(nil, "default")
+	cluster, err := m.FetchByIdOrName(nil, modeltypes.DefaultCluster)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			return err
 		}
 		defCluster := SCluster{}
 		defCluster.Id = stringutils.UUID4()
-		defCluster.Name = "default"
+		defCluster.Name = modeltypes.DefaultCluster
 		defCluster.K8sVersion = DEFAULT_K8S_VERSION
 		defCluster.Mode = DEFAULT_CLUSER_MODE
 		defCluster.ClusterCidr = DEFAULT_CLUSER_CIDR
@@ -130,6 +129,7 @@ func (m *SClusterManager) InitializeData() error {
 		if err != nil {
 			return fmt.Errorf("Insert default cluster error: %v", err)
 		}
+		cluster = &defCluster
 	} else {
 		c := cluster.(*SCluster)
 		if c.ClusterCidr != DEFAULT_SERVICE_CLUSTER_IP_RANGE {
@@ -144,7 +144,23 @@ func (m *SClusterManager) InitializeData() error {
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return true
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (m *SClusterManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (c *SCluster) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (c *SCluster) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
+func (c *SCluster) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -603,7 +619,15 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 		c.YkeConfig = clusterInfo.Config
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if v2c, err := c.GetV2Cluster(); err == nil {
+		if config, err := c.GetAdminKubeconfig(); err == nil {
+			v2c.SetKubeconfig(config)
+		}
+	}
+	return nil
 }
 
 func (c *SCluster) SetYKEConfig(config *yketypes.KubernetesEngineConfig) error {
@@ -621,12 +645,31 @@ func (c *SCluster) SetYKEConfig(config *yketypes.KubernetesEngineConfig) error {
 	return err
 }
 
-func (c *SCluster) GetYKEConfig() (conf *yketypes.KubernetesEngineConfig, err error) {
+func (c *SCluster) GetYKEConfig() (*yketypes.KubernetesEngineConfig, error) {
 	confStr := c.YkeConfig
 	if confStr == "" {
-		return
+		//return nil, fmt.Errorf("cluster yke config is empty")
+		return nil, nil
 	}
 	return utils.ConvertToYkeConfig(confStr)
+}
+
+func (c *SCluster) IsSystemDefault() bool {
+	return c.GetName() == modeltypes.DefaultCluster
+}
+
+func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
+	if !c.IsSystemDefault() {
+		return nil
+	}
+	isEmpty, err := c.IsNonSystemClustersEmpty()
+	if err != nil {
+		return err
+	}
+	if !isEmpty {
+		return httperrors.NewNotAcceptableError("None system clusters exists, please delete them firstly")
+	}
+	return nil
 }
 
 func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -636,7 +679,21 @@ func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential
 }
 
 func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	cluster, err := c.GetV2Cluster()
+	if err != nil {
+		return err
+	}
+	if err := cluster.RealDelete(ctx, userCred); err != nil {
+		return err
+	}
 	return c.SStatusStandaloneResourceBase.Delete(ctx, userCred)
+}
+
+func (c *SCluster) SetStatus(userCred mcclient.TokenCredential, status, reason string) error {
+	if cluster, _ := c.GetV2Cluster(); cluster != nil {
+		cluster.SetStatus(userCred, status, reason)
+	}
+	return c.SStatusStandaloneResourceBase.SetStatus(userCred, status, reason)
 }
 
 func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -948,7 +1005,7 @@ func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	var conf string
 	var err error
-	if userCred.IsSystemAdmin() {
+	if userCred.HasSystemAdminPrivelege() {
 		//directly := jsonutils.QueryBoolean(data, "directly", false)
 		//getF := c.GetAdminProxyKubeConfig
 		//if directly {
@@ -1011,7 +1068,7 @@ func (c *SCluster) GetAdminKubeconfig() (string, error) {
 }
 
 func (c *SCluster) AllowGetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) GetDetailsEngineConfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1052,7 +1109,7 @@ func (c *SCluster) PerformUpdateEngineConfig(ctx context.Context, userCred mccli
 }
 
 func (c *SCluster) AllowGetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1066,7 +1123,7 @@ func (c *SCluster) GetDetailsWebhookAuthUrl(ctx context.Context, userCred mcclie
 }
 
 func (c *SCluster) AllowGetDetailsCloudHosts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.AllowGetDetails(ctx, userCred, query)
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) GetDetailsCloudHosts(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1414,12 +1471,6 @@ func (c *SCluster) PerformAddNodes(ctx context.Context, userCred mcclient.TokenC
 	if err != nil {
 		return nil, err
 	}
-	for _, node := range nodes {
-		err = NodeManager.TableSpec().Insert(node)
-		if err != nil {
-			return nil, err
-		}
-	}
 	autoDeploy := jsonutils.QueryBoolean(data, "auto_deploy", false)
 	if !autoDeploy {
 		return nil, nil
@@ -1432,7 +1483,7 @@ func (c *SCluster) AllowPerformDeleteNodes(ctx context.Context, userCred mcclien
 	return allowPerformAction(ctx, userCred, query, data)
 }
 
-func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
+func (c *SCluster) ValidateDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
 	if ClusterProcessingStatus.Has(c.Status) {
 		return nil, httperrors.NewNotAcceptableError(fmt.Sprintf("cluster status is %s", c.Status))
 	}
@@ -1466,14 +1517,37 @@ func (c *SCluster) validateDeleteNodes(ctx context.Context, userCred mcclient.To
 
 	for _, node := range nodes {
 		if len(node.Address) != 0 && strings.Contains(c.ApiEndpoint, node.Address) && len(nodes) != len(oldNodes) {
+			isEmpty, err := c.IsNonSystemClustersEmpty()
+			if err != nil {
+				return nil, err
+			}
+			if !isEmpty {
+				return nil, httperrors.NewNotAcceptableError("None system clusters exists, please delete them firstly")
+			}
 			return nil, httperrors.NewInputParameterError("First control node %q must deleted at last, address %q", node.Name, node.Address)
 		}
 	}
 	return nodes, nil
 }
 
+func (c *SCluster) IsNonSystemClustersEmpty() (bool, error) {
+	cnt, err := c.GetNonSystemClustersCount()
+	if err != nil {
+		return false, err
+	}
+	return cnt == 0, nil
+}
+
+func (c *SCluster) GetNonSystemClustersCount() (int, error) {
+	clusters, err := manager.ClusterManager().GetNonSystemClusters()
+	if err != nil {
+		return 0, err
+	}
+	return len(clusters), nil
+}
+
 func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	nodes, err := c.validateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
+	nodes, err := c.ValidateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
 	if err != nil {
 		return nil, err
 	}
@@ -1585,4 +1659,83 @@ func (c *SCluster) PerformRestartAgent(ctx context.Context, userCred mcclient.To
 	}
 	err = c.StartClusterRestartNodesAgentTask(ctx, userCred, nil, "", targets...)
 	return nil, err
+}
+
+func (c *SCluster) v2ClusterCreateData() modeltypes.CreateClusterData {
+	return modeltypes.CreateClusterData{
+		Name:          c.GetName(),
+		ClusterType:   string(modeltypes.ClusterTypeDefault),
+		CloudType:     string(modeltypes.CloudTypePrivate),
+		Mode:          string(modeltypes.ModeTypeImport),
+		Provider:      string(modeltypes.ProviderTypeSystem),
+		ServiceCidr:   c.ClusterCidr,
+		ServiceDomain: c.ClusterDomain,
+		Version:       c.K8sVersion,
+	}
+}
+
+func (c *SCluster) GetV2Cluster() (manager.ICluster, error) {
+	userCred := GetAdminCred()
+	return manager.ClusterManager().FetchClusterByIdOrName(userCred, c.GetName())
+}
+
+func (man *SClusterManager) StartMigrate() error {
+	defaultCluster, err := man.FetchClusterByIdOrName(nil, modeltypes.DefaultCluster)
+	if err != nil {
+		return err
+	}
+	return defaultCluster.MigrateToV2Cluster()
+}
+
+func (c *SCluster) getMigrateNodes() ([]*SNode, error) {
+	nodes, err := c.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+	mNodes := make([]*SNode, 0)
+	firstNodeIdx := 0
+	for i, node := range nodes {
+		isFirstNode, err := node.IsFirstNode()
+		if err != nil {
+			return nil, err
+		}
+		if isFirstNode {
+			firstNodeIdx = i
+			mNodes = append(mNodes, node)
+		}
+	}
+	for i, node := range nodes {
+		if i == firstNodeIdx {
+			continue
+		}
+		mNodes = append(mNodes, node)
+	}
+	return mNodes, nil
+}
+
+func (c *SCluster) MigrateToV2Cluster() error {
+	ctx := context.TODO()
+	userCred := GetAdminCred()
+	v2Cluster, exists, err := manager.ClusterManager().IsClusterExists(userCred, c.GetName())
+	if err != nil {
+		return err
+	}
+	if !exists {
+		v2Cluster, err = manager.ClusterManager().CreateCluster(ctx, userCred, c.v2ClusterCreateData())
+		if err != nil {
+			return fmt.Errorf("Create to v2 cluster: %v", err)
+		}
+		v2Cluster.SetStatus(userCred, c.Status, "")
+	}
+	log.Infof("Cluster migrate finished: %v", v2Cluster)
+	nodes, err := c.getMigrateNodes()
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		if err := node.MigrateToV2Machine(ctx, userCred, v2Cluster); err != nil {
+			return err
+		}
+	}
+	return nil
 }

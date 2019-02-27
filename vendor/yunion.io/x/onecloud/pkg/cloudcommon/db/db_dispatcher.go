@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -64,36 +65,16 @@ func (dispatcher *DBModelDispatcher) Filter(f appsrv.FilterHandler) appsrv.Filte
 	}
 }
 
+func (dispatcher *DBModelDispatcher) CustomizeHandlerInfo(handler *appsrv.SHandlerInfo) {
+	dispatcher.modelManager.CustomizeHandlerInfo(handler)
+}
+
 func fetchUserCredential(ctx context.Context) mcclient.TokenCredential {
-	token := auth.FetchUserCredential(ctx)
+	token := auth.FetchUserCredential(ctx, policy.FilterPolicyCredential)
 	if token == nil && !consts.IsRbacEnabled() {
 		log.Fatalf("user token credential not found?")
 	}
 	return token
-}
-
-func listItemsQueryByColumn(manager IModelManager, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	if query == nil {
-		return q, nil
-	}
-	qdata, err := query.GetMap()
-	if err != nil {
-		return nil, err
-	}
-	listF := searchFields(manager, userCred)
-	for k, v := range qdata {
-		searchable, _ := utils.InStringArray(k, listF)
-		if searchable {
-			f := q.Field(k)
-			if f != nil {
-				strV, _ := v.GetString()
-				if len(strV) > 0 {
-					q = q.Equals(k, strV)
-				}
-			}
-		}
-	}
-	return q, nil
 }
 
 /**
@@ -110,14 +91,10 @@ func listFields(manager IModelManager, userCred mcclient.TokenCredential) []stri
 	for _, col := range manager.TableSpec().Columns() {
 		tags := col.Tags()
 		list, _ := tags["list"]
-		if !utils.IsInStringArray(list, []string{"user", "admin", ""}) {
-			log.Warningf("Invalid list value %s for field %s", list, col.Name())
-		}
-		if list == "user" || (list == "admin" && userCred.IsSystemAdmin()) {
+		if list == "user" || (list == "admin" && IsAdminAllowList(userCred, manager)) {
 			ret = append(ret, col.Name())
 		}
 	}
-	log.Debugf("listFields: %s", ret)
 	return ret
 }
 
@@ -127,20 +104,20 @@ func searchFields(manager IModelManager, userCred mcclient.TokenCredential) []st
 		tags := col.Tags()
 		list := tags["list"]
 		search := tags["search"]
-		if list == "user" || search == "user" || ((list == "admin" || search == "admin") && userCred.IsSystemAdmin()) {
+		if list == "user" || search == "user" || ((list == "admin" || search == "admin") && IsAdminAllowList(userCred, manager)) {
 			ret = append(ret, col.Name())
 		}
 	}
 	return ret
 }
 
-func getDetailFields(manager IModelManager, userCred mcclient.TokenCredential) []string {
+func GetDetailFields(manager IModelManager, userCred mcclient.TokenCredential) []string {
 	ret := make([]string, 0)
 	for _, col := range manager.TableSpec().Columns() {
 		tags := col.Tags()
 		list := tags["list"]
 		get := tags["get"]
-		if list == "user" || get == "user" || ((list == "admin" || get == "admin") && userCred.IsSystemAdmin()) {
+		if list == "user" || get == "user" || ((list == "admin" || get == "admin") && userCred.IsAdminAllow(consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionGet)) {
 			ret = append(ret, col.Name())
 		}
 	}
@@ -152,7 +129,7 @@ func createRequireFields(manager IModelManager, userCred mcclient.TokenCredentia
 	for _, col := range manager.TableSpec().Columns() {
 		tags := col.Tags()
 		create, _ := tags["create"]
-		if create == "required" || (create == "admin_required" && userCred.IsSystemAdmin()) {
+		if create == "required" || (create == "admin_required" && IsAdminAllowCreate(userCred, manager)) {
 			ret = append(ret, col.Name())
 		}
 	}
@@ -166,7 +143,7 @@ func createFields(manager IModelManager, userCred mcclient.TokenCredential) []st
 		tags := col.Tags()
 		create, _ := tags["create"]
 		update := tags["update"]
-		if update == "user" || (update == "admin" && userCred.IsSystemAdmin()) || create == "required" || create == "optional" || ((create == "admin_required" || create == "admin_optional") && userCred.IsSystemAdmin()) {
+		if update == "user" || (update == "admin" && IsAdminAllowCreate(userCred, manager)) || create == "required" || create == "optional" || ((create == "admin_required" || create == "admin_optional") && IsAdminAllowCreate(userCred, manager)) {
 			ret = append(ret, col.Name())
 		}
 	}
@@ -179,11 +156,36 @@ func updateFields(manager IModelManager, userCred mcclient.TokenCredential) []st
 	for _, col := range manager.TableSpec().Columns() {
 		tags := col.Tags()
 		update := tags["update"]
-		if update == "user" || (update == "admin" && userCred.IsSystemAdmin()) {
+		if update == "user" || (update == "admin" && userCred.IsAdminAllow(consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionUpdate)) {
 			ret = append(ret, col.Name())
 		}
 	}
 	return ret
+}
+
+func listItemsQueryByColumn(manager IModelManager, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	if query == nil {
+		return q, nil
+	}
+	qdata, err := query.GetMap()
+	if err != nil {
+		return nil, err
+	}
+	listF := searchFields(manager, userCred)
+	for k, v := range qdata {
+		searchable, _ := utils.InStringArray(k, listF)
+		if searchable {
+			colSpec := manager.TableSpec().ColumnSpec(k)
+			if colSpec != nil {
+				strV, _ := v.GetString()
+				if len(strV) > 0 {
+					strV := colSpec.ConvertFromString(strV)
+					q = q.Equals(k, strV)
+				}
+			}
+		}
+	}
+	return q, nil
 }
 
 func applyListItemsSearchFilters(manager IModelManager, ctx context.Context, q *sqlchemy.SQuery,
@@ -309,13 +311,9 @@ func listItemQueryFilters(manager IModelManager, ctx context.Context, q *sqlchem
 }
 
 func query2List(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, q *sqlchemy.SQuery, query jsonutils.JSONObject) ([]jsonutils.JSONObject, error) {
-	rows, err := q.Rows()
-	if err != nil {
-		return nil, err
-	}
 	listF := listFields(manager, userCred)
 	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
-	if len(fieldFilter) > 0 && userCred.IsSystemAdmin() {
+	if len(fieldFilter) > 0 && IsAdminAllowList(userCred, manager) {
 		// only sysadmin can specify list Fields
 		listF = fieldFilter
 	}
@@ -336,6 +334,11 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 		return nil, err
 	}
 	results := make([]jsonutils.JSONObject, 0)
+	rows, err := q.Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	for rows.Next() {
 		itemValue := reflect.Indirect(reflect.ValueOf(item))
 		itemValue.Set(itemInitValue)
@@ -410,7 +413,7 @@ func fetchContextObjectId(manager IModelManager, ctx context.Context, userCred m
 	}
 }
 
-func listItems(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, ctxId string) (*modules.ListResult, error) {
+func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, ctxId string) (*modules.ListResult, error) {
 	var maxLimit int64 = 2048
 	limit, _ := query.Int("limit")
 	offset, _ := query.Int("offset")
@@ -444,7 +447,6 @@ func listItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		limit = maxLimit
 	}
 	orderBy := jsonutils.GetQueryStringArray(queryDict, "order_by")
-	order := sqlchemy.SQL_ORDER_DESC
 	if len(orderBy) == 0 {
 		colSpec := manager.TableSpec().ColumnSpec("id")
 		if err == nil && colSpec != nil && colSpec.IsNumeric() {
@@ -452,11 +454,11 @@ func listItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		} else {
 			orderBy = []string{"created_at"}
 		}
-	} else {
-		orderStr, _ := queryDict.GetString("order")
-		if orderStr == "asc" {
-			order = sqlchemy.SQL_ORDER_ASC
-		}
+	}
+	order := sqlchemy.SQL_ORDER_DESC
+	orderStr, _ := queryDict.GetString("order")
+	if orderStr == "asc" {
+		order = sqlchemy.SQL_ORDER_ASC
 	}
 	if order == sqlchemy.SQL_ORDER_ASC {
 		for _, orderByField := range orderBy {
@@ -542,7 +544,7 @@ func (dispatcher *DBModelDispatcher) List(ctx context.Context, query jsonutils.J
 		return nil, httperrors.NewForbiddenError("Not allow to list")
 	}
 
-	items, err := listItems(dispatcher.modelManager, ctx, userCred, query, ctxId)
+	items, err := ListItems(dispatcher.modelManager, ctx, userCred, query, ctxId)
 	if err != nil {
 		log.Errorf("Fail to list items: %s", err)
 		return nil, httperrors.NewGeneralError(err)
@@ -566,19 +568,48 @@ func getModelExtraDetails(item IModel, ctx context.Context, extra *jsonutils.JSO
 	return extra
 }
 
+func getModelItemDetails(manager IModelManager, item IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isHead bool) (jsonutils.JSONObject, error) {
+	appParams := appsrv.AppContextGetParams(ctx)
+	if appParams == nil && isHead {
+		log.Errorf("fail to get http response writer???")
+		return nil, httperrors.NewInternalServerError("fail to get http response writer from context")
+	}
+	hdrs := item.GetExtraDetailsHeaders(ctx, userCred, query)
+	for k, v := range hdrs {
+		appParams.Response.Header().Add(k, v)
+	}
+
+	if isHead {
+		appParams.Response.Header().Add("Content-Length", "0")
+		appParams.Response.Write([]byte{})
+		return nil, nil
+	}
+
+	if manager.IsCustomizedGetDetailsBody() {
+		return item.CustomizedGetDetailsBody(ctx, userCred, query)
+	} else {
+		return getItemDetails(manager, item, ctx, userCred, query)
+	}
+}
+
 func getItemDetails(manager IModelManager, item IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	jsonData := jsonutils.Marshal(item)
-	jsonDict, ok := jsonData.(*jsonutils.JSONDict)
-	if !ok {
-		return nil, fmt.Errorf("fail to convert model to json")
-	}
-	jsonDict = jsonDict.CopyIncludes(getDetailFields(manager, userCred)...)
-	extraDict := item.GetExtraDetails(ctx, userCred, query)
-	if extraDict != nil {
+	extraDict, err := item.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	} else if extraDict != nil {
+		jsonData := jsonutils.Marshal(item)
+		jsonDict, ok := jsonData.(*jsonutils.JSONDict)
+		if !ok {
+			return nil, fmt.Errorf("fail to convert model to json")
+		}
+		jsonDict = jsonDict.CopyIncludes(GetDetailFields(manager, userCred)...)
 		jsonDict.Update(extraDict)
+		jsonDict = getModelExtraDetails(item, ctx, jsonDict)
+		return jsonDict, nil
+	} else {
+		// override GetExtraDetails
+		return nil, nil
 	}
-	jsonDict = getModelExtraDetails(item, ctx, jsonDict)
-	return jsonDict, nil
 }
 
 func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, property string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -601,7 +632,7 @@ func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, pr
 		return nil, httperrors.NewInternalServerError("Invald %s return value", funcName)
 	}
 	if !outs[0].Bool() {
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("%s not allow to get property %s", dispatcher.Keyword(), property))
+		return nil, httperrors.NewForbiddenError("%s not allow to get property %s", dispatcher.Keyword(), property)
 	}
 
 	funcValue = modelValue.MethodByName(funcName)
@@ -623,7 +654,7 @@ func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, pr
 	}
 }
 
-func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, query jsonutils.JSONObject, isHead bool) (jsonutils.JSONObject, error) {
 	// log.Debugf("Get %s", idStr)
 	userCred := fetchUserCredential(ctx)
 
@@ -636,8 +667,7 @@ func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, quer
 
 	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.modelManager.Keyword(), idStr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
 		return nil, err
 	}
@@ -651,15 +681,14 @@ func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, quer
 	if !isAllow {
 		return nil, httperrors.NewForbiddenError("Not allow to get details")
 	}
-	return getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
+	return getModelItemDetails(dispatcher.modelManager, model, ctx, userCred, query, isHead)
 }
 
 func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr string, spec string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
 	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, query)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.modelManager.Keyword(), idStr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
 		return nil, err
 	}
@@ -681,7 +710,7 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 
 		funcValue := modelValue.MethodByName(funcName)
 		if !funcValue.IsValid() || funcValue.IsNil() {
-			return nil, httperrors.NewSpecNotFoundError(fmt.Sprintf("%s %s %s not found", dispatcher.Keyword(), idStr, spec))
+			return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 		}
 
 		outs := funcValue.Call(params)
@@ -692,13 +721,13 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 	}
 
 	if !isAllow {
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("%s not allow to get spec %s", dispatcher.Keyword(), spec))
+		return nil, httperrors.NewForbiddenError("%s not allow to get spec %s", dispatcher.Keyword(), spec)
 	}
 
 	funcName := fmt.Sprintf("GetDetails%s", specCamel)
 	funcValue := modelValue.MethodByName(funcName)
 	if !funcValue.IsValid() || funcValue.IsNil() {
-		return nil, httperrors.NewSpecNotFoundError(fmt.Sprintf("%s %s %s not found", dispatcher.Keyword(), idStr, spec))
+		return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 	}
 
 	outs := funcValue.Call(params)
@@ -724,8 +753,16 @@ func fetchOwnerProjectId(ctx context.Context, manager IModelManager, userCred mc
 	if data != nil {
 		projId = jsonutils.GetAnyString(data, []string{"project", "tenant", "project_id", "tenant_id"})
 	}
+	ownerProjId := manager.GetOwnerId(userCred)
 	if len(projId) == 0 {
-		return manager.GetOwnerId(userCred), nil
+		return ownerProjId, nil
+	}
+	t, _ := TenantCacheManager.FetchTenantByIdOrName(ctx, projId)
+	if t == nil {
+		return "", httperrors.NewNotFoundError("Project %s not found", projId)
+	}
+	if t.GetId() == ownerProjId {
+		return ownerProjId, nil
 	}
 	var isAllow bool
 	if consts.IsRbacEnabled() {
@@ -735,14 +772,10 @@ func fetchOwnerProjectId(ctx context.Context, manager IModelManager, userCred mc
 			isAllow = true
 		}
 	} else {
-		isAllow = userCred.IsSystemAdmin()
+		isAllow = userCred.IsAdminAllow(consts.GetServiceType(), policy.PolicyDelegation, "")
 	}
 	if !isAllow {
 		return "", httperrors.NewForbiddenError("Delegation not allowed")
-	}
-	t, _ := TenantCacheManager.FetchTenantByIdOrName(ctx, projId)
-	if t == nil {
-		return "", httperrors.NewNotFoundError(fmt.Sprintf("Project %s not found", projId))
 	}
 	return t.GetId(), nil
 }
@@ -764,6 +797,7 @@ func FetchModelObjects(modelManager IModelManager, query *sqlchemy.SQuery, targe
 		}
 		return err
 	}
+	defer rows.Close()
 
 	targetsValue := reflect.Indirect(reflect.ValueOf(targets))
 	for rows.Next() {
@@ -781,8 +815,19 @@ func FetchModelObjects(modelManager IModelManager, query *sqlchemy.SQuery, targe
 	return nil
 }
 
+func DoCreate(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject, ownerProjId string) (IModel, error) {
+	lockman.LockClass(ctx, manager, ownerProjId)
+	defer lockman.ReleaseClass(ctx, manager, ownerProjId)
+
+	return doCreateItem(manager, ctx, userCred, ownerProjId, nil, data)
+}
+
 func doCreateItem(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) (IModel, error) {
-	dataDict := data.(*jsonutils.JSONDict)
+	dataDict, ok := data.(*jsonutils.JSONDict)
+	if !ok {
+		log.Errorf("doCreateItem: fail to decode json data %s", data)
+		return nil, fmt.Errorf("fail to decode json data %s", data)
+	}
 	var err error
 
 	generateName, _ := dataDict.GetString("generate_name")
@@ -792,7 +837,7 @@ func doCreateItem(manager IModelManager, ctx context.Context, userCred mcclient.
 	} else {
 		name, _ := data.GetString("name")
 		if len(name) > 0 {
-			err = newNameValidator(manager, ownerProjId, name)
+			err = NewNameValidator(manager, ownerProjId, name)
 			if err != nil {
 				return nil, err
 			}
@@ -824,8 +869,11 @@ func doCreateItem(manager IModelManager, ctx context.Context, userCred mcclient.
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
-	model.PostCreate(ctx, userCred, ownerProjId, query, dataDict)
 	return model, nil
+}
+
+func (dispatcher *DBModelDispatcher) FetchCreateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error) {
+	return dispatcher.modelManager.FetchCreateHeaderData(ctx, header)
 }
 
 func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils.JSONObject, data jsonutils.JSONObject, ctxId string) (jsonutils.JSONObject, error) {
@@ -849,9 +897,6 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 		}
 	}
 
-	lockman.LockClass(ctx, dispatcher.modelManager, ownerProjId)
-	defer lockman.ReleaseClass(ctx, dispatcher.modelManager, ownerProjId)
-
 	var isAllow bool
 	if consts.IsRbacEnabled() {
 		isAllow = isClassActionRbacAllowed(dispatcher.modelManager, userCred, ownerProjId, policy.PolicyActionCreate)
@@ -862,13 +907,21 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 		return nil, httperrors.NewForbiddenError("Not allow to create item")
 	}
 
-	model, err := doCreateItem(dispatcher.modelManager, ctx, userCred, ownerProjId, query, data)
+	model, err := DoCreate(dispatcher.modelManager, ctx, userCred, query, data, ownerProjId)
 	if err != nil {
 		log.Errorf("fail to doCreateItem %s", err)
 		return nil, httperrors.NewGeneralError(err)
 	}
-	OpsLog.LogEvent(model, ACT_CREATE, model.GetShortDesc(), userCred)
-	logclient.AddActionLog(model, logclient.ACT_CREATE, "", userCred, true)
+
+	func() {
+		lockman.LockObject(ctx, model)
+		defer lockman.ReleaseObject(ctx, model)
+
+		model.PostCreate(ctx, userCred, ownerProjId, query, data)
+	}()
+
+	OpsLog.LogEvent(model, ACT_CREATE, model.GetShortDesc(ctx), userCred)
+	logclient.AddActionLogWithContext(ctx, model, logclient.ACT_CREATE, "", userCred, true)
 	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{model}, userCred, query, data)
 	return getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
 }
@@ -913,9 +966,6 @@ func (dispatcher *DBModelDispatcher) BatchCreate(ctx context.Context, query json
 		}
 	}
 
-	lockman.LockClass(ctx, dispatcher.modelManager, ownerProjId)
-	defer lockman.ReleaseClass(ctx, dispatcher.modelManager, ownerProjId)
-
 	var isAllow bool
 	if consts.IsRbacEnabled() {
 		isAllow = isClassActionRbacAllowed(dispatcher.modelManager, userCred, ownerProjId, policy.PolicyActionCreate)
@@ -926,27 +976,53 @@ func (dispatcher *DBModelDispatcher) BatchCreate(ctx context.Context, query json
 		return nil, httperrors.NewForbiddenError("Not allow to create item")
 	}
 
-	multiData, err := expandMultiCreateParams(data, count)
+	type sCreateResult struct {
+		model IModel
+		err   error
+	}
+
+	var multiData []jsonutils.JSONObject
+
+	createResults, err := func() ([]sCreateResult, error) {
+		lockman.LockClass(ctx, dispatcher.modelManager, ownerProjId)
+		defer lockman.ReleaseClass(ctx, dispatcher.modelManager, ownerProjId)
+
+		multiData, err = expandMultiCreateParams(data, count)
+		if err != nil {
+			return nil, err
+		}
+		ret := make([]sCreateResult, len(multiData))
+		for i, cdata := range multiData {
+			model, err := doCreateItem(dispatcher.modelManager, ctx, userCred, ownerProjId, query, cdata)
+			ret[i] = sCreateResult{model: model, err: err}
+		}
+		return ret, nil
+	}()
+
 	if err != nil {
 		return nil, err
 	}
 	results := make([]modules.SubmitResult, count)
 	models := make([]IModel, 0)
-	for i, cdata := range multiData {
-		model, err := doCreateItem(dispatcher.modelManager, ctx, userCred, ownerProjId, query, cdata)
+	for i, res := range createResults {
 		result := modules.SubmitResult{}
-		if err != nil {
-			jsonErr, ok := err.(*httputils.JSONClientError)
+		if res.err != nil {
+			jsonErr, ok := res.err.(*httputils.JSONClientError)
 			if ok {
 				result.Status = jsonErr.Code
 				result.Data = jsonutils.Marshal(jsonErr)
 			} else {
 				result.Status = 500
-				result.Data = jsonutils.NewString(err.Error())
+				result.Data = jsonutils.NewString(res.err.Error())
 			}
 		} else {
-			models = append(models, model)
-			body, err := getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
+			lockman.LockObject(ctx, res.model)
+			defer lockman.ReleaseObject(ctx, res.model)
+
+			res.model.PostCreate(ctx, userCred, ownerProjId, query, data)
+
+			models = append(models, res.model)
+			body, err := getItemDetails(dispatcher.modelManager, res.model, ctx, userCred, query)
 			if err != nil {
 				result.Status = 500
 				result.Data = jsonutils.NewString(err.Error())
@@ -958,6 +1034,9 @@ func (dispatcher *DBModelDispatcher) BatchCreate(ctx context.Context, query json
 		results[i] = result
 	}
 	if len(models) > 0 {
+		lockman.LockClass(ctx, dispatcher.modelManager, ownerProjId)
+		defer lockman.ReleaseClass(ctx, dispatcher.modelManager, ownerProjId)
+
 		dispatcher.modelManager.OnCreateComplete(ctx, models, userCred, query, multiData[0])
 	}
 	return results, nil
@@ -1015,8 +1094,7 @@ func (dispatcher *DBModelDispatcher) PerformAction(ctx context.Context, idStr st
 	userCred := fetchUserCredential(ctx)
 	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, nil)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.modelManager.Keyword(), idStr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -1097,7 +1175,7 @@ func objectPerformAction(dispatcher *DBModelDispatcher, model IModel, modelValue
 		isAllow = outs[0].Bool()
 	}
 	if !isAllow {
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("%s not allow to perform action %s", dispatcher.Keyword(), action))
+		return nil, httperrors.NewForbiddenError("%s not allow to perform action %s", dispatcher.Keyword(), action)
 	}
 
 	outs := funcValue.Call(params)
@@ -1124,13 +1202,13 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 
 	if err != nil {
 		log.Errorf("validate update condition error: %s", err)
-		logclient.AddActionLog(item, logclient.ACT_UPDATE, err.Error(), userCred, false)
+		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, err.Error(), userCred, false)
 		return nil, httperrors.NewGeneralError(err)
 	}
 
 	dataDict, ok := data.(*jsonutils.JSONDict)
 	if !ok {
-		logclient.AddActionLog(item, logclient.ACT_UPDATE, "Invalid data JSONObject", userCred, false)
+		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, "Invalid data JSONObject", userCred, false)
 		return nil, httperrors.NewInternalServerError("Invalid data JSONObject")
 	}
 
@@ -1138,7 +1216,7 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 	if len(name) > 0 {
 		err = alterNameValidator(item, name)
 		if err != nil {
-			logclient.AddActionLog(item, logclient.ACT_UPDATE, err.Error(), userCred, false)
+			logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, err.Error(), userCred, false)
 			return nil, err
 		}
 	}
@@ -1147,16 +1225,18 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 	if err != nil {
 		errMsg := fmt.Sprintf("validate update data error: %s", err)
 		log.Errorf(errMsg)
-		logclient.AddActionLog(item, logclient.ACT_UPDATE, errMsg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, errMsg, userCred, false)
 		return nil, httperrors.NewGeneralError(err)
 	}
+
 	item.PreUpdate(ctx, userCred, query, dataDict)
+
 	diff, err := manager.TableSpec().Update(item, func() error {
 		filterData := dataDict.CopyIncludes(updateFields(manager, userCred)...)
 		err = filterData.Unmarshal(item)
 		if err != nil {
 			errMsg := fmt.Sprintf("unmarshal fail: %s", err)
-			logclient.AddActionLog(item, logclient.ACT_UPDATE, errMsg, userCred, false)
+			logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, errMsg, userCred, false)
 			log.Errorf(errMsg)
 			return httperrors.NewGeneralError(err)
 		}
@@ -1172,20 +1252,26 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 		if len(diffStr) > 0 {
 			item.PostUpdate(ctx, userCred, query, dataDict)
 			OpsLog.LogEvent(item, ACT_UPDATE, diffStr, userCred)
-			logclient.AddActionLog(item, logclient.ACT_UPDATE, diffStr, userCred, true)
+			logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, diffStr, userCred, true)
 		}
 	} else {
-		logclient.AddActionLog(item, logclient.ACT_UPDATE, "", userCred, true)
+		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, "", userCred, true)
 	}
+
+	item.PostUpdate(ctx, userCred, query, data)
+
 	return getItemDetails(manager, item, ctx, userCred, query)
+}
+
+func (dispatcher *DBModelDispatcher) FetchUpdateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error) {
+	return dispatcher.modelManager.FetchUpdateHeaderData(ctx, header)
 }
 
 func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
 	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, nil)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.modelManager.Keyword(), idStr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -1197,7 +1283,7 @@ func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, q
 		isAllow = model.AllowUpdateItem(ctx, userCred)
 	}
 	if !isAllow {
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("Not allow to update item"))
+		return nil, httperrors.NewForbiddenError("Not allow to update item")
 	}
 
 	lockman.LockObject(ctx, model)
@@ -1208,18 +1294,18 @@ func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, q
 
 func DeleteModel(ctx context.Context, userCred mcclient.TokenCredential, item IModel) error {
 	manager := item.GetModelManager()
-	log.Debugf("Ready to delete %s %s %#v", jsonutils.Marshal(item), item, manager)
+	// log.Debugf("Ready to delete %s %s %#v", jsonutils.Marshal(item), item, manager)
 	_, err := manager.TableSpec().Update(item, func() error {
 		return item.MarkDelete()
 	})
 	if err != nil {
 		msg := fmt.Sprintf("save update error %s", err)
 		log.Errorf(msg)
-		logclient.AddActionLog(item, logclient.ACT_DELETE, msg, userCred, false)
+		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_DELETE, msg, userCred, false)
 		return httperrors.NewGeneralError(err)
 	}
-	OpsLog.LogEvent(item, ACT_DELETE, item.GetShortDesc(), userCred)
-	logclient.AddActionLog(item, logclient.ACT_DELETE, item.GetShortDesc(), userCred, true)
+	OpsLog.LogEvent(item, ACT_DELETE, item.GetShortDesc(ctx), userCred)
+	logclient.AddActionLogWithContext(ctx, item, logclient.ACT_DELETE, item.GetShortDesc(ctx), userCred, true)
 	return nil
 }
 
@@ -1234,7 +1320,7 @@ func deleteItem(manager IModelManager, model IModel, ctx context.Context, userCr
 	}
 	if !isAllow {
 		log.Errorf("not allow to delete")
-		return nil, httperrors.NewForbiddenError(fmt.Sprintf("%s(%s) not allow to delete", manager.KeywordPlural(), model.GetId()))
+		return nil, httperrors.NewForbiddenError("%s(%s) not allow to delete", manager.KeywordPlural(), model.GetId())
 	}
 
 	err := model.ValidateDeleteCondition(ctx)
@@ -1275,12 +1361,11 @@ func (dispatcher *DBModelDispatcher) Delete(ctx context.Context, idstr string, q
 	userCred := fetchUserCredential(ctx)
 	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idstr, nil)
 	if err == sql.ErrNoRows {
-		return nil, httperrors.NewResourceNotFoundError(fmt.Sprintf("%s %s not found",
-			dispatcher.modelManager.Keyword(), idstr))
+		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idstr)
 	} else if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
-	log.Debugf("Delete %s", model.GetShortDesc())
+	// log.Debugf("Delete %s", model.GetShortDesc(ctx))
 
 	lockman.LockObject(ctx, model)
 	defer lockman.ReleaseObject(ctx, model)

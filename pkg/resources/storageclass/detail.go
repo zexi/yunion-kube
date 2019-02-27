@@ -44,11 +44,11 @@ type StorageClassDetail struct {
 }
 
 func (man *SStorageClassManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetStorageClass(req.GetK8sClient(), id)
+	return GetStorageClass(req.GetK8sClient(), req.GetCluster(), id)
 }
 
 // GetStorageClass returns storage class object.
-func GetStorageClass(client kubernetes.Interface, name string) (*StorageClassDetail, error) {
+func GetStorageClass(client kubernetes.Interface, cluster api.ICluster, name string) (*StorageClassDetail, error) {
 	log.Infof("Getting details of %s storage class", name)
 
 	storage, err := client.StorageV1().StorageClasses().Get(name, metaV1.GetOptions{})
@@ -56,17 +56,17 @@ func GetStorageClass(client kubernetes.Interface, name string) (*StorageClassDet
 		return nil, err
 	}
 
-	persistentVolumeList, err := persistentvolume.GetStorageClassPersistentVolumes(client,
+	persistentVolumeList, err := persistentvolume.GetStorageClassPersistentVolumes(client, cluster,
 		storage.Name, dataselect.DefaultDataSelect())
 
-	storageClass := toStorageClassDetail(storage, persistentVolumeList)
+	storageClass := toStorageClassDetail(storage, persistentVolumeList, cluster)
 	return &storageClass, err
 }
 
 func toStorageClassDetail(storageClass *storage.StorageClass,
-	persistentVolumeList *persistentvolume.PersistentVolumeList) StorageClassDetail {
+	persistentVolumeList *persistentvolume.PersistentVolumeList, cluster api.ICluster) StorageClassDetail {
 	return StorageClassDetail{
-		ObjectMeta:           api.NewObjectMeta(storageClass.ObjectMeta),
+		ObjectMeta:           api.NewObjectMetaV2(storageClass.ObjectMeta, cluster),
 		TypeMeta:             api.NewTypeMeta(api.ResourceKindStorageClass),
 		Provisioner:          storageClass.Provisioner,
 		Parameters:           storageClass.Parameters,

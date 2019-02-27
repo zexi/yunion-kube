@@ -2,11 +2,13 @@ package db
 
 import (
 	"context"
+	"net/http"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 )
 
@@ -22,6 +24,7 @@ type IModelManager interface {
 	KeywordPlural() string
 	Alias() string
 	AliasPlural() string
+	SetAlias(alias string, aliasPlural string)
 
 	ValidateName(name string) error
 
@@ -59,9 +62,14 @@ type IModelManager interface {
 	AllowPerformCheckCreateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool
 	PerformAction(ctx context.Context, userCred mcclient.TokenCredential, action string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 
-	DoCreate(ctx context.Context, userCred mcclient.TokenCredential, kwargs jsonutils.JSONObject, data jsonutils.JSONObject, realManager IModelManager) (IModel, error)
+	// DoCreate(ctx context.Context, userCred mcclient.TokenCredential, kwargs jsonutils.JSONObject, data jsonutils.JSONObject, realManager IModelManager) (IModel, error)
 
 	InitializeData() error
+
+	CustomizeHandlerInfo(info *appsrv.SHandlerInfo)
+	FetchCreateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error)
+	FetchUpdateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error)
+	IsCustomizedGetDetailsBody() bool
 }
 
 type IModel interface {
@@ -69,17 +77,20 @@ type IModel interface {
 
 	GetName() string
 
+	KeywordPlural() string
+
 	GetModelManager() IModelManager
 	SetModelManager(IModelManager)
 
-	GetShortDesc() *jsonutils.JSONDict
+	GetShortDesc(ctx context.Context) *jsonutils.JSONDict
 
 	// list hooks
 	GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict
 
 	// get hooks
 	AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool
-	GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict
+	GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error)
+	GetExtraDetailsHeaders(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) map[string]string
 
 	// create hooks
 	CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error
@@ -107,6 +118,9 @@ type IModel interface {
 	PostDelete(ctx context.Context, userCred mcclient.TokenCredential)
 
 	GetOwnerProjectId() string
+	IsSharable() bool
+
+	CustomizedGetDetailsBody(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error)
 }
 
 type IResourceModelManager interface {
@@ -123,7 +137,8 @@ type IJointModelManager interface {
 	GetMasterManager() IStandaloneModelManager
 	GetSlaveManager() IStandaloneModelManager
 
-	FetchByIds(masterId string, slaveId string) (IJointModel, error)
+	// FetchByIds(masterId string, slaveId string, query jsonutils.JSONObject) (IJointModel, error)
+	FilterByParams(q *sqlchemy.SQuery, params jsonutils.JSONObject) *sqlchemy.SQuery
 
 	AllowListDescendent(ctx context.Context, userCred mcclient.TokenCredential, model IStandaloneModel, query jsonutils.JSONObject) bool
 	AllowAttach(ctx context.Context, userCred mcclient.TokenCredential, master IStandaloneModel, slave IStandaloneModel) bool
@@ -164,7 +179,7 @@ type IVirtualModel interface {
 	IStandaloneModel
 
 	IsOwner(userCred mcclient.TokenCredential) bool
-	IsAdmin(userCred mcclient.TokenCredential) bool
+	// IsAdmin(userCred mcclient.TokenCredential) bool
 }
 
 type ISharableVirtualModelManager interface {
@@ -173,7 +188,7 @@ type ISharableVirtualModelManager interface {
 
 type ISharableVirtualModel interface {
 	IVirtualModel
-	IsSharable() bool
+	// IsSharable() bool
 }
 
 type IAdminSharableVirtualModelManager interface {

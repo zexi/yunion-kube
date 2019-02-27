@@ -10,6 +10,7 @@ import (
 	res "k8s.io/apimachinery/pkg/api/resource"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
@@ -18,6 +19,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PodDetail struct {
@@ -64,10 +66,10 @@ type EnvVar struct {
 
 func (man *SPodManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetPodDetail(req.GetK8sClient(), namespace, id)
+	return GetPodDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
 }
 
-func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, error) {
+func GetPodDetail(client client.Interface, cluster api.ICluster, namespace, name string) (*PodDetail, error) {
 	log.Infof("Getting details of %s pod in %s namespace", name, namespace)
 	channels := &common.ResourceChannels{
 		ConfigMapList: common.GetConfigMapListChannel(client, common.NewSameNamespaceQuery(namespace)),
@@ -97,13 +99,13 @@ func GetPodDetail(client client.Interface, namespace, name string) (*PodDetail, 
 		return nil, err
 	}
 
-	eventList, err := GetEventsForPod(client, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
+	eventList, err := GetEventsForPod(client, cluster, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	warnings := event.GetPodsEventWarnings(rawEventList.Items, []v1.Pod{*pod})
-	commonPod := ToPod(*pod, warnings)
+	commonPod := ToPod(*pod, warnings, cluster)
 
 	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, namespace, name, dataselect.DefaultDataSelect())
 
@@ -243,8 +245,13 @@ func evalValueFrom(src *v1.EnvVarSource, container *v1.Container, pod *v1.Pod,
 		}
 		return valueFrom
 	case src.FieldRef != nil:
-		internalFieldPath, _, err := runtime.NewScheme().ConvertFieldLabel(src.FieldRef.APIVersion,
-			"Pod", src.FieldRef.FieldPath, "")
+		gv, err := schema.ParseGroupVersion(src.FieldRef.APIVersion)
+		if err != nil {
+			log.Errorf("%v", err)
+			return ""
+		}
+		gvk := gv.WithKind("Pod")
+		internalFieldPath, _, err := runtime.NewScheme().ConvertFieldLabel(gvk, src.FieldRef.FieldPath, "")
 		if err != nil {
 			log.Errorf("%v", err)
 			return ""

@@ -450,6 +450,7 @@ func (q *SQuery) AllStringMap() ([]map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	results := make([]map[string]string, 0)
 	for rows.Next() {
 		result, err := q.rowScan2StringMap(rows)
@@ -462,11 +463,11 @@ func (q *SQuery) AllStringMap() ([]map[string]string, error) {
 }
 
 func mapString2Struct(mapResult map[string]string, destValue reflect.Value) error {
-	destFields := reflectutils.FetchStructFieldNameValues(destValue)
+	destFields := reflectutils.FetchStructFieldValueSet(destValue)
 	var err error
 	for k, v := range mapResult {
 		if len(v) > 0 {
-			fieldValue, ok := destFields[k]
+			fieldValue, ok := destFields.GetValue(k)
 			if ok {
 				err = setValueBySQLString(fieldValue, v)
 				if err != nil {

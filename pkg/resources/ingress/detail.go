@@ -26,11 +26,11 @@ type IngressDetail struct {
 }
 
 func (man *SIngressManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetIngressDetail(req.GetK8sClient(), req.GetNamespaceQuery().ToRequestParam(), id)
+	return GetIngressDetail(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
 // GetIngressDetail returns returns detailed information about an ingress
-func GetIngressDetail(client client.Interface, namespace, name string) (*IngressDetail, error) {
+func GetIngressDetail(client client.Interface, cluster api.ICluster, namespace, name string) (*IngressDetail, error) {
 	log.Infof("Getting details of %s ingress in %s namespace", name, namespace)
 
 	rawIngress, err := client.Extensions().Ingresses(namespace).Get(name, metaV1.GetOptions{})
@@ -39,12 +39,12 @@ func GetIngressDetail(client client.Interface, namespace, name string) (*Ingress
 		return nil, err
 	}
 
-	return getIngressDetail(rawIngress), nil
+	return getIngressDetail(rawIngress, cluster), nil
 }
 
-func getIngressDetail(rawIngress *extensions.Ingress) *IngressDetail {
+func getIngressDetail(rawIngress *extensions.Ingress, cluster api.ICluster) *IngressDetail {
 	return &IngressDetail{
-		ObjectMeta: api.NewObjectMeta(rawIngress.ObjectMeta),
+		ObjectMeta: api.NewObjectMetaV2(rawIngress.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindIngress),
 		Spec:       rawIngress.Spec,
 		Status:     rawIngress.Status,

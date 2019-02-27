@@ -41,9 +41,9 @@ func GetEvents(client client.Interface, namespace, resourceName string) ([]v1.Ev
 }
 
 // GetNamespaceEvents gets events associated to a namespace with given name.
-func GetNamespaceEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace string) (common.EventList, error) {
+func GetNamespaceEvents(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace string) (common.EventList, error) {
 	events, _ := client.CoreV1().Events(namespace).List(api.ListEverything)
-	return CreateEventList(FillEventsType(events.Items), dsQuery)
+	return CreateEventList(FillEventsType(events.Items), dsQuery, cluster)
 }
 
 // Based on event Reason fills event Type in order to allow correct filtering by Type.
@@ -113,7 +113,7 @@ func GetPodEvents(client client.Interface, namespace, podName string) ([]v1.Even
 }
 
 // GetNodeEvents gets events associated to node with given name.
-func GetNodeEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, nodeName string) (common.EventList, error) {
+func GetNodeEvents(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, nodeName string) (common.EventList, error) {
 	eventList := common.EventList{
 		Events: make([]common.Event, 0),
 	}
@@ -133,25 +133,25 @@ func GetNodeEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery,
 		return eventList, err
 	}
 
-	return CreateEventList(FillEventsType(events.Items), dsQuery)
+	return CreateEventList(FillEventsType(events.Items), dsQuery, cluster)
 }
 
 // GetResourceEvents gets events associated to specified resource.
-func GetResourceEvents(client client.Interface, dsQuery *dataselect.DataSelectQuery, namespace, name string) (
+func GetResourceEvents(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (
 	*common.EventList, error) {
 	resourceEvents, err := GetEvents(client, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := CreateEventList(resourceEvents, dsQuery)
+	events, err := CreateEventList(resourceEvents, dsQuery, cluster)
 	return &events, err
 }
 
 // CreateEventList converts array of api events to common EventList structure
-func CreateEventList(events []v1.Event, dsQuery *dataselect.DataSelectQuery) (common.EventList, error) {
+func CreateEventList(events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (common.EventList, error) {
 	eventList := &common.EventList{
-		ListMeta: dataselect.NewListMeta(),
+		BaseList: common.NewBaseList(cluster),
 		Events:   make([]common.Event, 0),
 	}
 	err := dataselect.ToResourceList(

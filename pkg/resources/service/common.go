@@ -7,9 +7,9 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func ToService(service v1.Service) Service {
+func ToService(service v1.Service, cluster api.ICluster) Service {
 	return Service{
-		ObjectMeta:        api.NewObjectMeta(service.ObjectMeta),
+		ObjectMeta:        api.NewObjectMetaV2(service.ObjectMeta, cluster),
 		TypeMeta:          api.NewTypeMeta(api.ResourceKindService),
 		InternalEndpoint:  common.GetInternalEndpoint(service.Name, service.Namespace, service.Spec.Ports),
 		ExternalEndpoints: common.GetExternalEndpoints(&service),

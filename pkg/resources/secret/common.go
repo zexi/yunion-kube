@@ -9,7 +9,7 @@ import (
 )
 
 // CreateSecret creates a single secret using the cluster API client
-func CreateSecret(client kubernetes.Interface, spec SecretSpec) (*Secret, error) {
+func CreateSecret(client kubernetes.Interface, cluster api.ICluster, spec SecretSpec) (*Secret, error) {
 	namespace := spec.GetNamespace()
 	secret := &v1.Secret{
 		ObjectMeta: metaV1.ObjectMeta{
@@ -20,12 +20,12 @@ func CreateSecret(client kubernetes.Interface, spec SecretSpec) (*Secret, error)
 		Data: spec.GetData(),
 	}
 	_, err := client.CoreV1().Secrets(namespace).Create(secret)
-	return toSecret(*secret), err
+	return toSecret(*secret, cluster), err
 }
 
-func toSecret(secret v1.Secret) *Secret {
+func toSecret(secret v1.Secret, cluster api.ICluster) *Secret {
 	return &Secret{
-		ObjectMeta: api.NewObjectMeta(secret.ObjectMeta),
+		ObjectMeta: api.NewObjectMetaV2(secret.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindSecret),
 		Type:       secret.Type,
 	}

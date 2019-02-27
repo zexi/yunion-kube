@@ -30,7 +30,7 @@ func Delete(endpoint string, token string, url string, header http.Header, body 
 func JSONRequest(endpoint string, token string, method string, url string, header http.Header, body jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	ctx := context.Background()
 	cli := httputils.GetDefaultClient()
-	_, ret, err := httputils.JSONRequest(cli, ctx, method, JoinUrl(endpoint, url), GetDefaultHeader(header, token), body, true)
+	_, ret, err := httputils.JSONRequest(cli, ctx, httputils.THttpMethod(method), JoinUrl(endpoint, url), GetDefaultHeader(header, token), body, true)
 	return ret, err
 }
 

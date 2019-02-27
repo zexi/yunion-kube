@@ -7,9 +7,10 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func DeleteServices(cli kubernetes.Interface, namespace string, labelSelector *metav1.LabelSelector) error {
+func DeleteServices(cli kubernetes.Interface, cluster api.ICluster, namespace string, labelSelector *metav1.LabelSelector) error {
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
 		return err
@@ -18,7 +19,7 @@ func DeleteServices(cli kubernetes.Interface, namespace string, labelSelector *m
 	channels := &common.ResourceChannels{
 		ServiceList: common.GetServiceListChannelWithOptions(cli, common.NewSameNamespaceQuery(namespace), options),
 	}
-	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect())
+	svcList, err := service.GetServiceListFromChannels(channels, dataselect.DefaultDataSelect(), cluster)
 	if err != nil {
 		return err
 	}

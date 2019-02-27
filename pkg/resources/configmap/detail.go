@@ -22,11 +22,11 @@ type ConfigMapDetail struct {
 
 func (man *SConfigMapManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetConfigMapDetail(req.GetK8sClient(), namespace, id)
+	return GetConfigMapDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
 }
 
 // GetConfigMapDetail returns detailed information about a config map
-func GetConfigMapDetail(client kubernetes.Interface, namespace, name string) (*ConfigMapDetail, error) {
+func GetConfigMapDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*ConfigMapDetail, error) {
 	log.Infof("Getting details of %s config map in %s namespace", name, namespace)
 
 	rawConfigMap, err := client.CoreV1().ConfigMaps(namespace).Get(name, metaV1.GetOptions{})
@@ -34,12 +34,12 @@ func GetConfigMapDetail(client kubernetes.Interface, namespace, name string) (*C
 		return nil, err
 	}
 
-	return getConfigMapDetail(rawConfigMap), nil
+	return getConfigMapDetail(rawConfigMap, cluster), nil
 }
 
-func getConfigMapDetail(rawConfigMap *v1.ConfigMap) *ConfigMapDetail {
+func getConfigMapDetail(rawConfigMap *v1.ConfigMap, cluster api.ICluster) *ConfigMapDetail {
 	return &ConfigMapDetail{
-		ObjectMeta: api.NewObjectMeta(rawConfigMap.ObjectMeta),
+		ObjectMeta: api.NewObjectMeta(rawConfigMap.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindConfigMap),
 		Data:       rawConfigMap.Data,
 	}

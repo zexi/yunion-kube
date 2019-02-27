@@ -7,9 +7,9 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func ToPod(pod v1.Pod, warnings []common.Event) Pod {
+func ToPod(pod v1.Pod, warnings []common.Event, cluster api.ICluster) Pod {
 	podDetail := Pod{
-		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta),
+		ObjectMeta:   api.NewObjectMetaV2(pod.ObjectMeta, cluster),
 		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
 		Warnings:     warnings,
 		PodStatus:    getPodStatus(pod),

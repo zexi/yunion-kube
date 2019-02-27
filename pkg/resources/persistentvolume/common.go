@@ -11,10 +11,11 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // GetStorageClassPersistentVolumes gets persistentvolumes that are associated with this storageclass.
-func GetStorageClassPersistentVolumes(client client.Interface, storageClassName string,
+func GetStorageClassPersistentVolumes(client client.Interface, cluster api.ICluster, storageClassName string,
 	dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
 
 	storageClass, err := client.StorageV1().StorageClasses().Get(storageClassName, metaV1.GetOptions{})
@@ -45,5 +46,5 @@ func GetStorageClassPersistentVolumes(client client.Interface, storageClassName 
 	log.Infof("Found %d persistentvolumes related to %s storageclass",
 		len(storagePersistentVolumes), storageClassName)
 
-	return toPersistentVolumeList(storagePersistentVolumes, dsQuery)
+	return toPersistentVolumeList(storagePersistentVolumes, dsQuery, cluster)
 }

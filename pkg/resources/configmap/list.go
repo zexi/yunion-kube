@@ -21,7 +21,7 @@ func (c ConfigMap) ToListItem() jsonutils.JSONObject {
 }
 
 type ConfigMapList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	configMaps []ConfigMap
 }
 
@@ -34,33 +34,33 @@ func (l *ConfigMapList) GetConfigMaps() []ConfigMap {
 }
 
 func (man *SConfigMapManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SConfigMapManager) ListV2(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetConfigMapList(client, nsQuery, dsQuery)
+func (man *SConfigMapManager) ListV2(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetConfigMapList(client, cluster, nsQuery, dsQuery)
 }
 
-func (man *SConfigMapManager) GetConfigMapList(client client.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {
+func (man *SConfigMapManager) GetConfigMapList(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {
 	log.Infof("Getting list of all configmap in namespace: %v", nsQuery.ToRequestParam())
 	channels := &common.ResourceChannels{
 		ConfigMapList: common.GetConfigMapListChannel(client, nsQuery),
 	}
-	return GetConfigMapListFromChannels(channels, dsQuery)
+	return GetConfigMapListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *ConfigMapList) Append(obj interface{}) {
-	l.configMaps = append(l.configMaps, ToConfigMap(obj.(v1.ConfigMap)))
+	l.configMaps = append(l.configMaps, ToConfigMap(obj.(v1.ConfigMap), l.GetCluster()))
 }
 
-func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {
+func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ConfigMapList, error) {
 	configMaps := <-channels.ConfigMapList.List
 	err := <-channels.ConfigMapList.Error
 	if err != nil {
 		return nil, err
 	}
 	configMapList := &ConfigMapList{
-		ListMeta:   dataselect.NewListMeta(),
+		BaseList:   common.NewBaseList(cluster),
 		configMaps: make([]ConfigMap, 0),
 	}
 	err = dataselect.ToResourceList(

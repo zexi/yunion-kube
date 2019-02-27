@@ -7,6 +7,10 @@ import (
 
 func InitDB() error {
 	for _, manager := range []db.IModelManager{
+		/*
+		 * Important!!!
+		 * initialization order matters, do not change the order
+		 */
 		CloudproviderManager,
 		CloudaccountManager,
 		CloudregionManager,
@@ -16,6 +20,12 @@ func InitDB() error {
 		StorageManager,
 		SecurityGroupManager,
 		NetworkManager,
+		LoadbalancerCertificateManager,
+		LoadbalancerManager,
+		LoadbalancerListenerManager,
+		LoadbalancerListenerRuleManager,
+		LoadbalancerBackendGroupManager,
+		LoadbalancerBackendManager,
 	} {
 		err := manager.InitializeData()
 		if err != nil {

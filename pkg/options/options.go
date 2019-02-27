@@ -10,6 +10,7 @@ var (
 
 type KubeServerOptions struct {
 	cloudcommon.DBOptions
+	cloudcommon.CommonOptions
 
 	TlsCertFile       string `help:"File containing the default x509 cert file"`
 	TlsPrivateKeyFile string `help:"Tls private key"`

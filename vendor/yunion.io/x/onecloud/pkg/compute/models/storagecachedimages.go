@@ -2,10 +2,13 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/serialx/hashring"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/utils"
@@ -13,6 +16,7 @@ import (
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/cloudprovider"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
@@ -30,7 +34,6 @@ const (
 
 type SStoragecachedimageManager struct {
 	db.SJointResourceBaseManager
-	SInfrastructureManager
 }
 
 var StoragecachedimageManager *SStoragecachedimageManager
@@ -52,10 +55,9 @@ func init() {
 
 type SStoragecachedimage struct {
 	db.SJointResourceBase
-	SInfrastructure
 
-	StoragecacheId string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required" key_index:"true"`
-	CachedimageId  string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required" key_index:"true"`
+	StoragecacheId string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"`
+	CachedimageId  string `width:"36" charset:"ascii" nullable:"false" list:"admin" create:"admin_required"`
 
 	ExternalId string `width:"256" charset:"utf8" nullable:"false" get:"admin"`
 
@@ -71,6 +73,26 @@ func (joint *SStoragecachedimage) Master() db.IStandaloneModel {
 
 func (joint *SStoragecachedimage) Slave() db.IStandaloneModel {
 	return db.JointSlave(joint)
+}
+
+func (self *SStoragecachedimageManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return db.IsAdminAllowList(userCred, self)
+}
+
+func (self *SStoragecachedimageManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowCreate(userCred, self)
+}
+
+func (self *SStoragecachedimage) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return db.IsAdminAllowGet(userCred, self)
+}
+
+func (self *SStoragecachedimage) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return db.IsAdminAllowUpdate(userCred, self)
+}
+
+func (self *SStoragecachedimage) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowDelete(userCred, self)
 }
 
 func (self *SStoragecachedimage) getStorageHostId() (string, error) {
@@ -120,14 +142,17 @@ func (self *SStoragecachedimage) GetCustomizeColumns(ctx context.Context, userCr
 	return self.getExtraDetails(extra)
 }
 
-func (self *SStoragecachedimage) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SJointResourceBase.GetExtraDetails(ctx, userCred, query)
+func (self *SStoragecachedimage) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SJointResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
 	extra = db.JointModelExtra(self, extra)
-	return self.getExtraDetails(extra)
+	return self.getExtraDetails(extra), nil
 }
 
 func (manager *SStoragecachedimageManager) AllowListDescendent(ctx context.Context, userCred mcclient.TokenCredential, model db.IStandaloneModel, query jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return db.IsAdminAllowList(userCred, manager)
 }
 
 func (self *SStoragecachedimage) GetCachedimage() *SCachedimage {
@@ -153,7 +178,7 @@ func (self *SStoragecachedimage) getExtraDetails(extra *jsonutils.JSONDict) *jso
 	}
 	cachedImage := self.GetCachedimage()
 	if cachedImage != nil {
-		extra.Add(jsonutils.NewString(cachedImage.getName()), "image")
+		extra.Add(jsonutils.NewString(cachedImage.GetName()), "image")
 		extra.Add(jsonutils.NewInt(cachedImage.Size), "size")
 	}
 	extra.Add(jsonutils.NewInt(int64(self.getReferenceCount())), "reference")
@@ -187,9 +212,11 @@ func (self *SStoragecachedimage) getReferenceCount() int {
 }
 
 func (manager *SStoragecachedimageManager) GetStoragecachedimage(cacheId string, imageId string) *SStoragecachedimage {
-	obj, err := manager.FetchByIds(cacheId, imageId)
+	obj, err := db.FetchJointByIds(manager, cacheId, imageId, nil)
 	if err != nil {
-		log.Errorf("%s", err)
+		if err != sql.ErrNoRows {
+			log.Errorf("manager.FetchByIds %s %s error %s", cacheId, imageId, err)
+		}
 		return nil
 	}
 	return obj.(*SStoragecachedimage)
@@ -207,14 +234,18 @@ func (self *SStoragecachedimage) ValidateDeleteCondition(ctx context.Context) er
 	if self.getReferenceCount() > 0 {
 		return httperrors.NewNotEmptyError("Image is in use")
 	}
+	return self.SJointResourceBase.ValidateDeleteCondition(ctx)
+}
+
+func (self *SStoragecachedimage) isCachedImageInUse() error {
 	if !self.isDownloadSessionExpire() {
 		return httperrors.NewResourceBusyError("Active download session not expired")
 	}
 	image := self.GetCachedimage()
-	if !image.canDeleteLastCache() {
+	if image != nil && !image.canDeleteLastCache() {
 		return httperrors.NewResourceBusyError("Cannot delete the last cache")
 	}
-	return self.SJointResourceBase.ValidateDeleteCondition(ctx)
+	return nil
 }
 
 func (self *SStoragecachedimage) isDownloadSessionExpire() bool {
@@ -230,14 +261,23 @@ func (self *SStoragecachedimage) markDeleting(ctx context.Context, userCred mccl
 	if err != nil {
 		return err
 	}
+	if !isForce {
+		err = self.isCachedImageInUse()
+		if err != nil {
+			return err
+		}
+	}
 
 	cache := self.GetStoragecache()
 	image := self.GetCachedimage()
 
-	lockman.LockJointObject(ctx, cache, image)
-	defer lockman.ReleaseJointObject(ctx, cache, image)
+	if image != nil {
+		lockman.LockJointObject(ctx, cache, image)
+		defer lockman.ReleaseJointObject(ctx, cache, image)
+	}
 
-	if !isForce && !utils.IsInStringArray(self.Status, []string{CACHED_IMAGE_STATUS_READY, CACHED_IMAGE_STATUS_DELETING}) {
+	if !isForce && !utils.IsInStringArray(self.Status,
+		[]string{CACHED_IMAGE_STATUS_READY, CACHED_IMAGE_STATUS_DELETING, CACHED_IMAGE_STATUS_CACHE_FAILED}) {
 		return httperrors.NewInvalidStatusError("Cannot uncache in status %s", self.Status)
 	}
 	_, err = self.GetModelManager().TableSpec().Update(self, func() error {
@@ -247,7 +287,7 @@ func (self *SStoragecachedimage) markDeleting(ctx context.Context, userCred mccl
 	return err
 }
 
-func (manager *SStoragecachedimageManager) Register(ctx context.Context, userCred mcclient.TokenCredential, cacheId, imageId string) *SStoragecachedimage {
+func (manager *SStoragecachedimageManager) Register(ctx context.Context, userCred mcclient.TokenCredential, cacheId, imageId string, status string) *SStoragecachedimage {
 	lockman.LockClass(ctx, manager, userCred.GetProjectId())
 	defer lockman.ReleaseClass(ctx, manager, userCred.GetProjectId())
 
@@ -261,7 +301,10 @@ func (manager *SStoragecachedimageManager) Register(ctx context.Context, userCre
 
 	cachedimage.StoragecacheId = cacheId
 	cachedimage.CachedimageId = imageId
-	cachedimage.Status = CACHED_IMAGE_STATUS_INIT
+	if len(status) == 0 {
+		status = CACHED_IMAGE_STATUS_INIT
+	}
+	cachedimage.Status = status
 
 	err := manager.TableSpec().Insert(cachedimage)
 
@@ -310,4 +353,59 @@ func (self *SStoragecachedimage) SetExternalId(externalId string) error {
 		return nil
 	})
 	return err
+}
+
+func (self SStoragecachedimage) GetExternalId() string {
+	return self.ExternalId
+}
+
+func (self *SStoragecachedimage) syncWithCloudImage(ctx context.Context, userCred mcclient.TokenCredential, image cloudprovider.ICloudImage) error {
+	cachedImage := self.GetCachedimage()
+	if len(cachedImage.ExternalId) > 0 {
+		return cachedImage.syncWithCloudImage(ctx, userCred, image)
+	} else {
+		return nil
+	}
+}
+
+func (manager *SStoragecachedimageManager) newFromCloudImage(ctx context.Context, userCred mcclient.TokenCredential, image cloudprovider.ICloudImage, cache *SStoragecache) error {
+	var cachedImage *SCachedimage
+	imgObj, err := CachedimageManager.FetchByExternalId(image.GetGlobalId())
+	if err != nil {
+		if err != sql.ErrNoRows {
+			// unhandled error
+			log.Errorf("CachedimageManager.FetchByExternalId error %s", err)
+			return err
+		}
+		// not found
+		// first test if this image is uploaded by onecloud, if true, image name should be ID of onecloud image
+		name := image.GetName()
+		if utils.IsAscii(name) {
+			if strings.HasPrefix(name, "img") {
+				name = name[3:]
+			}
+			imgObj, err = CachedimageManager.FetchById(name)
+			if err == nil && imgObj != nil {
+				cachedImage = imgObj.(*SCachedimage)
+			}
+		}
+		if cachedImage == nil {
+			// no such image
+			cachedImage, err = CachedimageManager.newFromCloudImage(ctx, userCred, image)
+			if err != nil {
+				log.Errorf("CachedimageManager.newFromCloudImage fail %s", err)
+				return err
+			}
+		}
+	} else {
+		cachedImage = imgObj.(*SCachedimage)
+	}
+	if len(cachedImage.ExternalId) > 0 {
+		cachedImage.syncWithCloudImage(ctx, userCred, image)
+	}
+	scimg := manager.Register(ctx, userCred, cache.GetId(), cachedImage.GetId(), image.GetStatus())
+	if scimg == nil {
+		return fmt.Errorf("register cached image fail")
+	}
+	return scimg.SetExternalId(image.GetGlobalId())
 }

@@ -36,7 +36,7 @@ func init() {
 type SGuestdisk struct {
 	SGuestJointsBase
 
-	DiskId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" key_index:"true"` // Column(VARCHAR(36, charset='ascii'), nullable=False)
+	DiskId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required"` // Column(VARCHAR(36, charset='ascii'), nullable=False)
 
 	ImagePath string `width:"256" charset:"ascii" nullable:"false" get:"user" create:"required"` // Column(VARCHAR(256, charset='ascii'), nullable=False)
 
@@ -87,6 +87,9 @@ func (self *SGuestdisk) getExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSOND
 	extra.Add(jsonutils.NewInt(int64(disk.DiskSize)), "disk_size")
 	extra.Add(jsonutils.NewString(disk.Status), "status")
 	extra.Add(jsonutils.NewString(disk.DiskType), "disk_type")
+	if storage := disk.GetStorage(); storage != nil {
+		extra.Add(jsonutils.NewString(storage.MediumType), "medium_type")
+	}
 	return extra
 }
 
@@ -96,10 +99,13 @@ func (self *SGuestdisk) GetCustomizeColumns(ctx context.Context, userCred mcclie
 	return self.getExtraInfo(extra)
 }
 
-func (self *SGuestdisk) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SGuestJointsBase.GetExtraDetails(ctx, userCred, query)
+func (self *SGuestdisk) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SGuestJointsBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
 	extra = db.JointModelExtra(self, extra)
-	return self.getExtraInfo(extra)
+	return self.getExtraInfo(extra), nil
 }
 
 func (self *SGuestdisk) DoSave(driver string, cache string, mountpoint string) error {
@@ -146,7 +152,8 @@ func (self *SGuestdisk) GetJsonDescAtHost(host *SHost) jsonutils.JSONObject {
 		}
 	}
 	storage := disk.GetStorage()
-	if host.HostType == HOST_TYPE_HYPERVISOR && disk.IsLocal() || (storage != nil && storage.StorageType == STORAGE_RBD) {
+	// XXX ???
+	if host.HostType == HOST_TYPE_HYPERVISOR {
 		desc.Add(jsonutils.NewString(disk.StorageId), "storage_id")
 		localpath := disk.GetPathAtHost(host)
 		if len(localpath) == 0 {
@@ -164,6 +171,12 @@ func (self *SGuestdisk) GetJsonDescAtHost(host *SHost) jsonutils.JSONObject {
 	tid := disk.GetTemplateId()
 	if len(tid) > 0 {
 		desc.Add(jsonutils.NewString(tid), "template_id")
+	}
+	if len(disk.SnapshotId) > 0 {
+		needMerge := disk.GetMetadata("merge_snapshot", nil)
+		if needMerge == "true" {
+			desc.Set("merge_snapshot", jsonutils.JSONTrue)
+		}
 	}
 	fs := disk.GetFsFormat()
 	if len(fs) > 0 {
@@ -202,7 +215,7 @@ func (self *SGuestdisk) GetDetailedJson() *jsonutils.JSONDict {
 		cachedImageObj, _ := CachedimageManager.FetchById(imageId)
 		if cachedImageObj != nil {
 			cachedImage := cachedImageObj.(*SCachedimage)
-			desc.Add(jsonutils.NewString(cachedImage.getName()), "image")
+			desc.Add(jsonutils.NewString(cachedImage.GetName()), "image")
 		}
 	}
 

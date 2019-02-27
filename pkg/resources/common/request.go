@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	client "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -16,12 +17,13 @@ import (
 
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
+	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	"yunion.io/x/yunion-kube/pkg/types"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type Request struct {
+	Cluster         *clusters.SCluster
 	K8sClient       client.Interface
 	K8sAdminClient  client.Interface
 	K8sConfig       *rest.Config
@@ -33,25 +35,22 @@ type Request struct {
 	KubeAdminConfig string
 }
 
-func (r *Request) GetProjectNamespace() string {
-	return types.ConvertProjectToNamespace(r.UserCred.GetProjectName())
-}
-
 func (r *Request) AllowListItems() bool {
 	allNamespace := jsonutils.QueryBoolean(r.Query, "all_namespace", false)
-	if allNamespace && !r.UserCred.IsSystemAdmin() {
+	if allNamespace && !r.UserCred.HasSystemAdminPrivelege() {
 		return false
 	}
 	return true
 }
 
 func (r *Request) AllowCreateItem() bool {
-	if r.UserCred.IsSystemAdmin() {
+	/*if r.UserCred.HasSystemAdminPrivelege() {
 		return true
 	}
 	ns := r.GetDefaultNamespace()
 	// TODO: support isOwner check
-	return ns == r.GetProjectNamespace()
+	return ns == r.GetProjectNamespace()*/
+	return true
 }
 
 func (r *Request) ShowAllNamespace() bool {
@@ -64,17 +63,20 @@ func (r *Request) GetNamespaceQuery() *NamespaceQuery {
 	}
 	namespace, _ := r.Query.GetString("namespace")
 	if len(namespace) == 0 {
-		namespace = r.GetProjectNamespace()
+		//namespace = r.GetProjectNamespace()
+		namespace = v1.NamespaceDefault
 	}
 	return NewNamespaceQuery(namespace)
 }
 
 func (r *Request) GetK8sClient() client.Interface {
-	return r.K8sClient
+	//return r.K8sClient
+	return r.GetK8sAdminClient()
 }
 
 func (r *Request) GetK8sRestConfig() *rest.Config {
-	return r.K8sConfig
+	//return r.K8sConfig
+	return r.GetK8sAdminRestConfig()
 }
 
 func (r *Request) GetK8sAdminRestConfig() *rest.Config {
@@ -83,6 +85,10 @@ func (r *Request) GetK8sAdminRestConfig() *rest.Config {
 
 func (r *Request) GetK8sAdminClient() client.Interface {
 	return r.K8sAdminClient
+}
+
+func (r *Request) GetCluster() *clusters.SCluster {
+	return r.Cluster
 }
 
 func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
@@ -111,11 +117,7 @@ func (r *Request) GetNamespaceByQuery() (string, error) {
 	if r.Query == nil {
 		return "", fmt.Errorf("query is nil")
 	}
-	ns, err := r.Query.GetString("namespace")
-	if err != nil {
-		return "", err
-	}
-	return types.ConvertProjectToNamespace(ns), nil
+	return r.Query.GetString("namespace")
 }
 
 func (r *Request) GetNamespaceByData() (string, error) {
@@ -123,10 +125,7 @@ func (r *Request) GetNamespaceByData() (string, error) {
 		return "", fmt.Errorf("data is nil")
 	}
 	ns, err := r.Data.GetString("namespace")
-	if err != nil {
-		return "", err
-	}
-	return types.ConvertProjectToNamespace(ns), nil
+	return ns, err
 }
 
 func (r *Request) GetDefaultNamespace() string {
@@ -135,10 +134,10 @@ func (r *Request) GetDefaultNamespace() string {
 		return ns
 	}
 	ns, _ = r.GetNamespaceByData()
-	if ns == "" {
-		ns = r.GetProjectNamespace()
+	if ns != "" {
+		return ns
 	}
-	return ns
+	return v1.NamespaceDefault
 }
 
 func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery {

@@ -9,6 +9,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/util/compare"
+	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/secrules"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
@@ -37,7 +38,8 @@ func init() {
 			"secgroups",
 		),
 	}
-	SecurityGroupManager.NameRequireAscii = false
+	SecurityGroupManager.NameLength = 128
+	SecurityGroupManager.NameRequireAscii = true
 }
 
 const (
@@ -51,8 +53,13 @@ type SSecurityGroup struct {
 
 func (self *SSecurityGroup) GetGuestsQuery() *sqlchemy.SQuery {
 	guests := GuestManager.Query().SubQuery()
-	return guests.Query().Filter(sqlchemy.OR(sqlchemy.Equals(guests.Field("secgrp_id"), self.Id),
-		sqlchemy.Equals(guests.Field("admin_secgrp_id"), self.Id)))
+	return guests.Query().Filter(
+		sqlchemy.OR(
+			sqlchemy.Equals(guests.Field("secgrp_id"), self.Id),
+			sqlchemy.Equals(guests.Field("admin_secgrp_id"), self.Id),
+			sqlchemy.In(guests.Field("id"), GuestsecgroupManager.Query("guest_id").Equals("secgroup_id", self.Id).SubQuery()),
+		),
+	).Filter(sqlchemy.NotIn(guests.Field("hypervisor"), []string{HYPERVISOR_CONTAINER, HYPERVISOR_BAREMETAL, HYPERVISOR_ESXI}))
 }
 
 func (self *SSecurityGroup) GetGuestsCount() int {
@@ -60,7 +67,7 @@ func (self *SSecurityGroup) GetGuestsCount() int {
 }
 
 func (self *SSecurityGroup) GetGuests() []SGuest {
-	guests := make([]SGuest, 0)
+	guests := []SGuest{}
 	q := self.GetGuestsQuery()
 	err := db.FetchModelObjects(GuestManager, q, &guests)
 	if err != nil {
@@ -70,15 +77,28 @@ func (self *SSecurityGroup) GetGuests() []SGuest {
 	return guests
 }
 
-func (self *SSecurityGroup) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SSharableVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+func (self *SSecurityGroup) getDesc() jsonutils.JSONObject {
+	desc := jsonutils.NewDict()
+	desc.Add(jsonutils.NewString(self.Name), "name")
+	desc.Add(jsonutils.NewString(self.Id), "id")
+	desc.Add(jsonutils.NewString(self.getSecurityRuleString("")), "security_rules")
+	return desc
+}
+
+func (self *SSecurityGroup) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SSharableVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
 	extra.Add(jsonutils.NewInt(int64(len(self.GetGuests()))), "guest_cnt")
 	extra.Add(jsonutils.NewString(self.getSecurityRuleString("")), "rules")
-	return extra
+	extra.Add(jsonutils.NewString(self.getSecurityRuleString("in")), "in_rules")
+	extra.Add(jsonutils.NewString(self.getSecurityRuleString("out")), "out_rules")
+	return extra, nil
 }
 
 func (self *SSecurityGroup) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SSharableVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+	extra := self.SSharableVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
 	extra.Add(jsonutils.NewInt(int64(len(self.GetGuests()))), "guest_cnt")
 	extra.Add(jsonutils.NewTimeString(self.CreatedAt), "created_at")
 	extra.Add(jsonutils.NewString(self.Description), "description")
@@ -121,14 +141,16 @@ func (self *SSecurityGroup) getSecurityRules(direction string) (rules []SSecurit
 	return
 }
 
-func (self *SSecurityGroup) getSecRules(direction string) []secrules.SecurityRule {
+func (self *SSecurityGroup) GetSecRules(direction string) []secrules.SecurityRule {
 	rules := make([]secrules.SecurityRule, 0)
 	for _, _rule := range self.getSecurityRules(direction) {
-		singleRules, err := _rule.SingleRules()
+		//这里没必要拆分为单个单个的端口,到公有云那边适配
+		rule, err := _rule.toRule()
 		if err != nil {
 			log.Errorf(err.Error())
+			continue
 		}
-		rules = append(rules, singleRules...)
+		rules = append(rules, *rule)
 	}
 	return rules
 }
@@ -145,6 +167,45 @@ func (self *SSecurityGroup) getSecurityRuleString(direction string) string {
 func totalSecurityGroupCount(projectId string) int {
 	q := SecurityGroupManager.Query().Equals("tenant_id", projectId)
 	return q.Count()
+}
+
+func (self *SSecurityGroup) AllowPerformAddRule(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return self.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, self, "add-rule")
+}
+
+func (self *SSecurityGroup) PerformAddRule(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	secgrouprule := &SSecurityGroupRule{SecgroupID: self.Id}
+	secgrouprule.SetModelManager(SecurityGroupRuleManager)
+	if err := data.Unmarshal(secgrouprule); err != nil {
+		return nil, err
+	}
+	if len(secgrouprule.CIDR) > 0 {
+		if !regutils.MatchCIDR(secgrouprule.CIDR) && !regutils.MatchIPAddr(secgrouprule.CIDR) {
+			return nil, httperrors.NewInputParameterError("invalid ip address: %s", secgrouprule.CIDR)
+		}
+	} else {
+		secgrouprule.CIDR = "0.0.0.0/0"
+	}
+	rule := secrules.SecurityRule{
+		Priority:  int(secgrouprule.Priority),
+		Direction: secrules.TSecurityRuleDirection(secgrouprule.Direction),
+		Action:    secrules.TSecurityRuleAction(secgrouprule.Action),
+		Protocol:  secgrouprule.Protocol,
+		Ports:     []int{},
+		PortStart: -1,
+		PortEnd:   -1,
+	}
+	if err := rule.ParsePorts(secgrouprule.Ports); err != nil {
+		return nil, httperrors.NewInputParameterError(err.Error())
+	}
+	if err := rule.ValidateRule(); err != nil {
+		return nil, httperrors.NewInputParameterError(err.Error())
+	}
+	if err := SecurityGroupRuleManager.TableSpec().Insert(secgrouprule); err != nil {
+		return nil, httperrors.NewInputParameterError(err.Error())
+	}
+	self.DoSync(ctx, userCred)
+	return nil, nil
 }
 
 func (self *SSecurityGroup) AllowPerformClone(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -226,7 +287,15 @@ func (self *SSecurityGroup) SyncWithCloudSecurityGroup(userCred mcclient.TokenCr
 	return nil
 }
 
-func (manager *SSecurityGroupManager) newFromCloudVpc(userCred mcclient.TokenCredential, extSec cloudprovider.ICloudSecurityGroup, vpc *SVpc, projectId string) (*SSecurityGroup, error) {
+func (manager *SSecurityGroupManager) newFromCloudVpc(userCred mcclient.TokenCredential, extSec cloudprovider.ICloudSecurityGroup, vpc *SVpc, projectId string) (*SSecurityGroup, bool, error) {
+	if secgroup, exist := SecurityGroupCacheManager.CheckExist(context.Background(), userCred, extSec.GetGlobalId(), extSec.GetVpcId(), vpc.CloudregionId, vpc.ManagerId); exist {
+		if secgroup.GetGuestsCount() == 0 {
+			return secgroup, true, nil
+		}
+		//避免重复同步
+		return secgroup, false, nil
+	}
+
 	secgroup := SSecurityGroup{}
 	secgroup.SetModelManager(manager)
 	secgroup.Name = extSec.GetName()
@@ -238,7 +307,7 @@ func (manager *SSecurityGroupManager) newFromCloudVpc(userCred mcclient.TokenCre
 	}
 
 	if err := manager.TableSpec().Insert(&secgroup); err != nil {
-		return nil, err
+		return nil, true, err
 	}
 
 	if secgroupcache := SecurityGroupCacheManager.Register(context.Background(), userCred, secgroup.Id, extSec.GetVpcId(), vpc.CloudregionId, vpc.ManagerId); secgroupcache != nil {
@@ -247,7 +316,7 @@ func (manager *SSecurityGroupManager) newFromCloudVpc(userCred mcclient.TokenCre
 		}
 	}
 
-	return &secgroup, nil
+	return &secgroup, true, nil
 }
 
 func (manager *SSecurityGroupManager) SyncSecgroups(ctx context.Context, userCred mcclient.TokenCredential, secgroups []cloudprovider.ICloudSecurityGroup, vpc *SVpc, projectId string, projectSync bool) ([]SSecurityGroup, []cloudprovider.ICloudSecurityGroup, compare.SyncResult) {
@@ -291,15 +360,17 @@ func (manager *SSecurityGroupManager) SyncSecgroups(ctx context.Context, userCre
 			syncResult.AddError(err)
 			continue
 		}
-		new, err := manager.newFromCloudVpc(userCred, added[i], vpc, projectId)
+		new, ruleSync, err := manager.newFromCloudVpc(userCred, added[i], vpc, projectId)
 		if err != nil {
 			syncResult.AddError(err)
 			continue
 		}
 		localSecgroups = append(localSecgroups, *new)
 		remoteSecgroups = append(remoteSecgroups, added[i])
-		SecurityGroupRuleManager.SyncRules(ctx, userCred, new, rules)
 		syncResult.Add()
+		if ruleSync {
+			SecurityGroupRuleManager.SyncRules(ctx, userCred, new, rules)
+		}
 	}
 	return localSecgroups, remoteSecgroups, syncResult
 }
@@ -430,8 +501,7 @@ func (self *SSecurityGroup) StartDeleteSecurityGroupTask(ctx context.Context, us
 }
 
 func (self *SSecurityGroup) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	log.Infof("SecurityGroup delete do nothing")
-	return nil
+	return self.SSharableVirtualResourceBase.DoPendingDelete(ctx, userCred)
 }
 
 func (self *SSecurityGroup) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -68,7 +69,7 @@ type SIsolatedDevice struct {
 	DevType string `width:"16" charset:"ascii" nullable:"false" default:"" index:"true" list:"admin" create:"admin_required"` // Column(VARCHAR(16, charset='ascii'), nullable=False, default='', server_default='', index=True)
 
 	// # Specific device name read from lspci command, e.g. `Tesla K40m` ...
-	Model string `width:"32" charset:"ascii" nullable:"false" default:"" index:"true" list:"admin" create:"admin_required"` // Column(VARCHAR(32, charset='ascii'), nullable=False, default='', server_default='', index=True)
+	Model string `width:"32" charset:"ascii" nullable:"false" default:"" index:"true" list:"admin" create:"admin_required" update:"admin"` // Column(VARCHAR(32, charset='ascii'), nullable=False, default='', server_default='', index=True)
 
 	GuestId string `width:"36" charset:"ascii" nullable:"true" index:"true" list:"admin"` // Column(VARCHAR(36, charset='ascii'), nullable=True, index=True)
 
@@ -80,7 +81,7 @@ type SIsolatedDevice struct {
 
 func (manager *SIsolatedDeviceManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	host, _ := query.GetString("host")
-	if len(host) > 0 && !userCred.IsSystemAdmin() {
+	if len(host) > 0 && !db.IsAdminAllowList(userCred, manager) {
 		return false
 	}
 	return true
@@ -92,7 +93,24 @@ func (manager *SIsolatedDeviceManager) ExtraSearchConditions(ctx context.Context
 }
 
 func (manager *SIsolatedDeviceManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.IsSystemAdmin()
+	return db.IsAdminAllowCreate(userCred, manager)
+}
+
+func (manager *SIsolatedDeviceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	hostId, _ := data.GetString("host_id")
+	host := HostManager.FetchHostById(hostId)
+	if host == nil {
+		return nil, httperrors.NewNotFoundError("Host %s not found", hostId)
+	}
+	if name, _ := data.GetString("name"); len(name) == 0 {
+		name = fmt.Sprintf("dev_%s_%d", host.GetName(), time.Now().UnixNano())
+		data.Set("name", jsonutils.NewString(name))
+	}
+	return manager.SStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+}
+
+func (self *SIsolatedDevice) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
+	return db.IsAdminAllowUpdate(userCred, self)
 }
 
 func (manager *SIsolatedDeviceManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
@@ -285,15 +303,15 @@ func (manager *SIsolatedDeviceManager) isValidDeviceinfo(config *SIsolatedDevice
 	return nil
 }
 
-func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByDesc(guest *SGuest, host *SHost, devConfig *SIsolatedDeviceConfig, userCred mcclient.TokenCredential) error {
+func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByDesc(ctx context.Context, guest *SGuest, host *SHost, devConfig *SIsolatedDeviceConfig, userCred mcclient.TokenCredential) error {
 	if len(devConfig.Id) > 0 {
-		return manager.attachSpecificDeviceToGuest(guest, devConfig, userCred)
+		return manager.attachSpecificDeviceToGuest(ctx, guest, devConfig, userCred)
 	} else {
-		return manager.attachHostDeviceToGuestByModel(guest, host, devConfig, userCred)
+		return manager.attachHostDeviceToGuestByModel(ctx, guest, host, devConfig, userCred)
 	}
 }
 
-func (manager *SIsolatedDeviceManager) attachSpecificDeviceToGuest(guest *SGuest, devConfig *SIsolatedDeviceConfig, userCred mcclient.TokenCredential) error {
+func (manager *SIsolatedDeviceManager) attachSpecificDeviceToGuest(ctx context.Context, guest *SGuest, devConfig *SIsolatedDeviceConfig, userCred mcclient.TokenCredential) error {
 	devObj, err := manager.FetchById(devConfig.Id)
 	if devObj == nil {
 		return fmt.Errorf("Device %s not found: %s", devConfig.Id, err)
@@ -302,10 +320,10 @@ func (manager *SIsolatedDeviceManager) attachSpecificDeviceToGuest(guest *SGuest
 	if len(devConfig.DevType) > 0 && devConfig.DevType != dev.DevType {
 		dev.DevType = devConfig.DevType
 	}
-	return guest.attachIsolatedDevice(userCred, dev)
+	return guest.attachIsolatedDevice(ctx, userCred, dev)
 }
 
-func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByModel(guest *SGuest, host *SHost, devConfig *SIsolatedDeviceConfig, userCred mcclient.TokenCredential) error {
+func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByModel(ctx context.Context, guest *SGuest, host *SHost, devConfig *SIsolatedDeviceConfig, userCred mcclient.TokenCredential) error {
 	if len(devConfig.Model) == 0 {
 		return fmt.Errorf("Not found model from info: %s", devConfig)
 	}
@@ -314,7 +332,7 @@ func (manager *SIsolatedDeviceManager) attachHostDeviceToGuestByModel(guest *SGu
 		return fmt.Errorf("Can't found %s model on host", host.Id)
 	}
 	selectedDev := devs[0]
-	return guest.attachIsolatedDevice(userCred, &selectedDev)
+	return guest.attachIsolatedDevice(ctx, userCred, &selectedDev)
 }
 
 func (manager *SIsolatedDeviceManager) findUnusedQuery() *sqlchemy.SQuery {
@@ -365,7 +383,7 @@ func (manager *SIsolatedDeviceManager) findHostUnusedByModel(model string, hostI
 	return devs, nil
 }
 
-func (manager *SIsolatedDeviceManager) ReleaseDevicesOfGuest(guest *SGuest, userCred mcclient.TokenCredential) error {
+func (manager *SIsolatedDeviceManager) ReleaseDevicesOfGuest(ctx context.Context, guest *SGuest, userCred mcclient.TokenCredential) error {
 	devs := manager.findAttachedDevicesOfGuest(guest)
 	if devs == nil {
 		return fmt.Errorf("fail to find attached devices")
@@ -376,29 +394,27 @@ func (manager *SIsolatedDeviceManager) ReleaseDevicesOfGuest(guest *SGuest, user
 			return nil
 		})
 		if err != nil {
-			db.OpsLog.LogEvent(guest, db.ACT_GUEST_DETACH_ISOLATED_DEVICE_FAIL, dev.GetShortDesc(), userCred)
+			db.OpsLog.LogEvent(guest, db.ACT_GUEST_DETACH_ISOLATED_DEVICE_FAIL, dev.GetShortDesc(ctx), userCred)
 			return err
 		}
-		db.OpsLog.LogEvent(guest, db.ACT_GUEST_DETACH_ISOLATED_DEVICE, dev.GetShortDesc(), userCred)
+		db.OpsLog.LogEvent(guest, db.ACT_GUEST_DETACH_ISOLATED_DEVICE, dev.GetShortDesc(ctx), userCred)
 	}
 	return nil
 }
 
 func (manager *SIsolatedDeviceManager) totalCountQ(
-	devType, hostTypes []string,
+	devType []string, hostTypes []string,
+	resourceTypes []string, providers []string,
 	rangeObj db.IStandaloneModel,
 ) *sqlchemy.SQuery {
 	hosts := HostManager.Query().SubQuery()
-	q := manager.Query().Join(hosts, sqlchemy.AND(
-		sqlchemy.IsFalse(hosts.Field("deleted")),
-		sqlchemy.IsTrue(hosts.Field("enabled")),
-	))
-	q = q.Filter(sqlchemy.Equals(hosts.Field("id"), q.Field("host_id")))
-	if len(devType) != 0 {
-		q.In("dev_type", devType)
-	}
 	devs := manager.Query().SubQuery()
-	return AttachUsageQuery(q, hosts, devs.Field("host_id"), hostTypes, rangeObj)
+	q := devs.Query().Join(hosts, sqlchemy.Equals(devs.Field("host_id"), hosts.Field("id")))
+	q = q.Filter(sqlchemy.IsTrue(hosts.Field("enabled")))
+	if len(devType) != 0 {
+		q = q.Filter(sqlchemy.In(devs.Field("dev_type"), devType))
+	}
+	return AttachUsageQuery(q, hosts, hostTypes, resourceTypes, providers, rangeObj)
 }
 
 type IsolatedDeviceCountStat struct {
@@ -406,14 +422,14 @@ type IsolatedDeviceCountStat struct {
 	Gpus    int
 }
 
-func (manager *SIsolatedDeviceManager) totalCount(devType, hostTypes []string, rangeObj db.IStandaloneModel) int {
-	return manager.totalCountQ(devType, hostTypes, rangeObj).Count()
+func (manager *SIsolatedDeviceManager) totalCount(devType, hostTypes []string, resourceTypes []string, providers []string, rangeObj db.IStandaloneModel) int {
+	return manager.totalCountQ(devType, hostTypes, resourceTypes, providers, rangeObj).Count()
 }
 
-func (manager *SIsolatedDeviceManager) TotalCount(hostType []string, rangeObj db.IStandaloneModel) IsolatedDeviceCountStat {
+func (manager *SIsolatedDeviceManager) TotalCount(hostType []string, resourceTypes []string, providers []string, rangeObj db.IStandaloneModel) IsolatedDeviceCountStat {
 	return IsolatedDeviceCountStat{
-		Devices: manager.totalCount(nil, hostType, rangeObj),
-		Gpus:    manager.totalCount(VALID_GPU_TYPES, hostType, rangeObj),
+		Devices: manager.totalCount(nil, hostType, resourceTypes, providers, rangeObj),
+		Gpus:    manager.totalCount(VALID_GPU_TYPES, hostType, resourceTypes, providers, rangeObj),
 	}
 }
 
@@ -459,9 +475,9 @@ func (man *SIsolatedDeviceManager) GetSpecIdent(spec *jsonutils.JSONDict) []stri
 	return keys
 }
 
-func (self *SIsolatedDevice) GetShortDesc() *jsonutils.JSONDict {
+func (self *SIsolatedDevice) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
 	desc := self.getDesc()
-	desc.Add(jsonutils.NewString(self.Keyword()), "res_name")
+	desc.Add(jsonutils.NewString(IsolatedDeviceManager.Keyword()), "res_name")
 	return desc
 }
 
@@ -500,10 +516,13 @@ func (self *SIsolatedDevice) getMoreDetails(extra *jsonutils.JSONDict) *jsonutil
 	return extra
 }
 
-func (self *SIsolatedDevice) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := self.SStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
+func (self *SIsolatedDevice) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
+	extra, err := self.SStandaloneResourceBase.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
 	extra = self.getMoreDetails(extra)
-	return extra
+	return extra, nil
 }
 
 func (self *SIsolatedDevice) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
@@ -528,6 +547,14 @@ func (self *SIsolatedDevice) RealDelete(ctx context.Context, userCred mcclient.T
 	return self.ClearSchedDescCache()
 }
 
+func (self *SIsolatedDevice) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, self, "purge")
+}
+
+func (self *SIsolatedDevice) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, self.CustomizeDelete(ctx, userCred, query, data)
+}
+
 func (self *SIsolatedDevice) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 	if len(self.GuestId) > 0 {
 		if !jsonutils.QueryBoolean(data, "purge", false) {
@@ -538,14 +565,14 @@ func (self *SIsolatedDevice) CustomizeDelete(ctx context.Context, userCred mccli
 			return err
 		}
 		guest := iGuest.(*SGuest)
-		err = guest.detachIsolateDevice(userCred, self)
+		err = guest.detachIsolateDevice(ctx, userCred, self)
 		if err != nil {
 			return err
 		}
 	}
 	host := self.getHost()
 	if host != nil {
-		db.OpsLog.LogEvent(host, db.ACT_HOST_DETACH_ISOLATED_DEVICE, self.GetShortDesc(), userCred)
+		db.OpsLog.LogEvent(host, db.ACT_HOST_DETACH_ISOLATED_DEVICE, self.GetShortDesc(ctx), userCred)
 	}
 	return self.RealDelete(ctx, userCred)
 }
@@ -556,7 +583,7 @@ func (manager *SIsolatedDeviceManager) FindByHost(id string) []SIsolatedDevice {
 
 func (manager *SIsolatedDeviceManager) FindByHosts(ids []string) []SIsolatedDevice {
 	dest := make([]SIsolatedDevice, 0)
-	err := manager.TableSpec().Query().In("host_id", ids).All(&dest)
+	err := manager.Query().In("host_id", ids).All(&dest)
 	if err != nil {
 		log.Errorln(err)
 		return nil
