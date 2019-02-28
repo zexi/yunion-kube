@@ -1507,7 +1507,7 @@
 
 [[projects]]
   branch = "release/2.7.0"
-  digest = "1:e68b0817c10557d2c7dea41689250ef45528074ae501eee59cc1dc5918f3d317"
+  digest = "1:260608e800238775c1028e8c7184dfd15da3b34e83e8f368c55a6abc50680c76"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/appctx",
@@ -1525,6 +1525,7 @@
     "pkg/cloudcommon/validators",
     "pkg/cloudprovider",
     "pkg/compute/baremetal",
+    "pkg/compute/consts",
     "pkg/compute/models",
     "pkg/compute/options",
     "pkg/compute/sshkeys",
@@ -1537,6 +1538,7 @@
     "pkg/proxy",
     "pkg/util/ansible",
     "pkg/util/billing",
+    "pkg/util/choices",
     "pkg/util/cloudinit",
     "pkg/util/conditionparser",
     "pkg/util/hashcache",
@@ -1549,7 +1551,7 @@
     "pkg/util/ssh",
   ]
   pruneopts = "UT"
-  revision = "16aa2fd6324857c3d21a6b57bd01df1b6bc5e72a"
+  revision = "85a76fcb4ce9cbf25a22bee6ed92bc2b72645449"
 
 [[projects]]
   branch = "master"
@@ -1713,7 +1715,6 @@
     "k8s.io/helm/pkg/version",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/scheme",
-    "k8s.io/kubernetes/cmd/kubeadm/app/componentconfigs",
     "k8s.io/kubernetes/cmd/kubeadm/app/constants",
     "k8s.io/kubernetes/cmd/kubeadm/app/util/config",
     "k8s.io/kubernetes/pkg/util/mount",
@@ -1729,9 +1730,11 @@
     "yunion.io/x/onecloud/pkg/appsrv",
     "yunion.io/x/onecloud/pkg/appsrv/dispatcher",
     "yunion.io/x/onecloud/pkg/cloudcommon",
+    "yunion.io/x/onecloud/pkg/cloudcommon/consts",
     "yunion.io/x/onecloud/pkg/cloudcommon/db",
     "yunion.io/x/onecloud/pkg/cloudcommon/db/lockman",
     "yunion.io/x/onecloud/pkg/cloudcommon/db/taskman",
+    "yunion.io/x/onecloud/pkg/cloudcommon/policy",
     "yunion.io/x/onecloud/pkg/compute/models",
     "yunion.io/x/onecloud/pkg/httperrors",
     "yunion.io/x/onecloud/pkg/mcclient",
