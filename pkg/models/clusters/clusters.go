@@ -25,24 +25,29 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
-	//"yunion.io/x/yunion-kube/pkg/models/clusters/drivers"
 )
 
 var ClusterManager *SClusterManager
 
 func init() {
 	ClusterManager = &SClusterManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SCluster{}, "kubeclusters_tbl", "kubecluster", "kubeclusters"),
+		SSharableVirtualResourceBaseManager: db.NewSharableVirtualResourceBaseManager(
+			SCluster{},
+			"kubeclusters_tbl",
+			"kubecluster",
+			"kubeclusters",
+		),
 	}
 	manager.RegisterClusterManager(ClusterManager)
 }
 
 type SClusterManager struct {
-	db.SVirtualResourceBaseManager
+	db.SSharableVirtualResourceBaseManager
 }
 
 type SCluster struct {
-	db.SVirtualResourceBase
+	db.SSharableVirtualResourceBase
+
 	ClusterType   string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	CloudType     string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	Mode          string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`

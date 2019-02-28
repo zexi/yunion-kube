@@ -6,7 +6,6 @@ import (
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -136,10 +135,13 @@ func (m *SNamespaceResourceManager) InNamespace() bool {
 }
 
 func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
-	return req.UserCred.HasSystemAdminPrivelege() || req.GetDefaultNamespace() == types.ConvertProjectToNamespace(req.UserCred.GetProjectName())
+	return req.UserCred.HasSystemAdminPrivelege() || req.ProjectNamespaces.Sets().Has(req.GetDefaultNamespace())
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
+	if req.ShowAllNamespace() && !req.IsSystemAdmin() {
+		return false
+	}
 	return m.IsOwner(req)
 }
 

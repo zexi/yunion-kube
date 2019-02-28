@@ -54,7 +54,6 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []db.IModelManager{
-		//db.OpsLog.SetKeyword("kube_event", "kube_events"),
 		db.OpsLog,
 		models.ClusterManager,
 		models.NodeManager,
