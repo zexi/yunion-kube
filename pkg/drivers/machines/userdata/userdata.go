@@ -50,13 +50,14 @@ set -o pipefail
 configure_docker() {
 	cat >/etc/docker/daemon.json <<EOF
 {
-    "graph": "/opt/docker",
+    "graph": "{{.DockerGraphDir}}",
     "registry-mirrors": [
         "https://lje6zxpk.mirror.aliyuncs.com",
         "https://lms7sxqp.mirror.aliyuncs.com",
         "https://registry.docker-cn.com"
     ],
     "insecure-registries": [],
+	"bip": "{{.DockerBIP}}",
     "live-restore": true
 }
 EOF
