@@ -47,14 +47,8 @@ func (r *Request) AllowListItems() bool {
 	return true
 }
 
-func (r *Request) AllowCreateItem() bool {
-	/*if r.UserCred.HasSystemAdminPrivelege() {
-		return true
-	}
-	ns := r.GetDefaultNamespace()
-	// TODO: support isOwner check
-	return ns == r.GetProjectNamespace()*/
-	return true
+func (r *Request) IsClusterOwner() bool {
+	return r.UserCred.HasSystemAdminPrivelege() || r.GetCluster().IsOwner(r.UserCred)
 }
 
 func (r *Request) ShowAllNamespace() bool {
