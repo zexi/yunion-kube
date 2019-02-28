@@ -923,8 +923,8 @@ func (n *SNode) MigrateToV2Machine(ctx context.Context, userCred mcclient.TokenC
 			return fmt.Errorf("Create to v2 machine: %v", err)
 		}
 		v2Machine.SetStatus(userCred, n.Status, "")
-		v2Machine.SetPrivateIP(n.Address)
 	}
+	v2Machine.SetPrivateIP(n.Address)
 	log.Infof("Node %s migrate to v2 machine: %v", n.GetName(), v2Machine)
 	return nil
 }
