@@ -2,6 +2,7 @@ package namespace
 
 import (
 	"yunion.io/x/yunion-kube/pkg/resources"
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 var NamespaceManager *SNamespaceManager
@@ -14,4 +15,12 @@ func init() {
 	NamespaceManager = &SNamespaceManager{
 		SClusterResourceManager: resources.NewClusterResourceManager("namespace", "namespaces"),
 	}
+}
+
+func (m *SNamespaceManager) AllowListItems(req *common.Request) bool {
+	return req.IsSystemAdmin() || req.GetCluster().IsSharable()
+}
+
+func (m *SNamespaceManager) AllowGetItem(req *common.Request, id string) bool {
+	return m.AllowListItems(req)
 }

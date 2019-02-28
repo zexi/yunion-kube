@@ -38,11 +38,16 @@ type Cluster struct {
 }
 
 func (man *SClusterManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCluster(req.GetK8sClient(), req.GetCluster(), dataselect.DefaultDataSelect())
+	return GetCluster(req.GetK8sClient(), req.GetCluster(), dataselect.DefaultDataSelect(), req.ProjectNamespaces)
 }
 
 // GetCluster returns a list of all cluster resources in the cluster.
-func GetCluster(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*Cluster, error) {
+func GetCluster(
+	client kubernetes.Interface,
+	cluster api.ICluster,
+	dsQuery *dataselect.DataSelectQuery,
+	projectNamespaces *common.ProjectNamespaces,
+) (*Cluster, error) {
 	log.Infof("Getting cluster category")
 	channels := &common.ResourceChannels{
 		NamespaceList:        common.GetNamespaceListChannel(client),
@@ -53,12 +58,17 @@ func GetCluster(client kubernetes.Interface, cluster api.ICluster, dsQuery *data
 		StorageClassList:     common.GetStorageClassListChannel(client),
 	}
 
-	return GetClusterFromChannels(client, cluster, channels, dsQuery)
+	return GetClusterFromChannels(client, cluster, channels, dsQuery, projectNamespaces)
 }
 
 // GetClusterFromChannels returns a list of all cluster in the cluster, from the channel sources.
-func GetClusterFromChannels(client kubernetes.Interface, cluster api.ICluster, channels *common.ResourceChannels,
-	dsQuery *dataselect.DataSelectQuery) (*Cluster, error) {
+func GetClusterFromChannels(
+	client kubernetes.Interface,
+	cluster api.ICluster,
+	channels *common.ResourceChannels,
+	dsQuery *dataselect.DataSelectQuery,
+	projectNamespaces *common.ProjectNamespaces,
+) (*Cluster, error) {
 
 	numErrs := 5
 	errChan := make(chan error, numErrs)
@@ -69,7 +79,7 @@ func GetClusterFromChannels(client kubernetes.Interface, cluster api.ICluster, c
 	storageChan := make(chan *storageclass.StorageClassList)
 
 	go func() {
-		items, err := namespace.GetNamespaceListFromChannels(channels, dsQuery, cluster)
+		items, err := namespace.GetNamespaceListFromChannels(channels, dsQuery, cluster, projectNamespaces)
 		errChan <- err
 		nsChan <- items
 	}()

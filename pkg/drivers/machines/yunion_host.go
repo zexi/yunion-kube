@@ -82,7 +82,11 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 		return httperrors.NewInputParameterError("Only support one controlplane as for now")
 	}*/
 
-	ret, err := yunion_host.ValidateHostId(session, resId)
+	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
+	if err != nil {
+		return err
+	}
+	ret, err := yunion_host.ValidateHostId(session, privateKey, resId)
 	if err != nil {
 		return err
 	}

@@ -14,6 +14,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/types"
+	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 )
 
 type SSystemYKEDriver struct {
@@ -61,7 +62,11 @@ func (d *SSystemYKEDriver) ValidateCreateData(session *mcclient.ClientSession, u
 	if len(resId) == 0 {
 		return httperrors.NewInputParameterError("Resource id must provide")
 	}
-	ret, err := yunion_host.ValidateHostId(session, resId)
+	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
+	if err != nil {
+		return err
+	}
+	ret, err := yunion_host.ValidateHostId(session, privateKey, resId)
 	if err != nil {
 		return err
 	}
