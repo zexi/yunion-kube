@@ -51,7 +51,7 @@ func (m *SResourceBaseManager) Get(req *common.Request, id string) (interface{},
 }
 
 func (m *SResourceBaseManager) AllowCreateItem(req *common.Request) bool {
-	return req.AllowCreateItem()
+	return false
 }
 
 func (m *SResourceBaseManager) ValidateCreateData(req *common.Request) error {
@@ -101,23 +101,23 @@ func (m *SClusterResourceManager) InNamespace() bool {
 }
 
 func (m *SClusterResourceManager) AllowListItems(req *common.Request) bool {
-	return req.UserCred.HasSystemAdminPrivelege()
+	return req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowGetItem(req *common.Request, id string) bool {
-	return req.UserCred.HasSystemAdminPrivelege()
+	return req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowCreateItem(req *common.Request) bool {
-	return req.UserCred.HasSystemAdminPrivelege()
+	return req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
-	return req.UserCred.HasSystemAdminPrivelege()
+	return req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowDeleteItem(req *common.Request, id string) bool {
-	return req.UserCred.HasSystemAdminPrivelege()
+	return req.IsClusterOwner()
 }
 
 type SNamespaceResourceManager struct {
@@ -135,7 +135,7 @@ func (m *SNamespaceResourceManager) InNamespace() bool {
 }
 
 func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
-	return req.UserCred.HasSystemAdminPrivelege() || req.ProjectNamespaces.Sets().Has(req.GetDefaultNamespace())
+	return req.IsClusterOwner() || req.ProjectNamespaces.Sets().Has(req.GetDefaultNamespace())
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {

@@ -196,7 +196,6 @@ func (h *K8sResourceHandler) List(ctx context.Context, query *jsonutils.JSONDict
 	if err != nil {
 		return nil, errors.NewJSONClientError(err)
 	}
-	log.Errorf("=========Get cluster: ssucc")
 	if !h.resourceManager.AllowListItems(req) {
 		return nil, httperrors.NewForbiddenError("Not allow to list")
 	}
