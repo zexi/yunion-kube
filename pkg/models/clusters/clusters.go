@@ -190,11 +190,11 @@ func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred m
 	return ret, nil
 }
 
-func (m *SClusterManager) AllowGetPropertyIsSystemClusterReady(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+func (m *SClusterManager) AllowPerformCheckSystemReady(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
 	return true
 }
 
-func (m *SClusterManager) GetPropertyIsSystemClusterReady(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (m *SClusterManager) PerformCheckSystemReady(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	isReady, err := m.IsSystemClusterReady()
 	if err != nil {
 		return nil, err
