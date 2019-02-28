@@ -21,6 +21,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -157,7 +158,10 @@ func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters
 		log.Errorf("Get internal scheduler endpoint error: %v", err)
 	}
 	return userdata.BaseConfigure{
-		DockerConfigure: userdata.DockerConfigure{},
+		DockerConfigure: userdata.DockerConfigure{
+			DockerGraphDir: models.DEFAULT_DOCKER_GRAPH_DIR,
+			DockerBIP:      o.DockerdBip,
+		},
 		OnecloudConfigure: userdata.OnecloudConfigure{
 			AuthURL:           o.AuthURL,
 			AdminUser:         o.AdminUser,
