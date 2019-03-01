@@ -8,6 +8,7 @@ import (
 
 	yerrors "yunion.io/x/pkg/util/errors"
 	"yunion.io/x/pkg/util/workqueue"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 var (
@@ -96,4 +97,12 @@ func Parallelize(execF func(string) error, args ...string) error {
 		return yerrors.NewAggregate(errs)
 	}
 	return nil
+}
+
+func GetPVCList(cli kubernetes.Interface, namespace string) (*apiv1.PersistentVolumeClaimList, error) {
+	if namespace == "" {
+		namespace = apiv1.NamespaceAll
+	}
+	list, err := cli.CoreV1().PersistentVolumeClaims(namespace).List(api.ListEverything)
+	return list, err
 }

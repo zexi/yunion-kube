@@ -255,7 +255,6 @@ func (d *SYunoinHostDriver) RequestCreateMachines(ctx context.Context, userCred 
 			return fmt.Errorf("Empty controlplane machines")
 		}
 	}
-	log.Errorf("========needControlplane: %v", needControlplane)
 	cms, nms, err := createMachines(ctx, userCred, controls, nodes)
 	if err != nil {
 		return err

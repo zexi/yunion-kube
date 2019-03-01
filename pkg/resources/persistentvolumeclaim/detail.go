@@ -11,6 +11,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // PersistentVolumeClaimDetail provides the presentation layer view of Kubernetes Persistent Volume Claim resource.
@@ -19,11 +20,11 @@ type PersistentVolumeClaimDetail struct {
 }
 
 func (man *SPersistentVolumeClaimManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetPersistentVolumeClaimDetail(req.GetK8sClient(), req.GetNamespaceQuery().ToRequestParam(), id)
+	return GetPersistentVolumeClaimDetail(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
 // GetPersistentVolumeClaimDetail returns detailed information about a persistent volume claim
-func GetPersistentVolumeClaimDetail(client kubernetes.Interface, namespace string, name string) (*PersistentVolumeClaimDetail, error) {
+func GetPersistentVolumeClaimDetail(client kubernetes.Interface, cluster api.ICluster, namespace string, name string) (*PersistentVolumeClaimDetail, error) {
 	log.Infof("Getting details of %s persistent volume claim", name)
 
 	rawPersistentVolumeClaim, err := client.CoreV1().PersistentVolumeClaims(namespace).Get(name, metaV1.GetOptions{})
@@ -36,17 +37,17 @@ func GetPersistentVolumeClaimDetail(client kubernetes.Interface, namespace strin
 		return nil, err
 	}
 
-	return getPersistentVolumeClaimDetail(rawPersistentVolumeClaim, pods.Items), nil
+	return getPersistentVolumeClaimDetail(cluster, rawPersistentVolumeClaim, pods.Items), nil
 }
 
-func getPersistentVolumeClaimDetail(pvc *v1.PersistentVolumeClaim, pods []v1.Pod) *PersistentVolumeClaimDetail {
+func getPersistentVolumeClaimDetail(cluster api.ICluster, pvc *v1.PersistentVolumeClaim, pods []v1.Pod) *PersistentVolumeClaimDetail {
 	return &PersistentVolumeClaimDetail{
-		PersistentVolumeClaim: toPersistentVolumeClaim(*pvc, pods),
+		PersistentVolumeClaim: toPersistentVolumeClaim(*pvc, pods, cluster),
 	}
 }
 
 // GetPodPersistentVolumeClaims gets persistentvolumeclaims that are associated with this pod.
-func GetPodPersistentVolumeClaims(client kubernetes.Interface, namespace string, podName string, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeClaimList, error) {
+func GetPodPersistentVolumeClaims(client kubernetes.Interface, cluster api.ICluster, namespace string, podName string, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeClaimList, error) {
 	pod, err := client.CoreV1().Pods(namespace).Get(podName, metaV1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -90,9 +91,9 @@ func GetPodPersistentVolumeClaims(client kubernetes.Interface, namespace string,
 
 		pvcs := []PersistentVolumeClaim{}
 		for _, pvc := range podPersistentVolumeClaims {
-			pvcs = append(pvcs, toPersistentVolumeClaim(pvc, []v1.Pod{*pod}))
+			pvcs = append(pvcs, toPersistentVolumeClaim(pvc, []v1.Pod{*pod}, cluster))
 		}
-		return toPersistentVolumeClaimList(pvcs, dsQuery)
+		return toPersistentVolumeClaimList(pvcs, dsQuery, cluster)
 	}
 
 	log.Infof("No persistentvolumeclaims found related to %s pod", podName)

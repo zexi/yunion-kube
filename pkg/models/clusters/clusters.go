@@ -24,6 +24,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
@@ -57,7 +58,7 @@ type SCluster struct {
 	ServiceCidr   string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	ServiceDomain string            `width:"128" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	PodCidr       string            `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user"`
-	Version       string            `width:"128" charset:"ascii" nullable:"true" create:"optional" list:"user"`
+	Version       string            `width:"128" charset:"ascii" nullable:"false" create:"optional" list:"user"`
 	Namespace     string            `nullable:"true" create:"optional" list:"user"`
 	Ha            tristate.TriState `nullable:"true" create:"required" list:"user"`
 	Kubeconfig    string            `nullable:"true" create:"optional"`
@@ -135,9 +136,15 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 	}
 
 	driver := GetDriver(types.ProviderType(providerType))
-
 	if err := driver.ValidateCreateData(userCred, ownerId, query, data); err != nil {
 		return nil, err
+	}
+
+	versions := driver.GetK8sVersions()
+	defaultVersion := versions[0]
+	version := SetJSONDataDefault(data, "version", defaultVersion)
+	if !utils.IsInStringArray(version, versions) {
+		return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", version, versions)
 	}
 
 	if jsonutils.QueryBoolean(data, "ha", false) {
@@ -432,8 +439,34 @@ func (c *SCluster) StartClusterCreateTask(ctx context.Context, userCred mcclient
 	return nil
 }
 
+func (c *SCluster) GetPVCCount() (int, error) {
+	cli, err := c.GetK8sClient()
+	if err != nil {
+		return 0, err
+	}
+	pvcs, err := k8sutil.GetPVCList(cli, "")
+	if err != nil {
+		return 0, err
+	}
+	return len(pvcs.Items), nil
+}
+
+func (c *SCluster) CheckPVCEmpty() error {
+	pvcCnt, _ := c.GetPVCCount()
+	if pvcCnt > 0 {
+		return httperrors.NewNotAcceptableError("Cluster has %d PersistentVolumeClaims, clean them firstly", pvcCnt)
+	}
+	return nil
+}
+
 func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
-	return c.GetDriver().ValidateDeleteCondition()
+	if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
+		return err
+	}
+	if err := c.CheckPVCEmpty(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -690,6 +723,16 @@ func (c *SCluster) PerformDeleteMachines(ctx context.Context, userCred mcclient.
 	}
 	if len(machines) == 0 {
 		return nil, httperrors.NewInputParameterError("Machines id is empty")
+	}
+	nowCnt, err := c.GetMachinesCount()
+	if err != nil {
+		return nil, err
+	}
+	// delete all machines
+	if nowCnt == len(machines) {
+		if err := c.CheckPVCEmpty(); err != nil {
+			return nil, err
+		}
 	}
 	driver := c.GetDriver()
 	if err := driver.ValidateDeleteMachines(ctx, userCred, c, machines); err != nil {
