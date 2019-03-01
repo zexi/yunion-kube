@@ -71,7 +71,17 @@ func getObjectMeta(obj interface{}) (metaV1.ObjectMeta, error) {
 	if !f.IsValid() {
 		return metaV1.ObjectMeta{}, fmt.Errorf("Object %#v not have ObjectMeta field", obj)
 	}
-	meta := f.Interface().(metaV1.ObjectMeta)
+	meta, ok := f.Interface().(metaV1.ObjectMeta)
+	if !ok {
+		apiMeta := f.Interface().(api.ObjectMeta)
+		meta = metaV1.ObjectMeta{
+			Name:              apiMeta.Name,
+			Namespace:         apiMeta.Namespace,
+			Labels:            apiMeta.Labels,
+			Annotations:       apiMeta.Annotations,
+			CreationTimestamp: apiMeta.CreationTimestamp,
+		}
+	}
 	return meta, nil
 }
 

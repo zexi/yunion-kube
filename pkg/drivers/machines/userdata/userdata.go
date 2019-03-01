@@ -127,7 +127,10 @@ func newBaseUserData(conf BaseConfigure) (*baseUserData, error) {
 	var err error
 	data := new(baseUserData)
 	data.Header = defaultHeader
-	data.DockerScript = dockerScript
+	data.DockerScript, err = generate("dockerConfig", dockerScript, conf.DockerConfigure)
+	if err != nil {
+		return nil, err
+	}
 	data.OnecloudConfig, err = generate("onecloudConfig", onecloudConfig, conf.OnecloudConfigure)
 	if err != nil {
 		return nil, err

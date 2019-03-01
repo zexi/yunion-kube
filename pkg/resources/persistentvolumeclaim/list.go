@@ -2,7 +2,6 @@ package persistentvolumeclaim
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/jsonutils"
@@ -10,17 +9,18 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PersistentVolumeClaimList struct {
-	*dataselect.ListMeta
+	*common.BaseList
 	Items []PersistentVolumeClaim
 }
 
 // PersistentVolumeClaim provides the simplified presentation layer view of Kubernetes Persistent Volume Claim resource.
 type PersistentVolumeClaim struct {
-	metaV1.ObjectMeta
-	metaV1.TypeMeta
+	api.ObjectMeta
+	api.TypeMeta
 	Status       string                          `json:"status"`
 	Volume       string                          `json:"volume"`
 	Capacity     v1.ResourceList                 `json:"capacity"`
@@ -39,29 +39,37 @@ func (man *SPersistentVolumeClaimManager) List(req *common.Request) (common.List
 		}
 		filter.Append(dataselect.NewFilterBy(dataselect.PVCUnusedProperty, isUnused))
 	}
-	return man.ListV2(req.GetK8sClient(), req.GetNamespaceQuery(), query)
+	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), query)
 }
 
-func (man *SPersistentVolumeClaimManager) ListV2(client kubernetes.Interface, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return GetPersistentVolumeClaimList(client, nsQuery, dsQuery)
+func (man *SPersistentVolumeClaimManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetPersistentVolumeClaimList(client, cluster, nsQuery, dsQuery)
 }
 
 // GetPersistentVolumeClaimList returns a list of all Persistent Volume Claims in the cluster.
-func GetPersistentVolumeClaimList(client kubernetes.Interface, nsQuery *common.NamespaceQuery,
-	dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeClaimList, error) {
+func GetPersistentVolumeClaimList(
+	client kubernetes.Interface,
+	cluster api.ICluster,
+	nsQuery *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery,
+) (*PersistentVolumeClaimList, error) {
 	log.Infof("Getting list persistent volumes claims")
 	channels := &common.ResourceChannels{
 		PersistentVolumeClaimList: common.GetPersistentVolumeClaimListChannel(client, nsQuery),
 		PodList:                   common.GetPodListChannel(client, nsQuery),
 	}
 
-	return GetPersistentVolumeClaimListFromChannels(channels, nsQuery, dsQuery)
+	return GetPersistentVolumeClaimListFromChannels(channels, nsQuery, dsQuery, cluster)
 }
 
 // GetPersistentVolumeClaimListFromChannels returns a list of all Persistent Volume Claims in the cluster
 // reading required resource list once from the channels.
-func GetPersistentVolumeClaimListFromChannels(channels *common.ResourceChannels, nsQuery *common.NamespaceQuery,
-	dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeClaimList, error) {
+func GetPersistentVolumeClaimListFromChannels(
+	channels *common.ResourceChannels,
+	nsQuery *common.NamespaceQuery,
+	dsQuery *dataselect.DataSelectQuery,
+	cluster api.ICluster,
+) (*PersistentVolumeClaimList, error) {
 
 	persistentVolumeClaims := <-channels.PersistentVolumeClaimList.List
 	err := <-channels.PersistentVolumeClaimList.Error
@@ -76,10 +84,10 @@ func GetPersistentVolumeClaimListFromChannels(channels *common.ResourceChannels,
 
 	pvcs := []PersistentVolumeClaim{}
 	for _, pvc := range persistentVolumeClaims.Items {
-		pvcs = append(pvcs, toPersistentVolumeClaim(pvc, pods.Items))
+		pvcs = append(pvcs, toPersistentVolumeClaim(pvc, pods.Items, cluster))
 	}
 
-	return toPersistentVolumeClaimList(pvcs, dsQuery)
+	return toPersistentVolumeClaimList(pvcs, dsQuery, cluster)
 }
 
 func getPvcs(volumes []v1.Volume) []v1.Volume {
@@ -114,11 +122,11 @@ func getMountPodsName(pvcName string, pods []v1.Pod) []string {
 	return ret
 }
 
-func toPersistentVolumeClaim(pvc v1.PersistentVolumeClaim, pods []v1.Pod) PersistentVolumeClaim {
+func toPersistentVolumeClaim(pvc v1.PersistentVolumeClaim, pods []v1.Pod, cluster api.ICluster) PersistentVolumeClaim {
 	podsName := getMountPodsName(pvc.Name, pods)
 	return PersistentVolumeClaim{
-		ObjectMeta:   pvc.ObjectMeta,
-		TypeMeta:     pvc.TypeMeta,
+		ObjectMeta:   api.NewObjectMetaV2(pvc.ObjectMeta, cluster),
+		TypeMeta:     api.NewTypeMeta(api.ResourceKindPersistentVolumeClaim),
 		Status:       string(pvc.Status.Phase),
 		Volume:       pvc.Spec.VolumeName,
 		Capacity:     pvc.Status.Capacity,
@@ -128,10 +136,10 @@ func toPersistentVolumeClaim(pvc v1.PersistentVolumeClaim, pods []v1.Pod) Persis
 	}
 }
 
-func toPersistentVolumeClaimList(pvcs []PersistentVolumeClaim, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeClaimList, error) {
+func toPersistentVolumeClaimList(pvcs []PersistentVolumeClaim, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeClaimList, error) {
 	result := &PersistentVolumeClaimList{
+		BaseList: common.NewBaseList(cluster),
 		Items:    make([]PersistentVolumeClaim, 0),
-		ListMeta: dataselect.NewListMeta(),
 	}
 
 	err := dataselect.ToResourceList(
