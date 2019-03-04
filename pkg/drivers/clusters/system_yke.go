@@ -47,6 +47,8 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, err
 	params := jsonutils.NewDict()
 	filter := jsonutils.NewArray()
 	filter.Add(jsonutils.NewString(fmt.Sprintf("host_type.in(%s, %s)", "hypervisor", "kubelet")))
+	filter.Add(jsonutils.NewString("host_status.equals(online)"))
+	filter.Add(jsonutils.NewString("status.equals(running)"))
 	params.Add(filter, "filter")
 	result, err := cloudmod.Hosts.List(s, params)
 	if err != nil {
