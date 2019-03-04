@@ -1076,9 +1076,10 @@ func (c *SCluster) GetDetailsCloudHosts(ctx context.Context, userCred mcclient.T
 		return nil, err
 	}
 	params := jsonutils.NewDict()
-	params.Add(jsonutils.NewInt(2000), "limit")
 	filter := jsonutils.NewArray()
 	filter.Add(jsonutils.NewString(fmt.Sprintf("host_type.in(%s, %s)", "hypervisor", "kubelet")))
+	filter.Add(jsonutils.NewString("host_status.equals(online)"))
+	filter.Add(jsonutils.NewString("status.equals(running)"))
 	params.Add(filter, "filter")
 	result, err := cloudmod.Hosts.List(session, params)
 	if err != nil {
