@@ -696,6 +696,12 @@ func (c *SCluster) GetYKEAuthzConfig() yketypes.AuthzConfig {
 	return yketypes.AuthzConfig{Mode: ykecluster.DefaultAuthorizationMode}
 }
 
+func (c *SCluster) GetIngressConfig() yketypes.IngressConfig {
+	return yketypes.IngressConfig{
+		Provider: "none",
+	}
+}
+
 func (c *SCluster) GetCloudProviderConfig(conf yketypes.YunionConfig) yketypes.CloudProvider {
 	return yketypes.CloudProvider{
 		Name: "yunion",
@@ -931,6 +937,7 @@ func (c *SCluster) NewYKEFixedConfig() (*yketypes.KubernetesEngineConfig, error)
 	conf.Authorization = c.GetYKEAuthzConfig()
 	conf.Network = c.GetYKENetworkConfig()
 	conf.YunionConfig = c.GetYunionConfig()
+	conf.Ingress = c.GetIngressConfig()
 	conf.CloudProvider = c.GetCloudProviderConfig(conf.YunionConfig)
 	conf.Services, err = c.GetYKEServicesConfig(conf.SystemImages)
 	if err != nil {
