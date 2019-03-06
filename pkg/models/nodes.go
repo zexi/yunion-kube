@@ -629,6 +629,9 @@ func (n *SNode) GetDriver() (drivertypes.Driver, error) {
 }
 
 func RemoveYKEConfigNode(config *yketypes.KubernetesEngineConfig, rNode *SNode) *yketypes.KubernetesEngineConfig {
+	if config == nil {
+		return config
+	}
 	ykeNodes := config.Nodes
 	if len(ykeNodes) == 0 {
 		return config
