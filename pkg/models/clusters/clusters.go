@@ -220,9 +220,12 @@ func (m *SClusterManager) IsSystemClusterReady() (bool, error) {
 	if systemCluster.Status == types.ClusterStatusInit {
 		return false, nil
 	}
-	if systemCluster.Status != types.ClusterStatusRunning {
-		return false, httperrors.NewNotAcceptableError("System cluster status is %s", systemCluster.Status)
+	if utils.IsInStringArray(systemCluster.Status, []string{types.ClusterStatusCreating, types.ClusterStatusDeleting}) {
+		return false, httperrors.NewNotAcceptableError("System cluster is %s", systemCluster.Status)
 	}
+	//if systemCluster.Status != types.ClusterStatusRunning {
+	//return false, httperrors.NewNotAcceptableError("System cluster status is %s", systemCluster.Status)
+	//}
 	_, err = systemCluster.GetK8sClient()
 	if err != nil {
 		return false, httperrors.NewNotAcceptableError("Can't create k8s client to system cluster: %v", err)
