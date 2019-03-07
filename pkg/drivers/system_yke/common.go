@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -50,6 +51,22 @@ func GetAddNodesData(cluster *clusters.SCluster, ms []*types.CreateMachineData) 
 		nodes = append(nodes, addOpt)
 	}
 	return nodes, nil
+}
+
+func GetNodeByMachine(m manager.IMachine) (*models.SNode, error) {
+	return models.NodeManager.FetchNodeByHostId(m.GetResourceId())
+}
+
+func GetNodesByMachines(ms []manager.IMachine) ([]*models.SNode, error) {
+	ns := make([]*models.SNode, 0)
+	for _, m := range ms {
+		n, err := GetNodeByMachine(m)
+		if err != nil {
+			return nil, err
+		}
+		ns = append(ns, n)
+	}
+	return ns, nil
 }
 
 func GetClusterAddNodesData(cluster *clusters.SCluster, ms []*types.CreateMachineData) (*jsonutils.JSONDict, error) {

@@ -1477,6 +1477,10 @@ func (c *SCluster) validateAddNodes(ctx context.Context, userCred mcclient.Token
 	return
 }
 
+func (c *SCluster) AddMachinesToNodes(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) ([]*SNode, error) {
+	return c.validateAddNodes(ctx, userCred, data)
+}
+
 func (c *SCluster) PerformAddNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	nodes, err := c.validateAddNodes(ctx, userCred, data.(*jsonutils.JSONDict))
 	if err != nil {

@@ -101,7 +101,7 @@ func (d *SSystemYKEDriver) ValidateAddMachines(ctx context.Context, userCred mcc
 	return yunion_host.ValidateAddMachines(c, data)
 }
 
-func (d *SSystemYKEDriver) RequestCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData, task taskman.ITask) error {
+func (d *SSystemYKEDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
 	v1Cluster, err := yunion_host.GetV1Cluster(cluster)
 	if err != nil {
 		return err
@@ -110,7 +110,21 @@ func (d *SSystemYKEDriver) RequestCreateMachines(ctx context.Context, userCred m
 	if err != nil {
 		return err
 	}
-	_, err = v1Cluster.PerformAddNodes(ctx, userCred, nil, nodesAddData)
+
+	_, err = v1Cluster.AddMachinesToNodes(ctx, userCred, nodesAddData)
+	return err
+}
+
+func (d *SSystemYKEDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+	v1Cluster, err := yunion_host.GetV1Cluster(cluster)
+	if err != nil {
+		return err
+	}
+	nodes, err := d.GetNodesByMachines(ms)
+	if err != nil {
+		return err
+	}
+	return v1Cluster.StartClusterDeployTask(ctx, userCred, models.FetchClusterDeployTaskData(nodes), "")
 	return err
 }
 

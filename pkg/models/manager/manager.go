@@ -24,6 +24,7 @@ type IClusterManager interface {
 }
 
 type IMachine interface {
+	GetId() string
 	GetName() string
 	IsFirstNode() bool
 	GetResourceId() string
