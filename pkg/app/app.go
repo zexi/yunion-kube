@@ -84,7 +84,7 @@ func Run(ctx context.Context) error {
 			controllers.Start()
 		}()
 		if err := models.ClusterManager.StartMigrate(); err != nil {
-			log.Fatalf("Migrate cluster error: %v", err)
+			log.Errorf("Migrate cluster error: %v", err)
 		}
 	})
 
