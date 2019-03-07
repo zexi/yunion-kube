@@ -502,7 +502,21 @@ func (n *SNode) PerformPurge(ctx context.Context, userCred mcclient.TokenCredent
 	if err != nil {
 		return nil, err
 	}
-	return nil, n.RealDelete(ctx, userCred)
+	cluster, err := n.GetCluster()
+	if err != nil {
+		return nil, err
+	}
+	if err := n.RealDelete(ctx, userCred); err != nil {
+		return nil, err
+	}
+	nodes, err := cluster.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		cluster.SetStatus(userCred, CLUSTER_STATUS_INIT, "PurgeNode")
+	}
+	return nil, nil
 }
 
 func (n *SNode) IsFirstNode() (bool, error) {

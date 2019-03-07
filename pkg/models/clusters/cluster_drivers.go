@@ -31,8 +31,10 @@ type IClusterDriver interface {
 	// CreateClusterResource create cluster resource to global k8s cluster
 	CreateClusterResource(man *SClusterManager, data *types.CreateClusterData) error
 	ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) error
-	// RequestCreateMachines create machines after cluster created
-	RequestCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData, task taskman.ITask) error
+	// CreateMachines create machines record in db
+	CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) error
+	// RequestDeployMachines deploy machines after machines created
+	RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
 	// RequestDeleteCluster delete cluster when cluster delete
 	RequestDeleteCluster(cluster *SCluster) error
 	// ValidateAddMachine validate create machine resource

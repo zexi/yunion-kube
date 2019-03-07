@@ -674,7 +674,42 @@ func (c *SCluster) AllowPerformAddMachines(ctx context.Context, userCred mcclien
 	return c.allowPerformAction(userCred, query, data)
 }
 
+func FetchMachinesByCreateData(cluster *SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
+	ret := make([]manager.IMachine, 0)
+	ms, err := cluster.GetMachines()
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range data {
+		for _, m := range ms {
+			if d.ResourceId == m.GetResourceId() {
+				ret = append(ret, m)
+				break
+			}
+		}
+	}
+	if len(data) != len(ret) {
+		return nil, fmt.Errorf("Need %d created machines, only find: %d", len(data), len(ret))
+	}
+	return ret, nil
+}
+
+func FetchMachineIdsByCreateData(cluster *SCluster, data []*types.CreateMachineData) ([]string, error) {
+	ms, err := FetchMachinesByCreateData(cluster, data)
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]string, 0)
+	for _, m := range ms {
+		ret = append(ret, m.GetId())
+	}
+	return ret, nil
+}
+
 func (c *SCluster) PerformAddMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusRunning}) {
+		return nil, httperrors.NewNotAcceptableError("Cluster status is %s", c.Status)
+	}
 	ms := []types.CreateMachineData{}
 	if err := data.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
@@ -688,11 +723,26 @@ func (c *SCluster) PerformAddMachines(ctx context.Context, userCred mcclient.Tok
 		return nil, err
 	}
 
-	return nil, c.StartAddMachinesTask(ctx, userCred, data.(*jsonutils.JSONDict), "")
+	if err := driver.CreateMachines(ctx, userCred, c, machines); err != nil {
+		return nil, err
+	}
+
+	ids, err := FetchMachineIdsByCreateData(c, machines)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, c.StartDeployMachinesTask(ctx, userCred, ids, "")
 }
 
-func (c *SCluster) StartAddMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	task, err := taskman.TaskManager.NewTask(ctx, "ClusterAddMachinesTask", c, userCred, data, parentTaskId, "", nil)
+const (
+	MachinesDeployIdsKey = "MachineIds"
+)
+
+func (c *SCluster) StartDeployMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, machineIds []string, parentTaskId string) error {
+	data := jsonutils.NewDict()
+	data.Add(jsonutils.NewStringArray(machineIds), MachinesDeployIdsKey)
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeployMachinesTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
 	}
