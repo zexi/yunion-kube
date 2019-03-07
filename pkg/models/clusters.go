@@ -729,7 +729,10 @@ func (c *SCluster) RemoveCluster(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("Remove cluster error: %v", err)
 	}
+	return c.RemoveDirectly(ctx)
+}
 
+func (c *SCluster) RemoveDirectly(ctx context.Context) error {
 	if c.Name == "default" {
 		// clear cluster info
 		c.saveClusterInfo(&drivertypes.ClusterInfo{})

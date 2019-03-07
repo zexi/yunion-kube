@@ -83,13 +83,17 @@ func (t *ClusterDeleteNodesTask) doDelete(ctx context.Context, cluster *models.S
 	for _, node := range nodes {
 		config = models.RemoveYKEConfigNode(config, node)
 	}
-	if len(config.Nodes) == 0 {
+	if config == nil || len(config.Nodes) == 0 {
 		err = controllers.Manager.RemoveController(cluster)
 		if err != nil {
-			return fmt.Errorf("Remove cluster controller error: %v", err)
+			log.Errorf("Remove cluster controller error: %v", err)
 		}
 		// do yke remove
-		err = cluster.RemoveCluster(ctx)
+		if config == nil {
+			err = cluster.RemoveDirectly(ctx)
+		} else {
+			err = cluster.RemoveCluster(ctx)
+		}
 		if err != nil {
 			return fmt.Errorf("Cleanup cluster error: %v", err)
 		}
