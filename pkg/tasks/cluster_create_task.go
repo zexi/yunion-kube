@@ -56,8 +56,19 @@ func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *cluster
 		return
 	}
 	t.SetStage("OnMachinesCreated", nil)
-	if err := cluster.GetDriver().RequestCreateMachines(ctx, t.GetUserCred(), cluster, machines, t); err != nil {
+	driver := cluster.GetDriver()
+	if err := driver.CreateMachines(ctx, t.GetUserCred(), cluster, machines); err != nil {
 		t.onError(ctx, cluster, err)
+		return
+	}
+	ms, err := clusters.FetchMachinesByCreateData(cluster, machines)
+	if err != nil {
+		t.onError(ctx, cluster, err)
+		return
+	}
+	if err := driver.RequestDeployMachines(ctx, t.GetUserCred(), cluster, ms, t); err != nil {
+		t.onError(ctx, cluster, err)
+		return
 	}
 	t.OnMachinesCreated(ctx, cluster)
 }

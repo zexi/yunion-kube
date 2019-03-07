@@ -244,7 +244,7 @@ func machinesPostCreate(ctx context.Context, userCred mcclient.TokenCredential, 
 	}
 }
 
-func (d *SYunoinHostDriver) RequestCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData, task taskman.ITask) error {
+func (d *SYunoinHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
 	needControlplane, err := yunion_host.NeedControlplane(cluster)
 	if err != nil {
 		return err
@@ -255,23 +255,36 @@ func (d *SYunoinHostDriver) RequestCreateMachines(ctx context.Context, userCred 
 			return fmt.Errorf("Empty controlplane machines")
 		}
 	}
-	cms, nms, err := createMachines(ctx, userCred, controls, nodes)
+	//cms, nms, err := createMachines(ctx, userCred, controls, nodes)
+	_, _, err = createMachines(ctx, userCred, controls, nodes)
 	if err != nil {
 		return err
 	}
-	doPostCreate := func(m *machineData) {
-		lockman.LockObject(ctx, m.machine)
-		defer lockman.ReleaseObject(ctx, m.machine)
-		m.machine.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, m.data)
+	return nil
+}
+
+func (d *SYunoinHostDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+	var firstCm *machines.SMachine
+	var restMachines []*machines.SMachine
+	var needControlplane bool
+
+	doPostCreate := func(m *machines.SMachine) {
+		lockman.LockObject(ctx, m)
+		defer lockman.ReleaseObject(ctx, m)
+		m.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, jsonutils.NewDict())
 	}
-	if needControlplane {
-		firstCm := cms[0]
-		if len(cms) > 1 {
-			cms = cms[1:]
+
+	for _, m := range ms {
+		if m.IsFirstNode() {
+			firstCm = m.(*machines.SMachine)
+			needControlplane = true
 		} else {
-			cms = nil
+			restMachines = append(restMachines, m.(*machines.SMachine))
 		}
-		masterIP, err := firstCm.machine.GetPrivateIP()
+	}
+
+	if needControlplane {
+		masterIP, err := firstCm.GetPrivateIP()
 		if err != nil {
 			return err
 		}
@@ -280,20 +293,16 @@ func (d *SYunoinHostDriver) RequestCreateMachines(ctx context.Context, userCred 
 		}
 		doPostCreate(firstCm)
 		// wait first controlplane machine running
-		if err := machines.WaitMachineRunning(firstCm.machine); err != nil {
+		if err := machines.WaitMachineRunning(firstCm); err != nil {
 			return fmt.Errorf("Create first controlplane machine error: %v", err)
 		}
 	}
 
 	// create rest join controlplane
-	for _, d := range cms {
+	for _, d := range restMachines {
 		doPostCreate(d)
 	}
 
-	// create rest nodes
-	for _, d := range nms {
-		doPostCreate(d)
-	}
 	return nil
 }
 
