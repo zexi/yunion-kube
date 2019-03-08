@@ -710,7 +710,7 @@ func FetchMachineIdsByCreateData(cluster *SCluster, data []*types.CreateMachineD
 }
 
 func (c *SCluster) PerformAddMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusRunning}) {
+	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusRunning, types.ClusterStatusInit}) {
 		return nil, httperrors.NewNotAcceptableError("Cluster status is %s", c.Status)
 	}
 	ms := []types.CreateMachineData{}
