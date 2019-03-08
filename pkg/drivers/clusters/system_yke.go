@@ -176,7 +176,7 @@ func (d *SSystemYKEDriver) ValidateDeleteMachines(ctx context.Context, userCred 
 	}
 	for _, m := range machines {
 		if len(oldMachines) != len(machines) && m.IsFirstNode() {
-			return httperrors.NewInputParameterError("First control node %q must deleted at last", m.GetName())
+			return httperrors.NewInputParameterError("First control node %q must deleted at last, old: %d, now: %d", m.GetName(), len(oldMachines), len(machines))
 		}
 	}
 	v1Cluster, err := yunion_host.GetV1Cluster(cluster)
