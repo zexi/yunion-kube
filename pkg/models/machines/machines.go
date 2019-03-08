@@ -418,7 +418,7 @@ func (m *SMachine) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 	objs := jsonutils.NewArray()
 	objs.Add(jsonutils.NewString(m.GetId()))
 	deleteData.Add(objs, "machines")
-	return cluster.StartDeleteMachinesTask(ctx, userCred, deleteData, "")
+	return cluster.StartDeleteMachinesTask(ctx, userCred, []manager.IMachine{m}, deleteData, "")
 }
 
 // StartMachineDeleteTask invoke by ClusterDeleteMachines
