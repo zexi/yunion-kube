@@ -791,10 +791,13 @@ func (c *SCluster) PerformDeleteMachines(ctx context.Context, userCred mcclient.
 	if err := driver.ValidateDeleteMachines(ctx, userCred, c, machines); err != nil {
 		return nil, err
 	}
-	return nil, c.StartDeleteMachinesTask(ctx, userCred, data.(*jsonutils.JSONDict), "")
+	return nil, c.StartDeleteMachinesTask(ctx, userCred, machines, data.(*jsonutils.JSONDict), "")
 }
 
-func (c *SCluster) StartDeleteMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+func (c *SCluster) StartDeleteMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, ms []manager.IMachine, data *jsonutils.JSONDict, parentTaskId string) error {
+	for _, m := range ms {
+		m.SetStatus(userCred, types.MachineStatusDeleting, "ClusterDeleteMachinesTask")
+	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteMachinesTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
