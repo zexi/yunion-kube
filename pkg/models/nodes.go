@@ -395,6 +395,17 @@ func (n *SNode) PostCreate(ctx context.Context, userCred mcclient.TokenCredentia
 	}
 }
 
+func (n *SNode) SetAddress(address string) error {
+	_, err := n.GetModelManager().TableSpec().Update(n, func() error {
+		n.Address = address
+		return nil
+	})
+	if m, _ := n.GetV2Machine(); m != nil {
+		m.SetPrivateIP(address)
+	}
+	return err
+}
+
 // Register set node status to ready, means node is ready for deploy
 func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 	if n.ClusterId != data.ClusterId {
@@ -405,8 +416,10 @@ func (n *SNode) Register(data *apis.Node) (*SNode, error) {
 		return nil, fmt.Errorf("Address must provided")
 	}
 
+	if err := n.SetAddress(data.Address); err != nil {
+		return nil, err
+	}
 	_, err := n.GetModelManager().TableSpec().Update(n, func() error {
-		n.Address = data.Address
 		n.RequestedHostname = data.RequestedHostname
 		if data.DockerInfo != nil {
 			dInfo := jsonutils.Marshal(data.DockerInfo)
