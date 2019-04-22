@@ -1,0 +1,19 @@
+[Unit]
+Description=Yunion Kube Agent
+Documentation=https://docs.yunion.cn
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/opt/yunion/bin/kube-agent --config /etc/yunion/kube-agent.conf
+WorkingDirectory=/opt/yunion
+LimitNOFILE=500000
+LimitNPROC=500000
+RestartSec=30
+Restart=always
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
