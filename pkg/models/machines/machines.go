@@ -213,8 +213,21 @@ func (man *SMachineManager) FetchMachineByIdOrName(userCred mcclient.TokenCreden
 }
 
 func ValidateRole(role string) error {
-	if !utils.IsInStringArray(role, []string{string(types.RoleTypeControlplane), string(types.RoleTypeNode)}) {
+	if !utils.IsInStringArray(role, []string{
+		string(types.RoleTypeControlplane),
+		string(types.RoleTypeNode),
+	}) {
 		return httperrors.NewInputParameterError("Invalid role: %q", role)
+	}
+	return nil
+}
+
+func ValidateResourceType(resType string) error {
+	if !utils.IsInStringArray(resType, []string{
+		string(types.MachineResourceTypeVm),
+		string(types.MachineResourceTypeBaremetal),
+	}) {
+		return httperrors.NewInputParameterError("Invalid machine resource type: %q", resType)
 	}
 	return nil
 }
@@ -234,8 +247,8 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 
 	resourceType := clusters.SetJSONDataDefault(data, "resource_type", string(types.MachineResourceTypeBaremetal))
-	if !utils.IsInStringArray(resourceType, []string{string(types.MachineResourceTypeBaremetal)}) {
-		return nil, httperrors.NewInputParameterError("Invalid resource type: %q", resourceType)
+	if err := ValidateResourceType(resourceType); err != nil {
+		return nil, err
 	}
 
 	role, _ := data.GetString("role")
@@ -256,7 +269,7 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 	data.Set("first_node", firstNode)
 
-	driver := GetDriver(types.ProviderType(cluster.Provider))
+	driver := GetDriver(types.ProviderType(cluster.Provider), types.MachineResourceType(resourceType))
 	session, err := man.GetSession()
 	if err != nil {
 		return nil, err
@@ -483,7 +496,7 @@ func (m *SMachine) SetPrivateIP(address string) error {
 }
 
 func (m *SMachine) GetDriver() IMachineDriver {
-	return GetDriver(types.ProviderType(m.Provider))
+	return GetDriver(types.ProviderType(m.Provider), types.MachineResourceType(m.ResourceType))
 }
 
 func (m *SMachine) GetRole() string {

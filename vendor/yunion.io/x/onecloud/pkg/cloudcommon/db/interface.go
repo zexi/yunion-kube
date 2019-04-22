@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
@@ -5,11 +19,12 @@ import (
 	"net/http"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
 type IModelManager interface {
@@ -70,6 +85,11 @@ type IModelManager interface {
 	FetchCreateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error)
 	FetchUpdateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error)
 	IsCustomizedGetDetailsBody() bool
+	ListSkipLog(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool
+	GetSkipLog(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool
+
+	// list extend colums hook
+	FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []IModel, fields stringutils2.SSortedStrings) []*jsonutils.JSONDict
 }
 
 type IModel interface {
@@ -171,6 +191,13 @@ type IStandaloneModel interface {
 	// GetExternalId() string
 }
 
+type IMetadataModel interface {
+	IStandaloneModel
+
+	GetAllMetadata(userCred mcclient.TokenCredential) (map[string]string, error)
+	GetMetadataHideKeys() []string
+}
+
 type IVirtualModelManager interface {
 	IStandaloneModelManager
 }
@@ -180,6 +207,8 @@ type IVirtualModel interface {
 
 	IsOwner(userCred mcclient.TokenCredential) bool
 	// IsAdmin(userCred mcclient.TokenCredential) bool
+
+	SyncCloudProjectId(userCred mcclient.TokenCredential, projectId string)
 }
 
 type ISharableVirtualModelManager interface {

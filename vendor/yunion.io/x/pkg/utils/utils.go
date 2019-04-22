@@ -18,6 +18,11 @@ func isLowerChar(ch byte) bool {
 }
 
 func CamelSplit(str string, sep string) string {
+	tokens := CamelSplitTokens(str)
+	return strings.Join(tokens, sep)
+}
+
+func CamelSplitTokens(str string) []string {
 	tokens := make([]string, 0)
 	var buf bytes.Buffer
 	upperCount := 0
@@ -53,7 +58,7 @@ func CamelSplit(str string, sep string) string {
 	if buf.Len() > 0 {
 		tokens = append(tokens, buf.String())
 	}
-	return strings.Join(tokens, sep)
+	return tokens
 }
 
 func Capitalize(str string) string {
@@ -128,9 +133,9 @@ func InArray(v interface{}, in interface{}) (ok bool, i int) {
 func TruncateString(v interface{}, maxLen int) string {
 	str := fmt.Sprintf("%s", v)
 	if len(str) > maxLen {
-		str = str[:maxLen]
+		str = str[:maxLen] + ".."
 	}
-	return fmt.Sprintf("%s...", str)
+	return str
 }
 
 func IsAscii(str string) bool {

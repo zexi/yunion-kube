@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -44,6 +45,15 @@ func (t *ClusterCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 	}
 	if len(machines) == 0 {
 		t.OnApplyAddonsComplete(ctx, obj, data)
+		return
+	}
+	res := types.CreateClusterData{}
+	if err := t.GetParams().Unmarshal(&res); err != nil {
+		t.onError(ctx, obj, fmt.Errorf("Unmarshal: %v", err))
+		return
+	}
+	if err := cluster.GetDriver().CreateClusterResource(clusters.ClusterManager, &res); err != nil {
+		t.onError(ctx, obj, fmt.Errorf("CreateClusterResource: %v", err))
 		return
 	}
 	t.CreateMachines(ctx, cluster)

@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
@@ -24,8 +38,8 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/onecloud/pkg/util/httputils"
-	"yunion.io/x/onecloud/pkg/util/logclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
 type DBModelDispatcher struct {
@@ -310,13 +324,28 @@ func listItemQueryFilters(manager IModelManager, ctx context.Context, q *sqlchem
 	return q, nil
 }
 
-func query2List(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, q *sqlchemy.SQuery, query jsonutils.JSONObject) ([]jsonutils.JSONObject, error) {
-	listF := listFields(manager, userCred)
-	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
-	if len(fieldFilter) > 0 && IsAdminAllowList(userCred, manager) {
-		// only sysadmin can specify list Fields
-		listF = fieldFilter
+func mergeFields(metaFields, queryFields []string, isAdmin bool) stringutils2.SSortedStrings {
+	meta := stringutils2.NewSortedStrings(metaFields)
+	if len(queryFields) == 0 {
+		return meta
 	}
+
+	query := stringutils2.NewSortedStrings(queryFields)
+	_, mAndQ, qNoM := stringutils2.Split(meta, query)
+
+	if !isAdmin {
+		return mAndQ
+	}
+
+	// only sysadmin can specify list Fields
+	return stringutils2.Merge(mAndQ, qNoM)
+}
+
+func Query2List(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, q *sqlchemy.SQuery, query jsonutils.JSONObject) ([]jsonutils.JSONObject, error) {
+	metaFields := listFields(manager, userCred)
+	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
+	listF := mergeFields(metaFields, fieldFilter, IsAdminAllowList(userCred, manager))
+
 	showDetails := false
 	showDetailsJson, _ := query.Get("details")
 	if showDetailsJson != nil {
@@ -324,15 +353,7 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 	} else {
 		showDetails = true
 	}
-	item, err := NewModelObject(manager)
-	if err != nil {
-		return nil, err
-	}
-	itemInitValue := reflect.Indirect(reflect.ValueOf(item))
-	item, err = NewModelObject(manager)
-	if err != nil {
-		return nil, err
-	}
+	items := make([]IModel, 0)
 	results := make([]jsonutils.JSONObject, 0)
 	rows, err := q.Rows()
 	if err != nil {
@@ -340,8 +361,10 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 	}
 	defer rows.Close()
 	for rows.Next() {
-		itemValue := reflect.Indirect(reflect.ValueOf(item))
-		itemValue.Set(itemInitValue)
+		item, err := NewModelObject(manager)
+		if err != nil {
+			return nil, err
+		}
 		extraData := jsonutils.NewDict()
 		if query.Contains("export_keys") {
 			RowMap, err := q.Row2Map(rows)
@@ -363,12 +386,8 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 			}
 		}
 
-		jsonData := jsonutils.Marshal(item)
-		jsonDict, ok := jsonData.(*jsonutils.JSONDict)
-		if !ok {
-			return nil, fmt.Errorf("invalid model data structure, not a dict")
-		}
-		jsonDict = jsonDict.CopyIncludes(listF...)
+		jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
+		jsonDict = jsonDict.CopyIncludes([]string(listF)...)
 		jsonDict.Update(extraData)
 		if showDetails && !query.Contains("export_keys") {
 			extraDict := item.GetCustomizeColumns(ctx, userCred, query)
@@ -378,6 +397,16 @@ func query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 			jsonDict = getModelExtraDetails(item, ctx, jsonDict)
 		}
 		results = append(results, jsonDict)
+		items = append(items, item)
+	}
+	if showDetails && !query.Contains("export_keys") {
+		extraRows := manager.FetchCustomizeColumns(ctx, userCred, query, items, stringutils2.NewSortedStrings(fieldFilter))
+		// log.Debugf("manager.FetchCustomizeColumns: %s %s", extraRows, listF)
+		if len(extraRows) == len(results) {
+			for i := range results {
+				results[i].(*jsonutils.JSONDict).Update(extraRows[i])
+			}
+		}
 	}
 	return results, nil
 }
@@ -437,13 +466,16 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 	if err != nil {
 		return nil, err
 	}
-	totalCnt := int64(q.Count())
+	totalCnt, err := q.CountWithError()
+	if err != nil {
+		return nil, err
+	}
 	// log.Debugf("total count %d", totalCnt)
 	if totalCnt == 0 {
 		emptyList := modules.ListResult{Data: []jsonutils.JSONObject{}}
 		return &emptyList, nil
 	}
-	if totalCnt > maxLimit && (limit <= 0 || limit > maxLimit) {
+	if int64(totalCnt) > maxLimit && (limit <= 0 || limit > maxLimit) {
 		limit = maxLimit
 	}
 	orderBy := jsonutils.GetQueryStringArray(queryDict, "order_by")
@@ -452,7 +484,9 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		if err == nil && colSpec != nil && colSpec.IsNumeric() {
 			orderBy = []string{"id"}
 		} else {
-			orderBy = []string{"created_at"}
+			if manager.TableSpec().ColumnSpec("created_at") != nil {
+				orderBy = []string{"created_at"}
+			}
 		}
 	}
 	order := sqlchemy.SQL_ORDER_DESC
@@ -481,7 +515,7 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 			q = q.Offset(int(offset))
 		}
 	}
-	retList, err := query2List(manager, ctx, userCred, q, queryDict)
+	retList, err := Query2List(manager, ctx, userCred, q, queryDict)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -493,14 +527,14 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		return nil, httperrors.NewGeneralError(err)
 	}
 	if len(retList) != retCount {
-		totalCnt = int64(len(retList))
+		totalCnt = len(retList)
 	}
 	paginate := false
 	if !customizeFilters.IsEmpty() {
 		// query not use Limit and Offset, do manual pagination
 		paginate = true
 	}
-	return calculateListResult(retList, totalCnt, limit, offset, paginate), nil
+	return calculateListResult(retList, int64(totalCnt), limit, offset, paginate), nil
 }
 
 func calculateListResult(data []jsonutils.JSONObject, total, limit, offset int64, paginate bool) *modules.ListResult {
@@ -549,6 +583,12 @@ func (dispatcher *DBModelDispatcher) List(ctx context.Context, query jsonutils.J
 		log.Errorf("Fail to list items: %s", err)
 		return nil, httperrors.NewGeneralError(err)
 	}
+	if userCred != nil && userCred.HasSystemAdminPrivilege() && dispatcher.modelManager.ListSkipLog(ctx, userCred, query) {
+		appParams := appsrv.AppContextGetParams(ctx)
+		if appParams != nil {
+			appParams.SkipLog = true
+		}
+	}
 	return items, nil
 }
 
@@ -596,20 +636,27 @@ func getItemDetails(manager IModelManager, item IModel, ctx context.Context, use
 	extraDict, err := item.GetExtraDetails(ctx, userCred, query)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
-	} else if extraDict != nil {
-		jsonData := jsonutils.Marshal(item)
-		jsonDict, ok := jsonData.(*jsonutils.JSONDict)
-		if !ok {
-			return nil, fmt.Errorf("fail to convert model to json")
-		}
-		jsonDict = jsonDict.CopyIncludes(GetDetailFields(manager, userCred)...)
-		jsonDict.Update(extraDict)
-		jsonDict = getModelExtraDetails(item, ctx, jsonDict)
-		return jsonDict, nil
-	} else {
+	}
+	if extraDict == nil {
 		// override GetExtraDetails
 		return nil, nil
 	}
+
+	metaFields := GetDetailFields(manager, userCred)
+	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
+	getFields := mergeFields(metaFields, fieldFilter, IsAdminAllowGet(userCred, item))
+
+	jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
+	jsonDict = jsonDict.CopyIncludes(getFields...)
+	jsonDict.Update(extraDict)
+	jsonDict = getModelExtraDetails(item, ctx, jsonDict)
+
+	extraRows := manager.FetchCustomizeColumns(ctx, userCred, query, []IModel{item}, stringutils2.NewSortedStrings(fieldFilter))
+	if len(extraRows) == 1 {
+		jsonDict.Update(extraRows[0])
+	}
+
+	return jsonDict, nil
 }
 
 func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, property string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -680,6 +727,12 @@ func (dispatcher *DBModelDispatcher) Get(ctx context.Context, idStr string, quer
 	}
 	if !isAllow {
 		return nil, httperrors.NewForbiddenError("Not allow to get details")
+	}
+	if userCred.HasSystemAdminPrivilege() && dispatcher.modelManager.GetSkipLog(ctx, userCred, query) {
+		appParams := appsrv.AppContextGetParams(ctx)
+		if appParams != nil {
+			appParams.SkipLog = true
+		}
 	}
 	return getModelItemDetails(dispatcher.modelManager, model, ctx, userCred, query, isHead)
 }
@@ -833,7 +886,11 @@ func doCreateItem(manager IModelManager, ctx context.Context, userCred mcclient.
 	generateName, _ := dataDict.GetString("generate_name")
 	if len(generateName) > 0 {
 		dataDict.Remove("generate_name")
-		dataDict.Add(jsonutils.NewString(GenerateName(manager, ownerProjId, generateName)), "name")
+		newName, err := GenerateName(manager, ownerProjId, generateName)
+		if err != nil {
+			return nil, err
+		}
+		dataDict.Add(jsonutils.NewString(newName), "name")
 	} else {
 		name, _ := data.GetString("name")
 		if len(name) > 0 {
@@ -869,6 +926,8 @@ func doCreateItem(manager IModelManager, ctx context.Context, userCred mcclient.
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
+	// HACK: set data same as dataDict
+	data.(*jsonutils.JSONDict).Update(dataDict)
 	return model, nil
 }
 
@@ -921,7 +980,6 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 	}()
 
 	OpsLog.LogEvent(model, ACT_CREATE, model.GetShortDesc(ctx), userCred)
-	logclient.AddActionLogWithContext(ctx, model, logclient.ACT_CREATE, "", userCred, true)
 	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{model}, userCred, query, data)
 	return getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
 }
@@ -1202,13 +1260,11 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 
 	if err != nil {
 		log.Errorf("validate update condition error: %s", err)
-		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, err.Error(), userCred, false)
 		return nil, httperrors.NewGeneralError(err)
 	}
 
 	dataDict, ok := data.(*jsonutils.JSONDict)
 	if !ok {
-		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, "Invalid data JSONObject", userCred, false)
 		return nil, httperrors.NewInternalServerError("Invalid data JSONObject")
 	}
 
@@ -1216,7 +1272,6 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 	if len(name) > 0 {
 		err = alterNameValidator(item, name)
 		if err != nil {
-			logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, err.Error(), userCred, false)
 			return nil, err
 		}
 	}
@@ -1225,18 +1280,16 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 	if err != nil {
 		errMsg := fmt.Sprintf("validate update data error: %s", err)
 		log.Errorf(errMsg)
-		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, errMsg, userCred, false)
 		return nil, httperrors.NewGeneralError(err)
 	}
 
 	item.PreUpdate(ctx, userCred, query, dataDict)
 
-	diff, err := manager.TableSpec().Update(item, func() error {
+	diff, err := Update(item, func() error {
 		filterData := dataDict.CopyIncludes(updateFields(manager, userCred)...)
 		err = filterData.Unmarshal(item)
 		if err != nil {
 			errMsg := fmt.Sprintf("unmarshal fail: %s", err)
-			logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, errMsg, userCred, false)
 			log.Errorf(errMsg)
 			return httperrors.NewGeneralError(err)
 		}
@@ -1247,16 +1300,7 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 		log.Errorf("save update error: %s", err)
 		return nil, httperrors.NewGeneralError(err)
 	}
-	if diff != nil {
-		diffStr := sqlchemy.UpdateDiffString(diff)
-		if len(diffStr) > 0 {
-			item.PostUpdate(ctx, userCred, query, dataDict)
-			OpsLog.LogEvent(item, ACT_UPDATE, diffStr, userCred)
-			logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, diffStr, userCred, true)
-		}
-	} else {
-		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, "", userCred, true)
-	}
+	OpsLog.LogEvent(item, ACT_UPDATE, diff, userCred)
 
 	item.PostUpdate(ctx, userCred, query, data)
 
@@ -1293,24 +1337,21 @@ func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, q
 }
 
 func DeleteModel(ctx context.Context, userCred mcclient.TokenCredential, item IModel) error {
-	manager := item.GetModelManager()
 	// log.Debugf("Ready to delete %s %s %#v", jsonutils.Marshal(item), item, manager)
-	_, err := manager.TableSpec().Update(item, func() error {
+	_, err := Update(item, func() error {
 		return item.MarkDelete()
 	})
 	if err != nil {
 		msg := fmt.Sprintf("save update error %s", err)
 		log.Errorf(msg)
-		logclient.AddActionLogWithContext(ctx, item, logclient.ACT_DELETE, msg, userCred, false)
 		return httperrors.NewGeneralError(err)
 	}
 	OpsLog.LogEvent(item, ACT_DELETE, item.GetShortDesc(ctx), userCred)
-	logclient.AddActionLogWithContext(ctx, item, logclient.ACT_DELETE, item.GetShortDesc(ctx), userCred, true)
 	return nil
 }
 
 func deleteItem(manager IModelManager, model IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	log.Debugf("deleteItem %s", jsonutils.Marshal(model))
+	// log.Debugf("deleteItem %s", jsonutils.Marshal(model))
 
 	var isAllow bool
 	if consts.IsRbacEnabled() {

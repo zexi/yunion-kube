@@ -144,23 +144,23 @@ func (m *SClusterManager) InitializeData() error {
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowList(userCred, m)
 }
 
 func (m *SClusterManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowCreate(userCred, m)
 }
 
 func (c *SCluster) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowUpdate(userCred, c)
 }
 
 func (c *SCluster) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowDelete(userCred, c)
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -1015,7 +1015,7 @@ func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	var conf string
 	var err error
-	if userCred.HasSystemAdminPrivelege() {
+	if userCred.HasSystemAdminPrivilege() {
 		//directly := jsonutils.QueryBoolean(data, "directly", false)
 		//getF := c.GetAdminProxyKubeConfig
 		//if directly {

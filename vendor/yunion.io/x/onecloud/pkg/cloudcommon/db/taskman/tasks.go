@@ -1,7 +1,22 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package taskman
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -10,17 +25,18 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/appctx"
-	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/httputils"
 	"yunion.io/x/pkg/util/reflectutils"
 	"yunion.io/x/pkg/util/stringutils"
+	"yunion.io/x/pkg/util/timeutils"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 const (
@@ -56,10 +72,10 @@ type STask struct {
 
 	Id string `width:"36" charset:"ascii" primary:"true" list:"user"` // Column(VARCHAR(36, charset='ascii'), primary_key=True, default=get_uuid)
 
-	ObjName  string                   `width:"128" charset:"utf8" nullable:"false" list:"user"`  //  Column(VARCHAR(128, charset='utf8'), nullable=False)
-	ObjId    string                   `width:"128" charset:"ascii" nullable:"false" list:"user"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
-	TaskName string                   `width:"64" charset:"ascii" nullable:"false" list:"user"`  // Column(VARCHAR(64, charset='ascii'), nullable=False)
-	UserCred mcclient.TokenCredential `width:"1024" charset:"ascii" nullable:"false" get:"user"` // Column(VARCHAR(1024, charset='ascii'), nullable=False)
+	ObjName  string                   `width:"128" charset:"utf8" nullable:"false" list:"user"`               //  Column(VARCHAR(128, charset='utf8'), nullable=False)
+	ObjId    string                   `width:"128" charset:"ascii" nullable:"false" list:"user" index:"true"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
+	TaskName string                   `width:"64" charset:"ascii" nullable:"false" list:"user"`               // Column(VARCHAR(64, charset='ascii'), nullable=False)
+	UserCred mcclient.TokenCredential `width:"1024" charset:"ascii" nullable:"false" get:"user"`              // Column(VARCHAR(1024, charset='ascii'), nullable=False)
 	// OwnerCred string `width:"512" charset:"ascii" nullable:"true"` // Column(VARCHAR(512, charset='ascii'), nullable=True)
 	Params *jsonutils.JSONDict `charset:"ascii" length:"medium" nullable:"false" get:"user"` // Column(MEDIUMTEXT(charset='ascii'), nullable=False)
 
@@ -317,7 +333,6 @@ func (manager *STaskManager) execTask(taskId string, data jsonutils.JSONObject) 
 }
 
 func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject, isMulti bool) {
-	var err error
 	ctxData := task.GetRequestContext()
 	ctx := ctxData.GetContext()
 
@@ -328,9 +343,12 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 		taskStatus, _ := data.GetString("__status__")
 		if len(taskStatus) > 0 && taskStatus != "OK" {
 			taskFailed = true
-			data, err = data.Get("__reason__")
-			if err != nil {
-				data = jsonutils.NewString(fmt.Sprintf("Task failed due to unknown remote errors! %s", odata))
+			if vdata, ok := data.(*jsonutils.JSONDict); ok {
+				reason, err := vdata.Get("__reason__") // only dict support Get
+				if err != nil {
+					reason = jsonutils.NewString(fmt.Sprintf("Task failed due to unknown remote errors! %s", odata))
+					vdata.Set("__reason__", reason)
+				}
 			}
 		}
 	} else {
@@ -447,6 +465,18 @@ func (task *STask) ScheduleRun(data jsonutils.JSONObject) {
 	runTask(task.Id, data)
 }
 
+func (self *STask) IsSubtask() bool {
+	return self.HasParentTask()
+}
+
+func (self *STask) HasParentTask() bool {
+	parentTaskId, _ := self.Params.GetString(PARENT_TASK_ID_KEY)
+	if len(parentTaskId) > 0 {
+		return true
+	}
+	return false
+}
+
 func (self *STask) GetParentTask() *STask {
 	parentTaskId, _ := self.Params.GetString(PARENT_TASK_ID_KEY)
 	if len(parentTaskId) > 0 {
@@ -467,7 +497,7 @@ func (self *STask) GetRequestContext() appctx.AppContextData {
 }
 
 func (self *STask) SaveRequestContext(data *appctx.AppContextData) {
-	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+	_, err := db.Update(self, func() error {
 		params := self.Params.CopyExcludes(REQUEST_CONTEXT_KEY)
 		params.Add(jsonutils.Marshal(data), REQUEST_CONTEXT_KEY)
 		self.Params = params
@@ -483,7 +513,7 @@ func (self *STask) SaveParams(data *jsonutils.JSONDict) error {
 }
 
 func (self *STask) SetStage(stageName string, data *jsonutils.JSONDict) error {
-	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+	_, err := db.Update(self, func() error {
 		params := jsonutils.NewDict()
 		params.Update(self.Params)
 		if data != nil {
@@ -624,7 +654,7 @@ func (self *STask) GetPendingUsage(quota quotas.IQuota) error {
 }
 
 func (self *STask) SetPendingUsage(quota quotas.IQuota) error {
-	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+	_, err := db.Update(self, func() error {
 		params := self.Params.CopyExcludes(PENDING_USAGE_KEY)
 		params.Add(jsonutils.Marshal(quota), PENDING_USAGE_KEY)
 		self.Params = params
@@ -637,7 +667,7 @@ func (self *STask) SetPendingUsage(quota quotas.IQuota) error {
 }
 
 func (self *STask) ClearPendingUsage() error {
-	_, err := self.GetModelManager().TableSpec().Update(self, func() error {
+	_, err := db.Update(self, func() error {
 		params := self.Params.CopyExcludes(PENDING_USAGE_KEY)
 		self.Params = params
 		return nil
@@ -676,4 +706,84 @@ func (task *STask) GetTaskRequestHeader() http.Header {
 
 func (task *STask) GetStartTime() time.Time {
 	return task.CreatedAt
+}
+
+func (manager *STaskManager) QueryTasksOfObject(obj db.IStandaloneModel, since time.Time, isOpen *bool) *sqlchemy.SQuery {
+	subq1 := manager.Query()
+	{
+		subq1 = subq1.Equals("obj_id", obj.GetId())
+		subq1 = subq1.Equals("obj_name", obj.Keyword())
+		if !since.IsZero() {
+			subq1 = subq1.GE("created_at", since)
+		}
+		if isOpen != nil {
+			if *isOpen {
+				subq1 = subq1.Filter(sqlchemy.NOT(
+					sqlchemy.In(subq1.Field("stage"), []string{"complete", "failed"}),
+				))
+			} else if !*isOpen {
+				subq1 = subq1.In("stage", []string{"complete", "failed"})
+			}
+		}
+	}
+
+	subq2 := manager.Query()
+	{
+		taskObjs := TaskObjectManager.TableSpec().Instance()
+		subq2 = subq2.Join(taskObjs, sqlchemy.AND(
+			sqlchemy.Equals(taskObjs.Field("task_id"), subq2.Field("id")),
+			sqlchemy.Equals(taskObjs.Field("obj_id"), obj.GetId()),
+		))
+		subq2 = subq2.Filter(sqlchemy.Equals(subq2.Field("obj_id"), MULTI_OBJECTS_ID))
+		subq2 = subq2.Filter(sqlchemy.Equals(subq2.Field("obj_name"), obj.Keyword()))
+		if !since.IsZero() {
+			subq2 = subq2.Filter(sqlchemy.GE(subq2.Field("created_at"), since))
+		}
+		if isOpen != nil {
+			if *isOpen {
+				subq2 = subq2.Filter(sqlchemy.NOT(
+					sqlchemy.In(subq2.Field("stage"), []string{"complete", "failed"}),
+				))
+			} else if !*isOpen {
+				subq2 = subq2.In("stage", []string{"complete", "failed"})
+			}
+		}
+	}
+
+	// subq1 and subq2 do not intersect for the fact that they have
+	// different condition on tasks_tbl.obj_id field
+	uq := sqlchemy.Union(subq1, subq2)
+	uq = uq.Desc("created_at")
+
+	q := uq.SubQuery().Query()
+	return q
+}
+
+func (manager *STaskManager) IsInTask(obj db.IStandaloneModel) bool {
+	tasks, err := manager.FetchIncompleteTasksOfObject(obj)
+	if err == nil && len(tasks) == 0 {
+		return false
+	}
+	return true
+}
+
+func (manager *STaskManager) FetchIncompleteTasksOfObject(obj db.IStandaloneModel) ([]STask, error) {
+	isOpen := true
+	return manager.FetchTasksOfObjectLatest(obj, 1*time.Hour, &isOpen)
+}
+
+func (manager *STaskManager) FetchTasksOfObjectLatest(obj db.IStandaloneModel, interval time.Duration, isOpen *bool) ([]STask, error) {
+	since := timeutils.UtcNow().Add(-1 * interval)
+	return manager.FetchTasksOfObject(obj, since, isOpen)
+}
+
+func (manager *STaskManager) FetchTasksOfObject(obj db.IStandaloneModel, since time.Time, isOpen *bool) ([]STask, error) {
+	q := manager.QueryTasksOfObject(obj, since, isOpen)
+
+	tasks := make([]STask, 0)
+	err := db.FetchModelObjects(manager, q, &tasks)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	return tasks, nil
 }

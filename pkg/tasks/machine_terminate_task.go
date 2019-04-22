@@ -22,7 +22,7 @@ type MachineTerminateTask struct {
 func (t *MachineTerminateTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	machine := obj.(*machines.SMachine)
 
-	driver := machines.GetDriver(types.ProviderType(machine.Provider))
+	driver := machine.GetDriver()
 	session, err := machines.MachineManager.GetSession()
 	if err != nil {
 		t.OnError(ctx, machine, err)

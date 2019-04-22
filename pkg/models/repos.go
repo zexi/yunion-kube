@@ -66,7 +66,7 @@ func (man *SRepoManager) AllowListItems(ctx context.Context, userCred mcclient.T
 
 func (man *SRepoManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*db.CustomizeListFilters, error) {
 	filters := db.NewCustomizeListFilters()
-	if userCred.HasSystemAdminPrivelege() {
+	if userCred.HasSystemAdminPrivilege() {
 		return filters, nil
 	}
 	publicFilter := func(obj jsonutils.JSONObject) (bool, error) {
@@ -130,11 +130,11 @@ func (r *SRepo) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCred
 }
 
 func (r *SRepo) AllowPerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (r *SRepo) AllowPerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (r *SRepo) PerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

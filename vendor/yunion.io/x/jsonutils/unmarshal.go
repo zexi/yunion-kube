@@ -108,6 +108,8 @@ func (this *JSONInt) unmarshalValue(val reflect.Value) error {
 			val.Set(reflect.New(val.Type().Elem()))
 		}
 		return this.unmarshalValue(val.Elem())
+	case reflect.Interface:
+		val.Set(reflect.ValueOf(this.data))
 	default:
 		return fmt.Errorf("JSONInt type mismatch: %s", val.Type())
 	}
@@ -173,6 +175,8 @@ func (this *JSONBool) unmarshalValue(val reflect.Value) error {
 			val.Set(reflect.New(val.Type().Elem()))
 		}
 		return this.unmarshalValue(val.Elem())
+	case reflect.Interface:
+		val.Set(reflect.ValueOf(this.data))
 	default:
 		return fmt.Errorf("JSONBool type mismatch: %s", val.Type())
 	}
@@ -247,6 +251,8 @@ func (this *JSONFloat) unmarshalValue(val reflect.Value) error {
 			val.Set(reflect.New(val.Type().Elem()))
 		}
 		return this.unmarshalValue(val.Elem())
+	case reflect.Interface:
+		val.Set(reflect.ValueOf(this.data))
 	default:
 		return fmt.Errorf("JSONFloat type mismatch: %s", val.Type())
 	}
@@ -335,6 +341,8 @@ func (this *JSONString) unmarshalValue(val reflect.Value) error {
 			val.Set(reflect.New(val.Type().Elem()))
 		}
 		return this.unmarshalValue(val.Elem())
+	case reflect.Interface:
+		val.Set(reflect.ValueOf(this.data))
 	default:
 		return fmt.Errorf("JSONString type mismatch: %s", val.Type())
 	}
@@ -370,6 +378,8 @@ func (this *JSONArray) unmarshalValue(val reflect.Value) error {
 			return this.unmarshalValue(val.Elem())
 		}
 		return fmt.Errorf("JSONArray type mismatch %s", val.Type())
+	case reflect.Interface:
+		val.Set(reflect.ValueOf(this.data))
 	case reflect.Slice, reflect.Array:
 		if val.Kind() == reflect.Array {
 			if val.Len() != len(this.data) {
@@ -418,6 +428,33 @@ func (this *JSONDict) unmarshalValue(val reflect.Value) error {
 		return this.unmarshalMap(val)
 	case reflect.Struct:
 		return this.unmarshalStruct(val)
+	case reflect.Interface:
+		if val.Type().Implements(gotypes.ISerializableType) {
+			objPtr, err := gotypes.NewSerializable(val.Type())
+			if err != nil {
+				return err
+			}
+			if objPtr == nil {
+				val.Set(reflect.ValueOf(this.data))
+				return nil
+			}
+			err = this.unmarshalValue(reflect.ValueOf(objPtr))
+			if err != nil {
+				return err
+			}
+			//
+			// XXX
+			//
+			// cannot unmarshal nested anonymous interface
+			// as nested anonymous interface is treated as a named field
+			// please use jsonutils.Deserialize to descrialize such interface
+			// ...
+			// objPtr = gotypes.Transform(val.Type(), objPtr)
+			//
+			val.Set(reflect.ValueOf(objPtr).Convert(val.Type()))
+		} else {
+			return fmt.Errorf("Do not known how to deserialize json into this interface type %s", val.Type())
+		}
 	case reflect.Ptr:
 		kind := val.Type().Elem().Kind()
 		if kind == reflect.Struct || kind == reflect.Map {

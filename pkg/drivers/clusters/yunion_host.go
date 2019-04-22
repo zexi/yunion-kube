@@ -5,14 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	perrors "github.com/pkg/errors"
-	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	clientset "k8s.io/client-go/kubernetes"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
-	kubeadmscheme "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/scheme"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeadmconfig "k8s.io/kubernetes/cmd/kubeadm/app/util/config"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -20,7 +16,6 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -38,12 +33,12 @@ import (
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
 )
 
-type SYunoinHostDriver struct {
+type SYunionHostDriver struct {
 	*sClusterAPIDriver
 }
 
-func NewYunionHostDriver() *SYunoinHostDriver {
-	return &SYunoinHostDriver{
+func NewYunionHostDriver() *SYunionHostDriver {
+	return &SYunionHostDriver{
 		sClusterAPIDriver: newClusterAPIDriver(),
 	}
 }
@@ -52,28 +47,32 @@ func init() {
 	clusters.RegisterClusterDriver(NewYunionHostDriver())
 }
 
-func (d *SYunoinHostDriver) GetProvider() types.ProviderType {
+func (d *SYunionHostDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeOnecloud
 }
 
-func (d *SYunoinHostDriver) GetK8sVersions() []string {
+func (d *SYunionHostDriver) GetResourceType() types.ClusterResourceType {
+	return types.ClusterResourceTypeHost
+}
+
+func (d *SYunionHostDriver) GetK8sVersions() []string {
 	return []string{
 		"v1.13.3",
 	}
 }
 
-func (d *SYunoinHostDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SYunionHostDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	if err := d.sClusterAPIDriver.ValidateCreateData(userCred, ownerProjId, query, data); err != nil {
 		return err
 	}
 	return yunion_host.ValidateClusterCreateData(data)
 }
 
-func (d *SYunoinHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
+func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
 	return GetUsableCloudHosts(s)
 }
 
-func (d *SYunoinHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, error) {
+func (d *SYunionHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, error) {
 	masterMachine, err := cluster.GetRunningControlplaneMachine()
 	if err != nil {
 		return "", err
@@ -94,33 +93,35 @@ func (d *SYunoinHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, e
 	return out, err
 }
 
-func (d *SYunoinHostDriver) UpdateClusterResource(c *clusters.SCluster, spec *providerv1.OneCloudClusterProviderSpec) (*clusterv1.Cluster, error) {
-	cli, err := clusters.ClusterManager.GetGlobalClient()
-	if err != nil {
-		return nil, err
+func (d *SYunionHostDriver) PreCreateClusterResource(s *mcclient.ClientSession, data *types.CreateClusterData, clusterSpec *providerv1.OneCloudClusterProviderSpec) error {
+	if data.HA {
+		return nil
 	}
-	obj, err := d.GetClusterAPICluster(c)
-	if err != nil {
-		return nil, err
+	ms := data.Machines
+	controls, _ := yunion_host.GetControlplaneMachineDatas(nil, ms)
+	if len(controls) == 0 {
+		return fmt.Errorf("Empty controlplane machines")
 	}
-	providerValue, err := providerv1.EncodeClusterSpec(spec)
+	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(s)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	obj.Spec.ProviderSpec.Value = providerValue
-	return cli.ClusterV1alpha1().Clusters(c.GetNamespace()).Update(obj)
-}
-
-func (d *SYunoinHostDriver) updateClusterStaticLBAddress(c *clusters.SCluster, ip string) error {
-	clusterSpec := &providerv1.OneCloudClusterProviderSpec{}
+	firstControl := controls[0]
+	ret, err := yunion_host.ValidateHostId(s, privateKey, firstControl.ResourceId)
+	if err != nil {
+		return err
+	}
+	controlIP, err := ret.GetString("access_ip")
+	if err != nil {
+		return err
+	}
 	clusterSpec.NetworkSpec = providerv1.NetworkSpec{
-		StaticLB: &providerv1.StaticLB{IPAddress: ip},
+		StaticLB: &providerv1.StaticLB{IPAddress: controlIP},
 	}
-	_, err := d.UpdateClusterResource(c, clusterSpec)
-	return err
+	return nil
 }
 
-func (d *SYunoinHostDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
+func (d *SYunionHostDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
 	k8sCli, err := man.GetGlobalK8sClient()
 	if err != nil {
 		return err
@@ -189,124 +190,22 @@ func (d *SYunoinHostDriver) CreateClusterResource(man *clusters.SClusterManager,
 	return nil
 }
 
-func (d *SYunoinHostDriver) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+func (d *SYunionHostDriver) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
 	if err := yunion_host.ValidateAddMachines(cluster, data); err != nil {
 		return err
 	}
 	return d.sClusterAPIDriver.ValidateAddMachines(ctx, userCred, cluster, data)
 }
 
-type machineData struct {
-	machine *machines.SMachine
-	data    *jsonutils.JSONDict
+func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 
-func newMachineData(machine *machines.SMachine, input *types.CreateMachineData) *machineData {
-	return &machineData{
-		machine: machine,
-		data:    jsonutils.Marshal(input).(*jsonutils.JSONDict),
-	}
+func (d *SYunionHostDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+	return d.sClusterAPIDriver.RequestDeployMachines(d, ctx, userCred, cluster, ms, task)
 }
 
-func createMachines(ctx context.Context, userCred mcclient.TokenCredential, controls, nodes []*types.CreateMachineData) ([]*machineData, []*machineData, error) {
-	cms := make([]*machineData, 0)
-	nms := make([]*machineData, 0)
-	cf := func(data []*types.CreateMachineData) ([]*machineData, error) {
-		ret := make([]*machineData, 0)
-		for _, m := range data {
-			obj, err := machines.MachineManager.CreateMachineNoHook(ctx, userCred, m)
-			if err != nil {
-				return nil, err
-			}
-			ret = append(ret, newMachineData(obj.(*machines.SMachine), m))
-		}
-		return ret, nil
-	}
-	var err error
-	cms, err = cf(controls)
-	if err != nil {
-		return nil, nil, err
-	}
-	nms, err = cf(nodes)
-	if err != nil {
-		return nil, nil, err
-	}
-	return cms, nms, nil
-}
-
-func machinesPostCreate(ctx context.Context, userCred mcclient.TokenCredential, ms []*machineData) {
-	for _, m := range ms {
-		func() {
-			lockman.LockObject(ctx, m.machine)
-			defer lockman.ReleaseObject(ctx, m.machine)
-			m.machine.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, m.data)
-		}()
-	}
-}
-
-func (d *SYunoinHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
-	needControlplane, err := yunion_host.NeedControlplane(cluster)
-	if err != nil {
-		return err
-	}
-	controls, nodes := yunion_host.GetControlplaneMachineDatas(cluster, data)
-	if needControlplane {
-		if len(controls) == 0 {
-			return fmt.Errorf("Empty controlplane machines")
-		}
-	}
-	//cms, nms, err := createMachines(ctx, userCred, controls, nodes)
-	_, _, err = createMachines(ctx, userCred, controls, nodes)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (d *SYunoinHostDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
-	var firstCm *machines.SMachine
-	var restMachines []*machines.SMachine
-	var needControlplane bool
-
-	doPostCreate := func(m *machines.SMachine) {
-		lockman.LockObject(ctx, m)
-		defer lockman.ReleaseObject(ctx, m)
-		m.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, jsonutils.NewDict())
-	}
-
-	for _, m := range ms {
-		if m.IsFirstNode() {
-			firstCm = m.(*machines.SMachine)
-			needControlplane = true
-		} else {
-			restMachines = append(restMachines, m.(*machines.SMachine))
-		}
-	}
-
-	if needControlplane {
-		masterIP, err := firstCm.GetPrivateIP()
-		if err != nil {
-			return err
-		}
-		if err := d.updateClusterStaticLBAddress(cluster, masterIP); err != nil {
-			return err
-		}
-		doPostCreate(firstCm)
-		// wait first controlplane machine running
-		if err := machines.WaitMachineRunning(firstCm); err != nil {
-			return fmt.Errorf("Create first controlplane machine error: %v", err)
-		}
-	}
-
-	// create rest join controlplane
-	for _, d := range restMachines {
-		doPostCreate(d)
-	}
-
-	return nil
-}
-
-func (d *SYunoinHostDriver) ValidateAddMachine(cluster *clusters.SCluster, machine *types.CreateMachineData) error {
+func (d *SYunionHostDriver) ValidateAddMachine(cluster *clusters.SCluster, machine *types.CreateMachineData) error {
 	if err := yunion_host.ValidateAddMachines(cluster, []*types.CreateMachineData{machine}); err != nil {
 		return err
 	}
@@ -323,7 +222,7 @@ func (d *SYunoinHostDriver) ValidateAddMachine(cluster *clusters.SCluster, machi
 	return httperrors.NewDuplicateResourceError("Machine %s", machine.Name)
 }
 
-func (d *SYunoinHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
+func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
 	o := options.Options
 	return addons.GetYunionManifest(addons.ManifestConfig{
 		ClusterCIDR:        cluster.ServiceCidr,
@@ -344,51 +243,7 @@ func (d *SYunoinHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (strin
 	})
 }
 
-func (d *SYunoinHostDriver) RequestDeleteCluster(c *clusters.SCluster) error {
-	cli, err := clusters.ClusterManager.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if err := cli.ClusterV1alpha1().Clusters(c.GetNamespace()).Delete(c.Name, &v1.DeleteOptions{}); err != nil {
-		if !errors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
-func (d *SYunoinHostDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine) error {
-	oldMachines, err := cluster.GetMachines()
-	if err != nil {
-		return err
-	}
-	for _, m := range ms {
-		if len(oldMachines) != len(ms) && m.IsFirstNode() {
-			return httperrors.NewInputParameterError("First control node %q must deleted at last", m.GetName())
-		}
-	}
-	return nil
-}
-
-func (d *SYunoinHostDriver) GetClusterAPICluster(cluster *clusters.SCluster) (*clusterv1.Cluster, error) {
-	cli, err := clusters.ClusterManager.GetGlobalClient()
-	if err != nil {
-		return nil, err
-	}
-	obj, err := cli.ClusterV1alpha1().Clusters(cluster.GetNamespace()).Get(cluster.GetName(), v1.GetOptions{})
-	return obj, err
-}
-
-func (d *SYunoinHostDriver) GetClusterAPIClusterSpec(cluster *clusters.SCluster) (*providerv1.OneCloudClusterProviderSpec, error) {
-	c, err := d.GetClusterAPICluster(cluster)
-	if err != nil {
-		return nil, err
-	}
-	return providerv1.ClusterConfigFromProviderSpec(c.Spec.ProviderSpec)
-}
-
-func (d *SYunoinHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) ([]string, error) {
+func (d *SYunionHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) ([]string, error) {
 	ms, err := cluster.GetControlplaneMachines()
 	if err != nil {
 		return nil, err
@@ -404,7 +259,7 @@ func (d *SYunoinHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) 
 	return endpoints, nil
 }
 
-func (d *SYunoinHostDriver) GetClusterEtcdClient(cluster *clusters.SCluster) (*etcd.Client, error) {
+func (d *SYunionHostDriver) GetClusterEtcdClient(cluster *clusters.SCluster) (*etcd.Client, error) {
 	spec, err := d.GetClusterAPIClusterSpec(cluster)
 	if err != nil {
 		return nil, err
@@ -422,7 +277,7 @@ func (d *SYunoinHostDriver) GetClusterEtcdClient(cluster *clusters.SCluster) (*e
 	return etcd.New(endpoints, ca, cert, key)
 }
 
-func (d *SYunoinHostDriver) RemoveEtcdMember(etcdCli *etcd.Client, ip string) error {
+func (d *SYunionHostDriver) RemoveEtcdMember(etcdCli *etcd.Client, ip string) error {
 	// notifies the other members of the etcd cluster about the removing member
 	etcdPeerAddress := etcd.GetPeerURL(ip)
 
@@ -441,57 +296,7 @@ func (d *SYunoinHostDriver) RemoveEtcdMember(etcdCli *etcd.Client, ip string) er
 	return nil
 }
 
-func (d *SYunoinHostDriver) CleanNodeRecords(clusters *clusters.SCluster, ms []manager.IMachine) error {
-	deleteNodes := make([]manager.IMachine, 0)
-	for _, m := range ms {
-		if !m.IsFirstNode() {
-			deleteNodes = append(deleteNodes, m)
-		}
-	}
-	cli, err := clusters.GetK8sClient()
-	if err != nil {
-		return err
-	}
-	for _, n := range deleteNodes {
-		cli.CoreV1().Nodes().Delete(n.GetName(), &v1.DeleteOptions{})
-	}
-	return nil
-}
-
-func (d *SYunoinHostDriver) getKubeadmConfigmap(cli clientset.Interface) (*apiv1.ConfigMap, error) {
-	configMap, err := cli.CoreV1().ConfigMaps(v1.NamespaceSystem).Get(kubeadmconstants.KubeadmConfigConfigMap, v1.GetOptions{})
-	if err != nil {
-		return nil, perrors.Wrap(err, "failed to get config map")
-	}
-	return configMap, nil
-}
-
-func (d *SYunoinHostDriver) GetKubeadmClusterStatus(cluster *clusters.SCluster) (*kubeadmapi.ClusterStatus, error) {
-	log.Infof("Reading clusterstatus from cluster: %s", cluster.GetName())
-	cli, err := cluster.GetK8sClient()
-	if err != nil {
-		return nil, err
-	}
-	configMap, err := d.getKubeadmConfigmap(cli)
-	if err != nil {
-		return nil, err
-	}
-	return d.unmarshalClusterStatus(configMap.Data)
-}
-
-func (d *SYunoinHostDriver) unmarshalClusterStatus(data map[string]string) (*kubeadmapi.ClusterStatus, error) {
-	clusterStatusData, ok := data[kubeadmconstants.ClusterStatusConfigMapKey]
-	if !ok {
-		return nil, perrors.Errorf("unexpected error when reading kubeadm-config ConfigMap: %s key value pair missing", kubeadmconstants.ClusterStatusConfigMapKey)
-	}
-	clusterStatus := &kubeadmapi.ClusterStatus{}
-	if err := runtime.DecodeInto(kubeadmscheme.Codecs.UniversalDecoder(), []byte(clusterStatusData), clusterStatus); err != nil {
-		return nil, err
-	}
-	return clusterStatus, nil
-}
-
-func (d *SYunoinHostDriver) removeKubeadmClusterStatusAPIEndpoint(status *kubeadmapi.ClusterStatus, m manager.IMachine) error {
+func (d *SYunionHostDriver) removeKubeadmClusterStatusAPIEndpoint(status *kubeadmapi.ClusterStatus, m manager.IMachine) error {
 	ip, err := m.GetPrivateIP()
 	if err != nil {
 		return err
@@ -509,7 +314,7 @@ func (d *SYunoinHostDriver) removeKubeadmClusterStatusAPIEndpoint(status *kubead
 	return nil
 }
 
-func (d *SYunoinHostDriver) updateKubeadmClusterStatus(cli clientset.Interface, status *kubeadmapi.ClusterStatus) error {
+func (d *SYunionHostDriver) updateKubeadmClusterStatus(cli clientset.Interface, status *kubeadmapi.ClusterStatus) error {
 	configMap, err := d.getKubeadmConfigmap(cli)
 	if err != nil {
 		return err
@@ -523,7 +328,7 @@ func (d *SYunoinHostDriver) updateKubeadmClusterStatus(cli clientset.Interface, 
 	return err
 }
 
-func (d *SYunoinHostDriver) RemoveEtcdMembers(cluster *clusters.SCluster, ms []manager.IMachine) error {
+func (d *SYunionHostDriver) RemoveEtcdMembers(cluster *clusters.SCluster, ms []manager.IMachine) error {
 	joinControls := make([]manager.IMachine, 0)
 	for _, m := range ms {
 		if m.IsControlplane() && !m.IsFirstNode() {
@@ -567,7 +372,7 @@ func (d *SYunoinHostDriver) RemoveEtcdMembers(cluster *clusters.SCluster, ms []m
 	return nil
 }
 
-func (d *SYunoinHostDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine) error {
+func (d *SYunionHostDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine) error {
 	if err := d.CleanNodeRecords(cluster, ms); err != nil {
 		return err
 	}

@@ -55,6 +55,13 @@ const (
 	DefaultServiceDomain string = "cluster.local"
 )
 
+type ClusterResourceType string
+
+const (
+	ClusterResourceTypeHost  = "host"
+	ClusterResourceTypeGuest = "guest"
+)
+
 type MachineResourceType string
 
 const (

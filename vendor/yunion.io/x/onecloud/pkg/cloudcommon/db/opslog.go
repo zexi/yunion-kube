@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
@@ -28,6 +42,9 @@ const (
 	ACT_ONLINE  = "online"
 	ACT_ATTACH  = "attach"
 	ACT_DETACH  = "detach"
+
+	ACT_SYNC_UPDATE = "sync_update"
+	ACT_SYNC_CREATE = "sync_create"
 
 	ACT_START_CREATE_BACKUP  = "start_create_backup"
 	ACT_CREATE_BACKUP        = "create_backup"
@@ -82,6 +99,7 @@ const (
 	ACT_BACKUP_ALLOCATE      = "backup_allocate"
 	ACT_ALLOCATE_FAIL        = "alloc_fail"
 	ACT_BACKUP_ALLOCATE_FAIL = "backup_alloc_fail"
+	ACT_REW_FAIL             = "renew_fail"
 
 	ACT_DELOCATING    = "delocating"
 	ACT_DELOCATE      = "delocate"
@@ -112,6 +130,7 @@ const (
 	ACT_SYNC_STATUS    = "sync_status"
 
 	ACT_CHANGE_OWNER = "change_owner"
+	ACT_SYNC_OWNER   = "sync_owner"
 
 	ACT_RESERVE_IP = "reserve_ip"
 	ACT_RELEASE_IP = "release_ip"
@@ -126,6 +145,9 @@ const (
 	ACT_SYNC_HOST_START    = "sync_host_start"
 	ACT_SYNCING_HOST       = "syncing_host"
 	ACT_SYNC_HOST_COMPLETE = "sync_host_end"
+	ACT_SYNC_HOST_FAILED   = "sync_host_fail"
+
+	ACT_SYNC_PROJECT_COMPLETE = "sync_project_end"
 
 	ACT_SYNC_LB_START    = "sync_lb_start"
 	ACT_SYNCING_LB       = "syncing_lb"
@@ -138,9 +160,10 @@ const (
 	ACT_UNCACHE_IMAGE_FAIL = "uncache_image_fail"
 	ACT_UNCACHED_IMAGE     = "uncached_image"
 
-	ACT_SYNC_CLOUD_DISK   = "sync_cloud_disk"
-	ACT_SYNC_CLOUD_SERVER = "sync_cloud_server"
-	ACT_SYNC_CLOUD_EIP    = "sync_cloud_eip"
+	ACT_SYNC_CLOUD_DISK    = "sync_cloud_disk"
+	ACT_SYNC_CLOUD_SERVER  = "sync_cloud_server"
+	ACT_SYNC_CLOUD_EIP     = "sync_cloud_eip"
+	ACT_SYNC_CLOUD_PROJECT = "sync_cloud_project"
 
 	ACT_PENDING_DELETE = "pending_delete"
 	ACT_CANCEL_DELETE  = "cancel_delete"
@@ -165,6 +188,11 @@ const (
 
 	ACT_RECYCLE_PREPAID      = "recycle_prepaid"
 	ACT_UNDO_RECYCLE_PREPAID = "undo_recycle_prepaid"
+
+	ACT_HOST_IMPORT_LIBVIRT_SERVERS      = "host_import_libvirt_servers"
+	ACT_HOST_IMPORT_LIBVIRT_SERVERS_FAIL = "host_import_libvirt_servers_fail"
+	ACT_GUEST_CREATE_FROM_IMPORT_SUCC    = "guest_create_from_import_succ"
+	ACT_GUEST_CREATE_FROM_IMPORT_FAIL    = "guest_create_from_import_fail"
 )
 
 type SOpsLogManager struct {
@@ -229,6 +257,15 @@ func (manager *SOpsLogManager) LogEvent(model IModel, action string, notes inter
 	}
 	if len(model.GetId()) == 0 || len(model.GetName()) == 0 {
 		return
+	}
+	if action == ACT_UPDATE {
+		// skip empty diff
+		if notes == nil {
+			return
+		}
+		if uds, ok := notes.(sqlchemy.UpdateDiffs); ok && len(uds) == 0 {
+			return
+		}
 	}
 	opslog := SOpsLog{}
 	opslog.ObjType = model.Keyword()
@@ -339,6 +376,12 @@ func (manager *SOpsLogManager) SyncOwner(m IModel, former *STenant, userCred mcc
 	notes.Add(jsonutils.NewString(former.GetId()), "former_project_id")
 	notes.Add(jsonutils.NewString(former.GetName()), "former_project")
 	manager.LogEvent(m, ACT_CHANGE_OWNER, notes, userCred)
+}
+
+func (manager *SOpsLogManager) LogSyncUpdate(m IModel, uds sqlchemy.UpdateDiffs, userCred mcclient.TokenCredential) {
+	if len(uds) > 0 {
+		manager.LogEvent(m, ACT_SYNC_UPDATE, uds, userCred)
+	}
 }
 
 func (manager *SOpsLogManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {

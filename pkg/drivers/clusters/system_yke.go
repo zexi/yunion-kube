@@ -37,6 +37,10 @@ func (d *SSystemYKEDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeSystem
 }
 
+func (d *SSystemYKEDriver) GetResourceType() types.ClusterResourceType {
+	return types.ClusterResourceTypeHost
+}
+
 func (d *SSystemYKEDriver) GetK8sVersions() []string {
 	return []string{
 		models.DEFAULT_K8S_VERSION,

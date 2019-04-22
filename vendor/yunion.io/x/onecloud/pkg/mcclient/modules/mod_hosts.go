@@ -1,16 +1,31 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package modules
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
-	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/onecloud/pkg/util/httputils"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/log"
 	"yunion.io/x/pkg/utils"
+
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 const MACAddressPattern = `(([a-fA-F0-9]{2}[:-]){5}([a-fA-F0-9]{2}))`
@@ -85,7 +100,7 @@ func parseHosts(data string) ([]jsonutils.JSONObject, string) {
 		}
 
 		fields := strings.Split(host, ",")
-		if len(fields) != 4 {
+		if len(fields) != 5 {
 			msg += fmt.Sprintf("第%d行： %s (格式不正确)\n", i, host)
 			continue
 		}
@@ -112,6 +127,10 @@ func parseHosts(data string) ([]jsonutils.JSONObject, string) {
 
 		if len(fields[3]) > 0 {
 			params.Add(jsonutils.NewString(fields[3]), "ipmi_password")
+		}
+
+		if len(fields[4]) > 0 {
+			params.Add(jsonutils.NewString(fields[4]), "ipmi_username")
 		}
 
 		ret = append(ret, params)
@@ -177,7 +196,9 @@ func init() {
 			"mem_commit_rate", "cpu_commit_bound",
 			"mem_commit_bound", "node_count", "sn", "storage_type",
 			"host_type", "version", "schedtags",
-			"storage_size"},
+			"storage_size",
+			"expired_at",
+		},
 		[]string{})}
 	registerCompute(&Hosts)
 }

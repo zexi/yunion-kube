@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package modules
 
 import (
@@ -165,7 +179,7 @@ func (this *JointResourceManager) Patch(s *mcclient.ClientSession, mid, sid stri
 	if query != nil {
 		queryStr := query.QueryString()
 		if len(queryStr) > 0 {
-			path = fmt.Sprint("%s?%s", path, queryStr)
+			path = fmt.Sprintf("%s?%s", path, queryStr)
 		}
 	}
 	result, err := this._patch(s, path, this.params2Body(s, params), this.Keyword)
@@ -173,4 +187,16 @@ func (this *JointResourceManager) Patch(s *mcclient.ClientSession, mid, sid stri
 		return nil, err
 	}
 	return this.filterSingleResult(s, result, nil)
+}
+
+func (this *JointResourceManager) BatchUpdate(s *mcclient.ClientSession, mid string, sids []string, query jsonutils.JSONObject, params jsonutils.JSONObject) []SubmitResult {
+	return BatchDo(sids, func(sid string) (jsonutils.JSONObject, error) {
+		return this.Update(s, mid, sid, query, params)
+	})
+}
+
+func (this *JointResourceManager) BatchPatch(s *mcclient.ClientSession, mid string, sids []string, query jsonutils.JSONObject, params jsonutils.JSONObject) []SubmitResult {
+	return BatchDo(sids, func(sid string) (jsonutils.JSONObject, error) {
+		return this.Patch(s, mid, sid, query, params)
+	})
 }

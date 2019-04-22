@@ -1,18 +1,32 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"runtime/debug"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
-
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
-
 	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
@@ -82,13 +96,18 @@ func (manager *STenantCacheManager) FetchTenantByName(ctx context.Context, idStr
 }
 
 func (manager *STenantCacheManager) fetchTenantFromKeystone(ctx context.Context, idStr string) (*STenant, error) {
+	if len(idStr) == 0 {
+		log.Debugf("fetch empty tenant!!!!")
+		debug.PrintStack()
+		return nil, fmt.Errorf("Empty idStr")
+	}
 	s := auth.GetAdminSession(ctx, consts.GetRegion(), "v1")
 	tenant, err := modules.Projects.Get(s, idStr, nil)
 	if err != nil {
 		if je, ok := err.(*httputils.JSONClientError); ok && je.Code == 404 {
 			return nil, sql.ErrNoRows
 		}
-		log.Errorf("fetch project fail %s", err)
+		log.Errorf("fetch project %s fail %s", idStr, err)
 		return nil, err
 	}
 	tenantId, err := tenant.GetString("id")
@@ -107,7 +126,7 @@ func (manager *STenantCacheManager) Save(ctx context.Context, idStr string, name
 	}
 	if err == nil {
 		obj := objo.(*STenant)
-		_, err = manager.TableSpec().Update(obj, func() error {
+		_, err = Update(obj, func() error {
 			obj.Id = idStr
 			obj.Name = name
 			obj.Domain = domain

@@ -1,10 +1,27 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package modules
 
 import (
 	"fmt"
 
 	"yunion.io/x/jsonutils"
+
 	"yunion.io/x/onecloud/pkg/mcclient"
+
+	api "yunion.io/x/onecloud/pkg/apis/scheduler"
 )
 
 var (
@@ -21,40 +38,36 @@ type SchedulerManager struct {
 	ResourceManager
 }
 
-func (this *SchedulerManager) DoScheduleListResult(s *mcclient.ClientSession, params jsonutils.JSONObject, count int) (*ListResult, error) {
-	candidates, err := this.DoSchedule(s, params, count)
-	if err != nil {
-		return nil, err
-	}
-	ret := ListResult{Data: make([]jsonutils.JSONObject, len(candidates))}
-	for i, candidate := range candidates {
-		host, err := candidate.Get("candidate")
-		if err == nil {
-			ret.Data[i] = host
-		} else {
-			ret.Data[i] = candidate
-		}
-	}
-	return &ret, nil
-}
-
-func (this *SchedulerManager) DoSchedule(s *mcclient.ClientSession, params jsonutils.JSONObject, count int) ([]jsonutils.JSONObject, error) {
+func (this *SchedulerManager) DoSchedule(s *mcclient.ClientSession, input *api.ScheduleInput, count int) (*api.ScheduleOutput, error) {
 	url := fmt.Sprintf("/%s", this.Keyword)
-	body := jsonutils.NewDict()
-	body.Add(params, this.Keyword)
 	if count <= 0 {
 		count = 1
 	}
-	body.Add(jsonutils.NewInt(int64(count)), "count")
-	cands, err := this._post(s, url, body, this.Keyword)
+	input.Count = count
+	body := input.JSON(input)
+	ret, err := this._post(s, url, body, "")
 	if err != nil {
 		return nil, err
 	}
-	candidates, err := cands.GetArray()
+	output := new(api.ScheduleOutput)
+	err = ret.Unmarshal(output)
 	if err != nil {
-		return nil, fmt.Errorf("Not a valid response")
+		return nil, fmt.Errorf("Not a valid response: %v", err)
 	}
-	return candidates, nil
+	return output, nil
+}
+
+func (this *SchedulerManager) DoScheduleForecast(s *mcclient.ClientSession, params *api.ScheduleInput, count int) (bool, error) {
+	if count <= 0 {
+		count = 1
+	}
+	params.Count = count
+	res, err := this.DoForecast(s, params.JSON(params))
+	if err != nil {
+		return false, err
+	}
+	canCreate := jsonutils.QueryBoolean(res, "can_create", false)
+	return canCreate, nil
 }
 
 func newSchedURL(action string) string {
@@ -65,8 +78,17 @@ func newSchedIdentURL(action, ident string) string {
 	return fmt.Sprintf("%s/%s", newSchedURL(action), ident)
 }
 
-func (this *SchedulerManager) Test(s *mcclient.ClientSession, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (this *SchedulerManager) Test(s *mcclient.ClientSession, params *api.ScheduleInput) (jsonutils.JSONObject, error) {
 	url := newSchedURL("test")
+	_, obj, err := this.jsonRequest(s, "POST", url, nil, params.JSON(params))
+	if err != nil {
+		return nil, err
+	}
+	return obj, err
+}
+
+func (this *SchedulerManager) DoForecast(s *mcclient.ClientSession, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	url := newSchedURL("forecast")
 	_, obj, err := this.jsonRequest(s, "POST", url, nil, params)
 	if err != nil {
 		return nil, err
@@ -76,6 +98,13 @@ func (this *SchedulerManager) Test(s *mcclient.ClientSession, params jsonutils.J
 
 func (this *SchedulerManager) Cleanup(s *mcclient.ClientSession, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	url := newSchedURL("cleanup")
+	return this._post(s, url, params, "")
+}
+
+func (this *SchedulerManager) SyncSku(s *mcclient.ClientSession, wait bool) (jsonutils.JSONObject, error) {
+	params := jsonutils.NewDict()
+	params.Add(jsonutils.NewBool(wait), "wait")
+	url := newSchedURL("sync-sku")
 	return this._post(s, url, params, "")
 }
 

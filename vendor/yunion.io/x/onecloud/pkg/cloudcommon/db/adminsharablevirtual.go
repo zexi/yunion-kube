@@ -1,12 +1,28 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
+	"context"
 	"strings"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/utils"
+
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/utils"
 )
 
 type SAdminSharableVirtualResourceBase struct {
@@ -37,6 +53,7 @@ func (manager *SAdminSharableVirtualResourceBaseManager) ValidateCreateData(man 
 }
 
 func (model *SAdminSharableVirtualResourceBase) SetInfo(
+	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	man IAdminSharableVirtualModelManager,
 	obj IAdminSharableVirtualModel,
@@ -59,12 +76,13 @@ func (model *SAdminSharableVirtualResourceBase) SetInfo(
 		}
 	}
 	if isChanged {
-		return model.setInfo(userCred, man, records)
+		return model.setInfo(ctx, userCred, man, records)
 	}
 	return nil
 }
 
 func (model *SAdminSharableVirtualResourceBase) AddInfo(
+	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	man IAdminSharableVirtualModelManager,
 	obj IAdminSharableVirtualModel,
@@ -83,12 +101,13 @@ func (model *SAdminSharableVirtualResourceBase) AddInfo(
 		}
 	}
 	if len(adds) > 0 {
-		return model.setInfo(userCred, man, oldRecs)
+		return model.setInfo(ctx, userCred, man, oldRecs)
 	}
 	return nil
 }
 
 func (model *SAdminSharableVirtualResourceBase) RemoveInfo(
+	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	man IAdminSharableVirtualModelManager,
 	obj IAdminSharableVirtualModel,
@@ -111,12 +130,12 @@ func (model *SAdminSharableVirtualResourceBase) RemoveInfo(
 		return httperrors.NewNotAcceptableError("Not allow empty records")
 	}
 	if len(removes) > 0 {
-		return model.setInfo(userCred, man, oldRecs)
+		return model.setInfo(ctx, userCred, man, oldRecs)
 	}
 	return nil
 }
 
-func (model *SAdminSharableVirtualResourceBase) setInfo(
+func (model *SAdminSharableVirtualResourceBase) setInfo(ctx context.Context,
 	userCred mcclient.TokenCredential,
 	man IAdminSharableVirtualModelManager,
 	records []string,
@@ -124,15 +143,13 @@ func (model *SAdminSharableVirtualResourceBase) setInfo(
 	if man.GetRecordsLimit() > 0 && len(records) > man.GetRecordsLimit() {
 		return httperrors.NewNotAcceptableError("Records limit exceeded.")
 	}
-	diff, err := model.GetModelManager().TableSpec().Update(model, func() error {
+	diff, err := Update(model, func() error {
 		model.Records = strings.Join(records, man.GetRecordsSeparator())
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	if diff != nil {
-		OpsLog.LogEvent(model, ACT_UPDATE, diff, userCred)
-	}
+	OpsLog.LogEvent(model, ACT_UPDATE, diff, userCred)
 	return err
 }

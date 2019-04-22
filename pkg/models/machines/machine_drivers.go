@@ -8,12 +8,14 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type IMachineDriver interface {
 	GetProvider() types.ProviderType
+	GetResourceType() types.MachineResourceType
 	GetPrivateIP(session *mcclient.ClientSession, id string) (string, error)
 	UseClusterAPI() bool
 
@@ -25,21 +27,25 @@ type IMachineDriver interface {
 	TerminateResource(session *mcclient.ClientSession, machine *SMachine) error
 }
 
-var machineDrivers map[types.ProviderType]IMachineDriver
+var machineDrivers *drivers.DriverManager
 
 func init() {
-	machineDrivers = make(map[types.ProviderType]IMachineDriver)
+	machineDrivers = drivers.NewDriverManager("")
 }
 
 func RegisterMachineDriver(driver IMachineDriver) {
-	machineDrivers[driver.GetProvider()] = driver
+	resType := driver.GetResourceType()
+	provider := driver.GetProvider()
+	err := machineDrivers.Register(driver, string(provider), string(resType))
+	if err != nil {
+		log.Fatalf("machine driver provider %s, resource type %s driver register error: %v", provider, resType, err)
+	}
 }
 
-func GetDriver(provider types.ProviderType) IMachineDriver {
-	driver, ok := machineDrivers[provider]
-	if ok {
-		return driver
+func GetDriver(provider types.ProviderType, resType types.MachineResourceType) IMachineDriver {
+	drv, err := machineDrivers.Get(string(provider), string(resType))
+	if err != nil {
+		log.Fatalf("Get machine driver provider: %s, resource type: %s error: %v", provider, resType, err)
 	}
-	log.Fatalf("Unsupported machine provider: %s", provider)
-	return nil
+	return drv.(IMachineDriver)
 }

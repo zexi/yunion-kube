@@ -41,14 +41,14 @@ type Request struct {
 
 func (r *Request) AllowListItems() bool {
 	allNamespace := jsonutils.QueryBoolean(r.Query, "all_namespace", false)
-	if allNamespace && !r.UserCred.HasSystemAdminPrivelege() {
+	if allNamespace && !r.UserCred.HasSystemAdminPrivilege() {
 		return false
 	}
 	return true
 }
 
 func (r *Request) IsClusterOwner() bool {
-	return r.UserCred.HasSystemAdminPrivelege() || r.GetCluster().IsOwner(r.UserCred)
+	return r.UserCred.HasSystemAdminPrivilege() || r.GetCluster().IsOwner(r.UserCred)
 }
 
 func (r *Request) ShowAllNamespace() bool {
@@ -170,7 +170,7 @@ func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery 
 }
 
 func (r *Request) IsSystemAdmin() bool {
-	return r.UserCred.HasSystemAdminPrivelege()
+	return r.UserCred.HasSystemAdminPrivilege()
 }
 
 func (r *Request) ToQuery() *dataselect.DataSelectQuery {
@@ -225,7 +225,7 @@ func (pns *ProjectNamespaces) Sets() sets.String {
 }
 
 func (pns *ProjectNamespaces) HasAllNamespacePrivelege() bool {
-	return pns.Request.UserCred.HasSystemAdminPrivelege()
+	return pns.Request.UserCred.HasSystemAdminPrivilege()
 }
 
 func (r *Request) NewProjectNamespaces() (*ProjectNamespaces, error) {

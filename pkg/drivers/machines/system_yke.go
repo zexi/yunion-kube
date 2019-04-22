@@ -31,6 +31,10 @@ func (d *SSystemYKEDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeSystem
 }
 
+func (d *SSystemYKEDriver) GetResourceType() types.MachineResourceType {
+	return types.MachineResourceTypeBaremetal
+}
+
 func (d *SSystemYKEDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	clusterId, _ := data.GetString("cluster_id")
 	cluster, err := clusters.ClusterManager.GetCluster(clusterId)

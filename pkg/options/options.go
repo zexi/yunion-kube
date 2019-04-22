@@ -1,7 +1,7 @@
 package options
 
 import (
-	"yunion.io/x/onecloud/pkg/cloudcommon"
+	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 )
 
 var (
@@ -9,8 +9,8 @@ var (
 )
 
 type KubeServerOptions struct {
-	cloudcommon.DBOptions
-	cloudcommon.CommonOptions
+	common_options.DBOptions
+	common_options.CommonOptions
 
 	TlsCertFile       string `help:"File containing the default x509 cert file"`
 	TlsPrivateKeyFile string `help:"Tls private key"`

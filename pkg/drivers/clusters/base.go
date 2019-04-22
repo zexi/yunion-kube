@@ -4,13 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	apiv1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
@@ -62,55 +57,5 @@ func (d *sBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Co
 		return err
 	}
 	task.ScheduleRun(nil)
-	return nil
-}
-
-type sClusterAPIDriver struct {
-	*sBaseDriver
-}
-
-func newClusterAPIDriver() *sClusterAPIDriver {
-	return &sClusterAPIDriver{
-		sBaseDriver: newBaseDriver(),
-	}
-}
-
-func (d *sClusterAPIDriver) UseClusterAPI() bool {
-	return true
-}
-
-func (d *sClusterAPIDriver) EnsureNamespace(cli *kubernetes.Clientset, namespace string) error {
-	ns := apiv1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: namespace,
-		},
-	}
-	_, err := cli.CoreV1().Namespaces().Create(&ns)
-	if err != nil && !errors.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
-}
-
-func (d *sClusterAPIDriver) DeleteNamespace(cli *kubernetes.Clientset, namespace string) error {
-	if namespace == apiv1.NamespaceDefault {
-		return nil
-	}
-
-	err := cli.CoreV1().Namespaces().Delete(namespace, &v1.DeleteOptions{})
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-	return nil
-}
-
-func (d *sClusterAPIDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	ok, err := clusters.ClusterManager.IsSystemClusterReady()
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return httperrors.NewNotAcceptableError("System k8s cluster default not running")
-	}
 	return nil
 }

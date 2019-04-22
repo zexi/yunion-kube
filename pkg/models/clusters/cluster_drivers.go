@@ -3,17 +3,20 @@ package clusters
 import (
 	"context"
 
+	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type IClusterDriver interface {
 	GetProvider() types.ProviderType
+	GetResourceType() types.ClusterResourceType
 	UseClusterAPI() bool
 
 	// GetK8sVersions return current cluster k8s versions supported
@@ -45,21 +48,32 @@ type IClusterDriver interface {
 	StartSyncStatus(cluster *SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error
 }
 
-var clusterDrivers map[types.ProviderType]IClusterDriver
+type IClusterAPIDriver interface {
+	IClusterDriver
+
+	PreCreateClusterResource(s *mcclient.ClientSession, data *types.CreateClusterData, clusterSpec *providerv1.OneCloudClusterProviderSpec) error
+	//PostCreateClusterResource() error
+}
+
+var clusterDrivers *drivers.DriverManager
 
 func init() {
-	clusterDrivers = make(map[types.ProviderType]IClusterDriver)
+	clusterDrivers = drivers.NewDriverManager("")
 }
 
 func RegisterClusterDriver(driver IClusterDriver) {
-	clusterDrivers[driver.GetProvider()] = driver
+	resType := driver.GetResourceType()
+	provider := driver.GetProvider()
+	err := clusterDrivers.Register(driver, string(provider), string(resType))
+	if err != nil {
+		log.Fatalf("cluster driver provider %s, resource type %s driver register error: %v", provider, resType, err)
+	}
 }
 
-func GetDriver(provider types.ProviderType) IClusterDriver {
-	driver, ok := clusterDrivers[provider]
-	if ok {
-		return driver
+func GetDriver(provider types.ProviderType, resType types.ClusterResourceType) IClusterDriver {
+	drv, err := clusterDrivers.Get(string(provider), string(resType))
+	if err != nil {
+		log.Fatalf("Get driver cluster provider: %s, resource type: %s error: %v", provider, resType, err)
 	}
-	log.Fatalf("Unsupported cluster provider: %s", provider)
-	return nil
+	return drv.(IClusterDriver)
 }

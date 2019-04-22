@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package policy
 
 import (
@@ -16,7 +30,6 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
-	"yunion.io/x/onecloud/pkg/util/conditionparser"
 	"yunion.io/x/onecloud/pkg/util/hashcache"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
@@ -148,6 +161,7 @@ func (manager *SPolicyManager) SyncOnce() error {
 	manager.adminPolicies = adminPolicies
 
 	manager.lastSync = time.Now()
+	manager.cache.Invalidate()
 
 	return nil
 }
@@ -231,27 +245,41 @@ func (manager *SPolicyManager) allowWithoutCache(isAdmin bool, userCred mcclient
 		log.Warningf("no policies fetched")
 		return rbacutils.Deny
 	}
-	var userCredJson jsonutils.JSONObject
-	if userCred != nil {
-		userCredJson = userCred.ToJson()
-	} else {
-		userCredJson = jsonutils.NewDict()
-	}
+	findMatchRule := false
+	findMatchPolicy := false
 	currentPriv := rbacutils.Deny
 	for _, p := range policies {
-		result := p.Allow(userCredJson, service, resource, action, extra...)
-		if currentPriv.StricterThan(result) {
-			currentPriv = result
+		if !p.Match(userCred) {
+			continue
+		}
+		findMatchPolicy = true
+		rule := p.GetMatchRule(service, resource, action, extra...)
+		if rule != nil {
+			findMatchRule = true
+			if currentPriv.StricterThan(rule.Result) {
+				currentPriv = rule.Result
+			}
+		}
+	}
+	if !findMatchPolicy {
+		currentPriv = rbacutils.Deny
+	} else if !findMatchRule {
+		if isAdmin {
+			currentPriv = rbacutils.AdminAllow
+		} else {
+			currentPriv = rbacutils.OwnerAllow
 		}
 	}
 	if !isAdmin && manager.defaultPolicy != nil {
-		result := manager.defaultPolicy.Allow(userCredJson, service, resource, action, extra...)
-		if currentPriv.StricterThan(result) {
-			currentPriv = result
+		rule := manager.defaultPolicy.GetMatchRule(service, resource, action, extra...)
+		if rule != nil {
+			if currentPriv.StricterThan(rule.Result) {
+				currentPriv = rule.Result
+			}
 		}
 	}
 	if consts.IsRbacDebug() {
-		log.Debugf("[RBAC: %v] %s %s %s %#v permission %s userCred: %s", isAdmin, service, resource, action, extra, currentPriv, userCredJson)
+		log.Debugf("[RBAC: %v] %s %s %s %#v permission %s userCred: %s", isAdmin, service, resource, action, extra, currentPriv, userCred)
 	}
 	return unifyRbacResult(isAdmin, currentPriv)
 }
@@ -322,7 +350,7 @@ func (manager *SPolicyManager) explainPolicyInternal(userCred mcclient.TokenCred
 	if !consts.IsRbacEnabled() {
 		if !isAdmin {
 			return isAdmin, reqStrs, rbacutils.OwnerAllow, nil
-		} else if isAdmin && userCred.HasSystemAdminPrivelege() {
+		} else if isAdmin && userCred.HasSystemAdminPrivilege() {
 			return isAdmin, reqStrs, rbacutils.AdminAllow, nil
 		} else {
 			return isAdmin, reqStrs, rbacutils.Deny, httperrors.NewForbiddenError("operation not allowed")
@@ -361,16 +389,30 @@ func (manager *SPolicyManager) ExplainRpc(userCred mcclient.TokenCredential, par
 }
 
 func (manager *SPolicyManager) IsAdminCapable(userCred mcclient.TokenCredential) bool {
-	if !consts.IsRbacEnabled() && userCred.HasSystemAdminPrivelege() {
+	if !consts.IsRbacEnabled() && userCred.HasSystemAdminPrivilege() {
 		return true
 	}
 
-	userCredJson := userCred.ToJson()
 	for _, p := range manager.adminPolicies {
-		match, _ := conditionparser.Eval(p.Condition, userCredJson)
-		if match {
+		if p.Match(userCred) {
 			return true
 		}
 	}
 	return false
+}
+
+func (manager *SPolicyManager) MatchedPolicies(isAdmin bool, userCred mcclient.TokenCredential) []string {
+	var policies map[string]rbacutils.SRbacPolicy
+	if isAdmin {
+		policies = manager.adminPolicies
+	} else {
+		policies = manager.policies
+	}
+	ret := make([]string, 0)
+	for k, p := range policies {
+		if p.Match(userCred) {
+			ret = append(ret, k)
+		}
+	}
+	return ret
 }

@@ -43,7 +43,7 @@ func (m *SResourceBaseManager) List(req *common.Request) (common.ListResource, e
 }
 
 func (m *SResourceBaseManager) AllowGetItem(req *common.Request, id string) bool {
-	return req.UserCred.HasSystemAdminPrivelege()
+	return req.UserCred.HasSystemAdminPrivilege()
 }
 
 func (m *SResourceBaseManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -72,7 +72,7 @@ func (m *SResourceBaseManager) Update(req *common.Request, id string) (interface
 
 func (m *SResourceBaseManager) AllowDeleteItem(req *common.Request, id string) bool {
 	cred := req.UserCred
-	if cred.HasSystemAdminPrivelege() {
+	if cred.HasSystemAdminPrivilege() {
 		return true
 	}
 	return false

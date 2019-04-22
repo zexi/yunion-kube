@@ -24,6 +24,10 @@ import (
 )
 
 const (
+	cloudConfigHeader = `## template: jinja
+#cloud-config
+`
+
 	defaultHeader = `#!/usr/bin/env bash
 
 # Copyright 2018 by the contributors
@@ -170,4 +174,31 @@ func generate(kind string, tpl string, data interface{}) (string, error) {
 	}
 
 	return out.String(), nil
+}
+
+type baseUserDataCloudInit struct {
+	Header string
+}
+
+func generateWithFuncs(kind string, tpl string, funcsMap template.FuncMap, data interface{}) (string, error) {
+	t, err := template.New(kind).Funcs(funcsMap).Parse(tpl)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to parse %s template", kind)
+	}
+
+	var out bytes.Buffer
+	if err := t.Execute(&out, data); err != nil {
+		return "", errors.Wrapf(err, "failed to generate %s template", kind)
+	}
+
+	return out.String(), nil
+}
+
+func funcMap(funcs map[string]interface{}) template.FuncMap {
+	funcMap := template.FuncMap{}
+	for name, function := range funcs {
+		funcMap[name] = function
+	}
+
+	return funcMap
 }
