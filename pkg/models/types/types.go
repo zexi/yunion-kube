@@ -1,5 +1,9 @@
 package types
 
+import (
+	"yunion.io/x/yunion-kube/pkg/apis"
+)
+
 // k8s cluster type
 type ClusterType string
 
@@ -53,6 +57,7 @@ const (
 const (
 	DefaultServiceCIDR   string = "10.43.0.0/16"
 	DefaultServiceDomain string = "cluster.local"
+	DefaultPodCIDR       string = "10.42.0.0/16"
 )
 
 type ClusterResourceType string
@@ -89,19 +94,20 @@ const (
 	MachineStatusTerminating   = "terminating"
 	MachineStatusTerminateFail = "terminate_fail"
 
-	ClusterStatusInit       = "init"
-	ClusterStatusCreating   = "creating"
-	ClusterStatusCreateFail = "create_fail"
-	ClusterStatusRunning    = "running"
-	ClusterStatusUnknown    = "unknown"
-	ClusterStatusError      = "error"
-	ClusterStatusDeleting   = "deleting"
-	ClusterStatusDeleteFail = "delete_fail"
+	ClusterStatusInit              = "init"
+	ClusterStatusCreating          = "creating"
+	ClusterStatusCreateFail        = "create_fail"
+	ClusterStatusCreatingMachine   = "creating_machine"
+	ClusterStatusCreateMachineFail = "create_machine_fail"
+	ClusterStatusRunning           = "running"
+	ClusterStatusUnknown           = "unknown"
+	ClusterStatusError             = "error"
+	ClusterStatusDeleting          = "deleting"
+	ClusterStatusDeleteFail        = "delete_fail"
 )
 
 type CreateClusterData struct {
 	Name          string               `json:"name"`
-	Namespace     string               `json:"namespace"`
 	ClusterType   string               `json:"cluster_type"`
 	CloudType     string               `json:"cloud_type"`
 	Mode          string               `json:"mode"`
@@ -115,13 +121,15 @@ type CreateClusterData struct {
 }
 
 type CreateMachineData struct {
-	Name         string `json:"name"`
-	ClusterId    string `json:"cluster_id"`
-	Role         string `json:"role"`
-	ResourceType string `json:"resource_type"`
-	ResourceId   string `json:"resource_id"`
-	Address      string `json:"address"`
-	FirstNode    bool   `json:"first_node"`
+	Name         string                    `json:"name"`
+	ClusterId    string                    `json:"cluster_id"`
+	Role         string                    `json:"role"`
+	Provider     string                    `json:"provider"`
+	ResourceType string                    `json:"resource_type"`
+	ResourceId   string                    `json:"resource_id"`
+	Address      string                    `json:"address"`
+	FirstNode    bool                      `json:"first_node"`
+	Config       *apis.MachineCreateConfig `json:"config"`
 }
 
 type Machine struct {

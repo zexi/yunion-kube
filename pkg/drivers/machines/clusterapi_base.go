@@ -3,19 +3,20 @@ package machines
 import (
 	"context"
 	"fmt"
-	"strings"
+	//"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	//"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	"yunion.io/x/onecloud/pkg/httperrors"
+	//"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	//"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
@@ -73,7 +74,7 @@ func (d *sClusterAPIBaseDriver) newClusterAPIMachine(machine *machines.SMachine)
 }
 
 func (d *sClusterAPIBaseDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
-	client, err := machine.GetGlobalClient()
+	/*client, err := machine.GetGlobalClient()
 	if err != nil {
 		return err
 	}
@@ -85,7 +86,7 @@ func (d *sClusterAPIBaseDriver) PostCreate(ctx context.Context, userCred mcclien
 	if err != nil {
 		return err
 	}
-	log.Infof("Create machines object: %#v", machineObj)
+	log.Infof("Create machines object: %#v", machineObj)*/
 	return nil
 }
 
@@ -112,7 +113,7 @@ func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters
 	}
 }
 
-func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, machine *machines.SMachine, data *machines.MachinePrepareData) (string, error) {
+func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (string, error) {
 	var userData string
 	var err error
 
@@ -195,18 +196,4 @@ func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, mac
 
 func (d *sClusterAPIBaseDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine) error {
 	return cluster.GetDriver().ValidateDeleteMachines(ctx, userCred, cluster, []manager.IMachine{machine})
-}
-
-func (d *SYunionHostDriver) PostDelete(ctx context.Context, userCred mcclient.TokenCredential, m *machines.SMachine, task taskman.ITask) error {
-	cli, err := m.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if err := cli.ClusterV1alpha1().Machines(m.GetNamespace()).Delete(m.Name, &v1.DeleteOptions{}); err != nil {
-		if !errors.IsNotFound(err) || strings.Contains(err.Error(), "not found") {
-			return m.StartTerminateTask(ctx, userCred, nil, task.GetTaskId())
-		}
-		return err
-	}
-	return nil
 }

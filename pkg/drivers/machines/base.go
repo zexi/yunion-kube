@@ -4,11 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 )
@@ -37,7 +41,28 @@ func (d *sBaseDriver) ValidateCreateData(session *mcclient.ClientSession, userCr
 	return nil
 }
 
-func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *machines.MachinePrepareData) (jsonutils.JSONObject, error) {
+func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclient.TokenCredential, machine *machines.SMachine, task taskman.ITask) error {
+	cluster, err := machine.GetCluster()
+	if err != nil {
+		return errors.Wrap(err, "GetCluster")
+	}
+	createInput, err := machine.GetCreateInput(userCred)
+	if err != nil {
+		log.Errorf("Get create input error: %v", err)
+	}
+	input := &apis.MachinePrepareInput{
+		FirstNode: machine.IsFirstNode(),
+		Role:      machine.GetRole(),
+		Config:    createInput.Config,
+	}
+	input, err = cluster.FillMachinePrepareInput(input)
+	if err != nil {
+		return errors.Wrap(err, "FillMachinePrepareInput")
+	}
+	return machine.StartPrepareTask(ctx, task.GetUserCred(), jsonutils.Marshal(input).(*jsonutils.JSONDict), task.GetTaskId())
+}
+
+func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	return nil, nil
 }
 

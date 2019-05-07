@@ -17,7 +17,7 @@ import (
 type IClusterDriver interface {
 	GetProvider() types.ProviderType
 	GetResourceType() types.ClusterResourceType
-	UseClusterAPI() bool
+	//UseClusterAPI() bool
 
 	// GetK8sVersions return current cluster k8s versions supported
 	GetK8sVersions() []string
@@ -26,26 +26,23 @@ type IClusterDriver interface {
 	// GetKubeconfig get current cluster kubeconfig
 	GetKubeconfig(cluster *SCluster) (string, error)
 
-	ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error
+	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error
 	ValidateDeleteCondition() error
 	ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine) error
-	RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine) error
+	RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
 
 	// CreateClusterResource create cluster resource to global k8s cluster
 	CreateClusterResource(man *SClusterManager, data *types.CreateClusterData) error
-	ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) error
+	ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) error
 	// CreateMachines create machines record in db
-	CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) error
+	CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error)
 	// RequestDeployMachines deploy machines after machines created
 	RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
-	// RequestDeleteCluster delete cluster when cluster delete
-	RequestDeleteCluster(cluster *SCluster) error
-	// ValidateAddMachine validate create machine resource
-	ValidateAddMachine(cluster *SCluster, machine *types.CreateMachineData) error
 	// GetAddonsManifest return addons yaml manifest to be applied to cluster
 	GetAddonsManifest(cluster *SCluster) (string, error)
 	// StartSyncStatus start cluster sync status task
 	StartSyncStatus(cluster *SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error
+	NeedGenerateCertificate() bool
 }
 
 type IClusterAPIDriver interface {

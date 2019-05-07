@@ -11,6 +11,13 @@ import (
 const (
 	controlPlaneCloudInit = `{{.Header}}
 write_files:
+-   path: /etc/docker/daemon.json
+    encoding: "base64"
+    owner: root:root
+    permissions: '0644'
+    content: |
+      {{.DockerConfig | Base64Encode}}
+
 -   path: /etc/kubernetes/pki/ca.crt
     encoding: "base64"
     owner: root:root
@@ -67,7 +74,7 @@ write_files:
     content: |
       {{.SaKey | Base64Encode}}
 
--   path: /tmp/kubeadm.yaml
+-   path: /run/kubeadm.yaml
     owner: root:root
     permissions: '0640'
     content: |
@@ -75,13 +82,19 @@ write_files:
 {{.ClusterConfiguration | Indent 6}}
       ---
 {{.InitConfiguration | Indent 6}}
-kubeadm:
-  operation: init
-  config: /tmp/kubeadm.yaml
+      ---
+{{.KubeProxyConfiguration | Indent 6}}
 `
 
 	controlPlaneJoinCloudInit = `{{.Header}}
 write_files:
+-   path: /etc/docker/daemon.json
+    owner: root:root
+    permissions: '0644'
+    encoding: "base64"
+    content: |
+      {{.DockerConfig | Base64Encode}}
+
 -   path: /etc/kubernetes/pki/ca.crt
     encoding: "base64"
     owner: root:root
@@ -138,14 +151,14 @@ write_files:
     content: |
       {{.SaKey | Base64Encode}}
 
--   path: /tmp/kubeadm-controlplane-join-config.yaml
+-   path: /run/kubeadm-controlplane-join-config.yaml
     owner: root:root
     permissions: '0640'
     content: |
 {{.JoinConfiguration | Indent 6}}
 kubeadm:
   operation: join
-  config: /tmp/kubeadm-controlplane-join-config.yaml
+  config: /run/kubeadm-controlplane-join-config.yaml
 `
 )
 
@@ -157,22 +170,25 @@ func isKeyPairValid(cert, key string) bool {
 type ControlPlaneInputCloudInit struct {
 	baseUserDataCloudInit
 
-	CACert               string
-	CAKey                string
-	EtcdCACert           string
-	EtcdCAKey            string
-	FrontProxyCACert     string
-	FrontProxyCAKey      string
-	SaCert               string
-	SaKey                string
-	ClusterConfiguration string
-	InitConfiguration    string
+	DockerConfig           string
+	CACert                 string
+	CAKey                  string
+	EtcdCACert             string
+	EtcdCAKey              string
+	FrontProxyCACert       string
+	FrontProxyCAKey        string
+	SaCert                 string
+	SaKey                  string
+	ClusterConfiguration   string
+	InitConfiguration      string
+	KubeProxyConfiguration string
 }
 
 // ControlPlaneJoinInputCloudInit defines context to generate controlplane instance user data for controlplane node join
 type ControlPlaneJoinInputCloudInit struct {
 	baseUserDataCloudInit
 
+	DockerConfig      string
 	CACert            string
 	CAKey             string
 	EtcdCACert        string

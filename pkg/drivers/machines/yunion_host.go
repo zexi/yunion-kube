@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -11,6 +13,7 @@ import (
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/tristate"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
@@ -147,13 +150,22 @@ func removeMachineFromContainerSchedtag(s *mcclient.ClientSession, machine *mach
 	return err
 }
 
-func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *machines.MachinePrepareData) (jsonutils.JSONObject, error) {
+func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	hostId := data.InstanceId
 	accessIP, err := d.GetPrivateIP(session, hostId)
 	if err != nil {
 		return nil, err
 	}
 	data.PrivateIP = accessIP
+	cluster, err := machine.GetCluster()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get machine %s cluster", machine.GetName())
+	}
+	apiServerEndpoint, err := cluster.GetAPIServerEndpoint()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get cluster %s apiServerEndpoint", cluster.GetName())
+	}
+	data.ELBAddress = apiServerEndpoint
 	_, err = machine.GetModelManager().TableSpec().Update(machine, func() error {
 		if data.FirstNode {
 			machine.FirstNode = tristate.True

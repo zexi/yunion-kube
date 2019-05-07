@@ -3,8 +3,11 @@ package kubeadm
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
+	//"github.com/pkg/errors"
+	kubeproxyconfigv1alpha1 "k8s.io/kube-proxy/config/v1alpha1"
 	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
+
+	"yunion.io/x/log"
 )
 
 const (
@@ -47,7 +50,12 @@ func SetDefaultClusterConfiguration(cluster ICluster, base *kubeadmv1beta1.Clust
 
 	apiServerEndpoint, err := cluster.GetAPIServerEndpoint()
 	if err != nil {
-		return nil, errors.Wrapf(err, "Get cluster %s apiServerEndpoint", cluster.GetName())
+		//return nil, errors.Wrapf(err, "Get cluster %s apiServerEndpoint", cluster.GetName())
+		// TODO: fix this use LB?
+		log.Errorf("Get cluster %s apiServerEndpoint: %v", cluster.GetName(), err)
+	}
+	if apiServerEndpoint == "" {
+		apiServerEndpoint = localIPV4Lookup
 	}
 	// Only set the control plane endpoint if the user hasn't specified one
 	if out.ControlPlaneEndpoint == "" {
@@ -99,7 +107,23 @@ func SetInitConfigurationOverrides(base *kubeadmv1beta1.InitConfiguration) *kube
 	}
 	out := base.DeepCopy()
 	out.NodeRegistration.Name = HostnameLookup
+	if out.NodeRegistration.KubeletExtraArgs == nil {
+		out.NodeRegistration.KubeletExtraArgs = make(map[string]string)
+	}
 	out.NodeRegistration.KubeletExtraArgs["cloud-provider"] = CloudProvider
+	return out
+}
+
+// SetKubeProxyConfigurationOverrides overrides user input on particular fields for
+// the kubeadm KubeProxyConfiguration
+func SetKubeProxyConfigurationOverrides(base *kubeproxyconfigv1alpha1.KubeProxyConfiguration, clusterCIDR string) *kubeproxyconfigv1alpha1.KubeProxyConfiguration {
+	if base == nil {
+		base = &kubeproxyconfigv1alpha1.KubeProxyConfiguration{}
+	}
+	out := base.DeepCopy()
+	out.Mode = "ipvs"
+	out.IPTables.MasqueradeAll = true
+	out.ClusterCIDR = clusterCIDR
 	return out
 }
 

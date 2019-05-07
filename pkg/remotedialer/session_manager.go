@@ -24,6 +24,7 @@ func (sm *sessionManager) getByClient(clientKey string) (*session, error) {
 	defer sm.Unlock()
 
 	sessions := sm.clients[clientKey]
+
 	if len(sessions) > 0 {
 		return sessions[0], nil
 	}

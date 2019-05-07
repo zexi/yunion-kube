@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
@@ -52,8 +51,9 @@ func (t *ClusterCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.onError(ctx, obj, fmt.Errorf("Unmarshal: %v", err))
 		return
 	}
-	if err := cluster.GetDriver().CreateClusterResource(clusters.ClusterManager, &res); err != nil {
-		t.onError(ctx, obj, fmt.Errorf("CreateClusterResource: %v", err))
+	// generate certificates if needed
+	if err := cluster.GenerateCertificates(ctx, t.GetUserCred()); err != nil {
+		t.onError(ctx, obj, fmt.Errorf("GenerateCertificates: %v", err))
 		return
 	}
 	t.CreateMachines(ctx, cluster)
@@ -66,27 +66,16 @@ func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *cluster
 		return
 	}
 	t.SetStage("OnMachinesCreated", nil)
-	driver := cluster.GetDriver()
-	if err := driver.CreateMachines(ctx, t.GetUserCred(), cluster, machines); err != nil {
-		t.onError(ctx, cluster, err)
-		return
-	}
-	ms, err := clusters.FetchMachinesByCreateData(cluster, machines)
-	if err != nil {
-		t.onError(ctx, cluster, err)
-		return
-	}
-	if err := driver.RequestDeployMachines(ctx, t.GetUserCred(), cluster, ms, t); err != nil {
-		t.onError(ctx, cluster, err)
-		return
-	}
-	t.OnMachinesCreated(ctx, cluster)
+	cluster.StartCreateMachinesTask(ctx, t.GetUserCred(), machines, t.GetTaskId())
 }
 
-func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *clusters.SCluster) {
-	log.Infof("Machines created")
+func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
 	t.SetStage("OnApplyAddonsComplete", nil)
 	cluster.StartApplyAddonsTask(ctx, t.GetUserCred(), t.GetParams(), t.GetTaskId())
+}
+
+func (t *ClusterCreateTask) OnMachinesCreatedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	t.SetFailed(ctx, obj, data.String())
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {

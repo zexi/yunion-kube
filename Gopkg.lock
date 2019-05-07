@@ -1499,8 +1499,8 @@
   revision = "3c4f24289a1b2fd39b94a9ccbd40931b3a20aab7"
 
 [[projects]]
-  branch = "release/2.9.0"
-  digest = "1:9679684ab0735658c0e6a7cb8a31103e3154a4588b4d15c0ec0e1186e626b648"
+  branch = "master"
+  digest = "1:205a2b0e1480dca6664c9e16736685bf827d3e7cf3c329b29e9e1102c0e2ed30"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/apis",
@@ -1526,6 +1526,7 @@
     "pkg/mcclient/modules/k8s",
     "pkg/mcclient/modules/notify",
     "pkg/proxy",
+    "pkg/util/atexit",
     "pkg/util/choices",
     "pkg/util/hashcache",
     "pkg/util/httputils",
@@ -1537,7 +1538,7 @@
     "pkg/util/stringutils2",
   ]
   pruneopts = "UT"
-  revision = "b22bdf23cb6746acb69322422fbbefefab99f464"
+  revision = "92627f05a5f697a1c1318efd920424d30b1e3351"
 
 [[projects]]
   branch = "master"
@@ -1663,6 +1664,7 @@
     "k8s.io/apimachinery/pkg/util/proxy",
     "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/strategicpatch",
+    "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apiserver/pkg/authentication/user",
@@ -1671,13 +1673,17 @@
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
+    "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/restmapper",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
+    "k8s.io/client-go/tools/clientcmd/api",
     "k8s.io/client-go/util/cert",
     "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/homedir",
+    "k8s.io/cluster-bootstrap/token/api",
+    "k8s.io/cluster-bootstrap/token/util",
     "k8s.io/helm/cmd/helm/installer",
     "k8s.io/helm/pkg/chartutil",
     "k8s.io/helm/pkg/downloader",

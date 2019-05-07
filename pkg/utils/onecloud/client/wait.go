@@ -34,7 +34,7 @@ func (h *ResourceHelper) ObjectIsExists(id string) (jsonutils.JSONObject, error)
 }
 
 func (h *ResourceHelper) indexKey(id string) string {
-	return fmt.Sprintf("%s: %d", h.Manager.GetKeyword(), id)
+	return fmt.Sprintf("%s: %s", h.Manager.GetKeyword(), id)
 }
 
 func (h *ResourceHelper) WaitObjectCondition(
@@ -42,7 +42,7 @@ func (h *ResourceHelper) WaitObjectCondition(
 	doneF func(obj jsonutils.JSONObject) (bool, error),
 ) error {
 	interval := 5 * time.Second
-	timeout := 30 * time.Second
+	timeout := 10 * time.Minute
 	return wait.Poll(interval, timeout, func() (bool, error) {
 		obj, err := h.ObjectIsExists(id)
 		if err != nil {
@@ -85,6 +85,7 @@ func (h *ResourceHelper) WaitObjectDelete(id string, continueWait func(status st
 			if obj == nil {
 				return true, nil
 			}
+			log.Errorf("==========WaitObjectCondition: obj: %s", obj.PrettyString())
 			status, _ := obj.GetString("status")
 			if status == "" {
 				return false, fmt.Errorf("Object %s no status", obj.PrettyString())

@@ -3,15 +3,19 @@ package userdata
 const (
 	nodeCloudInit = `{{.Header}}
 write_files:
--   path: /tmp/kubeadm-node.yaml
+-   path: /etc/docker/daemon.json
+    owner: root:root
+    permissions: '0644'
+    encoding: "base64"
+    content: |
+      {{.DockerConfig | Base64Encode}}
+
+-   path: /run/kubeadm-node.yaml
     owner: root:root
     permissions: '0640'
     content: |
       ---
 {{.JoinConfiguration | Indent 6}}
-kubeadm:
-  operation: join
-  config: /tmp/kubeadm-node.yaml
 `
 )
 
@@ -19,6 +23,7 @@ kubeadm:
 type NodeInputCloudInit struct {
 	baseUserDataCloudInit
 
+	DockerConfig      string
 	JoinConfiguration string
 }
 
@@ -26,7 +31,8 @@ type NodeInputCloudInit struct {
 func NewNodeCloudInit(input *NodeInputCloudInit) (string, error) {
 	input.Header = cloudConfigHeader
 	fMap := map[string]interface{}{
-		"Indent": templateYAMLIndent,
+		"Base64Encode": templateBase64Encode,
+		"Indent":       templateYAMLIndent,
 	}
 	return generateWithFuncs("node", nodeCloudInit, fMap, input)
 }

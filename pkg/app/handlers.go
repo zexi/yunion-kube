@@ -59,11 +59,20 @@ func InitHandlers(app *appsrv.Application) {
 		models.NodeManager,
 		models.RepoManager,
 		clusters.ClusterManager,
+		clusters.X509KeyPairManager,
 		machines.MachineManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
 		dispatcher.AddModelDispatcher(apiPrefix, app, handler)
+	}
+
+	for _, man := range []db.IJointModelManager{
+		clusters.ClusterX509KeyPairManager,
+	} {
+		db.RegisterModelManager(man)
+		handler := db.NewJointModelHandler(man)
+		dispatcher.AddJointModelDispatcher(apiPrefix, app, handler)
 	}
 
 	for _, man := range []k8s.IK8sResourceManager{

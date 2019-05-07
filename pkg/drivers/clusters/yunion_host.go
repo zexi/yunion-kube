@@ -5,26 +5,24 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeadmconfig "k8s.io/kubernetes/cmd/kubeadm/app/util/config"
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	//clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
@@ -61,8 +59,8 @@ func (d *SYunionHostDriver) GetK8sVersions() []string {
 	}
 }
 
-func (d *SYunionHostDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	if err := d.sClusterAPIDriver.ValidateCreateData(userCred, ownerProjId, query, data); err != nil {
+func (d *SYunionHostDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerProjId, query, data); err != nil {
 		return err
 	}
 	return yunion_host.ValidateClusterCreateData(data)
@@ -98,7 +96,7 @@ func (d *SYunionHostDriver) PreCreateClusterResource(s *mcclient.ClientSession, 
 		return nil
 	}
 	ms := data.Machines
-	controls, _ := yunion_host.GetControlplaneMachineDatas(nil, ms)
+	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
 	if len(controls) == 0 {
 		return fmt.Errorf("Empty controlplane machines")
 	}
@@ -121,105 +119,19 @@ func (d *SYunionHostDriver) PreCreateClusterResource(s *mcclient.ClientSession, 
 	return nil
 }
 
-func (d *SYunionHostDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
-	k8sCli, err := man.GetGlobalK8sClient()
-	if err != nil {
+func (d *SYunionHostDriver) ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+	if _, _, err := d.sClusterAPIDriver.ValidateCreateMachines(ctx, userCred, cluster, data); err != nil {
 		return err
 	}
-	namespace := data.Namespace
-	if err := d.EnsureNamespace(k8sCli, namespace); err != nil {
-		return err
-	}
-
-	clusterSpec := &providerv1.OneCloudClusterProviderSpec{}
-
-	if !data.HA {
-		controls, _ := yunion_host.GetControlplaneMachineDatas(nil, data.Machines)
-		if len(controls) == 0 {
-			return fmt.Errorf("Empty controlplane machines")
-		}
-		firstControl := controls[0]
-		session, err := man.GetSession()
-		if err != nil {
-			return err
-		}
-		privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
-		if err != nil {
-			return err
-		}
-		ret, err := yunion_host.ValidateHostId(session, privateKey, firstControl.ResourceId)
-		if err != nil {
-			return err
-		}
-		controlIP, err := ret.GetString("access_ip")
-		if err != nil {
-			return err
-		}
-		clusterSpec.NetworkSpec = providerv1.NetworkSpec{
-			StaticLB: &providerv1.StaticLB{IPAddress: controlIP},
-		}
-	}
-
-	providerValue, err := providerv1.EncodeClusterSpec(clusterSpec)
-	if err != nil {
-		return err
-	}
-
-	cluster := &clusterv1.Cluster{
-		ObjectMeta: v1.ObjectMeta{
-			Name: data.Name,
-		},
-		Spec: clusterv1.ClusterSpec{
-			ClusterNetwork: clusterv1.ClusterNetworkingConfig{
-				Services:      clusterv1.NetworkRanges{[]string{data.ServiceCidr}},
-				Pods:          clusterv1.NetworkRanges{[]string{data.PodCidr}},
-				ServiceDomain: data.ServiceDomain,
-			},
-			ProviderSpec: clusterv1.ProviderSpec{
-				Value: providerValue,
-			},
-		},
-	}
-	cli, err := clusters.ClusterManager.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if _, err := cli.ClusterV1alpha1().Clusters(namespace).Create(cluster); err != nil {
-		return err
-	}
-	return nil
+	return yunion_host.ValidateCreateMachines(data)
 }
 
-func (d *SYunionHostDriver) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
-	if err := yunion_host.ValidateAddMachines(cluster, data); err != nil {
-		return err
-	}
-	return d.sClusterAPIDriver.ValidateAddMachines(ctx, userCred, cluster, data)
-}
-
-func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 
 func (d *SYunionHostDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
 	return d.sClusterAPIDriver.RequestDeployMachines(d, ctx, userCred, cluster, ms, task)
-}
-
-func (d *SYunionHostDriver) ValidateAddMachine(cluster *clusters.SCluster, machine *types.CreateMachineData) error {
-	if err := yunion_host.ValidateAddMachines(cluster, []*types.CreateMachineData{machine}); err != nil {
-		return err
-	}
-	cli, err := clusters.ClusterManager.GetGlobalClient()
-	if err != nil {
-		return httperrors.NewInternalServerError("Get global kubernetes cluster client: %v", err)
-	}
-	if _, err := cli.ClusterV1alpha1().Machines(machine.Name).Get(machine.Name, v1.GetOptions{}); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-	return httperrors.NewDuplicateResourceError("Machine %s", machine.Name)
 }
 
 func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
@@ -233,7 +145,7 @@ func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (strin
 		Region:             o.Region,
 		KubeCluster:        cluster.Name,
 		CNIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/cni:v2.7.0",
-		CloudProviderImage: "registry.cn-beijing.aliyuncs.com/yunionio/cloud-controller-manager:v2.7.0",
+		CloudProviderImage: "registry.cn-beijing.aliyuncs.com/yunionio/yunion-cloud-controller-manager:v2.9.0",
 		CSIAttacher:        "registry.cn-beijing.aliyuncs.com/yunionio/csi-attacher:v0.4.0",
 		CSIProvisioner:     "registry.cn-beijing.aliyuncs.com/yunionio/csi-provisioner:v0.4.0",
 		CSIRegistrar:       "registry.cn-beijing.aliyuncs.com/yunionio/driver-registrar:v0.4.0",
@@ -260,13 +172,17 @@ func (d *SYunionHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) 
 }
 
 func (d *SYunionHostDriver) GetClusterEtcdClient(cluster *clusters.SCluster) (*etcd.Client, error) {
-	spec, err := d.GetClusterAPIClusterSpec(cluster)
+	//spec, err := d.GetClusterAPIClusterSpec(cluster)
+	//if err != nil {
+	//return nil, err
+	//}
+	spec, err := cluster.GetEtcdCAKeyPair()
 	if err != nil {
 		return nil, err
 	}
-	ca := string(spec.EtcdCAKeyPair.Cert)
-	cert := string(spec.EtcdCAKeyPair.Cert)
-	key := string(spec.EtcdCAKeyPair.Key)
+	ca := spec.Certificate
+	cert := spec.Certificate
+	key := spec.PrivateKey
 	if err != nil {
 		return nil, err
 	}
@@ -372,17 +288,12 @@ func (d *SYunionHostDriver) RemoveEtcdMembers(cluster *clusters.SCluster, ms []m
 	return nil
 }
 
-func (d *SYunionHostDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine) error {
-	if err := d.CleanNodeRecords(cluster, ms); err != nil {
-		return err
-	}
+func (d *SYunionHostDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+	//if err := d.CleanNodeRecords(cluster, ms); err != nil {
+	//return err
+	//}
 	if err := d.RemoveEtcdMembers(cluster, ms); err != nil {
 		return err
 	}
-	for _, m := range ms {
-		if err := m.(*machines.SMachine).StartMachineDeleteTask(ctx, userCred, nil, ""); err != nil {
-			return err
-		}
-	}
-	return nil
+	return d.sClusterAPIDriver.RequestDeleteMachines(ctx, userCred, cluster, ms, task)
 }

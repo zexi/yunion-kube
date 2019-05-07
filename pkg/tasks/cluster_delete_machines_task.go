@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -47,21 +48,20 @@ func (t *ClusterDeleteMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 		t.OnError(ctx, cluster, err)
 		return
 	}
-	//t.SetStage("OnDeleteMachines", nil)
-	if err := cluster.GetDriver().RequestDeleteMachines(ctx, t.UserCred, cluster, ms); err != nil {
+	t.SetStage("OnDeleteMachines", nil)
+	if err := cluster.GetDriver().RequestDeleteMachines(ctx, t.UserCred, cluster, ms, t); err != nil {
 		t.OnError(ctx, cluster, err)
 		return
 	}
+}
+
+func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
 }
 
-//func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
-
-//}
-
-//func (t *ClusterDeleteMachinesTask) OnDeleteMachinesFailed(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
-//t.OnError(ctx, cluster, fmt.Errorf(data.String()))
-//}
+func (t *ClusterDeleteMachinesTask) OnDeleteMachinesFailed(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+	t.OnError(ctx, cluster, fmt.Errorf(data.String()))
+}
 
 func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *clusters.SCluster, err error) {
 	cluster.SetStatus(t.UserCred, types.ClusterStatusError, err.Error())

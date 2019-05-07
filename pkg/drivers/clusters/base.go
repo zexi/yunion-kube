@@ -2,12 +2,15 @@ package clusters
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/pkg/errors"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 )
@@ -26,12 +29,12 @@ func (d *sBaseDriver) ValidateDeleteCondition() error {
 	return nil
 }
 
-func (d *sBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
-	// do nothing
-	return nil
+func (d *sBaseDriver) NeedGenerateCertificate() bool {
+	return false
 }
 
-func (d *sBaseDriver) ValidateAddMachine(man *clusters.SClusterManager, machine *types.CreateMachineData) error {
+func (d *sBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
+	// do nothing
 	return nil
 }
 
@@ -43,12 +46,29 @@ func (d *sBaseDriver) UseClusterAPI() bool {
 	return false
 }
 
-func (d *sBaseDriver) RequestDeleteCluster(c *clusters.SCluster) error {
-	return fmt.Errorf("Not supported")
-}
-
-func (d *sBaseDriver) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
-	return nil
+func (d *sBaseDriver) ValidateCreateMachines(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	cluster *clusters.SCluster,
+	data []*types.CreateMachineData,
+) ([]*types.CreateMachineData, []*types.CreateMachineData, error) {
+	var needControlplane bool
+	var err error
+	var clusterId string
+	if cluster != nil {
+		clusterId = cluster.GetId()
+		needControlplane, err = cluster.NeedControlplane()
+	}
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "check cluster need controlplane")
+	}
+	controls, nodes := drivers.GetControlplaneMachineDatas(clusterId, data)
+	if needControlplane {
+		if len(controls) == 0 {
+			return nil, nil, httperrors.NewInputParameterError("controlplane node must created")
+		}
+	}
+	return controls, nodes, nil
 }
 
 func (d *sBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {

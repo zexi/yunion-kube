@@ -622,10 +622,11 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 	if err != nil {
 		return err
 	}
-	if v2c, err := c.GetV2Cluster(); err == nil {
-		if config, err := c.GetAdminKubeconfig(); err == nil {
-			v2c.SetKubeconfig(config)
-		}
+	if _, err := c.GetV2Cluster(); err == nil {
+		// TODO: set certificates
+		//if config, err := c.GetAdminKubeconfig(); err == nil {
+		//v2c.SetKubeconfig(config)
+		//}
 	}
 	return nil
 }
@@ -1554,19 +1555,24 @@ func (c *SCluster) IsNonSystemClustersEmpty() (bool, error) {
 }
 
 func (c *SCluster) GetNonSystemClustersCount() (int, error) {
-	clusters, err := manager.ClusterManager().GetNonSystemClusters()
-	if err != nil {
-		return 0, err
-	}
-	return len(clusters), nil
+	//clusters, err := manager.ClusterManager().GetNonSystemClusters()
+	//if err != nil {
+	//return 0, err
+	//}
+	//return len(clusters), nil
+	return 0, nil
 }
 
 func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return c.PerformDeleteNodesWithTaskId(ctx, userCred, query, data, "")
+}
+
+func (c *SCluster) PerformDeleteNodesWithTaskId(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject, parentTaskId string) (jsonutils.JSONObject, error) {
 	nodes, err := c.ValidateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
 	if err != nil {
 		return nil, err
 	}
-	c.StartClusterDeleteNodesTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
+	c.StartClusterDeleteNodesTask(ctx, userCred, FetchClusterDeployTaskData(nodes), parentTaskId)
 	return nil, nil
 }
 
