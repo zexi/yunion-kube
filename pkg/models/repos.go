@@ -81,6 +81,10 @@ func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery,
 	return man.SStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
 }
 
+func (man *SRepoManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivelege()
+}
+
 func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	name, _ := data.GetString("name")
 	if name == "" {
