@@ -162,23 +162,23 @@ func validateDockerConfig(data *jsonutils.JSONDict) error {
 }
 
 func (m *SNodeManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (m *SNodeManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (n *SNode) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (n *SNode) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (n *SNode) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }
 
 func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {

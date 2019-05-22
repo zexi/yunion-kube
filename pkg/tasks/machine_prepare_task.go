@@ -8,6 +8,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 )
@@ -24,8 +25,8 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	machine := obj.(*machines.SMachine)
 	param := t.GetParams()
 
-	prepareData := machines.MachinePrepareData{}
-	if err := param.Unmarshal(&prepareData); err != nil {
+	prepareData := new(apis.MachinePrepareInput)
+	if err := param.Unmarshal(prepareData); err != nil {
 		t.OnError(ctx, machine, err)
 		return
 	}
@@ -37,7 +38,8 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 		t.OnError(ctx, machine, err)
 		return
 	}
-	_, err = driver.PrepareResource(session, machine, &prepareData)
+	log.Errorf("=======start PrepareResource: %#v", prepareData)
+	_, err = driver.PrepareResource(session, machine, prepareData)
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
@@ -45,12 +47,12 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	machine.SetStatus(t.UserCred, types.MachineStatusRunning, "")
 
 	log.Infof("Prepare machine complete")
-	cluster, err := machine.GetCluster()
-	if err != nil {
-		t.OnError(ctx, machine, err)
-		return
-	}
-	cluster.StartSyncStatus(ctx, t.UserCred, "")
+	//cluster, err := machine.GetCluster()
+	//if err != nil {
+	//t.OnError(ctx, machine, err)
+	//return
+	//}
+	//cluster.StartSyncStatus(ctx, t.UserCred, "")
 	t.SetStageComplete(ctx, nil)
 }
 

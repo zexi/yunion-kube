@@ -1,8 +1,23 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
 	"context"
 	"fmt"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/utils"
 
@@ -28,7 +43,7 @@ func (model *SStatusStandaloneResourceBase) SetStatus(userCred mcclient.TokenCre
 		return nil
 	}
 	oldStatus := model.Status
-	_, err := model.GetModelManager().TableSpec().Update(model, func() error {
+	_, err := Update(model, func() error {
 		model.Status = status
 		return nil
 	})
@@ -41,9 +56,6 @@ func (model *SStatusStandaloneResourceBase) SetStatus(userCred mcclient.TokenCre
 			notes = fmt.Sprintf("%s: %s", notes, reason)
 		}
 		OpsLog.LogEvent(model, ACT_UPDATE_STATUS, notes, userCred)
-		// if strings.Contains(notes, "fail") {
-		//	logclient.AddActionLog(model, logclient.ACT_VM_SYNC_STATUS, notes, userCred, false)
-		// }
 	}
 	return nil
 }
@@ -64,4 +76,14 @@ func (model *SStatusStandaloneResourceBase) PerformStatus(ctx context.Context, u
 
 func (model *SStatusStandaloneResourceBase) IsInStatus(status ...string) bool {
 	return utils.IsInStringArray(model.Status, status)
+}
+
+func (model *SStatusStandaloneResourceBase) AllowGetDetailsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return IsAdminAllowGetSpec(userCred, model, "status")
+}
+
+func (model *SStatusStandaloneResourceBase) GetDetailsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewString(model.Status), "status")
+	return ret, nil
 }

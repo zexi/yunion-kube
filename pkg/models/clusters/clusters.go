@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -24,10 +27,13 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
+	"yunion.io/x/yunion-kube/pkg/utils/certificates"
+	"yunion.io/x/yunion-kube/pkg/utils/tokens"
 )
 
 var ClusterManager *SClusterManager
@@ -53,6 +59,7 @@ type SCluster struct {
 
 	ClusterType   string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	CloudType     string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
+	ResourceType  string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	Mode          string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	Provider      string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	ServiceCidr   string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
@@ -61,8 +68,24 @@ type SCluster struct {
 	Version       string            `width:"128" charset:"ascii" nullable:"false" create:"optional" list:"user"`
 	Namespace     string            `nullable:"true" create:"optional" list:"user"`
 	Ha            tristate.TriState `nullable:"true" create:"required" list:"user"`
-	Kubeconfig    string            `nullable:"true" create:"optional"`
 	IsPublic      bool              `default:"false" nullable:"false" index:"true" create:"admin_optional" list:"user" update:"user"`
+}
+
+func (m *SClusterManager) InitializeData() error {
+	clusters := []SCluster{}
+	q := m.Query().IsNullOrEmpty("resource_type")
+	err := db.FetchModelObjects(m, q, &clusters)
+	if err != nil {
+		return err
+	}
+	for _, cluster := range clusters {
+		tmp := &cluster
+		db.Update(tmp, func() error {
+			tmp.ResourceType = string(types.ClusterResourceTypeHost)
+			return nil
+		})
+	}
+	return nil
 }
 
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
@@ -112,6 +135,11 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, httperrors.NewInputParameterError("Invalid cloud type: %q", cloudType)
 	}
 
+	resType := SetJSONDataDefault(data, "resource_type", string(types.ClusterResourceTypeHost))
+	if err := ValidateResourceType(resType); err != nil {
+		return nil, err
+	}
+
 	modeType = SetJSONDataDefault(data, "mode", string(types.ModeTypeSelfBuild))
 	if !utils.IsInStringArray(modeType, []string{
 		string(types.ModeTypeSelfBuild),
@@ -135,16 +163,9 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, httperrors.NewInputParameterError("service domain must provided")
 	}
 
-	driver := GetDriver(types.ProviderType(providerType))
-	if err := driver.ValidateCreateData(userCred, ownerId, query, data); err != nil {
-		return nil, err
-	}
-
-	versions := driver.GetK8sVersions()
-	defaultVersion := versions[0]
-	version := SetJSONDataDefault(data, "version", defaultVersion)
-	if !utils.IsInStringArray(version, versions) {
-		return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", version, versions)
+	podCidr := SetJSONDataDefault(data, "pod_cidr", types.DefaultPodCIDR)
+	if _, err := netutils.NewIPV4Prefix(serviceCidr); err != nil {
+		return nil, httperrors.NewInputParameterError("Invalid pod CIDR: %q", podCidr)
 	}
 
 	if jsonutils.QueryBoolean(data, "ha", false) {
@@ -162,11 +183,29 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, httperrors.NewInputParameterError("Machines desc not provider")
 	}
 
-	// TODO: support namespace by userCred??
-	res.Namespace = res.Name
+	var machineResType types.MachineResourceType
+	for _, m := range res.Machines {
+		if len(m.ResourceType) == 0 {
+			return nil, httperrors.NewInputParameterError("Machine resource type is empty")
+		}
+		if len(machineResType) == 0 {
+			machineResType = types.MachineResourceType(m.ResourceType)
+		}
+		if string(machineResType) != m.ResourceType {
+			return nil, httperrors.NewInputParameterError("Machine resource type must same")
+		}
+	}
 
-	if err := driver.CreateClusterResource(m, &res); err != nil {
-		return nil, httperrors.NewGeneralError(err)
+	driver := GetDriver(types.ProviderType(providerType), types.ClusterResourceType(resType))
+	if err := driver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
+		return nil, err
+	}
+
+	versions := driver.GetK8sVersions()
+	defaultVersion := versions[0]
+	version := SetJSONDataDefault(data, "version", defaultVersion)
+	if !utils.IsInStringArray(version, versions) {
+		return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", version, versions)
 	}
 
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
@@ -186,12 +225,37 @@ func ValidateProviderType(providerType string) error {
 	return nil
 }
 
-func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func ValidateResourceType(resType string) error {
+	if !utils.IsInStringArray(resType, []string{
+		string(types.ClusterResourceTypeHost),
+		string(types.ClusterResourceTypeGuest),
+	}) {
+		return httperrors.NewInputParameterError("Invalid cluster resource type: %q", resType)
+	}
+	return nil
+}
+
+func GetDriverByQuery(query jsonutils.JSONObject) (IClusterDriver, error) {
 	providerType, _ := query.GetString("provider")
+	resType, _ := query.GetString("resource_type")
 	if err := ValidateProviderType(providerType); err != nil {
 		return nil, err
 	}
-	driver := GetDriver(types.ProviderType(providerType))
+	if len(resType) == 0 {
+		resType = string(types.ClusterResourceTypeHost)
+	}
+	if err := ValidateResourceType(resType); err != nil {
+		return nil, err
+	}
+	driver := GetDriver(types.ProviderType(providerType), types.ClusterResourceType(resType))
+	return driver, nil
+}
+
+func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	driver, err := GetDriverByQuery(query)
+	if err != nil {
+		return nil, err
+	}
 	versions := driver.GetK8sVersions()
 	ret := jsonutils.Marshal(versions)
 	return ret, nil
@@ -210,7 +274,7 @@ func (m *SClusterManager) PerformCheckSystemReady(ctx context.Context, userCred 
 }
 
 func (m *SClusterManager) IsSystemClusterReady() (bool, error) {
-	systemCluster, err := m.GetV1SystemCluster()
+	/*systemCluster, err := m.GetV1SystemCluster()
 	if err != nil {
 		return false, err
 	}
@@ -230,7 +294,7 @@ func (m *SClusterManager) IsSystemClusterReady() (bool, error) {
 	if err != nil {
 		return false, httperrors.NewNotAcceptableError("Can't create k8s client to system cluster: %v", err)
 	}
-	//info, err := cli.Discovery().ServerVersion()
+	//info, err := cli.Discovery().ServerVersion()*/
 	return true, nil
 }
 
@@ -239,11 +303,10 @@ func (m *SClusterManager) AllowGetPropertyUsableInstances(ctx context.Context, u
 }
 
 func (m *SClusterManager) GetPropertyUsableInstances(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	providerType, _ := query.GetString("provider")
-	if err := ValidateProviderType(providerType); err != nil {
+	driver, err := GetDriverByQuery(query)
+	if err != nil {
 		return nil, err
 	}
-	driver := GetDriver(types.ProviderType(providerType))
 	session, err := m.GetSession()
 	if err != nil {
 		return nil, err
@@ -267,7 +330,7 @@ func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id 
 	return obj.(*SCluster), true, nil
 }
 
-func (m *SClusterManager) GetNonSystemClusters() ([]manager.ICluster, error) {
+/*func (m *SClusterManager) GetNonSystemClusters() ([]manager.ICluster, error) {
 	clusters := m.Query().SubQuery()
 	q := clusters.Query().Filter(sqlchemy.NotEquals(clusters.Field("provider"), string(types.ProviderTypeSystem)))
 	objs := make([]SCluster, 0)
@@ -280,7 +343,7 @@ func (m *SClusterManager) GetNonSystemClusters() ([]manager.ICluster, error) {
 		ret[i] = &objs[i]
 	}
 	return ret, nil
-}
+}*/
 
 func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (manager.ICluster, error) {
 	cluster, err := m.FetchByIdOrName(userCred, id)
@@ -291,42 +354,6 @@ func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredenti
 		return nil, err
 	}
 	return cluster.(*SCluster), nil
-}
-
-func (m *SClusterManager) GetGlobalClientConfig() (*rest.Config, error) {
-	cluster, err := models.ClusterManager.FetchClusterByIdOrName(nil, "default")
-	if err != nil {
-		return nil, err
-	}
-	return cluster.GetK8sRestConfig()
-}
-
-func (m *SClusterManager) GetGlobalK8sClient() (*kubernetes.Clientset, error) {
-	config, err := m.GetGlobalClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	return kubernetes.NewForConfig(config)
-}
-
-func (m *SClusterManager) GetGlobalClient() (*clientset.Clientset, error) {
-	conf, err := m.GetGlobalClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	return clientset.NewForConfig(conf)
-}
-
-func (m *SClusterManager) GetV1SystemCluster() (*models.SCluster, error) {
-	return models.ClusterManager.FetchClusterByIdOrName(nil, types.DefaultCluster)
-}
-
-func (m *SClusterManager) GetSystemCluster() (*SCluster, error) {
-	obj, err := m.FetchByIdOrName(nil, types.DefaultCluster)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*SCluster), nil
 }
 
 func (m *SClusterManager) GetCluster(id string) (*SCluster, error) {
@@ -376,7 +403,7 @@ func (c *SCluster) PerformPrivate(ctx context.Context, userCred mcclient.TokenCr
 }
 
 func (c *SCluster) GetDriver() IClusterDriver {
-	return GetDriver(types.ProviderType(c.Provider))
+	return GetDriver(types.ProviderType(c.Provider), types.ClusterResourceType(c.ResourceType))
 }
 
 func (c *SCluster) GetMachinesCount() (int, error) {
@@ -410,19 +437,143 @@ func (c *SCluster) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict 
 	return extra
 }
 
-func (c *SCluster) ValidateAddMachine(machine *types.CreateMachineData) error {
-	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusInit, types.ClusterStatusCreating, types.ClusterStatusRunning}) {
-		return httperrors.NewNotAcceptableError("Can't add machine when cluster status is %s", c.Status)
-	}
-	driver := c.GetDriver()
-	return driver.ValidateAddMachine(c, machine)
+type CertificatesGroup struct {
+	CAKeyPair           *SX509KeyPair
+	EtcdCAKeyPair       *SX509KeyPair
+	FrontProxyCAKeyPair *SX509KeyPair
+	SAKeyPair           *SX509KeyPair
 }
 
-func (c *SCluster) GetNamespace() string {
-	if c.Namespace == "" {
-		return c.Name
+func (c *SCluster) GetCertificatesGroup() (*CertificatesGroup, error) {
+	caKp, err := c.GetCAKeyPair()
+	if err != nil {
+		return nil, errors.Wrap(err, "get CAKeyPair")
 	}
-	return c.Namespace
+	etcdKp, err := c.GetEtcdCAKeyPair()
+	if err != nil {
+		return nil, errors.Wrap(err, "get EtcdCAKeyPair")
+	}
+	fpKp, err := c.GetFrontProxyCAKeyPair()
+	if err != nil {
+		return nil, errors.Wrap(err, "get FrontProxyCAKeyPair")
+	}
+	saKp, err := c.GetSAKeyPair()
+	if err != nil {
+		return nil, errors.Wrap(err, "get ServiceAccount KeyPair")
+	}
+	return &CertificatesGroup{
+		CAKeyPair:           caKp,
+		EtcdCAKeyPair:       etcdKp,
+		FrontProxyCAKeyPair: fpKp,
+		SAKeyPair:           saKp,
+	}, nil
+}
+
+func (c *SCluster) FillMachinePrepareInput(input *apis.MachinePrepareInput) (*apis.MachinePrepareInput, error) {
+	cg, err := c.GetCertificatesGroup()
+	if err != nil {
+		return nil, errors.Wrap(err, "get certificates group")
+	}
+	input.CAKeyPair = cg.CAKeyPair.ToKeyPair()
+	input.EtcdCAKeyPair = cg.EtcdCAKeyPair.ToKeyPair()
+	input.FrontProxyCAKeyPair = cg.FrontProxyCAKeyPair.ToKeyPair()
+	input.SAKeyPair = cg.SAKeyPair.ToKeyPair()
+	if !input.FirstNode {
+		bootstrapToken, err := c.GetNodeJoinToken()
+		if err != nil {
+			return nil, errors.Wrapf(err, "get %s node join token", input.Role)
+		}
+		input.BootstrapToken = bootstrapToken
+	}
+	// TODO: support lb
+	return input, nil
+}
+
+func (c *SCluster) GetNodeJoinToken() (string, error) {
+	kubeConfig, err := c.GetKubeconfig()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to retrieve kubeconfig for cluster %q", c.GetName())
+	}
+	controlPlaneURL, err := c.GetControlPlaneUrl()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get controlPlaneURL")
+	}
+	clientConfig, err := clientcmd.BuildConfigFromKubeconfigGetter(controlPlaneURL, func() (*clientcmdapi.Config, error) {
+		return clientcmd.Load([]byte(kubeConfig))
+	})
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to get client config for cluster at %q", controlPlaneURL)
+	}
+
+	coreClient, err := corev1.NewForConfig(clientConfig)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to initialize new corev1 client")
+	}
+
+	bootstrapToken, err := tokens.NewBootstrap(coreClient, 30*time.Minute)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to create new bootstrap token")
+	}
+	return bootstrapToken, nil
+}
+
+func (c *SCluster) AttachKeypair(ctx context.Context, userCred mcclient.TokenCredential, keypair *SX509KeyPair) error {
+	attached, err := c.IsAttachKeypair(keypair)
+	if err != nil {
+		return errors.Wrapf(err, "check keypair %s attached to cluster %s", keypair.GetName(), c.GetName())
+	}
+	if attached {
+		return errors.Errorf("Cluster %s already attached keypair %s", c.GetName(), keypair.GetName())
+	}
+	model, err := db.NewModelObject(ClusterX509KeyPairManager)
+	if err != nil {
+		return errors.Wrapf(err, "new cluster %s keypair %s obj", c.GetName(), keypair.GetName())
+	}
+
+	clusterKeypair := model.(*SClusterX509KeyPair)
+	clusterKeypair.ClusterId = c.GetId()
+	clusterKeypair.KeypairId = keypair.GetId()
+	clusterKeypair.User = keypair.User
+	return ClusterX509KeyPairManager.TableSpec().Insert(clusterKeypair)
+}
+
+func (c *SCluster) IsAttachKeypair(kp *SX509KeyPair) (bool, error) {
+	q := ClusterX509KeyPairManager.Query().Equals("keypair_id", kp.GetId()).Equals("cluster_id", c.GetId())
+	cnt, err := q.CountWithError()
+	if err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
+}
+
+func (c *SCluster) GenerateCertificates(ctx context.Context, userCred mcclient.TokenCredential) error {
+	if !c.GetDriver().NeedGenerateCertificate() {
+		return nil
+	}
+	clusterCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, apis.ClusterCA)
+	if err != nil {
+		return errors.Wrapf(err, "Generate %s certificate", apis.ClusterCA)
+	}
+	infof := func(kp *SX509KeyPair) {
+		log.Infof("Generate cluster %s %s certificate", c.GetName(), kp.GetName())
+	}
+	infof(clusterCAKeyPair)
+	etcdCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, apis.EtcdCA)
+	if err != nil {
+		return errors.Wrapf(err, "Generate %s certificate", apis.EtcdCA)
+	}
+	infof(etcdCAKeyPair)
+	fpCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, apis.FrontProxyCA)
+	if err != nil {
+		return errors.Wrapf(err, "Generate %s certificate", apis.FrontProxyCA)
+	}
+	infof(fpCAKeyPair)
+	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, apis.ServiceAccount)
+	if err != nil {
+		return errors.Wrapf(err, "Generate ServiceAccount key %s", apis.ServiceAccount)
+	}
+	infof(saKeyPair)
+	return nil
 }
 
 func (c *SCluster) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
@@ -478,6 +629,9 @@ func (c *SCluster) Delete(ctx context.Context, userCred mcclient.TokenCredential
 }
 
 func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	if err := X509KeyPairManager.DeleteKeyPairsByCluster(ctx, userCred, c); err != nil {
+		return errors.Wrapf(err, "DeleteKeyPairsByCluster")
+	}
 	return c.SVirtualResourceBase.Delete(ctx, userCred)
 }
 
@@ -565,16 +719,70 @@ func (c *SCluster) GetMachines() ([]manager.IMachine, error) {
 	return manager.MachineManager().GetMachines(c.Id)
 }
 
+func (c *SCluster) getKeyPairByUser(user string) (*SX509KeyPair, error) {
+	return ClusterX509KeyPairManager.GetKeyPairByClusterUser(c.GetId(), user)
+}
+
+func (c *SCluster) GetCAKeyPair() (*SX509KeyPair, error) {
+	return c.getKeyPairByUser(apis.ClusterCA)
+}
+
+func (c *SCluster) GetEtcdCAKeyPair() (*SX509KeyPair, error) {
+	return c.getKeyPairByUser(apis.EtcdCA)
+}
+
+func (c *SCluster) GetFrontProxyCAKeyPair() (*SX509KeyPair, error) {
+	return c.getKeyPairByUser(apis.FrontProxyCA)
+}
+
+func (c *SCluster) GetSAKeyPair() (*SX509KeyPair, error) {
+	return c.getKeyPairByUser(apis.ServiceAccount)
+}
+
 func (c *SCluster) GetKubeconfig() (string, error) {
-	// TODO: check kubeconfig
-	if len(c.Kubeconfig) != 0 {
-		return c.Kubeconfig, nil
-	}
-	kubeconfig, err := c.GetDriver().GetKubeconfig(c)
+	//// TODO: check kubeconfig
+	//if len(c.Kubeconfig) != 0 {
+	//return c.Kubeconfig, nil
+	//}
+	//kubeconfig, err := c.GetDriver().GetKubeconfig(c)
+	//if err != nil {
+	//return "", err
+	//}
+	//return kubeconfig, c.SetKubeconfig(kubeconfig)
+	caKpObj, err := c.GetCAKeyPair()
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(err, "Get CA key pair")
 	}
-	return kubeconfig, c.SetKubeconfig(kubeconfig)
+	caKp := caKpObj.ToKeyPair()
+	cert, err := certificates.DecodeCertPEM(caKp.Cert)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decode CA Cert")
+	} else if cert == nil {
+		return "", errors.New("certificate not found")
+	}
+
+	key, err := certificates.DecodePrivateKeyPEM(caKp.Key)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decode private key")
+	} else if key == nil {
+		return "", errors.New("key not foudn in status")
+	}
+	controlPlaneURL, err := c.GetControlPlaneUrl()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get controlPlaneURL")
+	}
+
+	cfg, err := certificates.NewKubeconfig(c.GetName(), controlPlaneURL, cert, key)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to generate a kubeconfig")
+	}
+
+	yaml, err := clientcmd.Write(*cfg)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to serialize config to yaml")
+	}
+
+	return string(yaml), nil
 }
 
 func (c *SCluster) SetK8sVersion(version string) error {
@@ -585,13 +793,13 @@ func (c *SCluster) SetK8sVersion(version string) error {
 	return err
 }
 
-func (c *SCluster) SetKubeconfig(kubeconfig string) error {
-	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
-		c.Kubeconfig = kubeconfig
-		return nil
-	})
-	return err
-}
+//func (c *SCluster) SetKubeconfig(kubeconfig string) error {
+//_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+//c.Kubeconfig = kubeconfig
+//return nil
+//})
+//return err
+//}
 
 func (c *SCluster) GetDetailsKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	conf, err := c.GetKubeconfig()
@@ -634,30 +842,26 @@ func (c *SCluster) PerformApplyAddons(ctx context.Context, userCred mcclient.Tok
 	return nil, nil
 }
 
+func (c *SCluster) AllowGetDetailsAddons(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return c.AllowGetDetails(ctx, userCred, query)
+}
+
+func (c *SCluster) GetDetailsAddons(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	addons, err := c.GetDriver().GetAddonsManifest(c)
+	if err != nil {
+		return nil, err
+	}
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewString(addons), "addons")
+	return ret, nil
+}
+
 func (c *SCluster) StartApplyAddonsTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterApplyAddonsTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
 	}
 	task.ScheduleRun(nil)
-	return nil
-}
-
-func (c *SCluster) DeleteMachines(ctx context.Context, userCred mcclient.TokenCredential) error {
-	machines, err := c.GetMachines()
-	if err != nil {
-		return err
-	}
-	var errgrp errgroup.Group
-	for _, m := range machines {
-		tmpM := m
-		errgrp.Go(func() error {
-			return tmpM.DoSyncDelete(ctx, userCred)
-		})
-	}
-	if err := errgrp.Wait(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -677,65 +881,64 @@ func (c *SCluster) AllowPerformAddMachines(ctx context.Context, userCred mcclien
 	return c.allowPerformAction(userCred, query, data)
 }
 
-func FetchMachinesByCreateData(cluster *SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
-	ret := make([]manager.IMachine, 0)
-	ms, err := cluster.GetMachines()
-	if err != nil {
-		return nil, err
-	}
-	for _, d := range data {
-		for _, m := range ms {
-			if d.ResourceId == m.GetResourceId() {
-				ret = append(ret, m)
-				break
-			}
-		}
-	}
-	if len(data) != len(ret) {
-		return nil, fmt.Errorf("Need %d created machines, only find: %d", len(data), len(ret))
-	}
-	return ret, nil
-}
-
-func FetchMachineIdsByCreateData(cluster *SCluster, data []*types.CreateMachineData) ([]string, error) {
-	ms, err := FetchMachinesByCreateData(cluster, data)
-	if err != nil {
-		return nil, err
-	}
-	ret := make([]string, 0)
-	for _, m := range ms {
-		ret = append(ret, m.GetId())
-	}
-	return ret, nil
-}
-
-func (c *SCluster) PerformAddMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusRunning, types.ClusterStatusInit}) {
-		return nil, httperrors.NewNotAcceptableError("Cluster status is %s", c.Status)
-	}
-	ms := []types.CreateMachineData{}
-	if err := data.Unmarshal(&ms, "machines"); err != nil {
-		return nil, err
-	}
+func (c *SCluster) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []types.CreateMachineData) ([]*types.CreateMachineData, error) {
 	machines := make([]*types.CreateMachineData, len(ms))
 	for i := range ms {
 		machines[i] = &ms[i]
 	}
 	driver := c.GetDriver()
-	if err := driver.ValidateAddMachines(ctx, userCred, c, machines); err != nil {
+	if err := driver.ValidateCreateMachines(ctx, userCred, c, machines); err != nil {
 		return nil, err
 	}
+	return machines, nil
+}
 
-	if err := driver.CreateMachines(ctx, userCred, c, machines); err != nil {
+func (c *SCluster) PerformAddMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	ms := []types.CreateMachineData{}
+	if err := data.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
 	}
+	if !utils.IsInStringArray(c.Status, []string{types.ClusterStatusRunning, types.ClusterStatusInit}) {
+		return nil, httperrors.NewNotAcceptableError("Cluster status is %s", c.Status)
+	}
 
-	ids, err := FetchMachineIdsByCreateData(c, machines)
+	machines, err := c.ValidateAddMachines(ctx, userCred, ms)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, c.StartDeployMachinesTask(ctx, userCred, ids, "")
+	return nil, c.StartCreateMachinesTask(ctx, userCred, machines, "")
+}
+
+func (c *SCluster) NeedControlplane() (bool, error) {
+	ms, err := c.GetMachines()
+	if err != nil {
+		return false, errors.Wrapf(err, "get cluster %s machines", c.GetName())
+	}
+	if len(ms) == 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (c *SCluster) StartCreateMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, machines []*types.CreateMachineData, parentTaskId string) error {
+	data := jsonutils.NewDict()
+	data.Add(jsonutils.Marshal(machines), "machines")
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterCreateMachinesTask", c, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (c *SCluster) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []*types.CreateMachineData, task taskman.ITask) error {
+	drv := c.GetDriver()
+	machines, err := drv.CreateMachines(ctx, userCred, c, ms)
+	if err != nil {
+		return err
+	}
+	return drv.RequestDeployMachines(ctx, userCred, c, machines, task)
 }
 
 const (
@@ -795,13 +998,55 @@ func (c *SCluster) PerformDeleteMachines(ctx context.Context, userCred mcclient.
 }
 
 func (c *SCluster) StartDeleteMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, ms []manager.IMachine, data *jsonutils.JSONDict, parentTaskId string) error {
+	if data == nil {
+		data = jsonutils.NewDict()
+	}
+	mids := []jsonutils.JSONObject{}
 	for _, m := range ms {
 		m.SetStatus(userCred, types.MachineStatusDeleting, "ClusterDeleteMachinesTask")
+		mids = append(mids, jsonutils.NewString(m.GetId()))
 	}
+	data.Set("machines", jsonutils.NewArray(mids...))
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteMachinesTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
 	}
 	task.ScheduleRun(nil)
 	return nil
+}
+
+func (c *SCluster) GetControlPlaneUrl() (string, error) {
+	apiServerEndpoint, err := c.GetAPIServerEndpoint()
+	if err != nil {
+		return "", errors.Wrapf(err, "GetAPIServerEndpoint")
+	}
+	return fmt.Sprintf("https://%s:6443", apiServerEndpoint), nil
+}
+
+func (c *SCluster) GetAPIServerEndpoint() (string, error) {
+	m, err := c.getControlplaneMachine(false)
+	if err != nil {
+		return "", errors.Wrap(err, "get controlplane machine")
+	}
+	ip, err := m.GetPrivateIP()
+	if err != nil {
+		return "", errors.Wrapf(err, "get controlplane machine %s private ip", m.GetName())
+	}
+	return ip, nil
+}
+
+func (c *SCluster) GetPodCidr() string {
+	return c.PodCidr
+}
+
+func (c *SCluster) GetServiceCidr() string {
+	return c.ServiceCidr
+}
+
+func (c *SCluster) GetServiceDomain() string {
+	return c.ServiceDomain
+}
+
+func (c *SCluster) GetVersion() string {
+	return c.Version
 }

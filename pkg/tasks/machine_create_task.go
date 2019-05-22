@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -30,7 +31,21 @@ func (t *MachineCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.OnError(ctx, machine, err)
 		return
 	}
+	t.SetStage("OnMachinePrepared", nil)
+	if err := machine.GetDriver().RequestPrepareMachine(ctx, t.UserCred, machine, t); err != nil {
+		t.OnError(ctx, machine, err)
+		return
+	}
+}
+
+func (t *MachineCreateTask) OnMachinePrepared(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	//machine := obj.(*machines.SMachine)
 	t.SetStageComplete(ctx, nil)
+}
+
+func (t *MachineCreateTask) OnMachinePreparedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	machine := obj.(*machines.SMachine)
+	t.OnError(ctx, machine, fmt.Errorf(data.String()))
 }
 
 func (t *MachineCreateTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {

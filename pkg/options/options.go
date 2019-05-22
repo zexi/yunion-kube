@@ -1,7 +1,7 @@
 package options
 
 import (
-	"yunion.io/x/onecloud/pkg/cloudcommon"
+	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 )
 
 var (
@@ -9,12 +9,14 @@ var (
 )
 
 type KubeServerOptions struct {
-	cloudcommon.DBOptions
-	cloudcommon.CommonOptions
+	common_options.DBOptions
+	common_options.CommonOptions
 
 	TlsCertFile       string `help:"File containing the default x509 cert file"`
 	TlsPrivateKeyFile string `help:"Tls private key"`
 	HttpsPort         int    `help:"The https port that the service runs on" default:"8443"`
+
+	YkeUseSshDialer bool `help:"YKE cluster use ssh dialer" default:"false"`
 
 	HelmDataDir         string `help:"Helm data directory" default:"/opt/cloud/workspace/helm"`
 	YunionChartRepo     string `help:"Yunion helm charts repo" default:"https://charts.yunion.cn"`
@@ -25,4 +27,6 @@ type KubeServerOptions struct {
 	EnableDefaultLimitRange bool `help:"Enable default namespace limit range" default:"false"`
 
 	DockerdBip string `help:"Global nodes docker daemon bridge CIDR" default:"172.17.0.1/16"`
+
+	GuestDefaultTemplate string `help:"Guest kubernetes default image id" default:"k8s-centos7-base"`
 }

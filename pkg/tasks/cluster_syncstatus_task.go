@@ -33,15 +33,6 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		return
 	}
 
-	log.Errorf("-----------get kubeconfig")
-	// refresh kubeconfig
-	kubeconfig, err := cluster.GetDriver().GetKubeconfig(cluster)
-	if err != nil {
-		t.onError(ctx, cluster, err)
-		return
-	}
-	cluster.SetKubeconfig(kubeconfig)
-
 	k8sCli, err := cluster.GetK8sClient()
 	if err != nil {
 		t.onError(ctx, cluster, err)

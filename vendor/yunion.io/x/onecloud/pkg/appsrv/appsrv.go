@@ -1,9 +1,25 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package appsrv
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -27,6 +43,7 @@ type Application struct {
 	name              string
 	context           context.Context
 	session           *SWorkerManager
+	readSession       *SWorkerManager
 	systemSession     *SWorkerManager
 	roots             map[string]*RadixNode
 	rootLock          *sync.RWMutex
@@ -53,11 +70,14 @@ const (
 	DEFAULT_PROCESS_TIMEOUT     = 15 * time.Second
 )
 
+var quitHandlerRegisted bool
+
 func NewApplication(name string, connMax int, db bool) *Application {
 	app := Application{name: name,
 		context:           context.Background(),
 		connMax:           connMax,
 		session:           NewWorkerManager("HttpRequestWorkerManager", connMax, DEFAULT_BACKLOG, db),
+		readSession:       NewWorkerManager("HttpGetRequestWorkerManager", connMax, DEFAULT_BACKLOG, db),
 		systemSession:     NewWorkerManager("InternalHttpRequestWorkerManager", 1, DEFAULT_BACKLOG, false),
 		roots:             make(map[string]*RadixNode),
 		rootLock:          &sync.RWMutex{},
@@ -139,6 +159,13 @@ type loggingResponseWriter struct {
 	status int
 }
 
+func (lrw *loggingResponseWriter) Hijack() (rwc net.Conn, buf *bufio.ReadWriter, err error) {
+	if f, ok := lrw.ResponseWriter.(http.Hijacker); ok {
+		return f.Hijack()
+	}
+	return nil, nil, fmt.Errorf("not a hijacker")
+}
+
 func (lrw *loggingResponseWriter) WriteHeader(code int) {
 	if code < 100 || code >= 600 {
 		log.Errorf("Invalud status code %d, set code to 598", code)
@@ -206,7 +233,7 @@ func (app *Application) handleCORS(w http.ResponseWriter, r *http.Request) bool 
 }
 
 func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, rid string) (*SHandlerInfo, *SAppParams) {
-	segs := SplitPath(r.URL.Path)
+	segs := SplitPath(r.URL.EscapedPath())
 	params := make(map[string]string)
 	w.Header().Set("Server", "Yunion AppServer/Go/2018.4")
 	w.Header().Set("X-Frame-Options", "SAMEORIGIN")
@@ -226,7 +253,11 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 			defer cancel()
 			session := hand.workerMan
 			if session == nil {
-				session = app.session
+				if r.Method == "GET" || r.Method == "HEAD" {
+					session = app.readSession
+				} else {
+					session = app.session
+				}
 			}
 			appParams := hand.GetAppParams(params, segs)
 			appParams.Request = r
@@ -333,6 +364,12 @@ func (app *Application) initServer(addr string) *http.Server {
 }
 
 func (app *Application) registerCleanShutdown(s *http.Server, onStop func()) {
+	if quitHandlerRegisted {
+		log.Warningf("Application quit handler registed, duplicated!!!")
+		return
+	} else {
+		quitHandlerRegisted = true
+	}
 	app.idleConnsClosed = make(chan struct{})
 
 	// dump goroutine stack
@@ -389,6 +426,16 @@ func (app *Application) ListenAndServeWithCleanup(addr string, onStop func()) {
 func (app *Application) ListenAndServeTLSWithCleanup(addr string, certFile, keyFile string, onStop func()) {
 	s := app.initServer(addr)
 	app.registerCleanShutdown(s, onStop)
+	app.listenAndServe(s, certFile, keyFile)
+	app.waitCleanShutdown()
+}
+
+func (app *Application) ListenAndServeWithoutCleanup(addr, certFile, keyFile string) {
+	s := app.initServer(addr)
+	app.listenAndServe(s, certFile, keyFile)
+}
+
+func (app *Application) listenAndServe(s *http.Server, certFile, keyFile string) {
 	var err error
 	if len(certFile) == 0 && len(keyFile) == 0 {
 		err = s.ListenAndServe()
@@ -398,7 +445,6 @@ func (app *Application) ListenAndServeTLSWithCleanup(addr string, certFile, keyF
 	if err != nil && err != http.ErrServerClosed {
 		log.Fatalf("ListAndServer fail: %s", err)
 	}
-	app.waitCleanShutdown()
 }
 
 func isJsonContentType(r *http.Request) bool {

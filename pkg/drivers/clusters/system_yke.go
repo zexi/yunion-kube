@@ -37,6 +37,10 @@ func (d *SSystemYKEDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeSystem
 }
 
+func (d *SSystemYKEDriver) GetResourceType() types.ClusterResourceType {
+	return types.ClusterResourceTypeHost
+}
+
 func (d *SSystemYKEDriver) GetK8sVersions() []string {
 	return []string{
 		models.DEFAULT_K8S_VERSION,
@@ -77,7 +81,7 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, err
 	return ret, nil
 }
 
-func (d *SSystemYKEDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SSystemYKEDriver) ValidateCreateData(uctx context.Context, serCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	return yunion_host.ValidateClusterCreateData(data)
 }
 
@@ -93,26 +97,34 @@ func (d *SSystemYKEDriver) GetKubeconfig(cluster *clusters.SCluster) (string, er
 	return c.GetAdminKubeconfig()
 }
 
-func (d *SSystemYKEDriver) ValidateAddMachine(c *clusters.SCluster, machine *types.CreateMachineData) error {
-	return yunion_host.ValidateAddMachines(c, []*types.CreateMachineData{machine})
+func (d *SSystemYKEDriver) ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, c *clusters.SCluster, data []*types.CreateMachineData) error {
+	if _, _, err := d.sBaseDriver.ValidateCreateMachines(ctx, userCred, c, data); err != nil {
+		return err
+	}
+	return yunion_host.ValidateCreateMachines(data)
 }
 
-func (d *SSystemYKEDriver) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, c *clusters.SCluster, data []*types.CreateMachineData) error {
-	return yunion_host.ValidateAddMachines(c, data)
-}
-
-func (d *SSystemYKEDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+func (d *SSystemYKEDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
 	v1Cluster, err := yunion_host.GetV1Cluster(cluster)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	nodesAddData, err := system_yke.GetClusterAddNodesData(cluster, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = v1Cluster.AddMachinesToNodes(ctx, userCred, nodesAddData)
-	return err
+	nodes, err := v1Cluster.AddMachinesToNodes(ctx, userCred, nodesAddData)
+	ret := make([]manager.IMachine, 0)
+	for _, n := range nodes {
+		v2m, err := n.GetV2Machine()
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, v2m)
+	}
+
+	return ret, nil
 }
 
 func (d *SSystemYKEDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
@@ -125,11 +137,10 @@ func (d *SSystemYKEDriver) RequestDeployMachines(ctx context.Context, userCred m
 		return err
 	}
 	return v1Cluster.StartClusterDeployTask(ctx, userCred, models.FetchClusterDeployTaskData(nodes), "")
-	return err
 }
 
 func (d *SSystemYKEDriver) ValidateDeleteCondition() error {
-	return httperrors.NewUnsupportOperationError("Global system cluster can't be delete")
+	return nil
 }
 
 func (d *SSystemYKEDriver) GetNodeByMachine(machine manager.IMachine) (*models.SNode, error) {
@@ -163,13 +174,13 @@ func (d *SSystemYKEDriver) getDeleteNodesData(machines []manager.IMachine) (*jso
 }
 
 func (d *SSystemYKEDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine) error {
-	workClusters, err := clusters.ClusterManager.GetNonSystemClusters()
-	if err != nil {
-		return err
-	}
-	if len(workClusters) > 0 {
-		return httperrors.NewNotAcceptableError("%d non system clusters exists, remove them firstly", len(workClusters))
-	}
+	//workClusters, err := clusters.ClusterManager.GetNonSystemClusters()
+	//if err != nil {
+	//return err
+	//}
+	//if len(workClusters) > 0 {
+	//return httperrors.NewNotAcceptableError("%d non system clusters exists, remove them firstly", len(workClusters))
+	//}
 	oldMachines, err := cluster.GetMachines()
 	if err != nil {
 		return err
@@ -191,7 +202,7 @@ func (d *SSystemYKEDriver) ValidateDeleteMachines(ctx context.Context, userCred 
 	return err
 }
 
-func (d *SSystemYKEDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine) error {
+func (d *SSystemYKEDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine, task taskman.ITask) error {
 	v1Cluster, err := yunion_host.GetV1Cluster(cluster)
 	if err != nil {
 		return err
@@ -200,6 +211,6 @@ func (d *SSystemYKEDriver) RequestDeleteMachines(ctx context.Context, userCred m
 	if err != nil {
 		return err
 	}
-	_, err = v1Cluster.PerformDeleteNodes(ctx, userCred, nil, data)
+	_, err = v1Cluster.PerformDeleteNodesWithTaskId(ctx, userCred, nil, data, task.GetTaskId())
 	return err
 }

@@ -652,14 +652,6 @@
   version = "v1.5.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:c1f242537d2898c84fe9bfd8bd94b177cd5ff98a10c397dbbc494f4e2b173be6"
-  name = "github.com/serialx/hashring"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "49a4782e9908fe098c907022a1bd7519c79803d6"
-
-[[projects]]
   digest = "1:dc2d85c13ac22c22a1f3170a41a8e1b897fa05134aaf533f16df44f66a25b4a1"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
@@ -1476,59 +1468,57 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e275a1fe55959c8ab119e031775059663ea8aa9ba9783b5b0e82e7560d4e8c90"
+  digest = "1:134c7600a9bdc64953a4baf0f7e9cff3f7102ac2a2866aeb8473066236b761e0"
   name = "yunion.io/x/cluster-api-provider-onecloud"
   packages = [
     "pkg/apis/onecloudprovider/v1alpha1",
     "pkg/cloud/onecloud/actuators",
     "pkg/cloud/onecloud/services/certificates",
+    "pkg/cloud/onecloud/services/errors",
   ]
   pruneopts = "UT"
   revision = "c5b6589e51ebee08d5938f9ef138736cb7501387"
 
 [[projects]]
   branch = "master"
-  digest = "1:9a92b34083e218c123d21a4b0d74228df6b186de9dcd6489e5b4cf68f4e90104"
+  digest = "1:53c214ff8c2fd57db0962140b9a5e57b01b63066e7de7fe6897a633d15b78248"
   name = "yunion.io/x/jsonutils"
   packages = ["."]
   pruneopts = "UT"
-  revision = "c40afc81cccc4618168f722c64deba7cfbb1f8bd"
+  revision = "028b9007e455103eabacf3e6d71b5ce5060c3984"
 
 [[projects]]
   branch = "master"
-  digest = "1:636db180d3fc734536a5437d93bb6fe937feb036c1ed062c25872a47c4283163"
+  digest = "1:20590bdd812710ad3257e92c23c7d19d9595a48ed69b200ac1d23ac76eee848e"
   name = "yunion.io/x/log"
   packages = [
     ".",
     "hooks",
   ]
   pruneopts = "UT"
-  revision = "5185c49f6d361f61e561fbccba1bedcc7c62748b"
+  revision = "3c4f24289a1b2fd39b94a9ccbd40931b3a20aab7"
 
 [[projects]]
-  branch = "release/2.7.0"
-  digest = "1:260608e800238775c1028e8c7184dfd15da3b34e83e8f368c55a6abc50680c76"
+  branch = "master"
+  digest = "1:205a2b0e1480dca6664c9e16736685bf827d3e7cf3c329b29e9e1102c0e2ed30"
   name = "yunion.io/x/onecloud"
   packages = [
+    "pkg/apis",
+    "pkg/apis/compute",
+    "pkg/apis/scheduler",
     "pkg/appctx",
     "pkg/appsrv",
     "pkg/appsrv/dispatcher",
     "pkg/cloudcommon",
+    "pkg/cloudcommon/app",
     "pkg/cloudcommon/consts",
     "pkg/cloudcommon/db",
     "pkg/cloudcommon/db/lockman",
     "pkg/cloudcommon/db/quotas",
     "pkg/cloudcommon/db/taskman",
     "pkg/cloudcommon/notifyclient",
-    "pkg/cloudcommon/pending_delete",
+    "pkg/cloudcommon/options",
     "pkg/cloudcommon/policy",
-    "pkg/cloudcommon/validators",
-    "pkg/cloudprovider",
-    "pkg/compute/baremetal",
-    "pkg/compute/consts",
-    "pkg/compute/models",
-    "pkg/compute/options",
-    "pkg/compute/sshkeys",
     "pkg/httperrors",
     "pkg/mcclient",
     "pkg/mcclient/auth",
@@ -1536,26 +1526,23 @@
     "pkg/mcclient/modules/k8s",
     "pkg/mcclient/modules/notify",
     "pkg/proxy",
-    "pkg/util/ansible",
-    "pkg/util/billing",
+    "pkg/util/atexit",
     "pkg/util/choices",
-    "pkg/util/cloudinit",
-    "pkg/util/conditionparser",
     "pkg/util/hashcache",
     "pkg/util/httputils",
-    "pkg/util/imagetools",
     "pkg/util/k8s",
     "pkg/util/logclient",
     "pkg/util/rbacutils",
     "pkg/util/seclib2",
     "pkg/util/ssh",
+    "pkg/util/stringutils2",
   ]
   pruneopts = "UT"
-  revision = "85a76fcb4ce9cbf25a22bee6ed92bc2b72645449"
+  revision = "92627f05a5f697a1c1318efd920424d30b1e3351"
 
 [[projects]]
   branch = "master"
-  digest = "1:4f6207fbdcc5b83fb3869e3c1b29712443345733eb50640f0d19a203150cce09"
+  digest = "1:ef6929c7be456ab799283d5eeac45855c95877d93ec7bf8ffab9e9e7e9fdca26"
   name = "yunion.io/x/pkg"
   packages = [
     "gotypes",
@@ -1563,17 +1550,13 @@
     "tristate",
     "util/cache",
     "util/clock",
-    "util/compare",
     "util/errors",
-    "util/fileutils",
     "util/filterclause",
     "util/netutils",
-    "util/osprofile",
     "util/reflectutils",
     "util/regutils",
     "util/runtime",
     "util/seclib",
-    "util/secrules",
     "util/sets",
     "util/signalutils",
     "util/stringutils",
@@ -1584,15 +1567,15 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "e2e42205d868c26829b9322b40cdc48f24fed379"
+  revision = "df1afe907f81bfa2adddae023d8577074784a964"
 
 [[projects]]
   branch = "master"
-  digest = "1:0e3c8da76b7b7ba0f67ef0737d361e117b65bd328bfbcb28fb030268df587ca9"
+  digest = "1:ff4e73f338d767968f1a664f407877a9f4e1adc21ea938387a6e93130d23be4d"
   name = "yunion.io/x/sqlchemy"
   packages = ["."]
   pruneopts = "UT"
-  revision = "0b1ca973f3e5140dee7e773fc51cfc8c07ce0f69"
+  revision = "b34ca088f7b65fa0e466e39daa9d99e01fcb073d"
 
 [[projects]]
   branch = "master"
@@ -1675,11 +1658,13 @@
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/schema",
+    "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/intstr",
     "k8s.io/apimachinery/pkg/util/proxy",
     "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/strategicpatch",
+    "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/apiserver/pkg/authentication/user",
@@ -1688,13 +1673,17 @@
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
+    "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/restmapper",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
+    "k8s.io/client-go/tools/clientcmd/api",
     "k8s.io/client-go/util/cert",
     "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/homedir",
+    "k8s.io/cluster-bootstrap/token/api",
+    "k8s.io/cluster-bootstrap/token/util",
     "k8s.io/helm/cmd/helm/installer",
     "k8s.io/helm/pkg/chartutil",
     "k8s.io/helm/pkg/downloader",
@@ -1715,27 +1704,33 @@
     "k8s.io/helm/pkg/version",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/scheme",
+    "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1",
     "k8s.io/kubernetes/cmd/kubeadm/app/constants",
+    "k8s.io/kubernetes/cmd/kubeadm/app/util",
     "k8s.io/kubernetes/cmd/kubeadm/app/util/config",
     "k8s.io/kubernetes/pkg/util/mount",
     "sigs.k8s.io/cluster-api/cmd/clusterctl/clientcmd",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
     "sigs.k8s.io/cluster-api/pkg/util",
+    "sigs.k8s.io/controller-runtime/pkg/runtime/scheme",
     "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1",
     "yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates",
+    "yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/errors",
     "yunion.io/x/jsonutils",
     "yunion.io/x/log",
+    "yunion.io/x/onecloud/pkg/apis/compute",
     "yunion.io/x/onecloud/pkg/appctx",
     "yunion.io/x/onecloud/pkg/appsrv",
     "yunion.io/x/onecloud/pkg/appsrv/dispatcher",
     "yunion.io/x/onecloud/pkg/cloudcommon",
+    "yunion.io/x/onecloud/pkg/cloudcommon/app",
     "yunion.io/x/onecloud/pkg/cloudcommon/consts",
     "yunion.io/x/onecloud/pkg/cloudcommon/db",
     "yunion.io/x/onecloud/pkg/cloudcommon/db/lockman",
     "yunion.io/x/onecloud/pkg/cloudcommon/db/taskman",
+    "yunion.io/x/onecloud/pkg/cloudcommon/options",
     "yunion.io/x/onecloud/pkg/cloudcommon/policy",
-    "yunion.io/x/onecloud/pkg/compute/models",
     "yunion.io/x/onecloud/pkg/httperrors",
     "yunion.io/x/onecloud/pkg/mcclient",
     "yunion.io/x/onecloud/pkg/mcclient/auth",

@@ -144,23 +144,23 @@ func (m *SClusterManager) InitializeData() error {
 }
 
 func (m *SClusterManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowList(userCred, m)
 }
 
 func (m *SClusterManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowCreate(userCred, m)
 }
 
 func (c *SCluster) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowGet(userCred, c)
 }
 
 func (c *SCluster) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowUpdate(userCred, c)
 }
 
 func (c *SCluster) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return db.IsAdminAllowDelete(userCred, c)
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -622,10 +622,11 @@ func (c *SCluster) saveClusterInfo(clusterInfo *drivertypes.ClusterInfo) error {
 	if err != nil {
 		return err
 	}
-	if v2c, err := c.GetV2Cluster(); err == nil {
-		if config, err := c.GetAdminKubeconfig(); err == nil {
-			v2c.SetKubeconfig(config)
-		}
+	if _, err := c.GetV2Cluster(); err == nil {
+		// TODO: set certificates
+		//if config, err := c.GetAdminKubeconfig(); err == nil {
+		//v2c.SetKubeconfig(config)
+		//}
 	}
 	return nil
 }
@@ -1015,7 +1016,7 @@ func (c *SCluster) AllowPerformGenerateKubeconfig(ctx context.Context, userCred 
 func (c *SCluster) PerformGenerateKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	var conf string
 	var err error
-	if userCred.HasSystemAdminPrivelege() {
+	if userCred.HasSystemAdminPrivilege() {
 		//directly := jsonutils.QueryBoolean(data, "directly", false)
 		//getF := c.GetAdminProxyKubeConfig
 		//if directly {
@@ -1554,19 +1555,24 @@ func (c *SCluster) IsNonSystemClustersEmpty() (bool, error) {
 }
 
 func (c *SCluster) GetNonSystemClustersCount() (int, error) {
-	clusters, err := manager.ClusterManager().GetNonSystemClusters()
-	if err != nil {
-		return 0, err
-	}
-	return len(clusters), nil
+	//clusters, err := manager.ClusterManager().GetNonSystemClusters()
+	//if err != nil {
+	//return 0, err
+	//}
+	//return len(clusters), nil
+	return 0, nil
 }
 
 func (c *SCluster) PerformDeleteNodes(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return c.PerformDeleteNodesWithTaskId(ctx, userCred, query, data, "")
+}
+
+func (c *SCluster) PerformDeleteNodesWithTaskId(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject, parentTaskId string) (jsonutils.JSONObject, error) {
 	nodes, err := c.ValidateDeleteNodes(ctx, userCred, data.(*jsonutils.JSONDict))
 	if err != nil {
 		return nil, err
 	}
-	c.StartClusterDeleteNodesTask(ctx, userCred, FetchClusterDeployTaskData(nodes), "")
+	c.StartClusterDeleteNodesTask(ctx, userCred, FetchClusterDeployTaskData(nodes), parentTaskId)
 	return nil, nil
 }
 

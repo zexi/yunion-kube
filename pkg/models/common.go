@@ -7,8 +7,8 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	cloudapi "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	cloudmodels "yunion.io/x/onecloud/pkg/compute/models"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -44,7 +44,7 @@ func validateHostInfo(host apis.CloudHost) (err error) {
 		return
 	}
 
-	if !utils.IsInStringArray(host.HostType, []string{cloudmodels.HOST_TYPE_HYPERVISOR, cloudmodels.HOST_TYPE_KUBELET}) {
+	if !utils.IsInStringArray(host.HostType, []string{cloudapi.HOST_TYPE_HYPERVISOR, cloudapi.HOST_TYPE_KUBELET}) {
 		err = fmt.Errorf("Host type %q not support", host.HostType)
 		return
 	}
@@ -146,7 +146,7 @@ func ModelCreateFields(man db.IModelManager, userCred mcclient.TokenCredential) 
 		tags := col.Tags()
 		create, _ := tags["create"]
 		update := tags["update"]
-		if update == "user" || (update == "admin" && userCred.HasSystemAdminPrivelege()) || create == "required" || create == "optional" || ((create == "admin_required" || create == "admin_optional") && userCred.HasSystemAdminPrivelege()) {
+		if update == "user" || (update == "admin" && userCred.HasSystemAdminPrivilege()) || create == "required" || create == "optional" || ((create == "admin_required" || create == "admin_optional") && userCred.HasSystemAdminPrivilege()) {
 			ret = append(ret, col.Name())
 		}
 	}
@@ -186,5 +186,5 @@ func (n *YkeConfigNodeFactory) Save() error {
 }
 
 func allowPerformAction(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivelege()
+	return userCred.HasSystemAdminPrivilege()
 }

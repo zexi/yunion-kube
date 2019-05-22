@@ -4,9 +4,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"time"
 
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/util/procutils"
 	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/pkg/util/seclib"
+	"yunion.io/x/pkg/util/wait"
 )
 
 // RemoteSSHBashScript executes command on remote machine
@@ -37,4 +41,19 @@ func RemoteSSHCommand(host string, port int, username string, privateKey, cmd st
 		return "", err
 	}
 	return strings.Join(ret, "\n"), nil
+}
+
+func CheckRemotePortOpen(host string, port int) error {
+	log.Infof("CheckRemotePortOpen for remote: %s:%d", host, port)
+	_, err := procutils.RunCommandWithoutTimeout("nc", "-z", host, fmt.Sprintf("%d", port))
+	return err
+}
+
+func WaitRemotePortOpen(host string, port int, interval, timeout time.Duration) error {
+	return wait.Poll(interval, timeout, func() (bool, error) {
+		if err := CheckRemotePortOpen(host, port); err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
 }

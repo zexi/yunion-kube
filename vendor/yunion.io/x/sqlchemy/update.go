@@ -52,17 +52,23 @@ type SUpdateDiff struct {
 	col IColumnSpec
 }
 
-func UpdateDiffString(diff map[string]SUpdateDiff) string {
-	items := make([]string, 0)
-	for k, v := range diff {
-		items = append(items, fmt.Sprintf("%s: %s -> %s", k,
-			utils.TruncateString(v.old, 32),
-			utils.TruncateString(v.new, 32)))
-	}
-	return strings.Join(items, "; ")
+func (ud *SUpdateDiff) String() string {
+	return fmt.Sprintf("%s->%s",
+		utils.TruncateString(ud.old, 32),
+		utils.TruncateString(ud.new, 32))
 }
 
-func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, error) {
+type UpdateDiffs map[string]SUpdateDiff
+
+func (uds UpdateDiffs) String() string {
+	items := make([]string, 0, len(uds))
+	for k, v := range uds {
+		items = append(items, fmt.Sprintf("%s:%s", k, v.String()))
+	}
+	return strings.Join(items, ";")
+}
+
+func (us *SUpdateSession) saveUpdate(dt interface{}) (UpdateDiffs, error) {
 	beforeUpdateFunc := reflect.ValueOf(dt).MethodByName("BeforeUpdate")
 	if beforeUpdateFunc.IsValid() && !beforeUpdateFunc.IsNil() {
 		beforeUpdateFunc.Call([]reflect.Value{})
@@ -76,7 +82,7 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 	versionFields := make([]string, 0)
 	updatedFields := make([]string, 0)
 	primaries := make(map[string]interface{})
-	setters := make(map[string]SUpdateDiff)
+	setters := UpdateDiffs{}
 	for _, c := range us.tableSpec.columns {
 		k := c.Name()
 		of, _ := ofields.GetInterface(k)
@@ -165,7 +171,7 @@ func (us *SUpdateSession) saveUpdate(dt interface{}) (map[string]SUpdateDiff, er
 	return setters, nil
 }
 
-func (ts *STableSpec) Update(dt interface{}, doUpdate func() error) (map[string]SUpdateDiff, error) {
+func (ts *STableSpec) Update(dt interface{}, doUpdate func() error) (UpdateDiffs, error) {
 	session, err := ts.prepareUpdate(dt)
 	if err != nil {
 		return nil, err
@@ -174,13 +180,13 @@ func (ts *STableSpec) Update(dt interface{}, doUpdate func() error) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	diff, err := session.saveUpdate(dt)
+	uds, err := session.saveUpdate(dt)
 	if err == ErrNoDataToUpdate {
 		return nil, nil
 	} else if err == nil {
 		if DEBUG_SQLCHEMY {
-			log.Debugf("Update diff: %s", UpdateDiffString(diff))
+			log.Debugf("Update diff: %s", uds)
 		}
 	}
-	return diff, err
+	return uds, err
 }

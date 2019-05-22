@@ -1,10 +1,9 @@
 package yunion_host
 
 import (
-	//"context"
 	"fmt"
-	//"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
 	"yunion.io/x/jsonutils"
@@ -14,6 +13,7 @@ import (
 	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/pkg/utils"
 
+	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
@@ -63,22 +63,6 @@ func GetV1Node(machine *machines.SMachine) (*models.SNode, error) {
 	return models.NodeManager.FetchNodeByHostId(machine.ResourceId)
 }
 
-func GetControlplaneMachineDatas(cluster *clusters.SCluster, data []*types.CreateMachineData) ([]*types.CreateMachineData, []*types.CreateMachineData) {
-	controls := make([]*types.CreateMachineData, 0)
-	nodes := make([]*types.CreateMachineData, 0)
-	for _, d := range data {
-		if cluster != nil {
-			d.ClusterId = cluster.GetId()
-		}
-		if d.Role == types.RoleTypeControlplane {
-			controls = append(controls, d)
-		} else {
-			nodes = append(nodes, d)
-		}
-	}
-	return controls, nodes
-}
-
 func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *types.CreateMachineData) error {
 	if err := machines.ValidateRole(m.Role); err != nil {
 		return err
@@ -89,9 +73,15 @@ func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *type
 	if len(m.ResourceId) == 0 {
 		return httperrors.NewInputParameterError("ResourceId must provided")
 	}
-	if _, err := ValidateHostId(s, privateKey, m.ResourceId); err != nil {
+	hostObj, err := ValidateHostId(s, privateKey, m.ResourceId)
+	if err != nil {
 		return err
 	}
+	hostName, err := hostObj.GetString("name")
+	if err != nil {
+		return errors.Wrap(err, "not found host name")
+	}
+	m.Name = hostName
 	return nil
 }
 
@@ -106,34 +96,7 @@ func CheckControlplaneExists(cluster *clusters.SCluster) error {
 	return nil
 }
 
-func NeedControlplane(c *clusters.SCluster) (bool, error) {
-	ms, err := c.GetMachines()
-	if err != nil {
-		return false, err
-	}
-	if len(ms) == 0 {
-		return true, nil
-	}
-	return false, nil
-}
-
-func ValidateAddMachines(c *clusters.SCluster, ms []*types.CreateMachineData) error {
-	needControlplane, err := NeedControlplane(c)
-	if err != nil {
-		return err
-	}
-	controls, _ := GetControlplaneMachineDatas(c, ms)
-	if needControlplane {
-		if len(controls) == 0 {
-			return httperrors.NewInputParameterError("controlplane node must created")
-		}
-	}
-
-	//if !needControlplane {
-	//if err := CheckControlplaneExists(c); err != nil {
-	//return err
-	//}
-	//}
+func ValidateCreateMachines(ms []*types.CreateMachineData) error {
 	session, err := clusters.ClusterManager.GetSession()
 	if err != nil {
 		return err
@@ -167,7 +130,7 @@ func ValidateClusterCreateData(data *jsonutils.JSONDict) error {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	ms := createData.Machines
-	controls, _ := GetControlplaneMachineDatas(nil, ms)
+	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
 	if len(controls) == 0 && createData.Provider != string(types.ProviderTypeSystem) {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}

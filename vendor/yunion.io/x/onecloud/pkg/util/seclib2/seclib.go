@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package seclib2
 
 import (
@@ -36,8 +50,15 @@ func RandomPassword2(width int) string {
 		ps := PasswordStrength{}
 		var buf bytes.Buffer
 		for i := 0; i < width; i += 1 {
-			index := rand.Intn(len(CHARS))
-			ch := CHARS[index]
+			var ch byte
+			for {
+				index := rand.Intn(len(CHARS))
+				ch = CHARS[index]
+				if i == 0 && ch == '/' {
+					continue
+				}
+				break
+			}
 			if strings.IndexByte(DIGITS, ch) >= 0 {
 				ps.Digits += 1
 			} else if strings.IndexByte(LETTERS, ch) >= 0 {

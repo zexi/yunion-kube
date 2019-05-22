@@ -97,8 +97,6 @@ func (d *Driver) Create(ctx context.Context, opts *types.DriverOptions, info *ty
 	}
 	//defer d.cleanup(stateDir)
 
-	log.Debugf("-------- create yke config: \n%s, stateDir: %q", yaml, stateDir)
-
 	certsStr := ""
 	apiURL, caCrt, clientCert, clientKey, certs, err := clusterUp(ctx, ykeConfig, d.DockerDialer, d.LocalDialer,
 		d.wrapTransport(ykeConfig), false, stateDir, false, false)
@@ -125,8 +123,6 @@ func (d *Driver) Update(ctx context.Context, opts *types.DriverOptions, clusterI
 	if err != nil {
 		return nil, err
 	}
-
-	log.Debugf("-------update yke config: \n%s", yaml)
 
 	ykeConfig, err := utils.ConvertToYkeConfig(yaml)
 	if err != nil {
@@ -260,7 +256,7 @@ func (d *Driver) Remove(ctx context.Context, clusterInfo *types.ClusterInfo) err
 	stateDir, _ := d.restore(clusterInfo)
 	//defer d.save(nil, stateDir)
 	//defer d.cleanup(stateDir)
-	return cmd.ClusterRemove(ctx, ykeConfig, d.DockerDialer, d.wrapTransport(ykeConfig), false, stateDir)
+	return cmd.ClusterRemove(context.Background(), ykeConfig, d.DockerDialer, d.wrapTransport(ykeConfig), false, stateDir)
 }
 
 func getHost(driverOptions *types.DriverOptions) (*hosts.Host, error) {
@@ -286,7 +282,6 @@ func (d *Driver) restore(info *types.ClusterInfo) (string, error) {
 	if info != nil {
 		state := info.KubeConfig
 		if state != "" {
-			log.Errorf("******** Write file: %q, content: %s", kubeConfig(dir), state)
 			ioutil.WriteFile(kubeConfig(dir), []byte(state), 0600)
 		}
 	}
@@ -322,19 +317,3 @@ func (d *Driver) cleanup(stateDir string) {
 		os.Remove(filepath.Dir(stateDir))
 	}
 }
-
-//func (d *Driver) save(info *types.ClusterInfo, stateDir string) *types.ClusterInfo {
-//if info != nil {
-//b, err := ioutil.ReadFile(kubeConfig(stateDir))
-//if err == nil {
-//if info.Metadata == nil {
-//info.Metadata = map[string]string{}
-//}
-//info.Metadata["state"] = string(b)
-//}
-//}
-
-//d.cleanup(stateDir)
-
-//return info
-//}

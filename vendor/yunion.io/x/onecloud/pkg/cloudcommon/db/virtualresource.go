@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package db
 
 import (
@@ -17,6 +31,13 @@ import (
 	"yunion.io/x/onecloud/pkg/util/logclient"
 )
 
+type TProjectSource string
+
+const (
+	PROJECT_SOURCE_LOCAL = TProjectSource("local")
+	PROJECT_SOURCE_CLOUD = TProjectSource("cloud")
+)
+
 type SVirtualResourceBaseManager struct {
 	SStatusStandaloneResourceBaseManager
 }
@@ -29,7 +50,8 @@ func NewVirtualResourceBaseManager(dt interface{}, tableName string, keyword str
 type SVirtualResourceBase struct {
 	SStatusStandaloneResourceBase
 
-	ProjectId string `name:"tenant_id" width:"128" charset:"ascii" nullable:"false" index:"true" list:"user"`
+	ProjectId  string `name:"tenant_id" width:"128" charset:"ascii" nullable:"false" index:"true" list:"user"`
+	ProjectSrc string `width:"10" charset:"ascii" nullable:"false" list:"user" default:""`
 
 	IsSystem bool `nullable:"true" default:"false" list:"admin" create:"optional"`
 
@@ -125,6 +147,7 @@ func (model *SVirtualResourceBase) CustomizeCreate(ctx context.Context, userCred
 	} else {
 		model.IsSystem = false
 	}
+	model.ProjectSrc = string(PROJECT_SOURCE_LOCAL)
 	return model.SStandaloneResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
 }
 
@@ -158,6 +181,10 @@ func (model *SVirtualResourceBase) AllowGetDetailsMetadata(ctx context.Context, 
 
 func (model *SVirtualResourceBase) AllowPerformMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return model.IsOwner(userCred) || IsAdminAllowPerform(userCred, model, "metadata")
+}
+
+func (model *SVirtualResourceBase) AllowGetDetailsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return model.IsOwner(userCred) || IsAdminAllowGetSpec(userCred, model, "status")
 }
 
 func (model *SVirtualResourceBase) GetTenantCache(ctx context.Context) (*STenant, error) {
@@ -207,16 +234,28 @@ func (model *SVirtualResourceBase) AllowPerformChangeOwner(ctx context.Context, 
 func (model *SVirtualResourceBase) PerformChangeOwner(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	tenant := jsonutils.GetAnyString(data, []string{"project", "tenant", "project_id", "tenant_id"})
 	if len(tenant) == 0 {
-		return nil, httperrors.NewInputParameterError("missing parameter tenant")
+		return nil, httperrors.NewMissingParameterError("tenant_id")
 	}
 	tobj, _ := TenantCacheManager.FetchTenantByIdOrName(ctx, tenant)
 	if tobj == nil {
 		return nil, httperrors.NewTenantNotFoundError("tenant %s not found", tenant)
 	}
+	if tobj.GetId() == model.ProjectId {
+		// do nothing
+		Update(model, func() error {
+			model.ProjectSrc = string(PROJECT_SOURCE_LOCAL)
+			return nil
+		})
+		return nil, nil
+	}
 	q := model.GetModelManager().Query().Equals("name", model.GetName())
 	q = q.Equals("tenant_id", tobj.GetId())
 	q = q.NotEquals("id", model.GetId())
-	if q.Count() > 0 {
+	cnt, err := q.CountWithError()
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("check name duplication error: %s", err)
+	}
+	if cnt > 0 {
 		return nil, httperrors.NewDuplicateNameError("name", model.GetName())
 	}
 	former, _ := TenantCacheManager.FetchTenantById(ctx, model.ProjectId)
@@ -225,36 +264,49 @@ func (model *SVirtualResourceBase) PerformChangeOwner(ctx context.Context, userC
 		formerObj := NewTenant(model.ProjectId, "unknown")
 		former = &formerObj
 	}
-	_, err := model.GetModelManager().TableSpec().Update(model, func() error {
+	_, err = Update(model, func() error {
 		model.ProjectId = tobj.GetId()
+		model.ProjectSrc = string(PROJECT_SOURCE_LOCAL)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	OpsLog.SyncOwner(model, former, userCred)
-	logclient.AddActionLogWithContext(ctx, model, logclient.ACT_CHANGE_OWNER, nil, userCred, true)
+	notes := struct {
+		OldProjectId string
+		OldProject   string
+		NewProjectId string
+		NewProject   string
+	}{
+		OldProjectId: former.Id,
+		OldProject:   former.Name,
+		NewProjectId: tobj.GetId(),
+		NewProject:   tobj.GetName(),
+	}
+	logclient.AddActionLogWithContext(ctx, model, logclient.ACT_CHANGE_OWNER, notes, userCred, true)
 	return nil, nil
 }
 
 func (model *SVirtualResourceBase) DoPendingDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	err := model.PendingDelete()
-	if err == nil {
-		OpsLog.LogEvent(model, ACT_PENDING_DELETE, nil, userCred)
-	}
-	return err
+	return model.MarkPendingDelete(userCred)
 }
 
-func (model *SVirtualResourceBase) PendingDelete() error {
-	_, err := model.GetModelManager().TableSpec().Update(model, func() error {
-		model.PendingDeleted = true
-		model.PendingDeletedAt = timeutils.UtcNow()
-		return nil
-	})
-	if err != nil {
-		log.Errorf("PendingDelete fail %s", err)
+func (model *SVirtualResourceBase) MarkPendingDelete(userCred mcclient.TokenCredential) error {
+	if !model.PendingDeleted {
+		diff, err := Update(model, func() error {
+			model.PendingDeleted = true
+			model.PendingDeletedAt = timeutils.UtcNow()
+			return nil
+		})
+		if err != nil {
+			log.Errorf("MarkPendingDelete update fail %s", err)
+			return err
+		}
+		OpsLog.LogEvent(model, ACT_PENDING_DELETE, diff, userCred)
+		logclient.AddSimpleActionLog(model, logclient.ACT_PENDING_DELETE, "", userCred, true)
 	}
-	return err
+	return nil
 }
 
 func (model *SVirtualResourceBase) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -284,7 +336,6 @@ func (model *SVirtualResourceBase) DoCancelPendingDelete(ctx context.Context, us
 	err := model.CancelPendingDelete(ctx, userCred)
 	if err == nil {
 		OpsLog.LogEvent(model, ACT_CANCEL_DELETE, model.GetShortDesc(ctx), userCred)
-		logclient.AddActionLogWithContext(ctx, model, logclient.ACT_CANCEL_DELETE, model.GetShortDesc(ctx), userCred, true)
 	}
 	return err
 }
@@ -294,17 +345,34 @@ func (model *SVirtualResourceBase) VirtualModelManager() IVirtualModelManager {
 }
 
 func (model *SVirtualResourceBase) CancelPendingDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	if model.PendingDeleted {
+		return model.MarkCancelPendingDelete(ctx, userCred)
+	}
+	return nil
+}
+
+func (model *SVirtualResourceBase) MarkCancelPendingDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
 	ownerProjId := model.GetOwnerProjectId()
 
 	lockman.LockClass(ctx, model.GetModelManager(), ownerProjId)
 	defer lockman.ReleaseClass(ctx, model.GetModelManager(), ownerProjId)
 
-	_, err := model.GetModelManager().TableSpec().Update(model, func() error {
-		model.Name = GenerateName(model.GetModelManager(), ownerProjId, model.Name)
+	newName, err := GenerateName(model.GetModelManager(), ownerProjId, model.Name)
+	if err != nil {
+		return err
+	}
+	diff, err := Update(model, func() error {
+		model.Name = newName
 		model.PendingDeleted = false
+		model.PendingDeletedAt = time.Time{}
 		return nil
 	})
-	return err
+	if err != nil {
+		log.Errorf("MarkCancelPendingDelete fail %s", err)
+		return err
+	}
+	OpsLog.LogEvent(model, ACT_CANCEL_DELETE, diff, userCred)
+	return nil
 }
 
 func (model *SVirtualResourceBase) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
@@ -315,4 +383,19 @@ func (model *SVirtualResourceBase) GetShortDesc(ctx context.Context) *jsonutils.
 		desc.Add(jsonutils.NewString(tc.GetName()), "owner_tenant")
 	}
 	return desc
+}
+
+func (model *SVirtualResourceBase) SyncCloudProjectId(userCred mcclient.TokenCredential, projectId string) {
+	if model.ProjectSrc != string(PROJECT_SOURCE_LOCAL) && len(projectId) > 0 {
+		diff, _ := Update(model, func() error {
+			model.ProjectSrc = string(PROJECT_SOURCE_CLOUD)
+			if len(projectId) > 0 {
+				model.ProjectId = projectId
+			}
+			return nil
+		})
+		if len(diff) > 0 {
+			OpsLog.LogEvent(model, ACT_SYNC_OWNER, diff, userCred)
+		}
+	}
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"github.com/pkg/errors"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -21,6 +21,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -126,7 +127,18 @@ func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mc
 		return nil, err
 	}
 	m := obj.(*SMachine)
+	err = m.SetMetadata(ctx, apis.MachineMetadataCreateParams, input.String(), userCred)
 	return m, err
+}
+
+func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*types.CreateMachineData, error) {
+	input := new(types.CreateMachineData)
+	ret := m.GetMetadataJson(apis.MachineMetadataCreateParams, userCred)
+	if ret == nil {
+		return nil, errors.Errorf("Not found %s in metadata", apis.MachineMetadataCreateParams)
+	}
+	err := ret.Unmarshal(input)
+	return input, err
 }
 
 func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
@@ -213,8 +225,21 @@ func (man *SMachineManager) FetchMachineByIdOrName(userCred mcclient.TokenCreden
 }
 
 func ValidateRole(role string) error {
-	if !utils.IsInStringArray(role, []string{string(types.RoleTypeControlplane), string(types.RoleTypeNode)}) {
+	if !utils.IsInStringArray(role, []string{
+		string(types.RoleTypeControlplane),
+		string(types.RoleTypeNode),
+	}) {
 		return httperrors.NewInputParameterError("Invalid role: %q", role)
+	}
+	return nil
+}
+
+func ValidateResourceType(resType string) error {
+	if !utils.IsInStringArray(resType, []string{
+		string(types.MachineResourceTypeVm),
+		string(types.MachineResourceTypeBaremetal),
+	}) {
+		return httperrors.NewInputParameterError("Invalid machine resource type: %q", resType)
 	}
 	return nil
 }
@@ -227,15 +252,14 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	cluster, err := man.GetCluster(userCred, clusterId)
 	if err != nil {
 		return nil, httperrors.NewNotFoundError("Cluster %s not found", clusterId)
-	} else {
-		clusterId = cluster.GetId()
-		data.Set("cluster_id", jsonutils.NewString(clusterId))
-		data.Set("provider", jsonutils.NewString(cluster.Provider))
 	}
+	clusterId = cluster.GetId()
+	data.Set("cluster_id", jsonutils.NewString(clusterId))
+	data.Set("provider", jsonutils.NewString(cluster.Provider))
 
 	resourceType := clusters.SetJSONDataDefault(data, "resource_type", string(types.MachineResourceTypeBaremetal))
-	if !utils.IsInStringArray(resourceType, []string{string(types.MachineResourceTypeBaremetal)}) {
-		return nil, httperrors.NewInputParameterError("Invalid resource type: %q", resourceType)
+	if err := ValidateResourceType(resourceType); err != nil {
+		return nil, err
 	}
 
 	role, _ := data.GetString("role")
@@ -256,20 +280,13 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 	data.Set("first_node", firstNode)
 
-	driver := GetDriver(types.ProviderType(cluster.Provider))
-	session, err := man.GetSession()
+	machine := new(types.CreateMachineData)
+	data.Unmarshal(machine)
+	ms, err := cluster.ValidateAddMachines(ctx, userCred, []types.CreateMachineData{*machine})
 	if err != nil {
 		return nil, err
 	}
-	if err := driver.ValidateCreateData(session, userCred, ownerProjId, query, data); err != nil {
-		return nil, err
-	}
-
-	machine := types.CreateMachineData{}
-	data.Unmarshal(&machine)
-	if err := cluster.ValidateAddMachine(&machine); err != nil {
-		return nil, err
-	}
+	data = jsonutils.Marshal(ms[0]).(*jsonutils.JSONDict)
 
 	return man.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
 }
@@ -302,7 +319,6 @@ func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict 
 	cluster, _ := m.GetCluster()
 	if cluster != nil {
 		extra.Add(jsonutils.NewString(cluster.Name), "cluster")
-		extra.Add(jsonutils.NewString(cluster.GetNamespace()), "namespace")
 	}
 	return extra
 }
@@ -342,21 +358,6 @@ func (m *SMachine) ValidatePrepareCondition(ctx context.Context, userCred mcclie
 	return nil
 }
 
-type MachinePrepareData struct {
-	FirstNode bool   `json:"firstNode"`
-	Role      string `json:"role"`
-
-	CAKeyPair           *types.KeyPair `json:"caKeyPair"`
-	EtcdCAKeyPair       *types.KeyPair `json:"etcdCAKeyPair"`
-	FrontProxyCAKeyPair *types.KeyPair `json:"frontProxyCAKeyPair"`
-	SAKeyPair           *types.KeyPair `json:"saKeyPair"`
-	BootstrapToken      string         `json:"bootstrapToken"`
-	ELBAddress          string         `json:"elbAddress"`
-
-	InstanceId string `json:"-"`
-	PrivateIP  string `json:"-"`
-}
-
 func (m *SMachine) StartPrepareTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	if err := m.SetStatus(userCred, types.MachineStatusPrepare, ""); err != nil {
 		return err
@@ -380,21 +381,8 @@ func (m *SMachine) PerformPrepare(ctx context.Context, userCred mcclient.TokenCr
 	return nil, m.StartPrepareTask(ctx, userCred, data.(*jsonutils.JSONDict), "")
 }
 
-func (m *SMachine) GetGlobalClient() (*clientset.Clientset, error) {
-	return clusters.ClusterManager.GetGlobalClient()
-}
-
 func (m *SMachine) GetCluster() (*clusters.SCluster, error) {
 	return clusters.ClusterManager.GetCluster(m.ClusterId)
-}
-
-func (m *SMachine) GetNamespace() string {
-	cluster, err := m.GetCluster()
-	if err != nil {
-		log.Errorf("GetCluster: %v", err)
-		return ""
-	}
-	return cluster.GetNamespace()
 }
 
 func (m *SMachine) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -421,17 +409,8 @@ func (m *SMachine) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 	return cluster.StartDeleteMachinesTask(ctx, userCred, []manager.IMachine{m}, deleteData, "")
 }
 
-// StartMachineDeleteTask invoke by ClusterDeleteMachines
-func (m *SMachine) StartMachineDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, types.MachineStatusDeleting, ""); err != nil {
-		return err
-	}
-	task, err := taskman.TaskManager.NewTask(ctx, "MachineDeleteTask", m, userCred, data, parentTaskId, "", nil)
-	if err != nil {
-		return err
-	}
-	task.ScheduleRun(nil)
-	return nil
+func (man *SMachineManager) StartMachineBatchDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, items []db.IStandaloneModel, data *jsonutils.JSONDict, parentTaskId string) error {
+	return models.RunBatchTask(ctx, items, userCred, data, "MachineBatchDeleteTask", parentTaskId)
 }
 
 func (m *SMachine) AllowPerformTerminate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
@@ -442,6 +421,7 @@ func (m *SMachine) PerformTerminate(ctx context.Context, userCred mcclient.Token
 	return nil, m.StartTerminateTask(ctx, userCred, data.(*jsonutils.JSONDict), "")
 }
 
+// StartTerminateTask invoke by MachineBatchDeleteTask
 func (m *SMachine) StartTerminateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	if err := m.SetStatus(userCred, types.MachineStatusTerminating, ""); err != nil {
 		return err
@@ -483,7 +463,7 @@ func (m *SMachine) SetPrivateIP(address string) error {
 }
 
 func (m *SMachine) GetDriver() IMachineDriver {
-	return GetDriver(types.ProviderType(m.Provider))
+	return GetDriver(types.ProviderType(m.Provider), types.MachineResourceType(m.ResourceType))
 }
 
 func (m *SMachine) GetRole() string {
@@ -539,17 +519,18 @@ func WaitMachineDelete(machine *SMachine) error {
 	})
 }
 
-func (m *SMachine) DoSyncDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	if err := m.StartMachineDeleteTask(ctx, userCred, nil, ""); err != nil {
-		return nil
-	}
-	return WaitMachineDelete(m)
-}
-
 func (m *SMachine) GetResourceId() string {
 	return m.ResourceId
 }
 
 func (m *SMachine) GetStatus() string {
 	return m.Status
+}
+
+func (m *SMachine) SetResourceId(id string) error {
+	_, err := db.Update(m, func() error {
+		m.ResourceId = id
+		return nil
+	})
+	return err
 }

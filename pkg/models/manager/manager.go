@@ -13,14 +13,14 @@ type ICluster interface {
 	GetId() string
 	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
 	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
-	SetKubeconfig(kubeconfig string) error
+	//SetKubeconfig(kubeconfig string) error
 }
 
 type IClusterManager interface {
 	IsClusterExists(userCred mcclient.TokenCredential, id string) (ICluster, bool, error)
 	FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (ICluster, error)
 	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (ICluster, error)
-	GetNonSystemClusters() ([]ICluster, error)
+	//GetNonSystemClusters() ([]ICluster, error)
 }
 
 type IMachine interface {
@@ -31,7 +31,6 @@ type IMachine interface {
 	IsControlplane() bool
 	IsRunning() bool
 	GetPrivateIP() (string, error)
-	DoSyncDelete(ctx context.Context, userCred mcclient.TokenCredential) error
 	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
 	GetStatus() string
 	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error

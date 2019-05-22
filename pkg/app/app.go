@@ -10,7 +10,9 @@ import (
 
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon"
+	app_commmon "yunion.io/x/onecloud/pkg/cloudcommon/app"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/pkg/util/runtime"
 
 	"yunion.io/x/yunion-kube/pkg/clusterdriver"
@@ -18,6 +20,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/controllers"
 	"yunion.io/x/yunion-kube/pkg/dialer"
 	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/server"
 	"yunion.io/x/yunion-kube/pkg/types/config"
@@ -45,7 +48,7 @@ func prepareEnv() {
 	os.Unsetenv("SSH_AGENT_PID")
 	os.Setenv("DISABLE_HTTP2", "true")
 
-	cloudcommon.ParseOptions(&options.Options, os.Args, "kube-server.conf", "k8s")
+	common_options.ParseOptions(&options.Options, os.Args, "kube-server.conf", "k8s")
 	// TODO: support rbac
 	options.Options.EnableRbac = false
 	runtime.ReallyCrash = false
@@ -56,13 +59,18 @@ func Run(ctx context.Context) error {
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
 
-	app := cloudcommon.InitApp(&options.Options.CommonOptions, true)
+	app := app_commmon.InitApp(&options.Options.CommonOptions, true)
 	InitHandlers(app)
 
 	if db.CheckSync(options.Options.AutoSyncTable) {
-		err := models.InitDB()
-		if err != nil {
-			log.Fatalf("Init models error: %v", err)
+		for _, initDBFunc := range []func() error{
+			models.InitDB,
+			clusters.InitDB,
+		} {
+			err := initDBFunc()
+			if err != nil {
+				log.Fatalf("Init models error: %v", err)
+			}
 		}
 	} else {
 		log.Fatalf("Fail sync db")
@@ -78,7 +86,7 @@ func Run(ctx context.Context) error {
 
 	go RegisterDriver(scaledCtx)
 
-	cloudcommon.InitAuth(&options.Options.CommonOptions, func() {
+	app_commmon.InitAuth(&options.Options.CommonOptions, func() {
 		log.Infof("Auth complete, start controllers.")
 		go func() {
 			controllers.Start()
