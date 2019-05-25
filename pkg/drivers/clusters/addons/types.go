@@ -27,17 +27,34 @@ func (c HelmPluginConfig) GenerateYAML() (string, error) {
 	return CompileTemplateFromMap(HelmTemplate, c)
 }
 
+type YunionAuthConfig struct {
+	AuthUrl       string `json:"auth_url"`
+	AdminUser     string `json:"admin_user"`
+	AdminPassword string `json:"admin_password"`
+	AdminProject  string `json:"admin_project"`
+	Cluster       string `json:"cluster"`
+	InstanceType  string `json:"instance_type"`
+	Region        string `json:"region"` // DEP
+}
+
 type CloudProviderYunionConfig struct {
+	YunionAuthConfig
 	CloudProviderImage string
-	AuthUrl            string
-	AdminUser          string
-	AdminPassword      string
-	AdminProject       string
-	Cluster            string
-	InstanceType       string
-	Region             string // DEP
 }
 
 func (c CloudProviderYunionConfig) GenerateYAML() (string, error) {
 	return CompileTemplateFromMap(YunionCloudProviderTemplate, c)
+}
+
+type CSIYunionConfig struct {
+	YunionAuthConfig
+	AttacherImage    string
+	ProvisionerImage string
+	PluginImage      string
+	RegistrarImage   string
+	Base64Config     string
+}
+
+func (c CSIYunionConfig) GenerateYAML() (string, error) {
+	return CompileTemplateFromMap(CSIYunionTemplate, c)
 }

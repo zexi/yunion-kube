@@ -7,14 +7,23 @@ import (
 )
 
 const YunionVMManifestTemplate = `
+#### CNIPlugin config ####
 ---
 {{.CNIPlugin}}
 ---
+#### CSIPlugin config ####
+---
 {{.CSIPlugin}}
+---
+#### MetricsPlugin config ####
 ---
 {{.MetricsPlugin}}
 ---
+#### HelmPlugin config ####
+---
 {{.HelmPlugin}}
+---
+#### CloudProviderPlugin config ####
 ---
 {{.CloudProviderPlugin}}
 ---
@@ -37,6 +46,7 @@ type YunionVMPluginsConfig struct {
 	*addons.MetricsPluginConfig
 	*addons.HelmPluginConfig
 	*addons.CloudProviderYunionConfig
+	*addons.CSIYunionConfig
 }
 
 func GetYunionManifest(config *YunionVMPluginsConfig) (string, error) {
@@ -71,6 +81,13 @@ func GetYunionManifest(config *YunionVMPluginsConfig) (string, error) {
 			return "", errors.Wrap(err, "Generate cloud provider plugin")
 		}
 		allConfig.CloudProviderPlugin = ret
+	}
+	if config.CSIYunionConfig != nil {
+		ret, err := config.CSIYunionConfig.GenerateYAML()
+		if err != nil {
+			return "", errors.Wrap(err, "Generate csi plugin")
+		}
+		allConfig.CSIPlugin = ret
 	}
 	return allConfig.GenerateYAML()
 }
