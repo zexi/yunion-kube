@@ -368,6 +368,11 @@ spec:
             - name: secret-csiplugin
               mountPath: /etc/config
               readOnly: true
+            - mountPath: /lib/modules
+              name: lib-modules
+              readOnly: true
+            - mountPath: /opt/cloud/workspace
+              name: yunion-workspace
       volumes:
         - name: socket-dir
           hostPath:
@@ -385,6 +390,13 @@ spec:
           hostPath:
             path: /dev
             type: Directory
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+        - name: yunion-workspace
+          hostPath:
+            path: /opt/cloud/workspace
+            type: DirectoryOrCreate
         - name: secret-csiplugin
           secret:
             secretName: cloud-config

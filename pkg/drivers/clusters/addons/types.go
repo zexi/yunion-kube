@@ -78,3 +78,12 @@ type CSIYunionConfig struct {
 func (c CSIYunionConfig) GenerateYAML() (string, error) {
 	return CompileTemplateFromMap(CSIYunionTemplate, c)
 }
+
+type IngressControllerYunionConfig struct {
+	YunionAuthConfig
+	Image string
+}
+
+func (c IngressControllerYunionConfig) GenerateYAML() (string, error) {
+	return CompileTemplateFromMap(YunionIngressControllerTemplate, c)
+}
