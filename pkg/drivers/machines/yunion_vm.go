@@ -308,52 +308,78 @@ func (d *SYunionVMDriver) PrepareResource(session *mcclient.ClientSession, machi
 	if err != nil {
 		return nil, err
 	}
-	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
-	if err != nil {
-		return nil, err
-	}
-	ip, err := d.GetPrivateIP(session, id)
-	if err != nil {
-		return nil, err
-	}
-	loginInfo, err := helper.GetLoginInfo(id)
-	if err != nil {
-		return nil, err
-	}
-	if err := ssh.WaitRemotePortOpen(ip, 22, 30*time.Second, 10*time.Minute); err != nil {
-		return nil, errors.Wrapf(err, "remote %s ssh port can't connect", ip)
-	}
 	script, err := d.GetMachineInitScript(machine)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get machine %s init script", machine.GetName())
 	}
-	_, err = ssh.RemoteSSHBashScript(ip, 22, loginInfo.Username, privateKey, script)
+	_, err = d.RemoteRunScript(session, id, script)
 	return nil, err
+}
+
+type ServerLoginInfo struct {
+	*onecloudcli.ServerLoginInfo
+	Ip         string
+	PrivateKey string
+}
+
+func (d *SYunionVMDriver) GetServerLoginInfo(s *mcclient.ClientSession, srvId string) (*ServerLoginInfo, error) {
+	helper := onecloudcli.NewServerHelper(s)
+	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(s)
+	if err != nil {
+		return nil, errors.Wrapf(err, "GetCloudSSHPrivateKey")
+	}
+	ip, err := d.GetPrivateIP(s, srvId)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get server %q PrivateIP", srvId)
+	}
+	loginInfo, err := helper.GetLoginInfo(srvId)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get server %q loginInfo", srvId)
+	}
+	return &ServerLoginInfo{
+		ServerLoginInfo: loginInfo,
+		Ip:              ip,
+		PrivateKey:      privateKey,
+	}, nil
+}
+
+func (d *SYunionVMDriver) RemoteRunScript(s *mcclient.ClientSession, srvId string, script string) (string, error) {
+	loginInfo, err := d.GetServerLoginInfo(s, srvId)
+	if err != nil {
+		return "", errors.Wrap(err, "Get server loginInfo")
+	}
+	if err := ssh.WaitRemotePortOpen(loginInfo.Ip, 22, 30*time.Second, 10*time.Minute); err != nil {
+		return "", errors.Wrapf(err, "remote %s ssh port can't connect", loginInfo.Ip)
+	}
+	return ssh.RemoteSSHBashScript(loginInfo.Ip, 22, loginInfo.Username, loginInfo.PrivateKey, script)
+}
+
+func (d *SYunionVMDriver) RemoteRunCmd(s *mcclient.ClientSession, srvId string, cmd string) (string, error) {
+	loginInfo, err := d.GetServerLoginInfo(s, srvId)
+	if err != nil {
+		return "", errors.Wrap(err, "Get server loginInfo")
+	}
+	if err := ssh.WaitRemotePortOpen(loginInfo.Ip, 22, 30*time.Second, 10*time.Minute); err != nil {
+		return "", errors.Wrapf(err, "remote %s ssh port can't connect", loginInfo.Ip)
+	}
+	return ssh.RemoteSSHCommand(loginInfo.Ip, 22, loginInfo.Username, loginInfo.PrivateKey, cmd)
 }
 
 func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {
 	srvId := machine.ResourceId
 	if len(srvId) == 0 {
-		log.Errorf("Machine resource id is empty")
+		//return errors.Errorf("Machine resource id is empty")
+		log.Warningf("Machine resource id is empty, skip clean cloud resource")
 		return nil
 	}
-	ip, _ := d.GetPrivateIP(session, srvId)
-	log.Errorf("=======start TerminateResource, get ip: %s", ip)
-	if len(ip) == 0 {
-		return nil
+	_, err := d.RemoteRunCmd(session, srvId, "kubeadm reset -f")
+	if err != nil {
+		return errors.Wrap(err, "kubeadm reset failed")
 	}
-	//privateKey, err := onecloudcli.GetCloudSSHPrivateKey(session)
-	//if err != nil {
-	//return err
-	//}
-	//_, err = ssh.RemoteSSHCommand(ip, 22, "root", privateKey, "kubeadm reset -f")
-	//if err != nil {
-	//return errors.Wrap(err, "kubeadm reset failed")
-	//}
 	helper := onecloudcli.NewServerHelper(session)
 	params := jsonutils.NewDict()
 	params.Add(jsonutils.JSONTrue, "override_pending_delete")
-	_, err := helper.DeleteWithParam(session, srvId, params, nil)
+	_, err = helper.DeleteWithParam(session, srvId, params, nil)
 	if err != nil {
 		return errors.Wrapf(err, "delete server %s", srvId)
 	}

@@ -17,7 +17,7 @@ import (
 type IMachineDriver interface {
 	GetProvider() types.ProviderType
 	GetResourceType() types.MachineResourceType
-	GetPrivateIP(session *mcclient.ClientSession, id string) (string, error)
+	GetPrivateIP(session *mcclient.ClientSession, resourceId string) (string, error)
 	UseClusterAPI() bool
 
 	PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *SMachine, data *jsonutils.JSONDict) error
