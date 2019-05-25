@@ -3,6 +3,8 @@ package tasks
 import (
 	"context"
 
+	"github.com/pkg/errors"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -38,10 +40,19 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 		t.OnError(ctx, machine, err)
 		return
 	}
-	log.Errorf("=======start PrepareResource: %#v", prepareData)
+	log.Infof("Start PrepareResource: %#v", prepareData)
 	_, err = driver.PrepareResource(session, machine, prepareData)
 	if err != nil {
 		t.OnError(ctx, machine, err)
+		return
+	}
+	ip, err := driver.GetPrivateIP(session, machine.GetResourceId())
+	if err != nil {
+		t.OnError(ctx, machine, errors.Wrapf(err, "Get resource %s private ip", machine.GetResourceId))
+		return
+	}
+	if err := machine.SetPrivateIP(ip); err != nil {
+		t.OnError(ctx, machine, errors.Wrapf(err, "Set machine private ip %s", ip))
 		return
 	}
 	machine.SetStatus(t.UserCred, types.MachineStatusRunning, "")
