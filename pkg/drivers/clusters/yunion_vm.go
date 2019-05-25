@@ -2,6 +2,7 @@ package clusters
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -253,6 +254,15 @@ func (d *SYunionVMDriver) RequestDeployMachines(ctx context.Context, userCred mc
 
 func (d *SYunionVMDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
 	o := options.Options
+	authConfig := addons.YunionAuthConfig{
+		AuthUrl:       o.AuthURL,
+		AdminUser:     o.AdminUser,
+		AdminPassword: o.AdminPassword,
+		AdminProject:  o.AdminProject,
+		Region:        o.Region,
+		Cluster:       cluster.GetName(),
+		InstanceType:  "guest",
+	}
 	return vm_addons.GetYunionManifest(&vm_addons.YunionVMPluginsConfig{
 		CNICalicoConfig: &addons.CNICalicoConfig{
 			ControllerImage: registry.MirrorImage("kube-controllers", "v3.7.2", "calico"),
@@ -267,14 +277,16 @@ func (d *SYunionVMDriver) GetAddonsManifest(cluster *clusters.SCluster) (string,
 			TillerImage: registry.MirrorImage("tiller", "v2.11.0", ""),
 		},
 		CloudProviderYunionConfig: &addons.CloudProviderYunionConfig{
+			YunionAuthConfig:   authConfig,
 			CloudProviderImage: registry.MirrorImage("yunion-cloud-controller-manager", "v2.9.0", ""),
-			AuthUrl:            o.AuthURL,
-			AdminUser:          o.AdminUser,
-			AdminPassword:      o.AdminPassword,
-			AdminProject:       o.AdminProject,
-			Region:             o.Region,
-			Cluster:            cluster.GetName(),
-			InstanceType:       "guest",
+		},
+		CSIYunionConfig: &addons.CSIYunionConfig{
+			YunionAuthConfig: authConfig,
+			AttacherImage:    registry.MirrorImage("csi-attacher", "v1.0.1", ""),
+			ProvisionerImage: registry.MirrorImage("csi-provisioner", "v1.0.1", ""),
+			RegistrarImage:   registry.MirrorImage("csi-node-driver-registrar", "v1.1.0", ""),
+			PluginImage:      registry.MirrorImage("yunion-csi-plugin", "v2.9.0", ""),
+			Base64Config:     base64.StdEncoding.EncodeToString([]byte(jsonutils.Marshal(authConfig).PrettyString())),
 		},
 	})
 }
