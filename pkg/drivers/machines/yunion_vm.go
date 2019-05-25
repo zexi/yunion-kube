@@ -372,7 +372,7 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 		log.Warningf("Machine resource id is empty, skip clean cloud resource")
 		return nil
 	}
-	_, err := d.RemoteRunCmd(session, srvId, "kubeadm reset -f")
+	_, err := d.RemoteRunCmd(session, srvId, "sudo kubeadm reset -f")
 	if err != nil {
 		return errors.Wrap(err, "kubeadm reset failed")
 	}
