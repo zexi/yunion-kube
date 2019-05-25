@@ -1,5 +1,21 @@
 package addons
 
+import (
+	"encoding/base64"
+
+	"yunion.io/x/jsonutils"
+)
+
+type CNIYunionConfig struct {
+	YunionAuthConfig
+	CNIImage    string
+	ClusterCIDR string
+}
+
+func (c CNIYunionConfig) GenerateYAML() (string, error) {
+	return CompileTemplateFromMap(CNIYunionTemplate, c)
+}
+
 type CNICalicoConfig struct {
 	ControllerImage string
 	NodeImage       string
@@ -35,6 +51,10 @@ type YunionAuthConfig struct {
 	Cluster       string `json:"cluster"`
 	InstanceType  string `json:"instance_type"`
 	Region        string `json:"region"` // DEP
+}
+
+func (c YunionAuthConfig) ToJSONBase64String() string {
+	return base64.StdEncoding.EncodeToString([]byte(jsonutils.Marshal(c).PrettyString()))
 }
 
 type CloudProviderYunionConfig struct {

@@ -25,9 +25,9 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
-	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/etcd"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
+	"yunion.io/x/yunion-kube/pkg/utils/registry"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
 )
 
@@ -135,24 +135,16 @@ func (d *SYunionHostDriver) RequestDeployMachines(ctx context.Context, userCred 
 }
 
 func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
-	o := options.Options
-	return addons.GetYunionManifest(addons.ManifestConfig{
-		ClusterCIDR:        cluster.ServiceCidr,
-		AuthURL:            o.AuthURL,
-		AdminUser:          o.AdminUser,
-		AdminPassword:      o.AdminPassword,
-		AdminProject:       o.AdminProject,
-		Region:             o.Region,
-		KubeCluster:        cluster.Name,
-		CNIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/cni:v2.7.0",
-		CloudProviderImage: "registry.cn-beijing.aliyuncs.com/yunionio/yunion-cloud-controller-manager:v2.9.0",
-		CSIAttacher:        "registry.cn-beijing.aliyuncs.com/yunionio/csi-attacher:v0.4.0",
-		CSIProvisioner:     "registry.cn-beijing.aliyuncs.com/yunionio/csi-provisioner:v0.4.0",
-		CSIRegistrar:       "registry.cn-beijing.aliyuncs.com/yunionio/driver-registrar:v0.4.0",
-		CSIImage:           "registry.cn-beijing.aliyuncs.com/yunionio/csi-plugin:v2.7.0",
-		TillerImage:        "registry.cn-beijing.aliyuncs.com/yunionio/tiller:v2.11.0",
-		MetricsServerImage: "registry.cn-beijing.aliyuncs.com/yunionio/metrics-server-amd64:v0.3.1",
-	})
+	commonConf := d.GetCommonAddonsConfig(cluster)
+	pluginConf := &addons.YunionHostPluginsConfig{
+		YunionCommonPluginsConfig: commonConf,
+		CNIYunionConfig: &addons.CNIYunionConfig{
+			YunionAuthConfig: commonConf.CloudProviderYunionConfig.YunionAuthConfig,
+			CNIImage:         registry.MirrorImage("cni", "v2.7.0", ""),
+			ClusterCIDR:      cluster.GetServiceCidr(),
+		},
+	}
+	return pluginConf.GenerateYAML()
 }
 
 func (d *SYunionHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) ([]string, error) {

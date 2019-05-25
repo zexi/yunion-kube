@@ -2,7 +2,6 @@ package clusters
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -17,7 +16,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
-	vm_addons "yunion.io/x/yunion-kube/pkg/drivers/clusters/addons/vm"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
@@ -253,40 +251,16 @@ func (d *SYunionVMDriver) RequestDeployMachines(ctx context.Context, userCred mc
 }
 
 func (d *SYunionVMDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
-	o := options.Options
-	authConfig := addons.YunionAuthConfig{
-		AuthUrl:       o.AuthURL,
-		AdminUser:     o.AdminUser,
-		AdminPassword: o.AdminPassword,
-		AdminProject:  o.AdminProject,
-		Region:        o.Region,
-		Cluster:       cluster.GetName(),
-		InstanceType:  "guest",
-	}
-	return vm_addons.GetYunionManifest(&vm_addons.YunionVMPluginsConfig{
+	commonConf := d.GetCommonAddonsConfig(cluster)
+
+	pluginConf := &addons.YunionVMPluginsConfig{
+		YunionCommonPluginsConfig: commonConf,
 		CNICalicoConfig: &addons.CNICalicoConfig{
 			ControllerImage: registry.MirrorImage("kube-controllers", "v3.7.2", "calico"),
 			NodeImage:       registry.MirrorImage("node", "v3.7.2", "calico"),
 			CNIImage:        registry.MirrorImage("cni", "v3.7.2", "calico"),
 			ClusterCIDR:     cluster.GetPodCidr(),
 		},
-		MetricsPluginConfig: &addons.MetricsPluginConfig{
-			MetricsServerImage: registry.MirrorImage("metrics-server-amd64", "v0.3.1", ""),
-		},
-		HelmPluginConfig: &addons.HelmPluginConfig{
-			TillerImage: registry.MirrorImage("tiller", "v2.11.0", ""),
-		},
-		CloudProviderYunionConfig: &addons.CloudProviderYunionConfig{
-			YunionAuthConfig:   authConfig,
-			CloudProviderImage: registry.MirrorImage("yunion-cloud-controller-manager", "v2.9.0", ""),
-		},
-		CSIYunionConfig: &addons.CSIYunionConfig{
-			YunionAuthConfig: authConfig,
-			AttacherImage:    registry.MirrorImage("csi-attacher", "v1.0.1", ""),
-			ProvisionerImage: registry.MirrorImage("csi-provisioner", "v1.0.1", ""),
-			RegistrarImage:   registry.MirrorImage("csi-node-driver-registrar", "v1.1.0", ""),
-			PluginImage:      registry.MirrorImage("yunion-csi-plugin", "v2.9.0", ""),
-			Base64Config:     base64.StdEncoding.EncodeToString([]byte(jsonutils.Marshal(authConfig).PrettyString())),
-		},
-	})
+	}
+	return pluginConf.GenerateYAML()
 }
