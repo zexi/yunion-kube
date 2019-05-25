@@ -23,10 +23,13 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/drivers"
+	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
+	"yunion.io/x/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/utils/registry"
 )
 
 type sClusterAPIDriver struct {
@@ -250,4 +253,45 @@ func (d *sClusterAPIDriver) RequestDeleteMachines(ctx context.Context, userCred 
 		items = append(items, m.(db.IStandaloneModel))
 	}
 	return machines.MachineManager.StartMachineBatchDeleteTask(ctx, userCred, items, nil, task.GetTaskId())
+}
+
+func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *clusters.SCluster) addons.YunionAuthConfig {
+	o := options.Options
+	authConfig := addons.YunionAuthConfig{
+		AuthUrl:       o.AuthURL,
+		AdminUser:     o.AdminUser,
+		AdminPassword: o.AdminPassword,
+		AdminProject:  o.AdminProject,
+		Region:        o.Region,
+		Cluster:       cluster.GetName(),
+		InstanceType:  cluster.ResourceType,
+	}
+	return authConfig
+}
+
+func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) *addons.YunionCommonPluginsConfig {
+	authConfig := d.GetAddonYunionAuthConfig(cluster)
+
+	commonConf := &addons.YunionCommonPluginsConfig{
+		MetricsPluginConfig: &addons.MetricsPluginConfig{
+			MetricsServerImage: registry.MirrorImage("metrics-server-amd64", "v0.3.1", ""),
+		},
+		HelmPluginConfig: &addons.HelmPluginConfig{
+			TillerImage: registry.MirrorImage("tiller", "v2.11.0", ""),
+		},
+		CloudProviderYunionConfig: &addons.CloudProviderYunionConfig{
+			YunionAuthConfig:   authConfig,
+			CloudProviderImage: registry.MirrorImage("yunion-cloud-controller-manager", "v2.9.0", ""),
+		},
+		CSIYunionConfig: &addons.CSIYunionConfig{
+			YunionAuthConfig: authConfig,
+			AttacherImage:    registry.MirrorImage("csi-attacher", "v1.0.1", ""),
+			ProvisionerImage: registry.MirrorImage("csi-provisioner", "v1.0.1", ""),
+			RegistrarImage:   registry.MirrorImage("csi-node-driver-registrar", "v1.1.0", ""),
+			PluginImage:      registry.MirrorImage("yunion-csi-plugin", "v2.9.0", ""),
+			Base64Config:     authConfig.ToJSONBase64String(),
+		},
+	}
+
+	return commonConf
 }
