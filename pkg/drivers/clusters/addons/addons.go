@@ -37,14 +37,19 @@ const YunionVMManifestTemplate = `
 ---
 {{.CloudProviderPlugin}}
 ---
+#### IngressControllerPlugin config ####
+---
+{{.IngressControllerPlugin}}
+---
 `
 
 type yunionConfig struct {
-	CNIPlugin           string
-	CSIPlugin           string
-	MetricsPlugin       string
-	HelmPlugin          string
-	CloudProviderPlugin string
+	CNIPlugin               string
+	CSIPlugin               string
+	MetricsPlugin           string
+	HelmPlugin              string
+	CloudProviderPlugin     string
+	IngressControllerPlugin string
 }
 
 func (c yunionConfig) GenerateYAML() (string, error) {
@@ -56,6 +61,7 @@ type YunionCommonPluginsConfig struct {
 	*HelmPluginConfig
 	*CloudProviderYunionConfig
 	*CSIYunionConfig
+	*IngressControllerYunionConfig
 }
 
 func (config *YunionCommonPluginsConfig) GetAllConfig() (*yunionConfig, error) {
@@ -87,6 +93,13 @@ func (config *YunionCommonPluginsConfig) GetAllConfig() (*yunionConfig, error) {
 			return nil, errors.Wrap(err, "Generate csi plugin")
 		}
 		allConfig.CSIPlugin = ret
+	}
+	if config.IngressControllerYunionConfig != nil {
+		ret, err := config.IngressControllerYunionConfig.GenerateYAML()
+		if err != nil {
+			return nil, errors.Wrap(err, "Generate csi plugin")
+		}
+		allConfig.IngressControllerPlugin = ret
 	}
 	return allConfig, nil
 }
