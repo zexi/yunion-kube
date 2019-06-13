@@ -291,6 +291,10 @@ func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) *a
 			PluginImage:      registry.MirrorImage("yunion-csi-plugin", "v2.9.0", ""),
 			Base64Config:     authConfig.ToJSONBase64String(),
 		},
+		IngressControllerYunionConfig: &addons.IngressControllerYunionConfig{
+			YunionAuthConfig: authConfig,
+			Image:            registry.MirrorImage("yunion-ingress-controller", "v2.10.0", ""),
+		},
 	}
 
 	return commonConf
