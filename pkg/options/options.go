@@ -28,5 +28,5 @@ type KubeServerOptions struct {
 
 	DockerdBip string `help:"Global nodes docker daemon bridge CIDR" default:"172.17.0.1/16"`
 
-	GuestDefaultTemplate string `help:"Guest kubernetes default image id" default:"k8s-centos7-base"`
+	GuestDefaultTemplate string `help:"Guest kubernetes default image id" default:"k8s-centos7-base.qcow2"`
 }

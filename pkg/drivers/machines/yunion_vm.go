@@ -109,8 +109,9 @@ func GetDefaultDockerConfig() *apis.DockerConfig {
 		InsecureRegistries: []string{},
 		Bip:                o.DockerdBip,
 		LiveRestore:        true,
-		ExecOpts:           []string{"native.cgroupdriver=systemd"},
-		LogDriver:          "json-file",
+		//ExecOpts:           []string{"native.cgroupdriver=systemd"},
+		ExecOpts:  []string{"native.cgroupdriver=cgroupfs"},
+		LogDriver: "json-file",
 		LogOpts: apis.DockerConfigLogOpts{
 			MaxSize: "100m",
 		},
@@ -130,6 +131,14 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 	cluster, err := machine.GetCluster()
 	if err != nil {
 		return "", err
+	}
+
+	kubeletExtraArgs := map[string]string{
+		"cgroup-driver":             "cgroupfs",
+		"read-only-port":            "10255",
+		"pod-infra-container-image": "registry.cn-beijing.aliyuncs.com/yunionio/pause-amd64:3.1",
+		"feature-gates":             "CSIPersistentVolume=true,KubeletPluginsWatcher=true,VolumeScheduling=true",
+		"eviction-hard":             "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
 	}
 	/*baseConfigure := getUserDataBaseConfigure(session, cluster, machine)*/
 	dockerConfig := jsonutils.Marshal(GetDefaultDockerConfig()).PrettyString()
@@ -192,12 +201,7 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 
 			initConfiguration := kubeadm.SetInitConfigurationOverrides(&kubeadmv1beta1.InitConfiguration{
 				NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
-					KubeletExtraArgs: map[string]string{
-						"read-only-port":            "10255",
-						"pod-infra-container-image": "registry.cn-beijing.aliyuncs.com/yunionio/pause-amd64:3.1",
-						"feature-gates":             "CSIPersistentVolume=true,KubeletPluginsWatcher=true,VolumeScheduling=true",
-						"eviction-hard":             "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
-					},
+					KubeletExtraArgs: kubeletExtraArgs,
 				},
 			})
 			initConfigYAML, err := kubeadm.ConfigurationToYAML(initConfiguration)
@@ -236,13 +240,7 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 			return "", err
 		}
 		joinConfiguration := kubeadm.SetJoinNodeConfigurationOverrides(caCertHash, data.BootstrapToken, apiServerEndpoint, nil)
-		joinConfiguration.NodeRegistration.KubeletExtraArgs = map[string]string{
-			"cloud-provider":            "external",
-			"read-only-port":            "10255",
-			"pod-infra-container-image": "registry.cn-beijing.aliyuncs.com/yunionio/pause-amd64:3.1",
-			"feature-gates":             "CSIPersistentVolume=true,KubeletPluginsWatcher=true,VolumeScheduling=true",
-			"eviction-hard":             "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
-		}
+		joinConfiguration.NodeRegistration.KubeletExtraArgs = kubeletExtraArgs
 		joinConfigurationYAML, err := kubeadm.ConfigurationToYAML(joinConfiguration)
 		if err != nil {
 			return "", err
