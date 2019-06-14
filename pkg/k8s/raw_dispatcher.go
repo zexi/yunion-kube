@@ -2,12 +2,11 @@ package k8s
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appsrv"
@@ -28,6 +27,9 @@ func AddRawResourceDispatcher(prefix string, app *appsrv.Application) {
 
 	// GET raw resource
 	app.AddHandler("GET", rawResourcePrefix, auth.Authenticate(getResourceHandler))
+
+	// Get raw resource yaml
+	app.AddHandler("GET", fmt.Sprintf("%s/yaml", rawResourcePrefix), auth.Authenticate(getResourceYAMLHandler))
 
 	// PUT raw resource
 	app.AddHandler("PUT", rawResourcePrefix, auth.Authenticate(putResourceHandler))
@@ -100,13 +102,18 @@ func (env *verberEnv) Put() error {
 	if err != nil {
 		return httperrors.NewInputParameterError("Get body string error: %v", err)
 	}
-	log.Debugf("Get raw update json data: %s", rawStr)
-	putSpec := runtime.Unknown{}
-	err = json.NewDecoder(strings.NewReader(rawStr)).Decode(&putSpec)
+	decode := scheme.Codecs.UniversalDeserializer().Decode
+	obj, _, err := decode([]byte(rawStr), nil, nil)
 	if err != nil {
-		return err
+		return httperrors.NewInputParameterError("Decode error: %v", err)
 	}
-	return env.client.Put(env.kind, env.inNamespace, env.namespace, env.name, &putSpec)
+	log.Debugf("Input %s, get object: %#v", rawStr, obj)
+	//putSpec := runtime.Unknown{}
+	//err = json.NewDecoder(strings.NewReader(rawStr)).Decode(&putSpec)
+	//if err != nil {
+	//return err
+	//}
+	return env.client.Put(env.kind, env.inNamespace, env.namespace, env.name, obj)
 }
 
 func (env *verberEnv) Delete() error {
@@ -125,6 +132,20 @@ func getResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		return
 	}
 	SendJSON(w, obj)
+}
+
+func getResourceYAMLHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	env, err := fetchVerberEnv(ctx, w, r)
+	if err != nil {
+		errors.GeneralServerError(w, err)
+		return
+	}
+	obj, err := env.Get()
+	if err != nil {
+		errors.GeneralServerError(w, err)
+		return
+	}
+	SendYAML(w, obj)
 }
 
 func putResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
