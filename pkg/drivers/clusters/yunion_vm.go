@@ -3,6 +3,9 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"yunion.io/x/log"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -54,6 +57,55 @@ func (d *SYunionVMDriver) GetK8sVersions() []string {
 	return []string{
 		"v1.14.1",
 	}
+}
+
+func getClusterMachineIndexs(cluster *clusters.SCluster, role string, count int) ([]int, error) {
+	if count == 0 {
+		return nil, nil
+	}
+	ms, err := cluster.GetMachinesByRole(role)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get machines by role %s", role)
+	}
+	idxs := make(map[int]bool)
+	for _, m := range ms {
+		name := m.GetName()
+		parts := strings.Split(name, "-")
+		if len(parts) == 0 {
+			continue
+		}
+		idxStr := parts[len(parts)-1]
+		idx, err := strconv.Atoi(idxStr)
+		if err != nil {
+			log.Errorf("Invalid machine name: %s", name)
+			continue
+		}
+		idxs[idx] = true
+	}
+	orderGen := func(count int) []int {
+		ret := make([]int, 0)
+		for i:=0; i< count; i++ {
+			ret = append(ret, i)
+		}
+		return ret
+	}
+	if len(idxs) == 0 {
+		return orderGen(count), nil
+	}
+
+	ret := make([]int, 0)
+
+	for i := 0; i < count; i++ {
+		for idx := 0; ; idx++ {
+			_, ok := idxs[idx]
+			if !ok {
+				ret = append(ret, idx)
+				idxs[idx] = true
+				break
+			}
+		}
+	}
+	return ret, nil
 }
 
 func generateVMName(cluster, role, randStr string, idx int) string {
@@ -109,17 +161,25 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 		return httperrors.NewInputParameterError("Not find kubernetes image")
 	}
 	randStr := rand.String(4)
+	controlIdxs, err := getClusterMachineIndexs(cluster, types.RoleTypeControlplane, len(controls))
+	if err != nil {
+		return httperrors.NewNotAcceptableError("Generate controlplane machines name: %v", err)
+	}
 	for idx, m := range controls {
 		if len(m.Name) == 0 {
-			m.Name = generateVMName(namePrefix, m.Role, randStr, idx)
+			m.Name = generateVMName(namePrefix, m.Role, randStr, controlIdxs[idx])
 		}
 		if err := d.applyMachineCreateConfig(m, imageId); err != nil {
 			return httperrors.NewInputParameterError("Apply controlplane vm config: %v", err)
 		}
 	}
+	nodeIdxs, err := getClusterMachineIndexs(cluster, types.RoleTypeNode, len(nodes))
+	if err != nil {
+		return httperrors.NewNotAcceptableError("Generate node machines name: %v", err)
+	}
 	for idx, m := range nodes {
 		if len(m.Name) == 0 {
-			m.Name = generateVMName(namePrefix, m.Role, randStr, idx)
+			m.Name = generateVMName(namePrefix, m.Role, randStr, nodeIdxs[idx])
 		}
 		if err := d.applyMachineCreateConfig(m, imageId); err != nil {
 			return httperrors.NewInputParameterError("Apply node vm config: %v", err)

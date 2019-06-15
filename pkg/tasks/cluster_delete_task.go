@@ -22,6 +22,7 @@ type ClusterDeleteTask struct {
 
 func (t *ClusterDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*clusters.SCluster)
+	// TODO: clean cloud resources
 	if err := t.startDeleteMachines(ctx, cluster); err != nil {
 		t.onError(ctx, cluster, err)
 		return

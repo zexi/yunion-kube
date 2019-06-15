@@ -614,12 +614,12 @@ func (c *SCluster) CheckPVCEmpty() error {
 }
 
 func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
-	if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
-		return err
-	}
-	if err := c.CheckPVCEmpty(); err != nil {
-		return err
-	}
+	//if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
+	//return err
+	//}
+	//if err := c.CheckPVCEmpty(); err != nil {
+	//return err
+	//}
 	return nil
 }
 
@@ -717,6 +717,20 @@ func (c *SCluster) GetControlplaneMachines() ([]manager.IMachine, error) {
 
 func (c *SCluster) GetMachines() ([]manager.IMachine, error) {
 	return manager.MachineManager().GetMachines(c.Id)
+}
+
+func (c *SCluster) GetMachinesByRole(role string) ([]manager.IMachine, error) {
+	ms, err := c.GetMachines()
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]manager.IMachine, 0)
+	for _, m := range ms {
+		if m.GetRole() == role {
+			ret = append(ret, m)
+		}
+	}
+	return ret, nil
 }
 
 func (c *SCluster) getKeyPairByUser(user string) (*SX509KeyPair, error) {

@@ -35,6 +35,7 @@ type IMachine interface {
 	GetStatus() string
 	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
 	SetPrivateIP(address string) error
+	GetRole() string
 }
 
 type IMachineManager interface {
