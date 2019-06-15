@@ -1,6 +1,7 @@
 package client
 
 import (
+	//"encoding/json"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -90,7 +91,7 @@ func (verber *resourceVerber) Delete(kind string, namespaceSet bool, namespace s
 
 // Put puts new resource version of the given kind in the given namespace with the given name.
 func (verber *resourceVerber) Put(kind string, namespaceSet bool, namespace string, name string,
-	object *runtime.Unknown) error {
+	obj runtime.Object) error {
 
 	resourceSpec, ok := api.KindToAPIMapping[kind]
 	if !ok {
@@ -107,11 +108,15 @@ func (verber *resourceVerber) Put(kind string, namespaceSet bool, namespace stri
 
 	client := verber.getRESTClientByType(resourceSpec.ClientType)
 
+	//objBytes, err := json.Marshal(obj)
+	//if err != nil {
+	//return fmt.Errorf("Marshal obj %#v: %v", obj, err)
+	//}
 	req := client.Put().
 		Resource(resourceSpec.Resource).
 		Name(name).
-		SetHeader("Content-Type", "application/json").
-		Body([]byte(object.Raw))
+		//SetHeader("Content-Type", "application/json").
+		Body(obj)
 
 	if resourceSpec.Namespaced {
 		req.Namespace(namespace)
