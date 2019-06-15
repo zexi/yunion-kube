@@ -63,6 +63,16 @@ func getClusterMachineIndexs(cluster *clusters.SCluster, role string, count int)
 	if count == 0 {
 		return nil, nil
 	}
+	orderGen := func(count int) []int {
+		ret := make([]int, 0)
+		for i:=0; i< count; i++ {
+			ret = append(ret, i)
+		}
+		return ret
+	}
+	if cluster == nil {
+		return orderGen(count),nil
+	}
 	ms, err := cluster.GetMachinesByRole(role)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Get machines by role %s", role)
@@ -81,13 +91,6 @@ func getClusterMachineIndexs(cluster *clusters.SCluster, role string, count int)
 			continue
 		}
 		idxs[idx] = true
-	}
-	orderGen := func(count int) []int {
-		ret := make([]int, 0)
-		for i:=0; i< count; i++ {
-			ret = append(ret, i)
-		}
-		return ret
 	}
 	if len(idxs) == 0 {
 		return orderGen(count), nil
