@@ -89,6 +89,9 @@ func (d *SYunionVMDriver) getServerCreateInput(machine *machines.SMachine, prepa
 		EnableCloudInit: true,
 	}
 	input.Disks = config.Disks
+	input.Networks = config.Networks
+	input.IsolatedDevices = config.IsolatedDevices
+
 	input.Project = machine.ProjectId
 	input.PreferRegion = config.PreferRegion
 	input.PreferZone = config.PreferZone
@@ -370,14 +373,16 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 		log.Warningf("Machine resource id is empty, skip clean cloud resource")
 		return nil
 	}
-	_, err := d.RemoteRunCmd(session, srvId, "sudo kubeadm reset -f")
-	if err != nil {
-		return errors.Wrap(err, "kubeadm reset failed")
+	if len(machine.Address) != 0 && !machine.IsFirstNode() {
+		_, err := d.RemoteRunCmd(session, srvId, "sudo kubeadm reset -f")
+		if err != nil {
+			return errors.Wrap(err, "kubeadm reset failed")
+		}
 	}
 	helper := onecloudcli.NewServerHelper(session)
 	params := jsonutils.NewDict()
 	params.Add(jsonutils.JSONTrue, "override_pending_delete")
-	_, err = helper.DeleteWithParam(session, srvId, params, nil)
+	_, err := helper.DeleteWithParam(session, srvId, params, nil)
 	if err != nil {
 		return errors.Wrapf(err, "delete server %s", srvId)
 	}
