@@ -391,7 +391,10 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 }
 
 func (d *SYunionVMDriver) GetPrivateIP(session *mcclient.ClientSession, id string) (string, error) {
-	ret, err := cloudmod.Servernetworks.ListDescendent(session, id, nil)
+	params := jsonutils.NewDict()
+	params.Add(jsonutils.JSONTrue, "system")
+	params.Add(jsonutils.JSONTrue, "admin")
+	ret, err := cloudmod.Servernetworks.ListDescendent(session, id, params)
 	if err != nil {
 		return "", err
 	}
