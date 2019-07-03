@@ -1,15 +1,33 @@
 package client
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/pkg/errors"
 
 	api "yunion.io/x/onecloud/pkg/apis/compute"
+	"yunion.io/x/onecloud/pkg/util/httputils"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
+
+const (
+	NotFoundMsg = "NotFoundError"
+)
+
+func IsNotFoundError(err error) bool {
+	if httpErr, ok := err.(*httputils.JSONClientError); ok {
+		if httpErr.Code == http.StatusNotFound {
+			return true
+		}
+	}
+	if strings.Contains(err.Error(), NotFoundMsg) {
+		return true
+	}
+	return false
+}
 
 type ServerHelper struct {
 	*ResourceHelper

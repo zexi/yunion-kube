@@ -186,7 +186,7 @@ func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, mac
 	if err != nil {
 		return nil, err
 	}
-	_, err = ssh.RemoteSSHBashScript(accessIP, 22, "root", privateKey, userdata)
+	_, err = ssh.RemoteSSHBashScript(accessIP, 22, "root", "", privateKey, userdata)
 	return nil, err
 }
 
@@ -210,7 +210,7 @@ func (d *SYunionHostDriver) TerminateResource(session *mcclient.ClientSession, m
 	if err != nil {
 		return err
 	}
-	_, err = ssh.RemoteSSHCommand(accessIP, 22, "root", privateKey, "kubeadm reset -f")
+	_, err = ssh.RemoteSSHCommand(accessIP, 22, "root", "", privateKey, "kubeadm reset -f")
 	return err
 }
 

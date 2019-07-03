@@ -85,7 +85,6 @@ func (h *ResourceHelper) WaitObjectDelete(id string, continueWait func(status st
 			if obj == nil {
 				return true, nil
 			}
-			log.Errorf("==========WaitObjectCondition: obj: %s", obj.PrettyString())
 			status, _ := obj.GetString("status")
 			if status == "" {
 				return false, fmt.Errorf("Object %s no status", obj.PrettyString())
