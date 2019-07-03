@@ -74,19 +74,6 @@ func (d *sClusterAPIBaseDriver) newClusterAPIMachine(machine *machines.SMachine)
 }
 
 func (d *sClusterAPIBaseDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
-	/*client, err := machine.GetGlobalClient()
-	if err != nil {
-		return err
-	}
-	machineObj, err := d.newClusterAPIMachine(machine)
-	if err != nil {
-		return err
-	}
-	_, err = client.ClusterV1alpha1().Machines(machine.GetNamespace()).Create(machineObj)
-	if err != nil {
-		return err
-	}
-	log.Infof("Create machines object: %#v", machineObj)*/
 	return nil
 }
 

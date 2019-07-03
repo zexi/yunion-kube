@@ -33,6 +33,17 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 		return
 	}
 
+	cluster, err := machine.GetCluster()
+	if err != nil {
+		t.OnError(ctx, machine, err)
+		return
+	}
+	prepareData, err = cluster.FillMachinePrepareInput(prepareData)
+	if err != nil {
+		t.OnError(ctx, machine, err)
+		return
+	}
+
 	prepareData.InstanceId = machine.ResourceId
 	driver := machine.GetDriver()
 	session, err := machines.MachineManager.GetSession()

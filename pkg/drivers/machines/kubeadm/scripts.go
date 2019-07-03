@@ -1,9 +1,5 @@
 package kubeadm
 
-import (
-//"fmt"
-)
-
 func GetControlplaneInitScript() string {
 	return `
 #!/usr/bin/env bash
@@ -35,3 +31,4 @@ sudo systemctl restart docker
 sudo kubeadm join --config /run/kubeadm-node.yaml
 `
 }
+
