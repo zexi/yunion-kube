@@ -57,6 +57,8 @@ type SMachine struct {
 
 	// Private IP address
 	Address string `width:"16" charset:"ascii" nullable:"true" list:"user"`
+
+	Hypervisor string `width:"16" charset:"ascii" nullable:"true" list:"user" create:"optional"`
 }
 
 func (man *SMachineManager) GetCluster(userCred mcclient.TokenCredential, clusterId string) (*clusters.SCluster, error) {
@@ -460,6 +462,16 @@ func (m *SMachine) SetPrivateIP(address string) error {
 		return nil
 	})
 	return err
+}
+
+func (m *SMachine) SetHypervisor(hypervisor string) error {
+	if _, err := m.GetModelManager().TableSpec().Update(m, func() error {
+		m.Hypervisor = hypervisor
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *SMachine) GetDriver() IMachineDriver {

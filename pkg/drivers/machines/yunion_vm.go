@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
 
-	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	api "yunion.io/x/onecloud/pkg/apis/compute"
@@ -23,6 +22,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/registry"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
@@ -68,26 +68,20 @@ func (d *SYunionVMDriver) PostCreate(ctx context.Context, userCred mcclient.Toke
 	return d.sClusterAPIBaseDriver.PostCreate(ctx, userCred, cluster, machine, data)
 }
 
-func (d *SYunionVMDriver) getServerCreateInput(machine *machines.SMachine, prepareInput *apis.MachinePrepareInput, userdataContent string) (*api.ServerCreateInput, error) {
-	var err error
-	log.Debugf("Gnerate userdata: %s", userdataContent)
-	userdataContent, err = userdata.CompressUserdata(userdataContent)
-	if err != nil {
-		return nil, errors.Wrap(err, "compress user data")
-	}
+func (d *SYunionVMDriver) getServerCreateInput(machine *machines.SMachine, prepareInput *apis.MachinePrepareInput) (*api.ServerCreateInput, error) {
 	tmp := false
 	config := prepareInput.Config.Vm
 	input := &api.ServerCreateInput{
-		ServerConfigs:   new(api.ServerConfigs),
-		Name:            machine.Name,
-		UserData:        userdataContent,
-		IsSystem:        true,
-		VmemSize:        config.VmemSize,
-		VcpuCount:       config.VcpuCount,
-		AutoStart:       true,
-		DisableDelete:   &tmp,
-		EnableCloudInit: true,
+		ServerConfigs: new(api.ServerConfigs),
+		Name:          machine.Name,
+		IsSystem:      true,
+		VmemSize:      config.VmemSize,
+		VcpuCount:     config.VcpuCount,
+		AutoStart:     true,
+		DisableDelete: &tmp,
+		//EnableCloudInit: true,
 	}
+	input.Hypervisor = config.Hypervisor
 	input.Disks = config.Disks
 	input.Networks = config.Networks
 	input.IsolatedDevices = config.IsolatedDevices
@@ -122,8 +116,8 @@ func GetDefaultDockerConfig() *apis.DockerConfig {
 	}
 }
 
-func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.MachinePrepareInput) (string, error) {
-	var userData string
+func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data *apis.MachinePrepareInput, ip string) (string, error) {
+	var initScript string
 	var err error
 
 	caCertHash, err := certificates.GenerateCertificateHash(data.CAKeyPair.Cert)
@@ -143,8 +137,7 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 		"feature-gates":             "CSIPersistentVolume=true,KubeletPluginsWatcher=true,VolumeScheduling=true",
 		"eviction-hard":             "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
 	}
-	/*baseConfigure := getUserDataBaseConfigure(session, cluster, machine)*/
-	dockerConfig := jsonutils.Marshal(GetDefaultDockerConfig()).PrettyString()
+	dockerConfig := GetDefaultDockerConfig()
 	switch data.Role {
 	case types.RoleTypeControlplane:
 		if data.BootstrapToken != "" {
@@ -153,26 +146,22 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 			if err != nil {
 				return "", err
 			}
-			updatedJoinConfiguration := kubeadm.SetJoinNodeConfigurationOverrides(caCertHash, data.BootstrapToken, apiServerEndpoint, nil)
-			updatedJoinConfiguration = kubeadm.SetControlPlaneJoinConfigurationOverrides(updatedJoinConfiguration)
-			joinConfigurationYAML, err := kubeadm.ConfigurationToYAML(updatedJoinConfiguration)
+			updatedJoinConfiguration := kubeadm.SetJoinNodeConfigurationOverrides(caCertHash, data.BootstrapToken, apiServerEndpoint, nil, machine.Name)
+			updatedJoinConfiguration = kubeadm.SetControlPlaneJoinConfigurationOverrides(updatedJoinConfiguration, ip)
+			initScript, err = userdata.JoinControlplaneConfig{
+				DockerConfiguration: dockerConfig,
+				CACert:              string(data.CAKeyPair.Cert),
+				CAKey:               string(data.CAKeyPair.Key),
+				EtcdCACert:          string(data.EtcdCAKeyPair.Cert),
+				EtcdCAKey:           string(data.EtcdCAKeyPair.Key),
+				FrontProxyCACert:    string(data.FrontProxyCAKeyPair.Cert),
+				FrontProxyCAKey:     string(data.FrontProxyCAKeyPair.Key),
+				SaCert:              string(data.SAKeyPair.Cert),
+				SaKey:               string(data.SAKeyPair.Key),
+				JoinConfiguration:   updatedJoinConfiguration,
+			}.ToScript()
 			if err != nil {
-				return "", err
-			}
-			userData, err = userdata.NewJoinControlPlaneCloudInit(&userdata.ControlPlaneJoinInputCloudInit{
-				DockerConfig:      dockerConfig,
-				CACert:            string(data.CAKeyPair.Cert),
-				CAKey:             string(data.CAKeyPair.Key),
-				EtcdCACert:        string(data.EtcdCAKeyPair.Cert),
-				EtcdCAKey:         string(data.EtcdCAKeyPair.Key),
-				FrontProxyCACert:  string(data.FrontProxyCAKeyPair.Cert),
-				FrontProxyCAKey:   string(data.FrontProxyCAKeyPair.Key),
-				SaCert:            string(data.SAKeyPair.Cert),
-				SaKey:             string(data.SAKeyPair.Key),
-				JoinConfiguration: joinConfigurationYAML,
-			})
-			if err != nil {
-				return "", err
+				return "", errors.Wrap(err, "generate join controlplane script")
 			}
 		} else {
 			log.Infof("Machine is the first control plane machine for the cluster")
@@ -180,7 +169,7 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 				return "", errors.New("failed to run controlplane, missing CAPrivateKey")
 			}
 
-			clusterConfiguration, err := kubeadm.SetClusterConfigurationOverrides(cluster, nil)
+			clusterConfiguration, err := kubeadm.SetClusterConfigurationOverrides(cluster, nil, ip)
 			if err != nil {
 				return "", errors.Wrap(err, "SetClusterConfigurationOverrides")
 			}
@@ -197,29 +186,17 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 				"feature-gates": "CSIPersistentVolume=true",
 			}
 			clusterConfiguration.ImageRepository = registry.DefaultRegistryMirror
-			clusterConfigYAML, err := kubeadm.ConfigurationToYAML(clusterConfiguration)
-			if err != nil {
-				return "", errors.Wrap(err, "ConfigurationToYAML")
-			}
 
 			initConfiguration := kubeadm.SetInitConfigurationOverrides(&kubeadmv1beta1.InitConfiguration{
 				NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
 					KubeletExtraArgs: kubeletExtraArgs,
 				},
-			})
-			initConfigYAML, err := kubeadm.ConfigurationToYAML(initConfiguration)
-			if err != nil {
-				return "", err
-			}
+			}, machine.Name)
 
 			kubeProxyConfiguration := kubeadm.SetKubeProxyConfigurationOverrides(nil, cluster.GetServiceCidr())
-			kubeProxyConfigYAML, err := kubeadm.KubeProxyConfigurationToYAML(kubeProxyConfiguration)
-			if err != nil {
-				return "", err
-			}
 
-			userData, err = userdata.NewControlPlaneCloudInit(&userdata.ControlPlaneInputCloudInit{
-				DockerConfig:           dockerConfig,
+			initScript, err = userdata.InitNodeConfig{
+				DockerConfiguration:    dockerConfig,
 				CACert:                 string(data.CAKeyPair.Cert),
 				CAKey:                  string(data.CAKeyPair.Key),
 				EtcdCACert:             string(data.EtcdCAKeyPair.Cert),
@@ -228,10 +205,10 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 				FrontProxyCAKey:        string(data.FrontProxyCAKeyPair.Key),
 				SaCert:                 string(data.SAKeyPair.Cert),
 				SaKey:                  string(data.SAKeyPair.Key),
-				ClusterConfiguration:   clusterConfigYAML,
-				InitConfiguration:      initConfigYAML,
-				KubeProxyConfiguration: kubeProxyConfigYAML,
-			})
+				ClusterConfiguration:   clusterConfiguration,
+				InitConfiguration:      initConfiguration,
+				KubeProxyConfiguration: kubeProxyConfiguration,
+			}.ToScript()
 
 			if err != nil {
 				return "", err
@@ -242,64 +219,39 @@ func (d *SYunionVMDriver) getUserData(machine *machines.SMachine, data *apis.Mac
 		if err != nil {
 			return "", err
 		}
-		joinConfiguration := kubeadm.SetJoinNodeConfigurationOverrides(caCertHash, data.BootstrapToken, apiServerEndpoint, nil)
+		joinConfiguration := kubeadm.SetJoinNodeConfigurationOverrides(caCertHash, data.BootstrapToken, apiServerEndpoint, nil, machine.Name)
 		joinConfiguration.NodeRegistration.KubeletExtraArgs = kubeletExtraArgs
-		joinConfigurationYAML, err := kubeadm.ConfigurationToYAML(joinConfiguration)
-		if err != nil {
-			return "", err
-		}
-		userData, err = userdata.NewNodeCloudInit(&userdata.NodeInputCloudInit{
-			DockerConfig:      dockerConfig,
-			JoinConfiguration: joinConfigurationYAML,
-		})
+		initScript, err = userdata.JoinNodeConfig{
+			DockerConfiguration: dockerConfig,
+			JoinConfiguration:   joinConfiguration,
+		}.ToScript()
 		if err != nil {
 			return "", err
 		}
 	}
-	return userData, nil
-}
-
-func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine) (string, error) {
-	var script string
-	var err error
-
-	switch machine.GetRole() {
-	case string(types.RoleTypeNode):
-		script = kubeadm.GetNodeJoinScript()
-	case string(types.RoleTypeControlplane):
-		if machine.IsFirstNode() {
-			script = kubeadm.GetControlplaneInitScript()
-		} else {
-			script = kubeadm.GetControlplaneJoinScript()
-		}
-	default:
-		err = fmt.Errorf("Invalid machine role: %s", machine.GetRole())
-	}
-	return script, err
+	return initScript, nil
 }
 
 func (d *SYunionVMDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
-	// 1. get userdata
-	// 2. create vm
-	// 3. wait vm running
+	// 1. create vm
+	// 2. wait vm running
+	// 3. ssh run init script
 	// 4. check service
-	userdata, err := d.getUserData(machine, data)
-	if err != nil {
-		return nil, errors.Wrap(err, "getUserData")
-	}
-	input, err := d.getServerCreateInput(machine, data, userdata)
+	input, err := d.getServerCreateInput(machine, data)
 	if err != nil {
 		return nil, errors.Wrap(err, "get server create input")
 	}
 	helper := onecloudcli.NewServerHelper(session)
 	ret, err := helper.Create(session, input.JSON(input))
 	if err != nil {
+		log.Errorf("Create server error: %v, input disks: %#v", err, input.Disks[0])
 		return nil, errors.Wrapf(err, "create server with input: %#v", input)
 	}
 	id, err := ret.GetString("id")
 	if err != nil {
 		return nil, err
 	}
+	machine.SetHypervisor(input.Hypervisor)
 	machine.SetResourceId(id)
 	// wait server running and check service
 	if err := helper.WaitRunning(id); err != nil {
@@ -309,10 +261,15 @@ func (d *SYunionVMDriver) PrepareResource(session *mcclient.ClientSession, machi
 	if err != nil {
 		return nil, err
 	}
-	script, err := d.GetMachineInitScript(machine)
+	ip, err := d.GetPrivateIP(session, id)
+	if err != nil {
+		return nil, err
+	}
+	script, err := d.GetMachineInitScript(machine, data, ip)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get machine %s init script", machine.GetName())
 	}
+	log.Debugf("Generate script: %s", script)
 	_, err = d.RemoteRunScript(session, id, script)
 	return nil, err
 }
