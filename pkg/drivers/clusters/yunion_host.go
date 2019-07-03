@@ -87,7 +87,7 @@ func (d *SYunionHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, e
 	if err != nil {
 		return "", err
 	}
-	out, err := ssh.RemoteSSHCommand(accessIP, 22, "root", privateKey, "cat /etc/kubernetes/admin.conf")
+	out, err := ssh.RemoteSSHCommand(accessIP, 22, "root", "", privateKey, "cat /etc/kubernetes/admin.conf")
 	return out, err
 }
 
