@@ -65,13 +65,13 @@ func getClusterMachineIndexs(cluster *clusters.SCluster, role string, count int)
 	}
 	orderGen := func(count int) []int {
 		ret := make([]int, 0)
-		for i:=0; i< count; i++ {
+		for i := 0; i < count; i++ {
 			ret = append(ret, i)
 		}
 		return ret
 	}
 	if cluster == nil {
-		return orderGen(count),nil
+		return orderGen(count), nil
 	}
 	ms, err := cluster.GetMachinesByRole(role)
 	if err != nil {
@@ -299,7 +299,15 @@ func (d *SYunionVMDriver) GetKubeconfig(cluster *clusters.SCluster) (string, err
 	if err != nil {
 		return "", err
 	}
-	out, err := ssh.RemoteSSHCommand(accessIP, 22, "root", privateKey, "cat /etc/kubernetes/admin.conf")
+	helper := onecloudcli.NewServerHelper(session)
+	loginInfo, err := helper.GetLoginInfo(masterMachine.GetResourceId())
+	if err != nil {
+		return "", errors.Wrapf(err, "Get server %q logininfo", masterMachine.GetResourceId())
+	}
+	if err != nil {
+		return "", errors.Wrap(err, "Get server loginInfo")
+	}
+	out, err := ssh.RemoteSSHCommand(accessIP, 22, loginInfo.Username, loginInfo.Password, privateKey, "cat /etc/kubernetes/admin.conf")
 	return out, err
 }
 
