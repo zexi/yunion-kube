@@ -309,7 +309,7 @@ func (d *SYunionVMDriver) RemoteRunScript(s *mcclient.ClientSession, srvId strin
 	if err := ssh.WaitRemotePortOpen(loginInfo.Ip, 22, 30*time.Second, 10*time.Minute); err != nil {
 		return "", errors.Wrapf(err, "remote %s ssh port can't connect", loginInfo.Ip)
 	}
-	return ssh.RemoteSSHBashScript(loginInfo.Ip, 22, loginInfo.Username, loginInfo.PrivateKey, script)
+	return ssh.RemoteSSHBashScript(loginInfo.Ip, 22, loginInfo.Username, loginInfo.Password, loginInfo.PrivateKey, script)
 }
 
 func (d *SYunionVMDriver) RemoteRunCmd(s *mcclient.ClientSession, srvId string, cmd string) (string, error) {
@@ -320,7 +320,7 @@ func (d *SYunionVMDriver) RemoteRunCmd(s *mcclient.ClientSession, srvId string, 
 	if err := ssh.WaitRemotePortOpen(loginInfo.Ip, 22, 30*time.Second, 10*time.Minute); err != nil {
 		return "", errors.Wrapf(err, "remote %s ssh port can't connect", loginInfo.Ip)
 	}
-	return ssh.RemoteSSHCommand(loginInfo.Ip, 22, loginInfo.Username, loginInfo.PrivateKey, cmd)
+	return ssh.RemoteSSHCommand(loginInfo.Ip, 22, loginInfo.Username, loginInfo.Password, loginInfo.PrivateKey, cmd)
 }
 
 func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {
@@ -333,7 +333,8 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 	if len(machine.Address) != 0 && !machine.IsFirstNode() {
 		_, err := d.RemoteRunCmd(session, srvId, "sudo kubeadm reset -f")
 		if err != nil {
-			return errors.Wrap(err, "kubeadm reset failed")
+			//return errors.Wrap(err, "kubeadm reset failed")
+			log.Errorf("kubeadm reset failed: %v", err)
 		}
 	}
 	helper := onecloudcli.NewServerHelper(session)
@@ -341,6 +342,9 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 	params.Add(jsonutils.JSONTrue, "override_pending_delete")
 	_, err := helper.DeleteWithParam(session, srvId, params, nil)
 	if err != nil {
+		if onecloudcli.IsNotFoundError(err) {
+			return nil
+		}
 		return errors.Wrapf(err, "delete server %s", srvId)
 	}
 	err = helper.WaitDelete(srvId)

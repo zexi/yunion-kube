@@ -14,8 +14,8 @@ import (
 )
 
 // RemoteSSHBashScript executes command on remote machine
-func RemoteSSHBashScript(host string, port int, username string, privateKey, content string) (string, error) {
-	cli, err := ssh.NewClient(host, port, username, "", privateKey)
+func RemoteSSHBashScript(host string, port int, username string, passwd string, privateKey, content string) (string, error) {
+	cli, err := ssh.NewClient(host, port, username, passwd, privateKey)
 	if err != nil {
 		return "", err
 	}
@@ -31,8 +31,8 @@ func RemoteSSHBashScript(host string, port int, username string, privateKey, con
 	return strings.Join(ret, "\n"), nil
 }
 
-func RemoteSSHCommand(host string, port int, username string, privateKey, cmd string) (string, error) {
-	cli, err := ssh.NewClient(host, port, username, "", privateKey)
+func RemoteSSHCommand(host string, port int, username string, passwd string, privateKey, cmd string) (string, error) {
+	cli, err := ssh.NewClient(host, port, username, passwd, privateKey)
 	if err != nil {
 		return "", err
 	}
