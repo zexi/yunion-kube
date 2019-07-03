@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
@@ -42,10 +40,10 @@ func (d *sBaseDriver) ValidateCreateData(session *mcclient.ClientSession, userCr
 }
 
 func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclient.TokenCredential, machine *machines.SMachine, task taskman.ITask) error {
-	cluster, err := machine.GetCluster()
+	/*cluster, err := machine.GetCluster()
 	if err != nil {
 		return errors.Wrap(err, "GetCluster")
-	}
+	}*/
 	createInput, err := machine.GetCreateInput(userCred)
 	if err != nil {
 		log.Errorf("Get create input error: %v", err)
@@ -55,10 +53,10 @@ func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclie
 		Role:      machine.GetRole(),
 		Config:    createInput.Config,
 	}
-	input, err = cluster.FillMachinePrepareInput(input)
+	/*input, err = cluster.FillMachinePrepareInput(input)
 	if err != nil {
 		return errors.Wrap(err, "FillMachinePrepareInput")
-	}
+	}*/
 	return machine.StartPrepareTask(ctx, task.GetUserCred(), jsonutils.Marshal(input).(*jsonutils.JSONDict), task.GetTaskId())
 }
 
