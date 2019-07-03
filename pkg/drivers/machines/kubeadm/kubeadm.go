@@ -42,7 +42,7 @@ type ICluster interface {
 
 // SetDefaultClusterConfiguration sets default dynamic values without overriding
 // user specified values.
-func SetDefaultClusterConfiguration(cluster ICluster, base *kubeadmv1beta1.ClusterConfiguration) (*kubeadmv1beta1.ClusterConfiguration, error) {
+func SetDefaultClusterConfiguration(cluster ICluster, base *kubeadmv1beta1.ClusterConfiguration, ipAddress string) (*kubeadmv1beta1.ClusterConfiguration, error) {
 	if base == nil {
 		base = &kubeadmv1beta1.ClusterConfiguration{}
 	}
@@ -54,25 +54,28 @@ func SetDefaultClusterConfiguration(cluster ICluster, base *kubeadmv1beta1.Clust
 		// TODO: fix this use LB?
 		log.Errorf("Get cluster %s apiServerEndpoint: %v", cluster.GetName(), err)
 	}
+	if ipAddress == "" {
+		ipAddress = localIPV4Lookup
+	}
 	if apiServerEndpoint == "" {
-		apiServerEndpoint = localIPV4Lookup
+		apiServerEndpoint = ipAddress
 	}
 	// Only set the control plane endpoint if the user hasn't specified one
 	if out.ControlPlaneEndpoint == "" {
 		out.ControlPlaneEndpoint = fmt.Sprintf("%s:%d", apiServerEndpoint, APIServerBindPort)
 	}
 	// Add the control plane endpoint to the list of cert SAN
-	out.APIServer.CertSANs = append(out.APIServer.CertSANs, localIPV4Lookup, apiServerEndpoint)
+	out.APIServer.CertSANs = append(out.APIServer.CertSANs, ipAddress, apiServerEndpoint)
 	return out, nil
 }
 
 // SetClusterConfigurationOverrides will modify the supplied configuration with certain values
-func SetClusterConfigurationOverrides(cluster ICluster, base *kubeadmv1beta1.ClusterConfiguration) (*kubeadmv1beta1.ClusterConfiguration, error) {
+func SetClusterConfigurationOverrides(cluster ICluster, base *kubeadmv1beta1.ClusterConfiguration, ipAddress string) (*kubeadmv1beta1.ClusterConfiguration, error) {
 	if base == nil {
 		base = &kubeadmv1beta1.ClusterConfiguration{}
 	}
 
-	out, err := SetDefaultClusterConfiguration(cluster, base.DeepCopy())
+	out, err := SetDefaultClusterConfiguration(cluster, base.DeepCopy(), ipAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +104,15 @@ func SetClusterConfigurationOverrides(cluster ICluster, base *kubeadmv1beta1.Clu
 
 // SetInitConfigurationOverrides overrides user input on particular fields for
 // the kubeadm InitConfiguration.
-func SetInitConfigurationOverrides(base *kubeadmv1beta1.InitConfiguration) *kubeadmv1beta1.InitConfiguration {
+func SetInitConfigurationOverrides(base *kubeadmv1beta1.InitConfiguration, hostName string) *kubeadmv1beta1.InitConfiguration {
 	if base == nil {
 		base = &kubeadmv1beta1.InitConfiguration{}
 	}
 	out := base.DeepCopy()
-	out.NodeRegistration.Name = HostnameLookup
+	if hostName == "" {
+		hostName = HostnameLookup
+	}
+	out.NodeRegistration.Name = hostName
 	if out.NodeRegistration.KubeletExtraArgs == nil {
 		out.NodeRegistration.KubeletExtraArgs = make(map[string]string)
 	}
@@ -129,7 +135,11 @@ func SetKubeProxyConfigurationOverrides(base *kubeproxyconfigv1alpha1.KubeProxyC
 
 // SetJoinNodeConfigurationOverrides overrides user input for certain fields of
 // the kubeadm JoinConfiguration during a worker node join.
-func SetJoinNodeConfigurationOverrides(caCertHash, bootstrapToken, apiServerEndpoint string, base *kubeadmv1beta1.JoinConfiguration) *kubeadmv1beta1.JoinConfiguration {
+func SetJoinNodeConfigurationOverrides(
+	caCertHash, bootstrapToken, apiServerEndpoint string,
+	base *kubeadmv1beta1.JoinConfiguration,
+	hostName string,
+) *kubeadmv1beta1.JoinConfiguration {
 	if base == nil {
 		base = &kubeadmv1beta1.JoinConfiguration{}
 	}
@@ -146,6 +156,9 @@ func SetJoinNodeConfigurationOverrides(caCertHash, bootstrapToken, apiServerEndp
 
 	}*/
 	out.NodeRegistration.Name = HostnameLookup
+	if hostName != "" {
+		out.NodeRegistration.Name = hostName
+	}
 
 	if out.NodeRegistration.KubeletExtraArgs == nil {
 		out.NodeRegistration.KubeletExtraArgs = map[string]string{}
@@ -157,7 +170,7 @@ func SetJoinNodeConfigurationOverrides(caCertHash, bootstrapToken, apiServerEndp
 
 // SetControlPlaneJoinConfigurationOverrides user input for kubeadm join
 // configuration during a control plane join action.
-func SetControlPlaneJoinConfigurationOverrides(base *kubeadmv1beta1.JoinConfiguration) *kubeadmv1beta1.JoinConfiguration {
+func SetControlPlaneJoinConfigurationOverrides(base *kubeadmv1beta1.JoinConfiguration, localIP string) *kubeadmv1beta1.JoinConfiguration {
 	if base == nil {
 		base = &kubeadmv1beta1.JoinConfiguration{}
 	}
@@ -167,6 +180,9 @@ func SetControlPlaneJoinConfigurationOverrides(base *kubeadmv1beta1.JoinConfigur
 		out.ControlPlane = &kubeadmv1beta1.JoinControlPlane{}
 	}
 	out.ControlPlane.LocalAPIEndpoint.AdvertiseAddress = localIPV4Lookup
+	if localIP != "" {
+		out.ControlPlane.LocalAPIEndpoint.AdvertiseAddress = localIP
+	}
 	out.ControlPlane.LocalAPIEndpoint.BindPort = APIServerBindPort
 	return out
 }

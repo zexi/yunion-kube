@@ -128,7 +128,7 @@ func (d *SYunionVMDriver) findImage(session *mcclient.ClientSession) (string, er
 		return "", errors.Wrapf(err, "Get image %s status", imageName)
 	}
 	if status != "active" {
-		return "", errors.Wrapf(err, "Image %s status is %s", imageName, status)
+		return "", errors.Errorf("Image %s status is %s", imageName, status)
 	}
 	return ret.GetString("id")
 }
@@ -161,7 +161,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 	}
 	imageId, err := d.findImage(session)
 	if err != nil {
-		return httperrors.NewInputParameterError("Not find kubernetes image")
+		return httperrors.NewInputParameterError("Invalid kubernetes image: %v", err)
 	}
 	randStr := rand.String(4)
 	controlIdxs, err := getClusterMachineIndexs(cluster, types.RoleTypeControlplane, len(controls))
@@ -239,7 +239,9 @@ func (d *SYunionVMDriver) applyMachineCreateConfig(m *types.CreateMachineData, i
 		m.Config.Vm = new(apis.MachineCreateVMConfig)
 	}
 	config := m.Config.Vm
-	config.Hypervisor = computeapi.HYPERVISOR_KVM
+	if config.Hypervisor == "" {
+		config.Hypervisor = computeapi.HYPERVISOR_KVM
+	}
 	if config.VmemSize <= 0 {
 		config.VmemSize = apis.DefaultVMMemSize
 	}
