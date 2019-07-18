@@ -274,27 +274,16 @@ func (m *SClusterManager) PerformCheckSystemReady(ctx context.Context, userCred 
 }
 
 func (m *SClusterManager) IsSystemClusterReady() (bool, error) {
-	/*systemCluster, err := m.GetV1SystemCluster()
+	clusters := m.Query().SubQuery()
+	q := clusters.Query()
+	q = q.Filter(sqlchemy.Equals(clusters.Field("status"), types.ClusterStatusRunning))
+	cnt, err := q.CountWithError()
 	if err != nil {
 		return false, err
 	}
-	if systemCluster.ApiEndpoint == "" {
+	if cnt <= 0 {
 		return false, nil
 	}
-	if systemCluster.Status == types.ClusterStatusInit {
-		return false, nil
-	}
-	if utils.IsInStringArray(systemCluster.Status, []string{types.ClusterStatusCreating, types.ClusterStatusDeleting}) {
-		return false, httperrors.NewNotAcceptableError("System cluster is %s", systemCluster.Status)
-	}
-	//if systemCluster.Status != types.ClusterStatusRunning {
-	//return false, httperrors.NewNotAcceptableError("System cluster status is %s", systemCluster.Status)
-	//}
-	_, err = systemCluster.GetK8sClient()
-	if err != nil {
-		return false, httperrors.NewNotAcceptableError("Can't create k8s client to system cluster: %v", err)
-	}
-	//info, err := cli.Discovery().ServerVersion()*/
 	return true, nil
 }
 
