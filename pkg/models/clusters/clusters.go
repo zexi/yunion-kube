@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/pkg/errors"
@@ -818,12 +819,27 @@ func (c *SCluster) GetAdminKubeconfig() (string, error) {
 	return c.GetKubeconfig()
 }
 
+func setK8sConfigField(c *rest.Config, tr func(rt http.RoundTripper) http.RoundTripper) *rest.Config {
+	if tr != nil {
+		c.WrapTransport = tr
+	}
+	c.Timeout = time.Second * 30
+	return c
+}
+
 func (c *SCluster) GetK8sRestConfig() (*rest.Config, error) {
 	kubeconfig, err := c.GetAdminKubeconfig()
 	if err != nil {
 		return nil, err
 	}
-	return k8s.GetK8sClientConfig([]byte(kubeconfig))
+	config, err := k8s.GetK8sClientConfig([]byte(kubeconfig))
+	if err != nil {
+		return nil, err
+	}
+	return setK8sConfigField(config, func(rt http.RoundTripper) http.RoundTripper {
+		rt.(*http.Transport).DisableKeepAlives = true
+		return rt
+	}), nil
 }
 
 func (c *SCluster) GetK8sClient() (*kubernetes.Clientset, error) {
