@@ -1481,11 +1481,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:53c214ff8c2fd57db0962140b9a5e57b01b63066e7de7fe6897a633d15b78248"
+  digest = "1:f044fe02305a360710bcb0626b870599537514da95c9d4f4cd31df0b4c017e5f"
   name = "yunion.io/x/jsonutils"
   packages = ["."]
   pruneopts = "UT"
-  revision = "028b9007e455103eabacf3e6d71b5ce5060c3984"
+  revision = "a964e1e8a05199146284389fe6ef2d1eac2744b4"
 
 [[projects]]
   branch = "master"
@@ -1500,7 +1500,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:205a2b0e1480dca6664c9e16736685bf827d3e7cf3c329b29e9e1102c0e2ed30"
+  digest = "1:f476e1be2caf586b1296a5cc42be4b18dc19dc0d8299818b4810e9963d17f591"
   name = "yunion.io/x/onecloud"
   packages = [
     "pkg/apis",
@@ -1532,6 +1532,7 @@
     "pkg/util/httputils",
     "pkg/util/k8s",
     "pkg/util/logclient",
+    "pkg/util/procutils",
     "pkg/util/rbacutils",
     "pkg/util/seclib2",
     "pkg/util/ssh",
@@ -1579,11 +1580,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:cec4892868ae1c9fec0d2cace79d4c43e620345cc3c070d004dec09caf197208"
+  digest = "1:39b3d0afa6f007b6a37567e27b3cb96c4e7050fa8ab03aceccabf4a85620006b"
   name = "yunion.io/x/structarg"
   packages = ["."]
   pruneopts = "UT"
-  revision = "f39549642b91f03f0b46403f9856d4750e3e59eb"
+  revision = "5caf182cbb4df2824ca2a8b634e3e2228eb1649b"
 
 [[projects]]
   branch = "release/2.7.0"
@@ -1671,6 +1672,7 @@
     "k8s.io/cli-runtime/pkg/genericclioptions/resource",
     "k8s.io/client-go/deprecated-dynamic",
     "k8s.io/client-go/discovery",
+    "k8s.io/client-go/dynamic",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/core/v1",
@@ -1702,6 +1704,7 @@
     "k8s.io/helm/pkg/timeconv",
     "k8s.io/helm/pkg/tlsutil",
     "k8s.io/helm/pkg/version",
+    "k8s.io/kube-proxy/config/v1alpha1",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/scheme",
     "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1",
@@ -1711,7 +1714,6 @@
     "k8s.io/kubernetes/pkg/util/mount",
     "sigs.k8s.io/cluster-api/cmd/clusterctl/clientcmd",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
-    "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
     "sigs.k8s.io/cluster-api/pkg/util",
     "sigs.k8s.io/controller-runtime/pkg/runtime/scheme",
     "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1",
@@ -1737,6 +1739,7 @@
     "yunion.io/x/onecloud/pkg/mcclient/modules",
     "yunion.io/x/onecloud/pkg/util/httputils",
     "yunion.io/x/onecloud/pkg/util/k8s",
+    "yunion.io/x/onecloud/pkg/util/procutils",
     "yunion.io/x/onecloud/pkg/util/ssh",
     "yunion.io/x/pkg/gotypes",
     "yunion.io/x/pkg/tristate",

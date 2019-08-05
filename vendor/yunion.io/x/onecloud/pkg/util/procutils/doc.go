@@ -12,16 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package structarg
-
-import (
-	"fmt"
-)
-
-type NotEnoughArgumentsError struct {
-	argument Argument
-}
-
-func (e *NotEnoughArgumentsError) Error() string {
-	return fmt.Sprintf("Not enough arguments, missing %s", e.argument)
-}
+package procutils // import "yunion.io/x/onecloud/pkg/util/procutils"
