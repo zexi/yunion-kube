@@ -837,7 +837,10 @@ func (c *SCluster) GetK8sRestConfig() (*rest.Config, error) {
 		return nil, err
 	}
 	return setK8sConfigField(config, func(rt http.RoundTripper) http.RoundTripper {
-		rt.(*http.Transport).DisableKeepAlives = true
+		switch rt.(type) {
+		case *http.Transport:
+			rt.(*http.Transport).DisableKeepAlives = true
+		}
 		return rt
 	}), nil
 }
