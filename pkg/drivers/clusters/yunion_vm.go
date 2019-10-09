@@ -45,6 +45,10 @@ func init() {
 	clusters.RegisterClusterDriver(NewYunionVMDriver())
 }
 
+func (d *SYunionVMDriver) GetMode() types.ModeType {
+	return types.ModeTypeSelfBuild
+}
+
 func (d *SYunionVMDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeOnecloud
 }

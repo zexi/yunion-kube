@@ -20,17 +20,21 @@ import (
 )
 
 type SSystemYKEDriver struct {
-	*sBaseDriver
+	*SBaseDriver
 }
 
 func NewSystemYKEDriver() *SSystemYKEDriver {
 	return &SSystemYKEDriver{
-		sBaseDriver: newBaseDriver(),
+		SBaseDriver: newBaseDriver(),
 	}
 }
 
 func init() {
 	clusters.RegisterClusterDriver(NewSystemYKEDriver())
+}
+
+func (d *SSystemYKEDriver) GetMode() types.ModeType {
+	return types.ModeTypeSelfBuild
 }
 
 func (d *SSystemYKEDriver) GetProvider() types.ProviderType {
@@ -98,7 +102,7 @@ func (d *SSystemYKEDriver) GetKubeconfig(cluster *clusters.SCluster) (string, er
 }
 
 func (d *SSystemYKEDriver) ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, c *clusters.SCluster, data []*types.CreateMachineData) error {
-	if _, _, err := d.sBaseDriver.ValidateCreateMachines(ctx, userCred, c, data); err != nil {
+	if _, _, err := d.SBaseDriver.ValidateCreateMachines(ctx, userCred, c, data); err != nil {
 		return err
 	}
 	return yunion_host.ValidateCreateMachines(data)

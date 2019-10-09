@@ -33,17 +33,13 @@ import (
 )
 
 type sClusterAPIDriver struct {
-	*sBaseDriver
+	*SBaseDriver
 }
 
 func newClusterAPIDriver() *sClusterAPIDriver {
 	return &sClusterAPIDriver{
-		sBaseDriver: newBaseDriver(),
+		SBaseDriver: newBaseDriver(),
 	}
-}
-
-func (d *sClusterAPIDriver) UseClusterAPI() bool {
-	return true
 }
 
 func (d *sClusterAPIDriver) NeedGenerateCertificate() bool {

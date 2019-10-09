@@ -25,10 +25,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/server"
 	"yunion.io/x/yunion-kube/pkg/types/config"
 	"yunion.io/x/yunion-kube/pkg/ykedialerfactory"
-
-	_ "yunion.io/x/yunion-kube/pkg/drivers/clusters"
-	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
-	_ "yunion.io/x/yunion-kube/pkg/tasks"
+	"yunion.io/x/yunion-kube/pkg/initial"
 )
 
 func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
@@ -95,6 +92,8 @@ func Run(ctx context.Context) error {
 			log.Errorf("Migrate cluster error: %v", err)
 		}
 	})
+
+	initial.InitClient()
 
 	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
 		return err

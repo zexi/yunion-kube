@@ -2,7 +2,6 @@ package clusters
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,14 +10,12 @@ import (
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeadmconfig "k8s.io/kubernetes/cmd/kubeadm/app/util/config"
 	//clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models"
@@ -43,6 +40,10 @@ func NewYunionHostDriver() *SYunionHostDriver {
 
 func init() {
 	clusters.RegisterClusterDriver(NewYunionHostDriver())
+}
+
+func (d *SYunionHostDriver) GetMode() types.ModeType {
+	return types.ModeTypeSelfBuild
 }
 
 func (d *SYunionHostDriver) GetProvider() types.ProviderType {
@@ -89,34 +90,6 @@ func (d *SYunionHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, e
 	}
 	out, err := ssh.RemoteSSHCommand(accessIP, 22, "root", "", privateKey, "cat /etc/kubernetes/admin.conf")
 	return out, err
-}
-
-func (d *SYunionHostDriver) PreCreateClusterResource(s *mcclient.ClientSession, data *types.CreateClusterData, clusterSpec *providerv1.OneCloudClusterProviderSpec) error {
-	if data.HA {
-		return nil
-	}
-	ms := data.Machines
-	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 {
-		return fmt.Errorf("Empty controlplane machines")
-	}
-	privateKey, err := onecloudcli.GetCloudSSHPrivateKey(s)
-	if err != nil {
-		return err
-	}
-	firstControl := controls[0]
-	ret, err := yunion_host.ValidateHostId(s, privateKey, firstControl.ResourceId)
-	if err != nil {
-		return err
-	}
-	controlIP, err := ret.GetString("access_ip")
-	if err != nil {
-		return err
-	}
-	clusterSpec.NetworkSpec = providerv1.NetworkSpec{
-		StaticLB: &providerv1.StaticLB{IPAddress: controlIP},
-	}
-	return nil
 }
 
 func (d *SYunionHostDriver) ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {

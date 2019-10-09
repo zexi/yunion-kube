@@ -67,9 +67,14 @@ type SCluster struct {
 	ServiceDomain string            `width:"128" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	PodCidr       string            `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user"`
 	Version       string            `width:"128" charset:"ascii" nullable:"false" create:"optional" list:"user"`
-	Namespace     string            `nullable:"true" create:"optional" list:"user"`
 	Ha            tristate.TriState `nullable:"true" create:"required" list:"user"`
 	IsPublic      bool              `default:"false" nullable:"false" index:"true" create:"admin_optional" list:"user" update:"user"`
+
+	// kubernetes config
+	Kubeconfig string `nullable:"true" charset:"utf8" create:"optional"`
+
+	// kubernetes api server endpoint
+	ApiServer string `width:"256" nullable:"true" charset:"ascii" create:"optional" list:"user"`
 }
 
 func (m *SClusterManager) InitializeData() error {
@@ -154,6 +159,15 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, err
 	}
 
+	driver, err := GetDriverWithError(
+		types.ModeType(modeType),
+		types.ProviderType(providerType),
+		types.ClusterResourceType(resType),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	serviceCidr := SetJSONDataDefault(data, "service_cidr", types.DefaultServiceCIDR)
 	if _, err := netutils.NewIPV4Prefix(serviceCidr); err != nil {
 		return nil, httperrors.NewInputParameterError("Invalid service CIDR: %q", serviceCidr)
@@ -180,7 +194,7 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		return nil, httperrors.NewInputParameterError("Unmarshal: %v", err)
 	}
 
-	if res.Provider != string(types.ProviderTypeSystem) && len(res.Machines) == 0 {
+	if res.Provider != string(types.ProviderTypeSystem) && driver.NeedCreateMachines() && len(res.Machines) == 0 {
 		return nil, httperrors.NewInputParameterError("Machines desc not provider")
 	}
 
@@ -197,16 +211,17 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		}
 	}
 
-	driver := GetDriver(types.ProviderType(providerType), types.ClusterResourceType(resType))
 	if err := driver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
 		return nil, err
 	}
 
 	versions := driver.GetK8sVersions()
-	defaultVersion := versions[0]
-	version := SetJSONDataDefault(data, "version", defaultVersion)
-	if !utils.IsInStringArray(version, versions) {
-		return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", version, versions)
+	if len(versions) > 0 {
+		defaultVersion := versions[0]
+		version := SetJSONDataDefault(data, "version", defaultVersion)
+		if !utils.IsInStringArray(version, versions) {
+			return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", version, versions)
+		}
 	}
 
 	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
@@ -220,6 +235,7 @@ func ValidateProviderType(providerType string) error {
 	if !utils.IsInStringArray(providerType, []string{
 		string(types.ProviderTypeOnecloud),
 		string(types.ProviderTypeSystem),
+		string(types.ProviderTypeExternal),
 	}) {
 		return httperrors.NewInputParameterError("Invalid provider type: %q", providerType)
 	}
@@ -230,6 +246,7 @@ func ValidateResourceType(resType string) error {
 	if !utils.IsInStringArray(resType, []string{
 		string(types.ClusterResourceTypeHost),
 		string(types.ClusterResourceTypeGuest),
+		string(types.ClusterResourceTypeUnknown),
 	}) {
 		return httperrors.NewInputParameterError("Invalid cluster resource type: %q", resType)
 	}
@@ -237,6 +254,7 @@ func ValidateResourceType(resType string) error {
 }
 
 func GetDriverByQuery(query jsonutils.JSONObject) (IClusterDriver, error) {
+	modeType, _ := query.GetString("mode")
 	providerType, _ := query.GetString("provider")
 	resType, _ := query.GetString("resource_type")
 	if err := ValidateProviderType(providerType); err != nil {
@@ -248,7 +266,10 @@ func GetDriverByQuery(query jsonutils.JSONObject) (IClusterDriver, error) {
 	if err := ValidateResourceType(resType); err != nil {
 		return nil, err
 	}
-	driver := GetDriver(types.ProviderType(providerType), types.ClusterResourceType(resType))
+	driver := GetDriver(
+		types.ModeType(modeType),
+		types.ProviderType(providerType),
+		types.ClusterResourceType(resType))
 	return driver, nil
 }
 
@@ -335,6 +356,22 @@ func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id 
 	return ret, nil
 }*/
 
+func (m *SClusterManager) GetRunningClusters() ([]manager.ICluster, error) {
+	clusters := m.Query().SubQuery()
+	q := clusters.Query()
+	q = q.Filter(sqlchemy.Equals(clusters.Field("status"), types.ClusterStatusRunning))
+	objs := make([]SCluster, 0)
+	err := db.FetchModelObjects(m, q, &objs)
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]manager.ICluster, len(objs))
+	for i := range objs {
+		ret[i] = &objs[i]
+	}
+	return ret, nil
+}
+
 func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (manager.ICluster, error) {
 	cluster, err := m.FetchByIdOrName(userCred, id)
 	if err != nil {
@@ -393,7 +430,10 @@ func (c *SCluster) PerformPrivate(ctx context.Context, userCred mcclient.TokenCr
 }
 
 func (c *SCluster) GetDriver() IClusterDriver {
-	return GetDriver(types.ProviderType(c.Provider), types.ClusterResourceType(c.ResourceType))
+	return GetDriver(
+		types.ModeType(c.Mode),
+		types.ProviderType(c.Provider),
+		types.ClusterResourceType(c.ResourceType))
 }
 
 func (c *SCluster) GetMachinesCount() (int, error) {
@@ -744,15 +784,18 @@ func (c *SCluster) GetSAKeyPair() (*SX509KeyPair, error) {
 }
 
 func (c *SCluster) GetKubeconfig() (string, error) {
-	//// TODO: check kubeconfig
-	//if len(c.Kubeconfig) != 0 {
-	//return c.Kubeconfig, nil
-	//}
+	if len(c.Kubeconfig) != 0 {
+		return c.Kubeconfig, nil
+	}
 	//kubeconfig, err := c.GetDriver().GetKubeconfig(c)
-	//if err != nil {
-	//return "", err
-	//}
-	//return kubeconfig, c.SetKubeconfig(kubeconfig)
+	kubeconfig, err := c.GetKubeconfigByCerts()
+	if err != nil {
+		return "", err
+	}
+	return kubeconfig, c.SetKubeconfig(kubeconfig)
+}
+
+func (c *SCluster) GetKubeconfigByCerts() (string, error) {
 	caKpObj, err := c.GetCAKeyPair()
 	if err != nil {
 		return "", errors.Wrap(err, "Get CA key pair")
@@ -797,13 +840,13 @@ func (c *SCluster) SetK8sVersion(version string) error {
 	return err
 }
 
-//func (c *SCluster) SetKubeconfig(kubeconfig string) error {
-//_, err := c.GetModelManager().TableSpec().Update(c, func() error {
-//c.Kubeconfig = kubeconfig
-//return nil
-//})
-//return err
-//}
+func (c *SCluster) SetKubeconfig(kubeconfig string) error {
+	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+		c.Kubeconfig = kubeconfig
+		return nil
+	})
+	return err
+}
 
 func (c *SCluster) GetDetailsKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	conf, err := c.GetKubeconfig()
@@ -1043,6 +1086,26 @@ func (c *SCluster) GetControlPlaneUrl() (string, error) {
 		return "", errors.Wrapf(err, "GetAPIServerEndpoint")
 	}
 	return fmt.Sprintf("https://%s:6443", apiServerEndpoint), nil
+}
+
+func (c *SCluster) GetAPIServer() (string, error) {
+	if len(c.ApiServer) != 0 {
+		return c.ApiServer, nil
+	}
+
+	apiServer, err := c.GetControlPlaneUrl()
+	if err != nil {
+		return "", err
+	}
+	return apiServer, c.SetAPIServer(apiServer)
+}
+
+func (c *SCluster) SetAPIServer(apiServer string) error {
+	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+		c.ApiServer = apiServer
+		return nil
+	})
+	return err
 }
 
 func (c *SCluster) GetAPIServerEndpoint() (string, error) {

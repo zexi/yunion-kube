@@ -21,6 +21,9 @@ type ClusterCreateTask struct {
 }
 
 func (t *ClusterCreateTask) getMachines(cluster *clusters.SCluster) ([]*types.CreateMachineData, error) {
+	if !cluster.GetDriver().NeedCreateMachines() {
+		return nil, nil
+	}
 	params := t.GetParams()
 	ret := []*types.CreateMachineData{}
 	ms := []types.CreateMachineData{}
@@ -102,6 +105,6 @@ func (t *ClusterCreateTask) onError(ctx context.Context, cluster db.IStandaloneM
 
 func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*clusters.SCluster)
-	cluster.SetStatus(t.UserCred, types.ClusterStatusCreateFail, "")
+	cluster.SetStatus(t.UserCred, types.ClusterStatusCreateFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
 }

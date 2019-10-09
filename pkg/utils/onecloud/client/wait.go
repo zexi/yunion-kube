@@ -2,16 +2,32 @@ package client
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/util/wait"
 
-	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/errors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
-	"yunion.io/x/pkg/util/wait"
+	"yunion.io/x/onecloud/pkg/util/httputils"
 )
+
+func ReasonForError(err error) int {
+	switch t := err.(type) {
+	case *httputils.JSONClientError:
+		return t.Code
+	}
+	return -1
+}
+
+func IsNotFound(err error) bool {
+	if ReasonForError(err) == http.StatusNotFound {
+		return true
+	}
+	return false
+}
 
 type ResourceHelper struct {
 	modules.Manager
@@ -27,7 +43,7 @@ func NewResourceHelper(s *mcclient.ClientSession, manager modules.Manager) *Reso
 
 func (h *ResourceHelper) ObjectIsExists(id string) (jsonutils.JSONObject, error) {
 	ret, err := h.Manager.Get(h.session, id, nil)
-	if errors.IsNotFound(err) {
+	if IsNotFound(err) {
 		return nil, nil
 	}
 	return ret, err
