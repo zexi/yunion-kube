@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/job"
@@ -30,24 +31,24 @@ type CronJobDetail struct {
 }
 
 func (man *SCronJobManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCronJobDetail(req.GetK8sClient(), req.GetCluster(), req.ToQuery(), req.GetNamespaceQuery().ToRequestParam(), id)
+	return GetCronJobDetail(req.GetIndexer(), req.GetCluster(), req.ToQuery(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
 // GetCronJobDetail gets Cron Job details.
-func GetCronJobDetail(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*CronJobDetail, error) {
-	rawObject, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
+func GetCronJobDetail(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*CronJobDetail, error) {
+	rawObject, err := indexer.CronJobLister().CronJobs(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
 
-	activeJobs, err := GetCronJobJobs(client, cluster, dsQuery, namespace, name)
+	activeJobs, err := GetCronJobJobs(indexer, cluster, dsQuery, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	inactiveJobs, err := GetCronJobCompletedJobs(client, cluster, dsQuery, namespace, name)
+	inactiveJobs, err := GetCronJobCompletedJobs(indexer, cluster, dsQuery, namespace, name)
 
-	events, err := GetCronJobEvents(client, cluster, dsQuery, namespace, name)
+	events, err := GetCronJobEvents(indexer, cluster, dsQuery, namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -70,17 +71,17 @@ func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs jo
 }
 
 // GetCronJobJobs returns list of jobs owned by cron job.
-func GetCronJobJobs(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
+func GetCronJobJobs(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
 
-	cronJob, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
+	cronJob, err := indexer.CronJobLister().CronJobs(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
 
 	channels := &common.ResourceChannels{
-		JobList:   common.GetJobListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		PodList:   common.GetPodListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		EventList: common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		JobList:   common.GetJobListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		PodList:   common.GetPodListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		EventList: common.GetEventListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	jobs := <-channels.JobList.List
@@ -101,25 +102,25 @@ func GetCronJobJobs(client kubernetes.Interface, cluster api.ICluster, dsQuery *
 		return nil, err
 	}
 
-	jobs.Items = filterJobsByOwnerUID(cronJob.UID, jobs.Items)
-	jobs.Items = filterJobsByState(true, jobs.Items)
+	jobs = filterJobsByOwnerUID(cronJob.UID, jobs)
+	jobs = filterJobsByState(true, jobs)
 
-	return job.ToJobList(jobs.Items, pods.Items, events.Items, dsQuery, cluster)
+	return job.ToJobList(jobs, pods, events, dsQuery, cluster)
 }
 
 // GetCronJobJobs returns list of jobs owned by cron job.
-func GetCronJobCompletedJobs(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
+func GetCronJobCompletedJobs(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*job.JobList, error) {
 	var err error
 
-	cronJob, err := client.BatchV1beta1().CronJobs(namespace).Get(name, metaV1.GetOptions{})
+	cronJob, err := indexer.CronJobLister().CronJobs(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
 
 	channels := &common.ResourceChannels{
-		JobList:   common.GetJobListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		PodList:   common.GetPodListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		EventList: common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		JobList:   common.GetJobListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		PodList:   common.GetPodListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		EventList: common.GetEventListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	jobs := <-channels.JobList.List
@@ -140,10 +141,10 @@ func GetCronJobCompletedJobs(client kubernetes.Interface, cluster api.ICluster, 
 		return nil, err
 	}
 
-	jobs.Items = filterJobsByOwnerUID(cronJob.UID, jobs.Items)
-	jobs.Items = filterJobsByState(false, jobs.Items)
+	jobs = filterJobsByOwnerUID(cronJob.UID, jobs)
+	jobs = filterJobsByState(false, jobs)
 
-	return job.ToJobList(jobs.Items, pods.Items, events.Items, dsQuery, cluster)
+	return job.ToJobList(jobs, pods, events, dsQuery, cluster)
 }
 
 // TriggerCronJob manually triggers a cron job and creates a new job.
@@ -189,7 +190,7 @@ func TriggerCronJob(client kubernetes.Interface, namespace, name string) error {
 	return nil
 }
 
-func filterJobsByOwnerUID(UID types.UID, jobs []batch.Job) (matchingJobs []batch.Job) {
+func filterJobsByOwnerUID(UID types.UID, jobs []*batch.Job) (matchingJobs []*batch.Job) {
 	for _, j := range jobs {
 		for _, i := range j.OwnerReferences {
 			if i.UID == UID {
@@ -201,7 +202,7 @@ func filterJobsByOwnerUID(UID types.UID, jobs []batch.Job) (matchingJobs []batch
 	return
 }
 
-func filterJobsByState(active bool, jobs []batch.Job) (matchingJobs []batch.Job) {
+func filterJobsByState(active bool, jobs []*batch.Job) (matchingJobs []*batch.Job) {
 	for _, j := range jobs {
 		if active && j.Status.Active > 0 {
 			matchingJobs = append(matchingJobs, j)
@@ -215,12 +216,12 @@ func filterJobsByState(active bool, jobs []batch.Job) (matchingJobs []batch.Job)
 }
 
 // GetCronJobEvents gets events associated to cron job.
-func GetCronJobEvents(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
-	raw, err := event.GetEvents(client, namespace, name)
+func GetCronJobEvents(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
+	raw, err := event.GetEvents(indexer, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
 	events, err := event.CreateEventList(raw, dsQuery, cluster)
-	return &events, err
+	return events, err
 }

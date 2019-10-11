@@ -43,6 +43,10 @@ type ClusterManager struct {
 	KubeConfig string
 }
 
+func (c ClusterManager) GetIndexer() *CacheFactory {
+	return c.KubeClient.GetIndexer()
+}
+
 func (c ClusterManager) Close() {
 	c.KubeClient.Close()
 }
@@ -90,13 +94,13 @@ func BuildApiserverClient() {
 				APIServer:  apiServer,
 				KubeConfig: kubeconfig,
 			}
-			managerInterface, ok := clusterManagerSets.Load(cluster.GetName())
+			managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
 			if ok {
 				man := managerInterface.(*ClusterManager)
 				man.Close()
 			}
 
-			clusterManagerSets.Store(cluster.GetName(), clusterManager)
+			clusterManagerSets.Store(cluster.GetId(), clusterManager)
 		}
 		log.Infof("resync cluster finished!")
 	}
@@ -118,7 +122,7 @@ func clusterChanged(clusters []manager.ICluster) bool {
 	}
 
 	for _, cluster := range clusters {
-		manInterface, ok := clusterManagerSets.Load(cluster.GetName())
+		manInterface, ok := clusterManagerSets.Load(cluster.GetId())
 		if !ok {
 			// maybe add new cluster
 			return true
@@ -155,7 +159,7 @@ func clusterChanged(clusters []manager.ICluster) bool {
 func shouldRemoveClusters(changedClusters []manager.ICluster) {
 	changedClusterMap := make(map[string]struct{})
 	for _, cluster := range changedClusters {
-		changedClusterMap[cluster.GetName()] = struct{}{}
+		changedClusterMap[cluster.GetId()] = struct{}{}
 	}
 
 	clusterManagerSets.Range(func(key, value interface{}) bool {
@@ -167,6 +171,10 @@ func shouldRemoveClusters(changedClusters []manager.ICluster) {
 		}
 		return true
 	})
+}
+
+func GetManagerByCluster(c *clusters.SCluster) (*ClusterManager, error) {
+	return GetManager(c.GetId())
 }
 
 func GetManager(cluster string) (*ClusterManager, error) {

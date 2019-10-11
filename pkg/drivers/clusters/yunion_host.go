@@ -108,7 +108,10 @@ func (d *SYunionHostDriver) RequestDeployMachines(ctx context.Context, userCred 
 }
 
 func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
-	commonConf := d.GetCommonAddonsConfig(cluster)
+	commonConf, err := d.GetCommonAddonsConfig(cluster)
+	if err != nil {
+		return "", err
+	}
 	pluginConf := &addons.YunionHostPluginsConfig{
 		YunionCommonPluginsConfig: commonConf,
 		CNIYunionConfig: &addons.CNIYunionConfig{

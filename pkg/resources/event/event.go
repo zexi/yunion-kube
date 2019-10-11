@@ -19,12 +19,12 @@ var FailedReasonPartials = []string{"failed", "err", "exceeded", "invalid", "unh
 	"mismatch", "insufficient", "conflict", "outof", "nil", "backoff"}
 
 // GetPodsEventWarnings returns warning pod events by filtering out events targeting only given pods
-func GetPodsEventWarnings(events []api.Event, pods []api.Pod) []common.Event {
+func GetPodsEventWarnings(events []*api.Event, pods []*api.Pod) []common.Event {
 	result := make([]common.Event, 0)
 
 	// Filter out only warning events
 	events = getWarningEvents(events)
-	failedPods := make([]api.Pod, 0)
+	failedPods := make([]*api.Pod, 0)
 
 	// Filter out ready and successful pods
 	for _, pod := range pods {
@@ -50,8 +50,8 @@ func GetPodsEventWarnings(events []api.Event, pods []api.Pod) []common.Event {
 
 // Returns filtered list of event objects. Events list is filtered to get only events targeting
 // pods on the list.
-func filterEventsByPodsUID(events []api.Event, pods []api.Pod) []api.Event {
-	result := make([]api.Event, 0)
+func filterEventsByPodsUID(events []*api.Event, pods []*api.Pod) []*api.Event {
+	result := make([]*api.Event, 0)
 	podEventMap := make(map[types.UID]bool, 0)
 
 	if len(pods) == 0 || len(events) == 0 {
@@ -71,20 +71,30 @@ func filterEventsByPodsUID(events []api.Event, pods []api.Pod) []api.Event {
 	return result
 }
 
+func FilterEventsByUID(events []*api.Event, uid types.UID) []*api.Event {
+	result := make([]*api.Event, 0)
+	for _, e := range events {
+		if e.InvolvedObject.UID == uid {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
 // Returns filtered list of event objects.
 // Event list object is filtered to get only warning events.
-func getWarningEvents(events []api.Event) []api.Event {
+func getWarningEvents(events []*api.Event) []*api.Event {
 	return filterEventsByType(FillEventsType(events), api.EventTypeWarning)
 }
 
 // Filters kubernetes API event objects based on event type.
 // Empty string will return all events.
-func filterEventsByType(events []api.Event, eventType string) []api.Event {
+func filterEventsByType(events []*api.Event, eventType string) []*api.Event {
 	if len(eventType) == 0 || len(events) == 0 {
 		return events
 	}
 
-	result := make([]api.Event, 0)
+	result := make([]*api.Event, 0)
 	for _, event := range events {
 		if event.Type == eventType {
 			result = append(result, event)
@@ -107,9 +117,9 @@ func isFailedReason(reason string, partials ...string) bool {
 }
 
 // Removes duplicate strings from the slice
-func removeDuplicates(slice []api.Event) []api.Event {
+func removeDuplicates(slice []*api.Event) []*api.Event {
 	visited := make(map[string]bool, 0)
-	result := make([]api.Event, 0)
+	result := make([]*api.Event, 0)
 
 	for _, elem := range slice {
 		if !visited[elem.Reason] {
@@ -122,7 +132,7 @@ func removeDuplicates(slice []api.Event) []api.Event {
 }
 
 // Returns true if given pod is in state ready or succeeded, false otherwise
-func isReadyOrSucceeded(pod api.Pod) bool {
+func isReadyOrSucceeded(pod *api.Pod) bool {
 	if pod.Status.Phase == api.PodSucceeded {
 		return true
 	}

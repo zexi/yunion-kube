@@ -21,6 +21,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
@@ -251,8 +252,9 @@ func (d *sClusterAPIDriver) RequestDeleteMachines(ctx context.Context, userCred 
 	return machines.MachineManager.StartMachineBatchDeleteTask(ctx, userCred, items, nil, task.GetTaskId())
 }
 
-func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *clusters.SCluster) addons.YunionAuthConfig {
+func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *clusters.SCluster) (addons.YunionAuthConfig, error) {
 	o := options.Options
+	s, _ := clusters.ClusterManager.GetSession()
 	authConfig := addons.YunionAuthConfig{
 		AuthUrl:       o.AuthURL,
 		AdminUser:     o.AdminUser,
@@ -262,11 +264,30 @@ func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *clusters.SCluster)
 		Cluster:       cluster.GetName(),
 		InstanceType:  cluster.ResourceType,
 	}
-	return authConfig
+	params := jsonutils.NewDict()
+	params.Add(jsonutils.NewString("public"), "interface")
+	params.Add(jsonutils.NewString(o.Region), "region")
+	params.Add(jsonutils.NewString("keystone"), "service")
+	ret, err := modules.EndpointsV3.List(s, params)
+	if err != nil {
+		return authConfig, err
+	}
+	if len(ret.Data) == 0 {
+		return authConfig, perrors.New("Not found public keystone endpoint")
+	}
+	authUrl, err := ret.Data[0].GetString("url")
+	if err != nil {
+		return authConfig, perrors.Wrap(err, "Get public keystone endpoint url")
+	}
+	authConfig.AuthUrl = authUrl
+	return authConfig, nil
 }
 
-func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) *addons.YunionCommonPluginsConfig {
-	authConfig := d.GetAddonYunionAuthConfig(cluster)
+func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) (*addons.YunionCommonPluginsConfig, error) {
+	authConfig, err := d.GetAddonYunionAuthConfig(cluster)
+	if err != nil {
+		return nil, err
+	}
 
 	commonConf := &addons.YunionCommonPluginsConfig{
 		MetricsPluginConfig: &addons.MetricsPluginConfig{
@@ -277,14 +298,14 @@ func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) *a
 		},
 		CloudProviderYunionConfig: &addons.CloudProviderYunionConfig{
 			YunionAuthConfig:   authConfig,
-			CloudProviderImage: registry.MirrorImage("yunion-cloud-controller-manager", "v2.9.0", ""),
+			CloudProviderImage: registry.MirrorImage("yunion-cloud-controller-manager", "v2.10.0", ""),
 		},
 		CSIYunionConfig: &addons.CSIYunionConfig{
 			YunionAuthConfig: authConfig,
 			AttacherImage:    registry.MirrorImage("csi-attacher", "v1.0.1", ""),
 			ProvisionerImage: registry.MirrorImage("csi-provisioner", "v1.0.1", ""),
 			RegistrarImage:   registry.MirrorImage("csi-node-driver-registrar", "v1.1.0", ""),
-			PluginImage:      registry.MirrorImage("yunion-csi-plugin", "v2.9.0", ""),
+			PluginImage:      registry.MirrorImage("yunion-csi-plugin", "v2.10.0", ""),
 			Base64Config:     authConfig.ToJSONBase64String(),
 		},
 		IngressControllerYunionConfig: &addons.IngressControllerYunionConfig{
@@ -293,5 +314,5 @@ func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) *a
 		},
 	}
 
-	return commonConf
+	return commonConf, nil
 }

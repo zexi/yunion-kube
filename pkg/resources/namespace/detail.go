@@ -2,8 +2,7 @@ package namespace
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sClient "k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"yunion.io/x/log"
 
@@ -13,6 +12,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/limitrange"
 	rq "yunion.io/x/yunion-kube/pkg/resources/resourcequota"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 // NamespaceDetail is a presentation layer view of Kubernetes Namespace resource. This means it is Namespace plus
@@ -25,7 +25,7 @@ type NamespaceDetail struct {
 	Phase v1.NamespacePhase `json:"status"`
 
 	// Events is list of events associated to the namespace.
-	EventList common.EventList `json:"eventList"`
+	EventList *common.EventList `json:"eventList"`
 
 	// ResourceQuotaList is list of resource quotas associated to the namespace
 	ResourceQuotaList *rq.ResourceQuotaDetailList `json:"resourceQuotaList"`
@@ -35,38 +35,38 @@ type NamespaceDetail struct {
 }
 
 func (man *SNamespaceManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetNamespaceDetail(req.GetK8sClient(), req.GetCluster(), id)
+	return GetNamespaceDetail(req.GetIndexer(), req.GetCluster(), id)
 }
 
 // GetNamespaceDetail gets namespace details.
-func GetNamespaceDetail(client k8sClient.Interface, cluster api.ICluster, name string) (*NamespaceDetail, error) {
+func GetNamespaceDetail(indexer *client.CacheFactory, cluster api.ICluster, name string) (*NamespaceDetail, error) {
 	log.Infof("Getting details of %s namespace", name)
 
-	namespace, err := client.CoreV1().Namespaces().Get(name, metaV1.GetOptions{})
+	namespace, err := indexer.NamespaceLister().Get(name)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := event.GetNamespaceEvents(client, cluster, dataselect.DefaultDataSelect(), namespace.Name)
+	events, err := event.GetNamespaceEvents(indexer, cluster, dataselect.DefaultDataSelect(), namespace.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	resourceQuotaList, err := getResourceQuotas(client, cluster, *namespace)
+	resourceQuotaList, err := getResourceQuotas(indexer, cluster, *namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	resourceLimits, err := getLimitRanges(client, *namespace)
+	resourceLimits, err := getLimitRanges(indexer, *namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	namespaceDetails := toNamespaceDetail(*namespace, events, resourceQuotaList, resourceLimits, cluster)
+	namespaceDetails := toNamespaceDetail(namespace, events, resourceQuotaList, resourceLimits, cluster)
 	return &namespaceDetails, nil
 }
 
-func toNamespaceDetail(namespace v1.Namespace, events common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []limitrange.LimitRangeItem, cluster api.ICluster) NamespaceDetail {
+func toNamespaceDetail(namespace *v1.Namespace, events *common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []limitrange.LimitRangeItem, cluster api.ICluster) NamespaceDetail {
 
 	return NamespaceDetail{
 		ObjectMeta:        api.NewObjectMeta(namespace.ObjectMeta, cluster),
@@ -78,31 +78,31 @@ func toNamespaceDetail(namespace v1.Namespace, events common.EventList, resource
 	}
 }
 
-func getResourceQuotas(client k8sClient.Interface, cluster api.ICluster, namespace v1.Namespace) (*rq.ResourceQuotaDetailList, error) {
-	list, err := client.CoreV1().ResourceQuotas(namespace.Name).List(api.ListEverything)
+func getResourceQuotas(indexer *client.CacheFactory, cluster api.ICluster, namespace v1.Namespace) (*rq.ResourceQuotaDetailList, error) {
+	list, err := indexer.ResourceQuotaLister().ResourceQuotas(namespace.Name).List(labels.Everything())
 
 	result := &rq.ResourceQuotaDetailList{
 		Items:    make([]rq.ResourceQuotaDetail, 0),
-		ListMeta: api.ListMeta{Total: len(list.Items)},
+		ListMeta: api.ListMeta{Total: len(list)},
 	}
 
-	for _, item := range list.Items {
-		detail := rq.ToResourceQuotaDetail(&item, cluster)
+	for _, item := range list {
+		detail := rq.ToResourceQuotaDetail(item, cluster)
 		result.Items = append(result.Items, *detail)
 	}
 
 	return result, err
 }
 
-func getLimitRanges(client k8sClient.Interface, namespace v1.Namespace) ([]limitrange.LimitRangeItem, error) {
-	list, err := client.CoreV1().LimitRanges(namespace.Name).List(api.ListEverything)
+func getLimitRanges(indexer *client.CacheFactory, namespace v1.Namespace) ([]limitrange.LimitRangeItem, error) {
+	list, err := indexer.LimitRangeLister().LimitRanges(namespace.Name).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
 	resourceLimits := make([]limitrange.LimitRangeItem, 0)
-	for _, item := range list.Items {
-		list := limitrange.ToLimitRanges(&item)
+	for _, item := range list {
+		list := limitrange.ToLimitRanges(item)
 		resourceLimits = append(resourceLimits, list...)
 	}
 

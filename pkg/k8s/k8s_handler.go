@@ -22,6 +22,7 @@ import (
 	//"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/errors"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 type IK8sResourceHandler interface {
@@ -124,22 +125,6 @@ func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredenti
 	return cluster.(*clusters.SCluster), nil
 }
 
-/*func newK8sUserClient(cluster *clusters.SCluster, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
-	info, err := models.DecodeClusterInfo(cluster.ToInfo())
-	if err != nil {
-		return nil, nil, err
-	}
-	config := &rest.Config{
-		Host: info.Endpoint,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: []byte(info.RootCaCertificate),
-		},
-		BearerToken: userCred.GetTokenString(),
-	}
-	cli, err := kubernetes.NewForConfig(config)
-	return cli, config, err
-}*/
-
 func newK8sAdminClient(cluster *clusters.SCluster) (kubernetes.Interface, *rest.Config, error) {
 	cli, err := cluster.GetK8sClient()
 	if err != nil {
@@ -164,6 +149,10 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 	if err != nil {
 		return nil, err
 	}*/
+	man, err := client.GetManagerByCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
 
 	k8sAdminCli, adminConfig, err := newK8sAdminClient(cluster)
 	if err != nil {
@@ -175,6 +164,7 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 	}
 	req := &common.Request{
 		Cluster: cluster,
+		ClusterManager: man,
 		//K8sClient:       k8sCli,
 		//K8sConfig:       config,
 		K8sAdminClient:  k8sAdminCli,

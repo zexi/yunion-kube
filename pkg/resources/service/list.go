@@ -2,10 +2,11 @@ package service
 
 import (
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -45,17 +46,17 @@ func (man *SServiceManager) List(req *common.Request) (common.ListResource, erro
 		filter := query.FilterQuery
 		filter.Append(dataselect.NewFilterBy(dataselect.ServiceTypeProperty, svcType))
 	}
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), query)
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), query)
 }
 
-func (man *SServiceManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetServiceList(client, cluster, nsQuery, dsQuery)
+func (man *SServiceManager) ListV2(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetServiceList(indexer, cluster, nsQuery, dsQuery)
 }
 
-func (man *SServiceManager) GetServiceList(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {
+func (man *SServiceManager) GetServiceList(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ServiceList, error) {
 	log.Infof("Getting list of all services in the cluster")
 	channels := &common.ResourceChannels{
-		ServiceList: common.GetServiceListChannel(client, nsQuery),
+		ServiceList: common.GetServiceListChannel(indexer, nsQuery),
 	}
 
 	return GetServiceListFromChannels(channels, dsQuery, cluster)
@@ -67,7 +68,7 @@ type ServiceList struct {
 }
 
 func (l *ServiceList) Append(obj interface{}) {
-	l.Services = append(l.Services, ToService(obj.(v1.Service), l.GetCluster()))
+	l.Services = append(l.Services, ToService(obj.(*v1.Service), l.GetCluster()))
 }
 
 func (l *ServiceList) GetResponseData() interface{} {
@@ -87,7 +88,7 @@ func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *data
 	}
 	err = dataselect.ToResourceList(
 		serviceList,
-		services.Items,
+		services,
 		dataselect.NewServiceDataCell,
 		dsQuery)
 	return serviceList, err

@@ -9,12 +9,12 @@ import (
 )
 
 // FilterPodsByControllerResource returns a subset of pods controlled by given deployment.
-func FilterDeploymentPodsByOwnerReference(deployment apps.Deployment, allRS []apps.ReplicaSet,
-	allPods []v1.Pod) []v1.Pod {
-	var matchingPods []v1.Pod
+func FilterDeploymentPodsByOwnerReference(deployment *apps.Deployment, allRS []*apps.ReplicaSet,
+	allPods []*v1.Pod) []*v1.Pod {
+	var matchingPods []*v1.Pod
 	for _, rs := range allRS {
-		if metav1.IsControlledBy(&rs, &deployment) {
-			matchingPods = append(matchingPods, FilterPodsByControllerRef(&rs, allPods)...)
+		if metav1.IsControlledBy(rs, deployment) {
+			matchingPods = append(matchingPods, FilterPodsByControllerRef(rs, allPods)...)
 		}
 	}
 
@@ -22,18 +22,18 @@ func FilterDeploymentPodsByOwnerReference(deployment apps.Deployment, allRS []ap
 }
 
 // FilterPodsByControllerRef returns a subset of pods controlled by given controller resource, excluding deployments.
-func FilterPodsByControllerRef(owner metav1.Object, allPods []v1.Pod) []v1.Pod {
-	var matchingPods []v1.Pod
+func FilterPodsByControllerRef(owner metav1.Object, allPods []*v1.Pod) []*v1.Pod {
+	var matchingPods []*v1.Pod
 	for _, pod := range allPods {
-		if metav1.IsControlledBy(&pod, owner) {
+		if metav1.IsControlledBy(pod, owner) {
 			matchingPods = append(matchingPods, pod)
 		}
 	}
 	return matchingPods
 }
 
-func FilterPodsForJob(job batch.Job, pods []v1.Pod) []v1.Pod {
-	result := make([]v1.Pod, 0)
+func FilterPodsForJob(job *batch.Job, pods []*v1.Pod) []*v1.Pod {
+	result := make([]*v1.Pod, 0)
 	for _, pod := range pods {
 		if pod.Namespace == job.Namespace && pod.Labels["controller-uid"] ==
 			job.Spec.Selector.MatchLabels["controller-uid"] {

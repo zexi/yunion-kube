@@ -20,6 +20,7 @@ type ResourceHandler interface {
 	Get(kind string, namespace string, name string) (runtime.Object, error)
 	List(kind string, namespace string, labelSelector string) ([]runtime.Object, error)
 	Delete(kind string, namespace string, name string, options *metav1.DeleteOptions) error
+	GetIndexer() *CacheFactory
 	Close()
 }
 
@@ -33,6 +34,10 @@ func NewResourceHandler(kubeClient *kubernetes.Clientset, cacheFactory *CacheFac
 		client:       kubeClient,
 		cacheFactory: cacheFactory,
 	}
+}
+
+func (h *resourceHandler) GetIndexer() *CacheFactory {
+	return h.cacheFactory
 }
 
 func (h *resourceHandler) Close() {

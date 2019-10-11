@@ -23,10 +23,12 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/types"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	yclient "yunion.io/x/yunion-kube/pkg/client"
 )
 
 type Request struct {
 	Cluster           *clusters.SCluster
+	ClusterManager *yclient.ClusterManager
 	K8sClient         client.Interface
 	K8sAdminClient    client.Interface
 	K8sConfig         *rest.Config
@@ -65,6 +67,14 @@ func (r *Request) GetNamespaceQuery() *NamespaceQuery {
 		namespace = v1.NamespaceDefault
 	}
 	return NewNamespaceQuery(namespace)
+}
+
+func (r *Request) GetK8sManager() *yclient.ClusterManager {
+	return r.ClusterManager
+}
+
+func (r *Request) GetIndexer() *yclient.CacheFactory {
+	return r.ClusterManager.GetIndexer()
 }
 
 func (r *Request) GetK8sClient() client.Interface {
