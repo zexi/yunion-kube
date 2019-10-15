@@ -80,6 +80,17 @@ func (e *JSONClientError) Error() string {
 	return jsonutils.Marshal(errMsg).String()
 }
 
+func ErrorCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	switch je := err.(type) {
+	case *JSONClientError:
+		return je.Code
+	}
+	return -1
+}
+
 func headerExists(header *http.Header, key string) bool {
 	keyu := strings.ToUpper(key)
 	for k := range *header {
@@ -116,28 +127,36 @@ func GetAddrPort(urlStr string) (string, int, error) {
 	}
 }
 
-func GetClient(insecure bool) *http.Client {
-	tr := &http.Transport{
+func GetTransport(insecure bool, timeout time.Duration) *http.Transport {
+	return &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout: 5 * time.Second,
+			Timeout:   timeout,
+			KeepAlive: timeout,
 		}).DialContext,
-		IdleConnTimeout:     5 * time.Second,
-		TLSHandshakeTimeout: 10 * time.Second,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: insecure},
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: insecure},
+		DisableCompression:    true,
 	}
-	return &http.Client{Transport: tr}
+}
+
+func GetClient(insecure bool, timeout time.Duration) *http.Client {
+	tr := GetTransport(insecure, timeout)
+	return &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+	}
 }
 
 func GetTimeoutClient(timeout time.Duration) *http.Client {
-	client := GetClient(true)
-	client.Timeout = timeout
-	return client
+	return GetClient(true, timeout)
 }
 
 var defaultHttpClient *http.Client
 
 func init() {
-	defaultHttpClient = GetClient(true)
+	defaultHttpClient = GetClient(true, time.Second*15)
 }
 
 func GetDefaultClient() *http.Client {
@@ -206,9 +225,75 @@ func JSONRequest(client *http.Client, ctx context.Context, method THttpMethod, u
 	if header == nil {
 		header = http.Header{}
 	}
-	header.Add("Content-Type", "application/json")
+	header.Set("Content-Type", "application/json")
 	resp, err := Request(client, ctx, method, urlStr, header, jbody, debug)
 	return ParseJSONResponse(resp, err, debug)
+}
+
+// closeResponse close non nil response with any response Body.
+// convenient wrapper to drain any remaining data on response body.
+//
+// Subsequently this allows golang http RoundTripper
+// to re-use the same connection for future requests.
+func CloseResponse(resp *http.Response) {
+	// Callers should close resp.Body when done reading from it.
+	// If resp.Body is not closed, the Client's underlying RoundTripper
+	// (typically Transport) may not be able to re-use a persistent TCP
+	// connection to the server for a subsequent "keep-alive" request.
+	if resp != nil && resp.Body != nil {
+		// Drain any remaining Body and then close the connection.
+		// Without this closing connection would disallow re-using
+		// the same connection for future uses.
+		//  - http://stackoverflow.com/a/17961593/4465767
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
+	}
+}
+
+func ParseResponse(resp *http.Response, err error, debug bool) (http.Header, []byte, error) {
+	if err != nil {
+		ce := JSONClientError{}
+		ce.Code = 499
+		ce.Details = err.Error()
+		return nil, nil, &ce
+	}
+	defer CloseResponse(resp)
+	if debug {
+		if resp.StatusCode < 300 {
+			green("Status:", resp.StatusCode)
+			green(resp.Header)
+		} else if resp.StatusCode < 400 {
+			yellow("Status:", resp.StatusCode)
+			yellow(resp.Header)
+		} else {
+			red("Status:", resp.StatusCode)
+			red(resp.Header)
+		}
+	}
+	rbody, err := ioutil.ReadAll(resp.Body)
+	if debug {
+		fmt.Fprintf(os.Stderr, "Response body: %s\n", string(rbody))
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("Fail to read body: %s", err)
+	}
+	if resp.StatusCode < 300 {
+		return resp.Header, rbody, nil
+	} else if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		ce := JSONClientError{}
+		ce.Code = resp.StatusCode
+		ce.Details = resp.Header.Get("Location")
+		ce.Class = "redirect"
+		return nil, nil, &ce
+	} else {
+		ce := JSONClientError{}
+		ce.Code = resp.StatusCode
+		ce.Details = resp.Status
+		if len(rbody) > 0 {
+			ce.Details = string(rbody)
+		}
+		return nil, nil, &ce
+	}
 }
 
 func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header, jsonutils.JSONObject, error) {
@@ -218,7 +303,7 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 		ce.Details = err.Error()
 		return nil, nil, &ce
 	}
-	defer resp.Body.Close()
+	defer CloseResponse(resp)
 	if debug {
 		if resp.StatusCode < 300 {
 			green("Status:", resp.StatusCode)
@@ -240,7 +325,7 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 	}
 
 	var jrbody jsonutils.JSONObject = nil
-	if len(rbody) > 0 {
+	if len(rbody) > 0 && string(rbody[0]) == "{" {
 		var err error
 		jrbody, err = jsonutils.Parse(rbody)
 		if err != nil && debug {
@@ -262,6 +347,9 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 		if jrbody == nil {
 			ce.Code = resp.StatusCode
 			ce.Details = resp.Status
+			if len(rbody) > 0 {
+				ce.Details = string(rbody)
+			}
 			return nil, nil, &ce
 		}
 
@@ -297,7 +385,7 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 		if ce.Code == 0 {
 			ce.Code = resp.StatusCode
 		}
-		if edetail := jsonutils.GetAnyString(jrbody2, []string{"message", "detail", "error_msg"}); len(edetail) > 0 {
+		if edetail := jsonutils.GetAnyString(jrbody2, []string{"message", "detail", "details", "error_msg"}); len(edetail) > 0 {
 			ce.Details = edetail
 		}
 		if eclass := jsonutils.GetAnyString(jrbody2, []string{"title", "type", "error_code"}); len(eclass) > 0 {
@@ -305,4 +393,8 @@ func ParseJSONResponse(resp *http.Response, err error, debug bool) (http.Header,
 		}
 		return nil, nil, &ce
 	}
+}
+
+func JoinPath(ep string, path string) string {
+	return strings.TrimRight(ep, "/") + "/" + strings.TrimLeft(path, "/")
 }

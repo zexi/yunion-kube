@@ -60,8 +60,8 @@ func (d *SYunionHostDriver) GetK8sVersions() []string {
 	}
 }
 
-func (d *SYunionHostDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerProjId, query, data); err != nil {
+func (d *SYunionHostDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
 	return yunion_host.ValidateClusterCreateData(data)

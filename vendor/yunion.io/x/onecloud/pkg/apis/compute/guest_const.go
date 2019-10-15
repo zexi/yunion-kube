@@ -38,6 +38,8 @@ const (
 	VM_STOP_FAILED     = "stop_fail" // # = running
 	VM_RENEWING        = "renewing"
 	VM_RENEW_FAILED    = "renew_failed"
+	VM_ATTACH_DISK     = "attach_disk"
+	VM_DETACH_DISK     = "detach_disk"
 
 	VM_BACKUP_STARTING         = "backup_starting"
 	VM_BACKUP_CREATING         = "backup_creating"
@@ -72,23 +74,33 @@ const (
 	VM_REBUILD_ROOT       = "rebuild_root"
 	VM_REBUILD_ROOT_FAIL  = "rebuild_root_fail"
 
-	VM_START_SNAPSHOT  = "snapshot_start"
-	VM_SNAPSHOT        = "snapshot"
-	VM_SNAPSHOT_DELETE = "snapshot_delete"
-	VM_BLOCK_STREAM    = "block_stream"
-	VM_MIRROR_FAIL     = "mirror_failed"
-	VM_SNAPSHOT_SUCC   = "snapshot_succ"
-	VM_SNAPSHOT_FAILED = "snapshot_failed"
+	VM_START_SNAPSHOT    = "snapshot_start"
+	VM_SNAPSHOT          = "snapshot"
+	VM_SNAPSHOT_DELETE   = "snapshot_delete"
+	VM_BLOCK_STREAM      = "block_stream"
+	VM_BLOCK_STREAM_FAIL = "block_stream_fail"
+	VM_SNAPSHOT_SUCC     = "snapshot_succ"
+	VM_SNAPSHOT_FAILED   = "snapshot_failed"
+	VM_DISK_RESET        = "disk_reset"
+	VM_DISK_RESET_FAIL   = "disk_reset_failed"
+
+	VM_START_INSTANCE_SNAPSHOT   = "start_instance_snapshot"
+	VM_INSTANCE_SNAPSHOT_FAILED  = "instance_snapshot_failed"
+	VM_START_SNAPSHOT_RESET      = "start_snapshot_reset"
+	VM_SNAPSHOT_RESET_FAILED     = "snapshot_reset_failed"
+	VM_SNAPSHOT_AND_CLONE_FAILED = "clone_from_snapshot_failed"
 
 	VM_SYNCING_STATUS = "syncing"
 	VM_SYNC_CONFIG    = "sync_config"
 	VM_SYNC_FAIL      = "sync_fail"
 
+	VM_START_RESIZE_DISK  = "start_resize_disk"
 	VM_RESIZE_DISK        = "resize_disk"
 	VM_RESIZE_DISK_FAILED = "resize_disk_fail"
-	VM_START_SAVE_DISK    = "start_save_disk"
-	VM_SAVE_DISK          = "save_disk"
-	VM_SAVE_DISK_FAILED   = "save_disk_failed"
+
+	VM_START_SAVE_DISK  = "start_save_disk"
+	VM_SAVE_DISK        = "save_disk"
+	VM_SAVE_DISK_FAILED = "save_disk_failed"
 
 	VM_RESTORING_SNAPSHOT = "restoring_snapshot"
 	VM_RESTORE_DISK       = "restore_disk"
@@ -101,6 +113,9 @@ const (
 	VM_DISSOCIATE_EIP_FAILED = "dissociate_eip_failed"
 
 	VM_REMOVE_STATEFILE = "remove_state"
+
+	VM_IO_THROTTLE      = "io_throttle"
+	VM_IO_THROTTLE_FAIL = "io_throttle_fail"
 
 	VM_ADMIN = "admin"
 
@@ -124,6 +139,7 @@ const (
 	HYPERVISOR_HUAWEI    = "huawei"
 	HYPERVISOR_OPENSTACK = "openstack"
 	HYPERVISOR_UCLOUD    = "ucloud"
+	HYPERVISOR_ZSTACK    = "zstack"
 
 	//	HYPERVISOR_DEFAULT = HYPERVISOR_KVM
 	HYPERVISOR_DEFAULT = HYPERVISOR_KVM
@@ -132,7 +148,8 @@ const (
 var VM_RUNNING_STATUS = []string{VM_START_START, VM_STARTING, VM_RUNNING, VM_BLOCK_STREAM}
 var VM_CREATING_STATUS = []string{VM_CREATE_NETWORK, VM_CREATE_DISK, VM_START_DEPLOY, VM_DEPLOYING}
 
-var HYPERVISORS = []string{HYPERVISOR_KVM,
+var HYPERVISORS = []string{
+	HYPERVISOR_KVM,
 	HYPERVISOR_BAREMETAL,
 	HYPERVISOR_ESXI,
 	HYPERVISOR_CONTAINER,
@@ -143,6 +160,13 @@ var HYPERVISORS = []string{HYPERVISOR_KVM,
 	HYPERVISOR_HUAWEI,
 	HYPERVISOR_OPENSTACK,
 	HYPERVISOR_UCLOUD,
+	HYPERVISOR_ZSTACK,
+}
+
+var ONECLOUD_HYPERVISORS = []string{
+	HYPERVISOR_BAREMETAL,
+	HYPERVISOR_KVM,
+	HYPERVISOR_CONTAINER,
 }
 
 var PUBLIC_CLOUD_HYPERVISORS = []string{
@@ -151,8 +175,12 @@ var PUBLIC_CLOUD_HYPERVISORS = []string{
 	HYPERVISOR_AZURE,
 	HYPERVISOR_QCLOUD,
 	HYPERVISOR_HUAWEI,
-	HYPERVISOR_OPENSTACK,
 	HYPERVISOR_UCLOUD,
+}
+
+var PRIVATE_CLOUD_HYPERVISORS = []string{
+	HYPERVISOR_ZSTACK,
+	HYPERVISOR_OPENSTACK,
 }
 
 // var HYPERVISORS = []string{HYPERVISOR_ALIYUN}
@@ -169,6 +197,7 @@ var HYPERVISOR_HOSTTYPE = map[string]string{
 	HYPERVISOR_HUAWEI:    HOST_TYPE_HUAWEI,
 	HYPERVISOR_OPENSTACK: HOST_TYPE_OPENSTACK,
 	HYPERVISOR_UCLOUD:    HOST_TYPE_UCLOUD,
+	HYPERVISOR_ZSTACK:    HOST_TYPE_ZSTACK,
 }
 
 var HOSTTYPE_HYPERVISOR = map[string]string{
@@ -183,11 +212,13 @@ var HOSTTYPE_HYPERVISOR = map[string]string{
 	HOST_TYPE_HUAWEI:     HYPERVISOR_HUAWEI,
 	HOST_TYPE_OPENSTACK:  HYPERVISOR_OPENSTACK,
 	HOST_TYPE_UCLOUD:     HYPERVISOR_UCLOUD,
+	HOST_TYPE_ZSTACK:     HYPERVISOR_ZSTACK,
 }
 
 const (
-	VM_AWS_DEFAULT_LOGIN_USER   = "ec2user"
-	VM_AZURE_DEFAULT_LOGIN_USER = "toor"
+	VM_AWS_DEFAULT_LOGIN_USER    = "ec2user"
+	VM_AZURE_DEFAULT_LOGIN_USER  = "toor"
+	VM_ZSTACK_DEFAULT_LOGIN_USER = "root"
 
 	VM_METADATA_APP_TAGS            = "app_tags"
 	VM_METADATA_CREATE_PARAMS       = "create_params"

@@ -16,19 +16,31 @@ package httperrors
 
 import (
 	"net/http"
+	"runtime/debug"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 
 	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 func SendHTTPErrorHeader(w http.ResponseWriter, statusCode int) {
-	w.WriteHeader(statusCode)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+}
+
+func SetHTTPRedirectLocationHeader(w http.ResponseWriter, location string) {
+	w.Header().Set("Location", location)
 }
 
 func HTTPError(w http.ResponseWriter, msg string, statusCode int, class string, error httputils.Error) {
+	if statusCode >= 300 && statusCode <= 400 {
+		SetHTTPRedirectLocationHeader(w, msg)
+	}
+
+	// 需要在调用w.WriteHeader方法之前，设置header才能生效
 	SendHTTPErrorHeader(w, statusCode)
+
 	body := jsonutils.NewDict()
 	body.Add(jsonutils.NewInt(int64(statusCode)), "code")
 	body.Add(jsonutils.NewString(msg), "details")
@@ -38,6 +50,10 @@ func HTTPError(w http.ResponseWriter, msg string, statusCode int, class string, 
 	err.Add(jsonutils.NewStringArray(error.Fields), "fields")
 	body.Add(err, "data")
 	w.Write([]byte(body.String()))
+	log.Errorf("Send error %s", err)
+	if statusCode >= 500 {
+		debug.PrintStack()
+	}
 }
 
 func JsonClientError(w http.ResponseWriter, e *httputils.JSONClientError) {
@@ -131,4 +147,8 @@ func TimeoutError(w http.ResponseWriter, msg string, params ...interface{}) {
 
 func ProtectedResourceError(w http.ResponseWriter, msg string, params ...interface{}) {
 	JsonClientError(w, NewProtectedResourceError(msg, params...))
+}
+
+func NoProjectError(w http.ResponseWriter, msg string, params ...interface{}) {
+	JsonClientError(w, NewNoProjectError(msg, params...))
 }

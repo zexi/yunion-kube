@@ -85,7 +85,7 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, err
 	return ret, nil
 }
 
-func (d *SSystemYKEDriver) ValidateCreateData(uctx context.Context, serCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SSystemYKEDriver) ValidateCreateData(uctx context.Context, serCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	return yunion_host.ValidateClusterCreateData(data)
 }
 

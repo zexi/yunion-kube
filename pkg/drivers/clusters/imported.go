@@ -45,7 +45,7 @@ func (d *SDefaultImportDriver) GetK8sVersions() []string {
 	return []string{}
 }
 
-func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	// test kubeconfig is work
 	createData := types.CreateClusterData{}
 	if err := data.Unmarshal(&createData); err != nil {

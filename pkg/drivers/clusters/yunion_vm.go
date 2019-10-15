@@ -212,8 +212,8 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 	return nil
 }
 
-func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerProjId, query, data); err != nil {
+func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
 	createData := types.CreateClusterData{}

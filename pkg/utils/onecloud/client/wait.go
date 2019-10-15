@@ -10,7 +10,7 @@ import (
 	"yunion.io/x/pkg/util/wait"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/mcclient/modules"
+	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
@@ -30,11 +30,11 @@ func IsNotFound(err error) bool {
 }
 
 type ResourceHelper struct {
-	modules.Manager
+	modulebase.Manager
 	session *mcclient.ClientSession
 }
 
-func NewResourceHelper(s *mcclient.ClientSession, manager modules.Manager) *ResourceHelper {
+func NewResourceHelper(s *mcclient.ClientSession, manager modulebase.Manager) *ResourceHelper {
 	return &ResourceHelper{
 		Manager: manager,
 		session: s,

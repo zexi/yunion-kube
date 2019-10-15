@@ -47,7 +47,7 @@ func (d *sClusterAPIDriver) NeedGenerateCertificate() bool {
 	return true
 }
 
-func (d *sClusterAPIDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *sClusterAPIDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	/*ok, err := clusters.ClusterManager.IsSystemClusterReady()
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func machinesPostCreate(ctx context.Context, userCred mcclient.TokenCredential, 
 		func() {
 			lockman.LockObject(ctx, m.machine)
 			defer lockman.ReleaseObject(ctx, m.machine)
-			m.machine.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, m.data)
+			m.machine.PostCreate(ctx, userCred, userCred, nil, m.data)
 		}()
 	}
 }
@@ -156,7 +156,7 @@ func (d *sClusterAPIDriver) RequestDeployMachines(
 	doPostCreate := func(m *machines.SMachine) {
 		lockman.LockObject(ctx, m)
 		defer lockman.ReleaseObject(ctx, m)
-		m.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, jsonutils.NewDict())
+		m.PostCreate(ctx, userCred, userCred, nil, jsonutils.NewDict())
 	}
 
 	for _, m := range ms {

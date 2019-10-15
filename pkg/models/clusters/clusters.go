@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
@@ -16,7 +17,6 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
@@ -49,6 +49,7 @@ func init() {
 		),
 	}
 	manager.RegisterClusterManager(ClusterManager)
+	ClusterManager.SetVirtualObject(ClusterManager)
 }
 
 type SClusterManager struct {
@@ -109,21 +110,22 @@ func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
 
 func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (manager.ICluster, error) {
 	input := jsonutils.Marshal(data)
-	obj, err := db.DoCreate(m, ctx, userCred, nil, input, userCred.GetTenantId())
+	obj, err := db.DoCreate(m, ctx, userCred, nil, input, userCred)
 	if err != nil {
 		return nil, err
 	}
 	return obj.(*SCluster), nil
 }
 
-func (m *SClusterManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
-	q = q.Filter(sqlchemy.OR(sqlchemy.Equals(q.Field("tenant_id"), owner), sqlchemy.IsTrue(q.Field("is_public"))))
+// TODO: fix scope list bug
+func (m *SClusterManager) FilterByOwner(q *sqlchemy.SQuery, owner mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	q = q.Filter(sqlchemy.OR(sqlchemy.Equals(q.Field("tenant_id"), owner.GetProjectId()), sqlchemy.IsTrue(q.Field("is_public"))))
 	q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("pending_deleted")), sqlchemy.IsFalse(q.Field("pending_deleted"))))
 	q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
 	return q
 }
 
-func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	var (
 		clusterType  string
 		cloudType    string
@@ -274,6 +276,7 @@ func GetDriverByQuery(query jsonutils.JSONObject) (IClusterDriver, error) {
 }
 
 func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	SetJSONDataDefault(query.(*jsonutils.JSONDict), "mode", string(types.ModeTypeSelfBuild))
 	driver, err := GetDriverByQuery(query)
 	if err != nil {
 		return nil, err
@@ -310,10 +313,11 @@ func (m *SClusterManager) IsSystemClusterReady() (bool, error) {
 }
 
 func (m *SClusterManager) AllowGetPropertyUsableInstances(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return userCred.IsAdminAllow(consts.GetServiceType(), m.KeywordPlural(), policy.PolicyActionGet, "usable-instances")
+	return userCred.IsAllow(rbacutils.ScopeSystem, m.KeywordPlural(), policy.PolicyActionGet, "usable-instances")
 }
 
 func (m *SClusterManager) GetPropertyUsableInstances(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	SetJSONDataDefault(query.(*jsonutils.JSONDict), "mode", string(types.ModeTypeSelfBuild))
 	driver, err := GetDriverByQuery(query)
 	if err != nil {
 		return nil, err
@@ -606,8 +610,8 @@ func (c *SCluster) GenerateCertificates(ctx context.Context, userCred mcclient.T
 	return nil
 }
 
-func (c *SCluster) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	c.SVirtualResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+func (c *SCluster) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	c.SVirtualResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
 	if err := c.StartClusterCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("StartClusterCreateTask error: %v", err)
 	}

@@ -14,15 +14,17 @@
 
 package modules
 
+import "yunion.io/x/onecloud/pkg/mcclient/modulebase"
+
 var (
-	Networks ResourceManager
+	Networks modulebase.ResourceManager
 )
 
 func init() {
 	Networks = NewComputeManager("network", "networks",
-		[]string{"ID", "Name", "Guest_ip_start",
+		[]string{"ID", "Name", "Guest_ip_start", "zone", "zone_id",
 			"Guest_ip_end", "Guest_ip_mask",
-			"wire_id", "wire", "is_public", "exit", "Ports",
+			"wire_id", "wire", "is_public", "public_scope", "exit", "Ports",
 			"vnics", "guest_gateway",
 			"group_vnics", "bm_vnics", "reserve_vnics", "lb_vnics",
 			"server_type", "Status"},

@@ -22,7 +22,7 @@ func newBaseDriver() *SBaseDriver {
 	return &SBaseDriver{}
 }
 
-func (d *SBaseDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SBaseDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	return nil
 }
 

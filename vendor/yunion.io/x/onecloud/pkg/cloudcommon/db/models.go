@@ -16,10 +16,15 @@ package db
 
 import (
 	"fmt"
+	"os"
 
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
+
+	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/cloudcommon"
+	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 )
 
 var globalTables map[string]IModelManager
@@ -29,17 +34,16 @@ func RegisterModelManager(modelMan IModelManager) {
 		globalTables = make(map[string]IModelManager)
 	}
 	mustCheckModelManager(modelMan)
-	log.Infof("Register model %s", modelMan.Keyword())
 	globalTables[modelMan.Keyword()] = modelMan
 }
 
 func mustCheckModelManager(modelMan IModelManager) {
 	allowedTags := map[string][]string{
-		"create": {"required", "optional", "admin_required", "admin_optional"},
-		"search": {"user", "admin"},
-		"get":    {"user", "admin"},
-		"list":   {"user", "admin"},
-		"update": {"user", "admin"},
+		"create": {"required", "optional", "domain_required", "domain_optional", "admin_required", "admin_optional"},
+		"search": {"user", "domain", "admin"},
+		"get":    {"user", "domain", "admin"},
+		"list":   {"user", "domain", "admin"},
+		"update": {"user", "domain", "admin"},
 	}
 	for _, col := range modelMan.TableSpec().Columns() {
 		tags := col.Tags()
@@ -58,34 +62,68 @@ func mustCheckModelManager(modelMan IModelManager) {
 }
 
 func CheckSync(autoSync bool) bool {
-	log.Infof("Start check database ...")
-	allSqls := make([]string, 0)
+	log.Infof("Start check database schema ...")
+	inSync := true
 	for modelName, modelMan := range globalTables {
-		log.Infof("# check table of model %s", modelName)
 		tableSpec := modelMan.TableSpec()
-		sqls := tableSpec.SyncSQL()
-		for _, sql := range sqls {
-			allSqls = append(allSqls, sql)
-		}
-	}
-	if len(allSqls) > 0 {
-		if autoSync {
-			err := commitSqlDIffs(allSqls)
-			if err == nil {
-				return true
+		dropFKSqls := tableSpec.DropForeignKeySQL()
+		if len(dropFKSqls) > 0 {
+			log.Infof("model %s drop foreign key constraints!!!", modelName)
+			if autoSync {
+				err := commitSqlDIffs(dropFKSqls)
+				if err != nil {
+					log.Errorf("commit sql error %s", err)
+					return false
+				}
 			} else {
-				log.Errorln(err)
+				for _, sql := range dropFKSqls {
+					fmt.Println(sql)
+				}
+				inSync = false
 			}
 		}
-		for _, sql := range allSqls {
-			fmt.Println(sql)
-		}
-		log.Fatalf("Database not in sync!")
-		return false
-	} else {
-		log.Infof("Database is in SYNC!!!")
-		return true
 	}
+	for modelName, modelMan := range globalTables {
+		tableSpec := modelMan.TableSpec()
+		sqls := tableSpec.SyncSQL()
+		if len(sqls) > 0 {
+			log.Infof("model %s is not in SYNC!!!", modelName)
+			if autoSync {
+				err := commitSqlDIffs(sqls)
+				if err != nil {
+					log.Errorf("commit sql error %s", err)
+					return false
+				}
+			} else {
+				for _, sql := range sqls {
+					fmt.Println(sql)
+				}
+				inSync = false
+			}
+		}
+	}
+	return inSync
+}
+
+func EnsureAppInitSyncDB(app *appsrv.Application, opt *common_options.DBOptions, modelInitDBFunc func() error) {
+	cloudcommon.InitDB(opt)
+
+	if !CheckSync(opt.AutoSyncTable) {
+		log.Fatalf("database schema not in sync!")
+	}
+
+	if modelInitDBFunc != nil {
+		if err := modelInitDBFunc(); err != nil {
+			log.Fatalf("model init db: %v", err)
+		}
+	}
+
+	if opt.ExitAfterDBInit {
+		log.Infof("Exiting after db initialization ...")
+		os.Exit(0)
+	}
+
+	cloudcommon.AppDBInit(app)
 }
 
 func GetModelManager(keyword string) IModelManager {

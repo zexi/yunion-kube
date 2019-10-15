@@ -17,23 +17,31 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
+	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/cloudcommon/object"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
 type SModelBase struct {
-	// empty struct
+	object.SObject
+
 	manager IModelManager `ignore:"true"` // pointer to modelmanager
 }
 
 type SModelBaseManager struct {
+	object.SObject
+
 	tableSpec     *sqlchemy.STableSpec
 	keyword       string
 	keywordPlural string
@@ -45,6 +53,18 @@ func NewModelBaseManager(model interface{}, tableName string, keyword string, ke
 	ts := sqlchemy.NewTableSpecFromStruct(model, tableName)
 	modelMan := SModelBaseManager{tableSpec: ts, keyword: keyword, keywordPlural: keywordPlural}
 	return modelMan
+}
+
+func (manager *SModelBaseManager) GetIModelManager() IModelManager {
+	virt := manager.GetVirtualObject()
+	if virt == nil {
+		panic(fmt.Sprintf("%s Forgot to call SetVirtualObject?", manager.KeywordPlural()))
+	}
+	r, ok := virt.(IModelManager)
+	if !ok {
+		panic(fmt.Sprintf("Cannot convert virtual object to IModelManager: %#v", virt))
+	}
+	return r
 }
 
 func (manager *SModelBaseManager) SetAlias(alias string, aliasPlural string) {
@@ -64,7 +84,7 @@ func (manager *SModelBaseManager) KeywordPlural() string {
 	return manager.keywordPlural
 }
 
-func (manager *SModelBaseManager) GetContextManager() []IModelManager {
+func (manager *SModelBaseManager) GetContextManagers() [][]IModelManager {
 	return nil
 }
 
@@ -127,12 +147,20 @@ func (manager *SModelBaseManager) FilterByName(q *sqlchemy.SQuery, name string) 
 	return q
 }
 
-func (manager *SModelBaseManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
+func (manager *SModelBaseManager) FilterByOwner(q *sqlchemy.SQuery, ownerId mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
 	return q
 }
 
-func (manager *SModelBaseManager) GetOwnerId(userCred mcclient.IIdentityProvider) string {
-	return ""
+func (manager *SModelBaseManager) FilterBySystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	return q
+}
+
+func (manager *SModelBaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	return q
+}
+
+func (manager *SModelBaseManager) FilterByParentId(q *sqlchemy.SQuery, parentId string) *sqlchemy.SQuery {
+	return q
 }
 
 func (manager *SModelBaseManager) FetchById(idStr string) (IModel, error) {
@@ -152,7 +180,7 @@ func (manager *SModelBaseManager) AllowCreateItem(ctx context.Context, userCred 
 	return false
 }
 
-func (manager *SModelBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (manager *SModelBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	return data, nil
 }
 
@@ -169,7 +197,7 @@ func (manager *SModelBaseManager) PerformAction(ctx context.Context, userCred mc
 }
 
 func (manager *SModelBaseManager) AllowPerformCheckCreateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return IsAdminAllowClassPerform(userCred, manager, "check-create-data")
+	return IsAllowClassPerform(rbacutils.ScopeSystem, userCred, manager, "check-create-data")
 }
 
 func (manager *SModelBaseManager) InitializeData() error {
@@ -177,6 +205,11 @@ func (manager *SModelBaseManager) InitializeData() error {
 }
 
 func (manager *SModelBaseManager) ListItemExportKeys(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	q = q.AppendField(q.QueryFields()...)
+	return q, nil
+}
+
+func (manager *SModelBaseManager) OrderByExtraFields(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
 	return q, nil
 }
 
@@ -185,7 +218,14 @@ func (manager *SModelBaseManager) GetExportExtraKeys(ctx context.Context, query 
 }
 
 func (manager *SModelBaseManager) CustomizeHandlerInfo(info *appsrv.SHandlerInfo) {
-	// do nothing
+	info.SetProcessTimeoutCallback(manager.GetIModelManager().SetHandlerProcessTimeout)
+}
+
+func (manager *SModelBaseManager) SetHandlerProcessTimeout(info *appsrv.SHandlerInfo, r *http.Request) time.Duration {
+	if r.Method == http.MethodGet && len(r.URL.Query().Get("export_keys")) > 0 {
+		return time.Hour * 2
+	}
+	return -time.Second
 }
 
 func (manager *SModelBaseManager) FetchCreateHeaderData(ctx context.Context, header http.Header) (jsonutils.JSONObject, error) {
@@ -216,6 +256,122 @@ func (manager *SModelBaseManager) FetchCustomizeColumns(ctx context.Context, use
 	return ret
 }
 
+func (manager *SModelBaseManager) FetchOwnerId(ctx context.Context, data jsonutils.JSONObject) (mcclient.IIdentityProvider, error) {
+	return nil, nil
+}
+
+func (manager *SModelBaseManager) FetchParentId(ctx context.Context, data jsonutils.JSONObject) string {
+	return ""
+}
+
+func (manager *SModelBaseManager) NamespaceScope() rbacutils.TRbacScope {
+	return rbacutils.ScopeSystem
+}
+
+func (manager *SModelBaseManager) ResourceScope() rbacutils.TRbacScope {
+	return rbacutils.ScopeSystem
+}
+
+func (manager *SModelBaseManager) QueryDistinctExtraField(q *sqlchemy.SQuery, field string) (*sqlchemy.SQuery, error) {
+	return q, httperrors.NewBadRequestError("unsupport field %s", field)
+}
+
+func (manager *SModelBaseManager) AllowGetPropertyDistinctField(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return true
+}
+
+func (manager *SModelBaseManager) GetPagingConfig() *SPagingConfig {
+	return nil
+}
+
+func (manager *SModelBaseManager) GetPropertyDistinctField(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	im, ok := manager.GetVirtualObject().(IModelManager)
+	if !ok {
+		im = manager
+	}
+	fn, err := query.GetArray("field")
+	efs, _ := query.GetArray("extra_field")
+	fields := make([]string, len(fn))
+
+	// validate field
+	for i, f := range fn {
+		fields[i], err = f.GetString()
+		if err != nil {
+			return nil, httperrors.NewInputParameterError("can't get string field")
+		}
+		var hasField = false
+		for _, field := range manager.getTable().Fields() {
+			if field.Name() == fields[i] {
+				hasField = true
+				break
+			}
+		}
+		if !hasField {
+			return nil, httperrors.NewBadRequestError("model has no field %s", fields[i])
+		}
+	}
+
+	var res = jsonutils.NewDict()
+	q := im.Query()
+	q, err = ListItemQueryFilters(im, ctx, q, userCred, query, policy.PolicyActionList)
+	if err != nil {
+		return nil, err
+	}
+	var backupQuery = *q
+
+	// query field
+	for i := 0; i < len(fields); i++ {
+		var nq = backupQuery
+		nq.AppendField(nq.Field(fields[i]))
+		of, err := nq.Distinct().AllStringMap()
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil && err != sql.ErrNoRows {
+			return nil, httperrors.NewInternalServerError("Query database error %s", err)
+		}
+		ofa := make([]string, len(of))
+		for j := 0; j < len(of); j++ {
+			ofa[j] = of[j][fields[i]]
+		}
+		res.Set(fields[i], jsonutils.Marshal(ofa))
+	}
+
+	// query extra field
+	for i := 0; i < len(efs); i++ {
+		nq := backupQuery
+		fe, _ := efs[i].GetString()
+		nqp, err := im.QueryDistinctExtraField(&nq, fe)
+		if err != nil {
+			return nil, err
+		}
+		ef, err := nqp.AllStringMap()
+		if err == sql.ErrNoRows {
+			continue
+		}
+		efa := make([]string, len(ef))
+		for i := 0; i < len(ef); i++ {
+			efa[i] = ef[i][fe]
+		}
+		if err != nil && err != sql.ErrNoRows {
+			return nil, httperrors.NewInternalServerError("Query database error %s", err)
+		}
+		res.Set(fe, jsonutils.Marshal(efa))
+	}
+	return res, nil
+}
+
+func (manager *SModelBaseManager) BatchPreValidate(
+	ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider,
+	query jsonutils.JSONObject, data *jsonutils.JSONDict, count int,
+) (func(), error) {
+	return nil, nil
+}
+
+func (manager *SModelBaseManager) BatchCreateValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	return nil, nil
+}
+
 func (model *SModelBase) GetId() string {
 	return ""
 }
@@ -232,12 +388,17 @@ func (model *SModelBase) GetName() string {
 	return ""
 }
 
-func (model *SModelBase) SetModelManager(man IModelManager) {
+func (model *SModelBase) SetModelManager(man IModelManager, virtual IModel) {
 	model.manager = man
+	model.SetVirtualObject(virtual)
 }
 
 func (model *SModelBase) GetModelManager() IModelManager {
 	return model.manager
+}
+
+func (model *SModelBase) GetIModel() IModel {
+	return model.GetVirtualObject().(IModel)
 }
 
 func (model *SModelBase) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
@@ -248,7 +409,8 @@ func (model *SModelBase) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
 
 // list hooks
 func (model *SModelBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	return jsonutils.NewDict()
+	extra := jsonutils.NewDict()
+	return getModelExtraDetails(model.GetIModel(), ctx, extra)
 }
 
 // get hooks
@@ -257,7 +419,8 @@ func (model *SModelBase) AllowGetDetails(ctx context.Context, userCred mcclient.
 }
 
 func (model *SModelBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
-	return jsonutils.NewDict(), nil
+	extra := jsonutils.NewDict()
+	return getModelExtraDetails(model.GetIModel(), ctx, extra), nil
 }
 
 func (model *SModelBase) GetExtraDetailsHeaders(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) map[string]string {
@@ -265,11 +428,11 @@ func (model *SModelBase) GetExtraDetailsHeaders(ctx context.Context, userCred mc
 }
 
 // create hooks
-func (model *SModelBase) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+func (model *SModelBase) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 	return nil
 }
 
-func (model *SModelBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+func (model *SModelBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 
 }
 
@@ -333,14 +496,26 @@ func (model *SModelBase) Delete(ctx context.Context, userCred mcclient.TokenCred
 	return nil
 }
 
-func (model *SModelBase) GetOwnerProjectId() string {
+func (model *SModelBase) GetOwnerId() mcclient.IIdentityProvider {
+	return nil
+}
+
+func (model *SModelBase) GetParentId() string {
 	return ""
 }
 
-func (model *SModelBase) IsSharable() bool {
+func (model *SModelBase) IsSharable(ownerId mcclient.IIdentityProvider) bool {
 	return false
 }
 
 func (model *SModelBase) CustomizedGetDetailsBody(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, nil
+}
+
+func (model *SModelBase) UpdateInContext(ctx context.Context, userCred mcclient.TokenCredential, ctxObjs []IModel, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, nil
+}
+
+func (model *SModelBase) DeleteInContext(ctx context.Context, userCred mcclient.TokenCredential, ctxObjs []IModel, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	return nil, nil
 }

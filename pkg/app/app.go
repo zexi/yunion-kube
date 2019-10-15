@@ -19,13 +19,13 @@ import (
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/x/yunion-kube/pkg/controllers"
 	"yunion.io/x/yunion-kube/pkg/dialer"
+	"yunion.io/x/yunion-kube/pkg/initial"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/server"
 	"yunion.io/x/yunion-kube/pkg/types/config"
 	"yunion.io/x/yunion-kube/pkg/ykedialerfactory"
-	"yunion.io/x/yunion-kube/pkg/initial"
 )
 
 func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
@@ -56,7 +56,7 @@ func Run(ctx context.Context) error {
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
 
-	app := app_commmon.InitApp(&options.Options.CommonOptions, true)
+	app := app_commmon.InitApp(&options.Options.BaseOptions, true)
 	InitHandlers(app)
 
 	if db.CheckSync(options.Options.AutoSyncTable) {

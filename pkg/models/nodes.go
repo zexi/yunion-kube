@@ -46,6 +46,7 @@ func init() {
 	NodeManager = &SNodeManager{
 		SStatusStandaloneResourceBaseManager: db.NewStatusStandaloneResourceBaseManager(SNode{}, "nodes_tbl", "kube_node", "kube_nodes"),
 	}
+	NodeManager.SetVirtualObject(NodeManager)
 }
 
 type SNodeManager struct {
@@ -202,20 +203,20 @@ func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, u
 }
 
 func NewNode(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict) (*SNode, error) {
-	data, err := NodeManager.ValidateCreateData(ctx, userCred, "", nil, data)
+	data, err := NodeManager.ValidateCreateData(ctx, userCred, userCred, nil, data)
 	if err != nil {
 		return nil, err
 	}
-	obj, err := db.DoCreate(NodeManager, ctx, userCred, nil, data, userCred.GetTenantId())
+	obj, err := db.DoCreate(NodeManager, ctx, userCred, nil, data, userCred)
 	if err != nil {
 		return nil, err
 	}
 	n := obj.(*SNode)
-	n.PostCreate(ctx, userCred, "", nil, data)
+	n.PostCreate(ctx, userCred, nil, nil, data)
 	return n, nil
 }
 
-func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	clusterIdent, _ := data.GetString("cluster")
 	if clusterIdent == "" {
 		return nil, httperrors.NewInputParameterError("Cluster must specified")
@@ -367,12 +368,12 @@ func mergePendingNodes(nodes, pendingNodes []*SNode) []*SNode {
 	return nodes
 }
 
-func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+func (n *SNode) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 	dockerConf, _ := data.Get("dockerd_config")
 	if dockerConf != nil {
 		n.DockerdConfig = dockerConf
 	}
-	return n.SStatusStandaloneResourceBase.CustomizeCreate(ctx, userCred, ownerProjId, query, data)
+	return n.SStatusStandaloneResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data)
 }
 
 func (n *SNode) GetV2Cluster() (manager.ICluster, error) {
@@ -383,7 +384,7 @@ func (n *SNode) GetV2Cluster() (manager.ICluster, error) {
 	return c.GetV2Cluster()
 }
 
-func (n *SNode) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+func (n *SNode) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	n.SStatusStandaloneResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
 	v2Cluster, err := n.GetV2Cluster()
 	if err != nil {
