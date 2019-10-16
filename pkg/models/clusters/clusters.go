@@ -545,7 +545,7 @@ func (c *SCluster) GetNodeJoinToken() (string, error) {
 		return "", errors.Wrapf(err, "failed to initialize new corev1 client")
 	}
 
-	bootstrapToken, err := tokens.NewBootstrap(coreClient, 30*time.Minute)
+	bootstrapToken, err := tokens.NewBootstrap(coreClient, 24*time.Hour)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create new bootstrap token")
 	}

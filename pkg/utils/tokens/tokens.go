@@ -61,6 +61,7 @@ func NewBootstrap(client corev1.SecretsGetter, ttl time.Duration) (string, error
 			bootstrapapi.BootstrapTokenUsageSigningKey:     []byte("true"),
 			bootstrapapi.BootstrapTokenUsageAuthentication: []byte("true"),
 			bootstrapapi.BootstrapTokenExtraGroupsKey:      []byte("system:bootstrappers:kubeadm:default-node-token"),
+			bootstrapapi.BootstrapTokenDescriptionKey:      []byte("Node join token generate by 'onecloud kube-server'"),
 		},
 	}
 
