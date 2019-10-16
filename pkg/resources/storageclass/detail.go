@@ -2,12 +2,11 @@ package storageclass
 
 import (
 	storage "k8s.io/api/storage/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -44,19 +43,19 @@ type StorageClassDetail struct {
 }
 
 func (man *SStorageClassManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetStorageClass(req.GetK8sClient(), req.GetCluster(), id)
+	return GetStorageClass(req.GetIndexer(), req.GetCluster(), id)
 }
 
 // GetStorageClass returns storage class object.
-func GetStorageClass(client kubernetes.Interface, cluster api.ICluster, name string) (*StorageClassDetail, error) {
+func GetStorageClass(indexer *client.CacheFactory, cluster api.ICluster, name string) (*StorageClassDetail, error) {
 	log.Infof("Getting details of %s storage class", name)
 
-	storage, err := client.StorageV1().StorageClasses().Get(name, metaV1.GetOptions{})
+	storage, err := indexer.StorageClassLister().Get(name)
 	if err != nil {
 		return nil, err
 	}
 
-	persistentVolumeList, err := persistentvolume.GetStorageClassPersistentVolumes(client, cluster,
+	persistentVolumeList, err := persistentvolume.GetStorageClassPersistentVolumes(indexer, cluster,
 		storage.Name, dataselect.DefaultDataSelect())
 
 	storageClass := toStorageClassDetail(storage, persistentVolumeList, cluster)

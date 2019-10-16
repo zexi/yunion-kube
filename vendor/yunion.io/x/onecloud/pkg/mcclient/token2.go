@@ -21,6 +21,9 @@ import (
 	"time"
 
 	"yunion.io/x/jsonutils"
+
+	api "yunion.io/x/onecloud/pkg/apis/identity"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
 type KeystoneEndpointV2 struct {
@@ -53,6 +56,10 @@ type KeystoneTenantV2 struct {
 	Name        string
 	Enabled     bool
 	Description string
+	Domain      struct {
+		Id   string
+		Name string
+	}
 }
 
 type KeystoneTokenV2 struct {
@@ -72,7 +79,9 @@ type TokenCredentialV2 struct {
 	Token          KeystoneTokenV2
 	ServiceCatalog KeystoneServiceCatalogV2
 	User           KeystoneUserV2
+	Tenants        []KeystoneTenantV2
 	Metadata       KeystoneMetadataV2
+	Context        SAuthContext
 }
 
 func (token *TokenCredentialV2) GetTokenString() string {
@@ -80,11 +89,11 @@ func (token *TokenCredentialV2) GetTokenString() string {
 }
 
 func (token *TokenCredentialV2) GetDomainId() string {
-	return "default"
+	return api.DEFAULT_DOMAIN_ID
 }
 
 func (token *TokenCredentialV2) GetDomainName() string {
-	return "Default"
+	return api.DEFAULT_DOMAIN_NAME
 }
 
 func (token *TokenCredentialV2) GetTenantId() string {
@@ -101,6 +110,14 @@ func (token *TokenCredentialV2) GetProjectId() string {
 
 func (token *TokenCredentialV2) GetProjectName() string {
 	return token.GetTenantName()
+}
+
+func (token *TokenCredentialV2) GetProjectDomainId() string {
+	return api.DEFAULT_DOMAIN_ID
+}
+
+func (token *TokenCredentialV2) GetProjectDomain() string {
+	return api.DEFAULT_DOMAIN_NAME
 }
 
 func (token *TokenCredentialV2) GetUserName() string {
@@ -148,8 +165,16 @@ func (this *TokenCredentialV2) HasSystemAdminPrivilege() bool {
 	return this.IsAdmin() && this.GetTenantName() == "system"
 }
 
-func (this *TokenCredentialV2) IsAdminAllow(service string, resource string, action string, extra ...string) bool {
-	return this.HasSystemAdminPrivilege()
+func (this *TokenCredentialV2) IsAllow(scope rbacutils.TRbacScope, service string, resource string, action string, extra ...string) bool {
+	if scope == rbacutils.ScopeSystem || scope == rbacutils.ScopeDomain {
+		return this.HasSystemAdminPrivilege()
+	} else {
+		return true
+	}
+}
+
+func (this *TokenCredentialV2) Len() int {
+	return this.ServiceCatalog.Len()
 }
 
 func (this *TokenCredentialV2) GetServiceURL(service, region, zone, endpointType string) (string, error) {
@@ -158,6 +183,10 @@ func (this *TokenCredentialV2) GetServiceURL(service, region, zone, endpointType
 
 func (this *TokenCredentialV2) GetServiceURLs(service, region, zone, endpointType string) ([]string, error) {
 	return this.ServiceCatalog.GetServiceURLs(service, region, zone, endpointType)
+}
+
+func (this *TokenCredentialV2) GetServicesByInterface(region string, infType string) []ExternalService {
+	return nil
 }
 
 func (this *TokenCredentialV2) GetInternalServices(region string) []string {
@@ -174,6 +203,14 @@ func (this *TokenCredentialV2) GetEndpoints(region string, endpointType string) 
 
 func (this *TokenCredentialV2) GetServiceCatalog() IServiceCatalog {
 	return this.ServiceCatalog
+}
+
+func (this *TokenCredentialV2) GetLoginSource() string {
+	return this.Context.Source
+}
+
+func (this *TokenCredentialV2) GetLoginIp() string {
+	return this.Context.Ip
 }
 
 func stringArrayContains(arr []string, needle string) bool {
@@ -244,6 +281,10 @@ func (catalog KeystoneServiceCatalogV2) getServiceEndpoint(service, region, zone
 	}
 }
 
+func (catalog KeystoneServiceCatalogV2) Len() int {
+	return len(catalog)
+}
+
 func (catalog KeystoneServiceCatalogV2) GetServiceURL(service, region, zone, endpointType string) (string, error) {
 	ep, err := catalog.getServiceEndpoint(service, region, zone)
 	if err != nil {
@@ -258,6 +299,10 @@ func (catalog KeystoneServiceCatalogV2) GetServiceURLs(service, region, zone, en
 		return nil, err
 	}
 	return []string{url}, nil
+}
+
+func (catalog KeystoneServiceCatalogV2) GetServicesByInterface(region string, infType string) []ExternalService {
+	return nil
 }
 
 func (ep KeystoneEndpointV2) getURL(epType string) string {

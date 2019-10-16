@@ -18,12 +18,14 @@ import (
 	"fmt"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type QuotaManager struct {
-	ResourceManager
+	modulebase.ResourceManager
 }
 
 func (this *QuotaManager) getURL(params jsonutils.JSONObject) string {
@@ -31,10 +33,11 @@ func (this *QuotaManager) getURL(params jsonutils.JSONObject) string {
 	if params != nil {
 		tenant, _ := params.GetString("tenant")
 		if len(tenant) > 0 {
-			url = fmt.Sprintf("%s/%s", url, tenant)
-			user, _ := params.GetString("user")
-			if len(user) > 0 {
-				url = fmt.Sprintf("%s/%s", url, user)
+			url = fmt.Sprintf("%s/projects/%s", url, tenant)
+		} else {
+			domain := jsonutils.GetAnyString(params, []string{"domain", "project_domain"})
+			if len(domain) > 0 {
+				url = fmt.Sprintf("%s/domains/%s", url, domain)
 			}
 		}
 	}
@@ -42,17 +45,66 @@ func (this *QuotaManager) getURL(params jsonutils.JSONObject) string {
 }
 
 func (this *QuotaManager) GetQuota(s *mcclient.ClientSession, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	computeQuota, err := this._get(s, this.getURL(params), this.KeywordPlural)
+	computeQuota, err := modulebase.Get(this.ResourceManager, s, this.getURL(params), this.KeywordPlural)
 	if err != nil {
 		return nil, err
 	}
-	imageQuota, err := ImageQuotas._get(s, ImageQuotas.getURL(params), ImageQuotas.KeywordPlural)
+	imageQuota, err := modulebase.Get(ImageQuotas.ResourceManager, s, ImageQuotas.getURL(params), ImageQuotas.KeywordPlural)
 	if err != nil {
 		return nil, err
 	}
 	computeQuotaDict := computeQuota.(*jsonutils.JSONDict)
 	computeQuotaDict.Update(imageQuota)
 	return computeQuotaDict, nil
+}
+
+func getQuotaKey(quota jsonutils.JSONObject) string {
+	domainId, _ := quota.GetString("domain_id")
+	tenantId, _ := quota.GetString("tenant_id")
+	platform, _ := quota.GetString("platform")
+	return fmt.Sprintf("%s-%s-%s", domainId, tenantId, platform)
+}
+
+func quotaListToMap(list []jsonutils.JSONObject) map[string]jsonutils.JSONObject {
+	ret := make(map[string]jsonutils.JSONObject)
+	for i := range list {
+		key := getQuotaKey(list[i])
+		ret[key] = list[i]
+	}
+	return ret
+}
+
+func mergeQuotaList(list1 []jsonutils.JSONObject, list2 []jsonutils.JSONObject) []jsonutils.JSONObject {
+	list2map := quotaListToMap(list2)
+	for i := range list1 {
+		key := getQuotaKey(list1[i])
+		if quota, ok := list2map[key]; ok {
+			list1[i].(*jsonutils.JSONDict).Update(quota)
+		}
+	}
+	return list1
+}
+
+func (this *QuotaManager) GetQuotaList(s *mcclient.ClientSession, params jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	var reqUrl string
+	domainId := jsonutils.GetAnyString(params, []string{"domain", "project_domain", "domain_id", "project_domain_id"})
+	if len(domainId) > 0 {
+		reqUrl = "/quotas/projects?project_domain=" + domainId
+	} else {
+		reqUrl = "/quotas/domains"
+	}
+	computeQuotaList, err := modulebase.List(this.ResourceManager, s, reqUrl, this.KeywordPlural)
+	if err != nil {
+		return nil, err
+	}
+	imageQuotaList, err := modulebase.List(ImageQuotas.ResourceManager, s, reqUrl, this.KeywordPlural)
+	if err != nil {
+		return nil, err
+	}
+	data := mergeQuotaList(computeQuotaList.Data, imageQuotaList.Data)
+	ret := jsonutils.NewDict()
+	ret.Add(jsonutils.NewArray(data...), "data")
+	return ret, nil
 }
 
 func (this *QuotaManager) doPost(s *mcclient.ClientSession, params jsonutils.JSONObject, url string) (jsonutils.JSONObject, error) {
@@ -65,17 +117,21 @@ func (this *QuotaManager) doPost(s *mcclient.ClientSession, params jsonutils.JSO
 	if data.Size() > 0 {
 		body := jsonutils.NewDict()
 		body.Add(data, this.KeywordPlural)
-		_, err = this._post(s, url, body, this.KeywordPlural)
+		log.Debugf("set compute quota %s", body)
+		_, err = modulebase.Post(this.ResourceManager, s, url, body, this.KeywordPlural)
 		if err != nil {
+			log.Errorf("set compute quota fail %s %s", data, err)
 			return nil, err
 		}
 	}
-	data = quotas.CopyIncludes("image")
+	data = quotas.CopyIncludes("image", "action", "cascade")
 	if data.Size() > 0 {
 		body := jsonutils.NewDict()
 		body.Add(data, ImageQuotas.KeywordPlural)
-		_, err = ImageQuotas._post(s, url, body, ImageQuotas.KeywordPlural)
+		log.Debugf("set image quota %s", body)
+		_, err = modulebase.Post(ImageQuotas.ResourceManager, s, url, body, ImageQuotas.KeywordPlural)
 		if err != nil {
+			log.Errorf("set quota fail %s %s", data, err)
 			return nil, err
 		}
 	}

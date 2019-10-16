@@ -2,14 +2,14 @@ package pod
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -42,7 +42,7 @@ type Pod struct {
 type PodList struct {
 	*common.BaseList
 	Pods   []Pod
-	Events []v1.Event
+	Events []*v1.Event
 }
 
 func (l PodList) GetPods() []Pod {
@@ -54,35 +54,35 @@ func (l *PodList) GetResponseData() interface{} {
 }
 
 func (man *SPodManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
 func (man *SPodManager) ListV2(
-	k8sCli kubernetes.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,
 ) (common.ListResource, error) {
-	return man.GetPodList(k8sCli, nsQuery, dsQuery, cluster)
+	return man.GetPodList(indexer, nsQuery, dsQuery, cluster)
 }
 
 func (man *SPodManager) GetPodList(
-	k8sCli kubernetes.Interface,
+	indexer *client.CacheFactory,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,
 	cluster api.ICluster,
 ) (*PodList, error) {
 	log.Infof("Getting list of all pods in the cluster")
 	channels := &common.ResourceChannels{
-		PodList:   common.GetPodListChannelWithOptions(k8sCli, nsQuery, metaV1.ListOptions{}),
-		EventList: common.GetEventListChannel(k8sCli, nsQuery),
+		PodList:   common.GetPodListChannelWithOptions(indexer, nsQuery, labels.Everything()),
+		EventList: common.GetEventListChannel(indexer, nsQuery),
 	}
 	return GetPodListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *PodList) Append(obj interface{}) {
-	pod := obj.(v1.Pod)
-	warnings := event.GetPodsEventWarnings(l.Events, []v1.Pod{pod})
+	pod := obj.(*v1.Pod)
+	warnings := event.GetPodsEventWarnings(l.Events, []*v1.Pod{pod})
 	l.Pods = append(l.Pods, ToPod(pod, warnings, l.GetCluster()))
 }
 
@@ -99,11 +99,11 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, err
 	}
 
-	podList, err := ToPodList(pods.Items, eventList.Items, dsQuery, cluster)
+	podList, err := ToPodList(pods, eventList, dsQuery, cluster)
 	return podList, err
 }
 
-func ToPodList(pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
+func ToPodList(pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
 	podList := &PodList{
 		BaseList: common.NewBaseList(cluster),
 		Pods:     make([]Pod, 0),

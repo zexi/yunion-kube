@@ -46,7 +46,7 @@ func (d *SYunionHostDriver) GetResourceType() types.MachineResourceType {
 	return types.MachineResourceTypeBaremetal
 }
 
-func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	if !userCred.HasSystemAdminPrivilege() {
 		return httperrors.NewForbiddenError("Only system admin can use host resource")
 	}
@@ -91,7 +91,7 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 	data.Set("resource_id", jsonutils.NewString(resId))
 	name, _ := ret.Get("name")
 	data.Set("name", name)
-	return d.sBaseDriver.ValidateCreateData(session, userCred, ownerProjId, query, data)
+	return d.sBaseDriver.ValidateCreateData(session, userCred, ownerId, query, data)
 }
 
 func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {

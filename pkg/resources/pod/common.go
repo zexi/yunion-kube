@@ -7,7 +7,7 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-func ToPod(pod v1.Pod, warnings []common.Event, cluster api.ICluster) Pod {
+func ToPod(pod *v1.Pod, warnings []common.Event, cluster api.ICluster) Pod {
 	podDetail := Pod{
 		ObjectMeta:   api.NewObjectMetaV2(pod.ObjectMeta, cluster),
 		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
@@ -20,11 +20,11 @@ func ToPod(pod v1.Pod, warnings []common.Event, cluster api.ICluster) Pod {
 	return podDetail
 }
 
-func GetRestartCount(pod v1.Pod) int32 {
+func GetRestartCount(pod *v1.Pod) int32 {
 	return getRestartCount(pod)
 }
 
-func getRestartCount(pod v1.Pod) int32 {
+func getRestartCount(pod *v1.Pod) int32 {
 	var restartCount int32 = 0
 	for _, containerStatus := range pod.Status.ContainerStatuses {
 		restartCount += containerStatus.RestartCount
@@ -32,7 +32,7 @@ func getRestartCount(pod v1.Pod) int32 {
 	return restartCount
 }
 
-func getPodStatus(pod v1.Pod) PodStatus {
+func getPodStatus(pod *v1.Pod) PodStatus {
 	var states []v1.ContainerState
 	for _, containerStatus := range pod.Status.ContainerStatuses {
 		states = append(states, containerStatus.State)
@@ -44,7 +44,7 @@ func getPodStatus(pod v1.Pod) PodStatus {
 	}
 }
 
-func getPodStatusPhase(pod v1.Pod) v1.PodPhase {
+func getPodStatusPhase(pod *v1.Pod) v1.PodPhase {
 	// for terminated pods that filed
 	if pod.Status.Phase == v1.PodFailed {
 		return v1.PodFailed

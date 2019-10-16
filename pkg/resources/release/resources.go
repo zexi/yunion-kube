@@ -6,7 +6,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/log"
@@ -14,6 +13,7 @@ import (
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
@@ -26,6 +26,7 @@ import (
 
 func GetReleaseResources(
 	cli *k8sclient.GenericClient,
+	indexer *client.CacheFactory,
 	cluster apis.ICluster,
 	rls *release.Release) (map[string]interface{}, error) {
 	namespace := rls.Namespace
@@ -34,12 +35,11 @@ func GetReleaseResources(
 	if err != nil {
 		return nil, err
 	}
-	k8sCli, _ := cli.KubernetesClientSet()
-	return convertRuntimeObjs(k8sCli, cluster, objs, namespace)
+	return convertRuntimeObjs(indexer, cluster, objs, namespace)
 }
 
 func convertRuntimeObjs(
-	cli kubernetes.Interface,
+	cli *client.CacheFactory,
 	cluster apis.ICluster,
 	objMap map[string][]runtime.Object,
 	namespace string,
@@ -57,12 +57,12 @@ func convertRuntimeObjs(
 }
 
 type IObjLister interface {
-	ListV2(k8sCli kubernetes.Interface, cluster apis.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
+	ListV2(k8sCli *client.CacheFactory, cluster apis.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
 }
 
 func processObjs(
 	kind string,
-	cli kubernetes.Interface,
+	cli *client.CacheFactory,
 	cluster apis.ICluster,
 	objs []runtime.Object,
 	nsQuery *common.NamespaceQuery,
@@ -99,7 +99,7 @@ func transToKindPlural(kind string) string {
 }
 
 func processResources(
-	cli kubernetes.Interface,
+	cli *client.CacheFactory,
 	cluster apis.ICluster,
 	objs []runtime.Object,
 	nsQuery *common.NamespaceQuery,

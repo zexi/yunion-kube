@@ -3,7 +3,6 @@ package clusters
 import (
 	"context"
 
-	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
@@ -15,9 +14,9 @@ import (
 )
 
 type IClusterDriver interface {
+	GetMode() types.ModeType
 	GetProvider() types.ProviderType
 	GetResourceType() types.ClusterResourceType
-	//UseClusterAPI() bool
 
 	// GetK8sVersions return current cluster k8s versions supported
 	GetK8sVersions() []string
@@ -26,7 +25,7 @@ type IClusterDriver interface {
 	// GetKubeconfig get current cluster kubeconfig
 	GetKubeconfig(cluster *SCluster) (string, error)
 
-	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error
+	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error
 	ValidateDeleteCondition() error
 	ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine) error
 	RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
@@ -42,14 +41,11 @@ type IClusterDriver interface {
 	GetAddonsManifest(cluster *SCluster) (string, error)
 	// StartSyncStatus start cluster sync status task
 	StartSyncStatus(cluster *SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error
+
+	// need generate kubeadm certificates
 	NeedGenerateCertificate() bool
-}
-
-type IClusterAPIDriver interface {
-	IClusterDriver
-
-	PreCreateClusterResource(s *mcclient.ClientSession, data *types.CreateClusterData, clusterSpec *providerv1.OneCloudClusterProviderSpec) error
-	//PostCreateClusterResource() error
+	// NeedCreateMachines make this driver create machines models
+	NeedCreateMachines() bool
 }
 
 var clusterDrivers *drivers.DriverManager
@@ -59,16 +55,32 @@ func init() {
 }
 
 func RegisterClusterDriver(driver IClusterDriver) {
+	modeType := driver.GetMode()
 	resType := driver.GetResourceType()
 	provider := driver.GetProvider()
-	err := clusterDrivers.Register(driver, string(provider), string(resType))
+	err := clusterDrivers.Register(driver,
+		string(modeType),
+		string(provider),
+		string(resType))
 	if err != nil {
 		log.Fatalf("cluster driver provider %s, resource type %s driver register error: %v", provider, resType, err)
 	}
 }
 
-func GetDriver(provider types.ProviderType, resType types.ClusterResourceType) IClusterDriver {
-	drv, err := clusterDrivers.Get(string(provider), string(resType))
+func GetDriverWithError(
+	mode types.ModeType,
+	provider types.ProviderType,
+	resType types.ClusterResourceType,
+) (IClusterDriver, error) {
+	drv, err := clusterDrivers.Get(string(mode), string(provider), string(resType))
+	if err != nil {
+		return nil, err
+	}
+	return drv.(IClusterDriver), nil
+}
+
+func GetDriver(mode types.ModeType, provider types.ProviderType, resType types.ClusterResourceType) IClusterDriver {
+	drv, err := GetDriverWithError(mode, provider, resType)
 	if err != nil {
 		log.Fatalf("Get driver cluster provider: %s, resource type: %s error: %v", provider, resType, err)
 	}

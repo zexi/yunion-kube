@@ -27,7 +27,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		t.onError(ctx, cluster, err)
 		return
 	}
-	if mCnt == 0 {
+	if mCnt == 0 && cluster.GetDriver().NeedCreateMachines() {
 		cluster.SetStatus(t.UserCred, types.ClusterStatusInit, "")
 		t.SetStageComplete(ctx, nil)
 		return

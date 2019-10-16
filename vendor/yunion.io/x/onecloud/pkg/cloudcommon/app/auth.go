@@ -20,6 +20,10 @@ import (
 	"os"
 	"time"
 
+	"yunion.io/x/log"
+	"yunion.io/x/pkg/utils"
+
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
@@ -48,13 +52,24 @@ func InitAuth(options *common_options.CommonOptions, authComplete auth.AuthCompl
 		os.Exit(1)
 	}
 
-	a := auth.NewAuthInfo(options.AuthURL,
+	a := auth.NewAuthInfo(
+		options.AuthURL,
 		options.AdminDomain,
 		options.AdminUser,
 		options.AdminPassword,
-		options.AdminProject)
+		options.AdminProject,
+		options.AdminProjectDomain,
+	)
 
 	// debug := options.LogLevel == "debug"
+
+	if options.SessionEndpointType != "" {
+		if !utils.IsInStringArray(options.SessionEndpointType,
+			[]string{auth.PublicEndpointType, auth.InternalEndpointType}) {
+			log.Fatalf("Invalid session endpoint type %s", options.SessionEndpointType)
+		}
+		auth.SetEndpointType(options.SessionEndpointType)
+	}
 
 	auth.Init(a, options.DebugClient, true, options.SslCertfile, options.SslKeyfile) // , authComplete)
 
@@ -67,10 +82,17 @@ func InitAuth(options *common_options.CommonOptions, authComplete auth.AuthCompl
 
 	authComplete()
 
+	consts.SetTenantCacheExpireSeconds(options.TenantCacheExpireSeconds)
+
+	InitBaseAuth(&options.BaseOptions)
+}
+
+func InitBaseAuth(options *common_options.BaseOptions) {
 	if options.EnableRbac {
 		policy.EnableGlobalRbac(time.Duration(options.RbacPolicySyncPeriodSeconds)*time.Second,
 			time.Duration(options.RbacPolicySyncFailedRetrySeconds)*time.Second,
 			options.RbacDebug,
 		)
 	}
+	consts.SetNonDefaultDomainProjects(options.NonDefaultDomainProjects)
 }

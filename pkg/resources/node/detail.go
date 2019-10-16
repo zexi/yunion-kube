@@ -3,13 +3,12 @@ package node
 import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	k8sClient "k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
@@ -107,51 +106,51 @@ type NodeDetail struct {
 }
 
 func (man *SNodeManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetNodeDetail(req.GetK8sClient(), req.GetCluster(), id, dataselect.DefaultDataSelect())
+	return GetNodeDetail(req.GetIndexer(), req.GetCluster(), id, dataselect.DefaultDataSelect())
 }
 
 // GetNodeDetail gets node details.
 func GetNodeDetail(
-	client k8sClient.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	name string,
 	dsQuery *dataselect.DataSelectQuery,
 ) (*NodeDetail, error) {
 	log.Infof("Getting details of %s node", name)
-	node, err := client.CoreV1().Nodes().Get(name, metaV1.GetOptions{})
+	node, err := indexer.NodeLister().Get(name)
 	if err != nil {
 		return nil, err
 	}
 
-	pods, err := getNodePods(client, *node)
+	pods, err := getNodePods(indexer, node)
 	if err != nil {
 		return nil, err
 	}
 
-	podList, err := GetNodePods(client, cluster, dsQuery, name)
+	podList, err := GetNodePods(indexer, cluster, dsQuery, name)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := event.GetNodeEvents(client, cluster, dsQuery, node.Name)
+	eventList, err := event.GetNodeEvents(indexer, cluster, dsQuery, node.UID)
 	if err != nil {
 		return nil, err
 	}
 
-	allocatedResources, err := getNodeAllocatedResources(*node, pods)
+	allocatedResources, err := getNodeAllocatedResources(node, pods)
 	if err != nil {
 		return nil, err
 	}
 
-	nodeDetails := toNodeDetail(*node, podList, &eventList, allocatedResources, cluster)
+	nodeDetails := toNodeDetail(*node, podList, eventList, allocatedResources, cluster)
 	return &nodeDetails, nil
 }
 
-func getNodeAllocatedResources(node v1.Node, podList *v1.PodList) (NodeAllocatedResources, error) {
+func getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (NodeAllocatedResources, error) {
 	reqs, limits := map[v1.ResourceName]resource.Quantity{}, map[v1.ResourceName]resource.Quantity{}
 
-	for _, pod := range podList.Items {
-		podReqs, podLimits, err := PodRequestsAndLimits(&pod)
+	for _, pod := range pods {
+		podReqs, podLimits, err := PodRequestsAndLimits(pod)
 		if err != nil {
 			return NodeAllocatedResources{}, err
 		}
@@ -191,7 +190,7 @@ func getNodeAllocatedResources(node v1.Node, podList *v1.PodList) (NodeAllocated
 	var podFraction float64 = 0
 	var podCapacity int64 = node.Status.Capacity.Pods().Value()
 	if podCapacity > 0 {
-		podFraction = float64(len(podList.Items)) / float64(podCapacity) * 100
+		podFraction = float64(len(pods)) / float64(podCapacity) * 100
 	}
 
 	return NodeAllocatedResources{
@@ -205,7 +204,7 @@ func getNodeAllocatedResources(node v1.Node, podList *v1.PodList) (NodeAllocated
 		MemoryLimits:           memoryLimits.Value(),
 		MemoryLimitsFraction:   memoryLimitsFraction,
 		MemoryCapacity:         node.Status.Capacity.Memory().Value(),
-		AllocatedPods:          len(podList.Items),
+		AllocatedPods:          len(pods),
 		PodCapacity:            podCapacity,
 		PodFraction:            podFraction,
 	}, nil
@@ -261,7 +260,7 @@ func PodRequestsAndLimits(pod *v1.Pod) (reqs map[v1.ResourceName]resource.Quanti
 
 // GetNodePods return pods list in given named node
 func GetNodePods(
-	client k8sClient.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	dsQuery *dataselect.DataSelectQuery,
 	name string,
@@ -270,36 +269,37 @@ func GetNodePods(
 		Pods: []pod.Pod{},
 	}
 
-	node, err := client.CoreV1().Nodes().Get(name, metaV1.GetOptions{})
+	node, err := indexer.NodeLister().Get(name)
 	if err != nil {
 		return &podList, err
 	}
 
-	pods, err := getNodePods(client, *node)
+	pods, err := getNodePods(indexer, node)
 	if err != nil {
 		return &podList, err
 	}
 
-	events, err := event.GetPodsEvents(client, v1.NamespaceAll, pods.Items)
+	events, err := event.GetPodsEvents(indexer, v1.NamespaceAll, pods)
 	if err != nil {
 		return &podList, err
 	}
 
-	return pod.ToPodList(pods.Items, events, dsQuery, cluster)
+	return pod.ToPodList(pods, events, dsQuery, cluster)
 }
 
-func getNodePods(client k8sClient.Interface, node v1.Node) (*v1.PodList, error) {
-	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + node.Name +
-		",status.phase!=" + string(v1.PodSucceeded) +
-		",status.phase!=" + string(v1.PodFailed))
-
+func getNodePods(client *client.CacheFactory, node *v1.Node) ([]*v1.Pod, error) {
+	pods, err := client.PodLister().Pods(v1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
+	rs := make([]*v1.Pod, 0)
+	for _, p := range pods {
+		if p.Spec.NodeName == node.Name && p.Status.Phase != v1.PodSucceeded && p.Status.Phase != v1.PodFailed {
+			rs = append(rs, p)
+		}
+	}
 
-	return client.CoreV1().Pods(v1.NamespaceAll).List(metaV1.ListOptions{
-		FieldSelector: fieldSelector.String(),
-	})
+	return rs, nil
 }
 
 func toNodeDetail(node v1.Node, pods *pod.PodList, eventList *common.EventList,

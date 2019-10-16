@@ -17,6 +17,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"yunion.io/x/jsonutils"
@@ -27,10 +28,16 @@ import (
 )
 
 var (
-	manager           *authManager
-	defaultTimeout    int       = 600 // maybe time.Duration better
-	defaultCacheCount int64     = 100000
-	initCh            chan bool = make(chan bool)
+	manager            *authManager
+	defaultTimeout     int       = 600 // maybe time.Duration better
+	defaultCacheCount  int64     = 100000
+	initCh             chan bool = make(chan bool)
+	globalEndpointType string
+)
+
+const (
+	PublicEndpointType   string = "public"
+	InternalEndpointType string = "internal"
 )
 
 type AuthInfo struct {
@@ -40,24 +47,30 @@ type AuthInfo struct {
 	Username string
 	Passwd   string
 	// Project is tenant when v2 auth
-	Project string
+	Project       string
+	ProjectDomain string
 }
 
 func SetTimeout(t time.Duration) {
 	defaultTimeout = int(t)
 }
 
-func NewV2AuthInfo(authUrl, user, passwd, tenant string) *AuthInfo {
-	return NewAuthInfo(authUrl, "", user, passwd, tenant)
+func SetEndpointType(epType string) {
+	globalEndpointType = epType
 }
 
-func NewAuthInfo(authUrl, domain, user, passwd, project string) *AuthInfo {
+func NewV2AuthInfo(authUrl, user, passwd, tenant string) *AuthInfo {
+	return NewAuthInfo(authUrl, "", user, passwd, tenant, "")
+}
+
+func NewAuthInfo(authUrl, domain, user, passwd, project, projectDomain string) *AuthInfo {
 	return &AuthInfo{
-		AuthUrl:  authUrl,
-		Domain:   domain,
-		Username: user,
-		Passwd:   passwd,
-		Project:  project,
+		AuthUrl:       authUrl,
+		Domain:        domain,
+		Username:      user,
+		Passwd:        passwd,
+		Project:       project,
+		ProjectDomain: projectDomain,
 	}
 }
 
@@ -119,6 +132,7 @@ func (c *TokenCacheVerify) Verify(cli *mcclient.Client, adminToken, token string
 	if err != nil {
 		return nil, fmt.Errorf("Add %s credential to cache: %#v", cred.GetTokenString(), err)
 	}
+	callbackAuthhooks(cred)
 	// log.Debugf("Add token: %s", cred)
 	return cred, nil
 }
@@ -128,6 +142,7 @@ type authManager struct {
 	info             *AuthInfo
 	adminCredential  mcclient.TokenCredential
 	tokenCacheVerify *TokenCacheVerify
+	accessKeyCache   *sAccessKeyCache
 }
 
 func newAuthManager(cli *mcclient.Client, info *AuthInfo) *authManager {
@@ -135,7 +150,19 @@ func newAuthManager(cli *mcclient.Client, info *AuthInfo) *authManager {
 		client:           cli,
 		info:             info,
 		tokenCacheVerify: NewTokenCacheVerify(),
+		accessKeyCache:   newAccessKeyCache(),
 	}
+}
+
+func (a *authManager) verifyRequest(req http.Request, virtualHost bool) (mcclient.TokenCredential, error) {
+	if a.adminCredential == nil {
+		return nil, fmt.Errorf("No valid admin token credential")
+	}
+	cred, err := a.accessKeyCache.Verify(a.client, req, virtualHost)
+	if err != nil {
+		return nil, err
+	}
+	return cred, nil
 }
 
 func (a *authManager) verify(token string) (mcclient.TokenCredential, error) {
@@ -152,9 +179,9 @@ func (a *authManager) verify(token string) (mcclient.TokenCredential, error) {
 func (a *authManager) authAdmin() error {
 	var token mcclient.TokenCredential
 	var err error
-	token, err = a.client.Authenticate(
-		a.info.Username, a.info.Passwd,
-		a.info.Domain, a.info.Project)
+	token, err = a.client.AuthenticateWithSource(
+		a.info.Username, a.info.Passwd, a.info.Domain,
+		a.info.Project, a.info.ProjectDomain, mcclient.AuthSourceSrv)
 	if err != nil {
 		log.Errorf("Admin auth failed: %s", err)
 		return err
@@ -226,6 +253,10 @@ func Verify(tokenId string) (mcclient.TokenCredential, error) {
 	return manager.verify(tokenId)
 }
 
+func VerifyRequest(req http.Request, virtualHost bool) (mcclient.TokenCredential, error) {
+	return manager.verifyRequest(req, virtualHost)
+}
+
 func GetServiceURL(service, region, zone, endpointType string) (string, error) {
 	return manager.GetServiceURL(service, region, zone, endpointType)
 }
@@ -255,7 +286,18 @@ func AdminSession(ctx context.Context, region, zone, endpointType, apiVersion st
 	if cli == nil {
 		return nil
 	}
+	if endpointType == "" && globalEndpointType != "" {
+		endpointType = globalEndpointType
+	}
 	return cli.NewSession(ctx, region, zone, endpointType, AdminCredential(), apiVersion)
+}
+
+func AdminSessionWithInternal(ctx context.Context, region, zone, apiVersion string) *mcclient.ClientSession {
+	return AdminSession(ctx, region, zone, "internal", apiVersion)
+}
+
+func AdminSessionWithPublic(ctx context.Context, region, zone, apiVersion string) *mcclient.ClientSession {
+	return AdminSession(ctx, region, zone, "public", apiVersion)
 }
 
 type AuthCompletedCallback func()
@@ -296,8 +338,28 @@ func GetAdminSession(ctx context.Context, region string,
 	return GetSession(ctx, manager.adminCredential, region, apiVersion)
 }
 
+func GetAdminSessionWithPublic(ctx context.Context, region string,
+	apiVersion string) *mcclient.ClientSession {
+	return GetSessionWithPublic(ctx, manager.adminCredential, region, apiVersion)
+}
+
 func GetSession(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string) *mcclient.ClientSession {
-	return manager.client.NewSession(ctx, region, "", "internal", token, apiVersion)
+	if len(globalEndpointType) != 0 {
+		return getSessionByType(ctx, token, region, apiVersion, globalEndpointType)
+	}
+	return GetSessionWithInternal(ctx, token, region, apiVersion)
+}
+
+func GetSessionWithInternal(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string) *mcclient.ClientSession {
+	return getSessionByType(ctx, token, region, apiVersion, InternalEndpointType)
+}
+
+func GetSessionWithPublic(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string) *mcclient.ClientSession {
+	return getSessionByType(ctx, token, region, apiVersion, PublicEndpointType)
+}
+
+func getSessionByType(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string, epType string) *mcclient.ClientSession {
+	return manager.client.NewSession(ctx, region, "", epType, token, apiVersion)
 }
 
 // use for climc test only

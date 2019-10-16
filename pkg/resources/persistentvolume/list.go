@@ -2,10 +2,10 @@ package persistentvolume
 
 import (
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -30,11 +30,11 @@ type PersistentVolume struct {
 }
 
 func (man *SPersistentVolumeManager) List(req *common.Request) (common.ListResource, error) {
-	return GetPersistentVolumeList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
+	return GetPersistentVolumeList(req.GetIndexer(), req.GetCluster(), req.ToQuery())
 }
 
 // GetPersistentVolumeList returns a list of all Persistent Volumes in the cluster.
-func GetPersistentVolumeList(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
+func GetPersistentVolumeList(client *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
 	log.Infof("Getting list persistent volumes")
 	channels := &common.ResourceChannels{
 		PersistentVolumeList: common.GetPersistentVolumeListChannel(client),
@@ -53,10 +53,10 @@ func GetPersistentVolumeListFromChannels(channels *common.ResourceChannels, dsQu
 		return nil, err
 	}
 
-	return toPersistentVolumeList(persistentVolumes.Items, dsQuery, cluster)
+	return toPersistentVolumeList(persistentVolumes, dsQuery, cluster)
 }
 
-func toPersistentVolumeList(persistentVolumes []v1.PersistentVolume, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeList, error) {
+func toPersistentVolumeList(persistentVolumes []*v1.PersistentVolume, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeList, error) {
 	result := &PersistentVolumeList{
 		BaseList: common.NewBaseList(cluster),
 		Items:    make([]PersistentVolume, 0),
@@ -73,7 +73,7 @@ func toPersistentVolumeList(persistentVolumes []v1.PersistentVolume, dsQuery *da
 }
 
 func (l *PersistentVolumeList) Append(obj interface{}) {
-	item := obj.(v1.PersistentVolume)
+	item := obj.(*v1.PersistentVolume)
 	l.Items = append(l.Items,
 		PersistentVolume{
 			ObjectMeta:    api.NewObjectMetaV2(item.ObjectMeta, l.GetCluster()),
@@ -83,7 +83,7 @@ func (l *PersistentVolumeList) Append(obj interface{}) {
 			ReclaimPolicy: item.Spec.PersistentVolumeReclaimPolicy,
 			StorageClass:  item.Spec.StorageClassName,
 			Status:        item.Status.Phase,
-			Claim:         getPersistentVolumeClaim(&item),
+			Claim:         getPersistentVolumeClaim(item),
 			Reason:        item.Status.Reason,
 		})
 }

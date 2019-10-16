@@ -28,13 +28,14 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/utils"
 
+	api "yunion.io/x/onecloud/pkg/apis/identity"
 	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 const (
 	TASK_ID         = "X-Task-Id"
 	TASK_NOTIFY_URL = "X-Task-Notify-Url"
-	AUTH_TOKEN      = "X-Auth-Token"
+	AUTH_TOKEN      = api.AUTH_TOKEN_HEADER //  "X-Auth-Token"
 	REGION_VERSION  = "X-Region-Version"
 
 	DEFAULT_API_VERSION = "v1"
@@ -140,8 +141,11 @@ func (this *ClientSession) GetServiceVersionURL(service, endpointType, apiVersio
 	}
 	service = this.getServiceName(service, apiVersion)
 	url, err := this.token.GetServiceURL(service, this.region, this.zone, endpointType)
-	if err != nil {
+	if err != nil && this.client.serviceCatalog != nil {
 		url, err = this.client.serviceCatalog.GetServiceURL(service, this.region, this.zone, endpointType)
+	}
+	if err != nil && service == api.SERVICE_TYPE {
+		return this.client.authUrl, nil
 	}
 	return url, err
 }
@@ -157,8 +161,11 @@ func (this *ClientSession) GetServiceVersionURLs(service, endpointType, apiVersi
 	}
 	service = this.getServiceName(service, apiVersion)
 	urls, err := this.token.GetServiceURLs(service, this.region, this.zone, endpointType)
-	if err != nil {
+	if err != nil && this.client.serviceCatalog != nil {
 		urls, err = this.client.serviceCatalog.GetServiceURLs(service, this.region, this.zone, endpointType)
+	}
+	if err != nil && service == api.SERVICE_TYPE {
+		return []string{this.client.authUrl}, nil
 	}
 	return urls, err
 }
@@ -175,14 +182,19 @@ func (this *ClientSession) getBaseUrl(service, endpointType, apiVersion string) 
 	}
 }
 
-func (this *ClientSession) RawVersionRequest(
-	service, endpointType string, method httputils.THttpMethod, url string,
+func (this *ClientSession) RawBaseUrlRequest(
+	service, endpointType string,
+	method httputils.THttpMethod, url string,
 	headers http.Header, body io.Reader,
 	apiVersion string,
+	baseurlFactory func(string) string,
 ) (*http.Response, error) {
 	baseurl, err := this.getBaseUrl(service, endpointType, apiVersion)
 	if err != nil {
 		return nil, err
+	}
+	if baseurlFactory != nil {
+		baseurl = baseurlFactory(baseurl)
 	}
 	tmpHeader := http.Header{}
 	if headers != nil {
@@ -196,6 +208,14 @@ func (this *ClientSession) RawVersionRequest(
 	return this.client.rawRequest(ctx, baseurl,
 		this.token.GetTokenString(),
 		method, url, tmpHeader, body)
+}
+
+func (this *ClientSession) RawVersionRequest(
+	service, endpointType string, method httputils.THttpMethod, url string,
+	headers http.Header, body io.Reader,
+	apiVersion string,
+) (*http.Response, error) {
+	return this.RawBaseUrlRequest(service, endpointType, method, url, headers, body, apiVersion, nil)
 }
 
 func (this *ClientSession) RawRequest(service, endpointType string, method httputils.THttpMethod, url string, headers http.Header, body io.Reader) (*http.Response, error) {
@@ -251,6 +271,30 @@ func (this *ClientSession) GetTenantId() string {
 
 func (this *ClientSession) GetTenantName() string {
 	return this.token.GetTenantName()
+}
+
+func (this *ClientSession) GetProjectId() string {
+	return this.GetTenantId()
+}
+
+func (this *ClientSession) GetProjectName() string {
+	return this.GetTenantName()
+}
+
+func (this *ClientSession) GetProjectDomain() string {
+	return this.token.GetProjectDomain()
+}
+
+func (this *ClientSession) GetProjectDomainId() string {
+	return this.token.GetProjectDomainId()
+}
+
+func (this *ClientSession) GetDomainId() string {
+	return this.token.GetDomainId()
+}
+
+func (this *ClientSession) GetDomainName() string {
+	return this.token.GetDomainName()
 }
 
 func (this *ClientSession) SetTaskNotifyUrl(url string) {

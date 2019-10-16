@@ -3,10 +3,8 @@ package job
 import (
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/log"
 
@@ -31,26 +29,26 @@ type JobDetail struct {
 }
 
 func (man *SJobManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetJobDetail(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
+	return GetJobDetail(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
-func GetJobDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*JobDetail, error) {
-	jobData, err := client.BatchV1().Jobs(namespace).Get(name, metaV1.GetOptions{})
+func GetJobDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*JobDetail, error) {
+	jobData, err := indexer.JobLister().Jobs(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
 
-	podList, err := GetJobPods(client, cluster, dataselect.DefaultDataSelect(), namespace, name)
+	podList, err := GetJobPods(indexer, cluster, dataselect.DefaultDataSelect(), namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	podInfo, err := getJobPodInfo(client, jobData)
+	podInfo, err := getJobPodInfo(indexer, jobData)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := GetJobEvents(client, cluster, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
+	eventList, err := GetJobEvents(indexer, cluster, dataselect.DefaultDataSelect(), jobData.Namespace, jobData.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -63,18 +61,18 @@ func GetJobDetail(client kubernetes.Interface, cluster api.ICluster, namespace, 
 
 // GetJobPods return list of pods targeting job.
 func GetJobPods(
-	client kubernetes.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	dsQuery *dataselect.DataSelectQuery,
 	namespace string, jobName string) (*pod.PodList, error) {
 	log.Infof("Getting replication controller %s pods in namespace %s", jobName, namespace)
 
-	pods, err := getRawJobPods(client, jobName, namespace)
+	pods, err := getRawJobPods(indexer, jobName, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(client, namespace, pods)
+	events, err := event.GetPodsEvents(indexer, namespace, pods)
 	if err != nil {
 		return nil, err
 	}
@@ -83,19 +81,15 @@ func GetJobPods(
 }
 
 // Returns array of api pods targeting job with given name.
-func getRawJobPods(client kubernetes.Interface, petSetName, namespace string) ([]v1.Pod, error) {
-	job, err := client.Batch().Jobs(namespace).Get(petSetName, metaV1.GetOptions{})
+func getRawJobPods(indexer *client.CacheFactory, petSetName, namespace string) ([]*v1.Pod, error) {
+	job, err := indexer.JobLister().Jobs(namespace).Get(petSetName)
 	if err != nil {
 		return nil, err
 	}
 
 	labelSelector := labels.SelectorFromSet(job.Spec.Selector.MatchLabels)
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace),
-			metaV1.ListOptions{
-				LabelSelector: labelSelector.String(),
-				FieldSelector: fields.Everything().String(),
-			}),
+		PodList: common.GetPodListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), labelSelector),
 	}
 
 	podList := <-channels.PodList.List
@@ -103,19 +97,16 @@ func getRawJobPods(client kubernetes.Interface, petSetName, namespace string) ([
 		return nil, err
 	}
 
-	return podList.Items, nil
+	return podList, nil
 }
 
 // Returns simple info about pods(running, desired, failing, etc.) related to given job.
-func getJobPodInfo(client kubernetes.Interface, job *batch.Job) (*common.PodInfo, error) {
+func getJobPodInfo(indexer *client.CacheFactory, job *batch.Job) (*common.PodInfo, error) {
 	labelSelector := labels.SelectorFromSet(job.Spec.Selector.MatchLabels)
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannelWithOptions(client, common.NewSameNamespaceQuery(
+		PodList: common.GetPodListChannelWithOptions(indexer, common.NewSameNamespaceQuery(
 			job.Namespace),
-			metaV1.ListOptions{
-				LabelSelector: labelSelector.String(),
-				FieldSelector: fields.Everything().String(),
-			}),
+			labelSelector),
 	}
 
 	pods := <-channels.PodList.List
@@ -123,7 +114,7 @@ func getJobPodInfo(client kubernetes.Interface, job *batch.Job) (*common.PodInfo
 		return nil, err
 	}
 
-	podInfo := common.GetPodInfo(job.Status.Active, job.Spec.Completions, pods.Items)
+	podInfo := common.GetPodInfo(job.Status.Active, job.Spec.Completions, pods)
 
 	// This pod info for jobs should be get from job status, similar to kubectl describe logic.
 	podInfo.Running = job.Status.Active
@@ -141,12 +132,12 @@ func toJobDetail(job Job, eventList common.EventList, podList pod.PodList, podIn
 }
 
 // GetJobEvents gets events associated to job.
-func GetJobEvents(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
-	jobEvents, err := event.GetEvents(client, namespace, name)
+func GetJobEvents(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
+	jobEvents, err := event.GetEvents(indexer, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
 	list, err := event.CreateEventList(jobEvents, dsQuery, cluster)
-	return &list, err
+	return list, err
 }

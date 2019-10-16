@@ -2,10 +2,10 @@ package configmap
 
 import (
 	"k8s.io/api/core/v1"
-	client "k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -34,23 +34,23 @@ func (l *ConfigMapList) GetConfigMaps() []ConfigMap {
 }
 
 func (man *SConfigMapManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SConfigMapManager) ListV2(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return man.GetConfigMapList(client, cluster, nsQuery, dsQuery)
+func (man *SConfigMapManager) ListV2(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return man.GetConfigMapList(indexer, cluster, nsQuery, dsQuery)
 }
 
-func (man *SConfigMapManager) GetConfigMapList(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {
+func (man *SConfigMapManager) GetConfigMapList(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*ConfigMapList, error) {
 	log.Infof("Getting list of all configmap in namespace: %v", nsQuery.ToRequestParam())
 	channels := &common.ResourceChannels{
-		ConfigMapList: common.GetConfigMapListChannel(client, nsQuery),
+		ConfigMapList: common.GetConfigMapListChannel(indexer, nsQuery),
 	}
 	return GetConfigMapListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *ConfigMapList) Append(obj interface{}) {
-	l.configMaps = append(l.configMaps, ToConfigMap(obj.(v1.ConfigMap), l.GetCluster()))
+	l.configMaps = append(l.configMaps, ToConfigMap(obj.(*v1.ConfigMap), l.GetCluster()))
 }
 
 func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ConfigMapList, error) {
@@ -65,7 +65,7 @@ func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *da
 	}
 	err = dataselect.ToResourceList(
 		configMapList,
-		configMaps.Items,
+		configMaps,
 		dataselect.NewNamespaceDataCell,
 		dsQuery)
 	return configMapList, err

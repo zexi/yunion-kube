@@ -2,12 +2,12 @@ package storageclass
 
 import (
 	storage "k8s.io/api/storage/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -18,15 +18,15 @@ type StorageClassList struct {
 }
 
 func (man *SStorageClassManager) List(req *common.Request) (common.ListResource, error) {
-	return GetStorageClassList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
+	return GetStorageClassList(req.GetIndexer(), req.GetCluster(), req.ToQuery())
 }
 
 // GetStorageClassList returns a list of all storage class objects in the cluster.
-func GetStorageClassList(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*StorageClassList, error) {
+func GetStorageClassList(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*StorageClassList, error) {
 	log.Infof("Getting list of storage classes in the cluster")
 
 	channels := &common.ResourceChannels{
-		StorageClassList: common.GetStorageClassListChannel(client),
+		StorageClassList: common.GetStorageClassListChannel(indexer),
 	}
 
 	return GetStorageClassListFromChannels(channels, dsQuery, cluster)
@@ -40,10 +40,10 @@ func GetStorageClassListFromChannels(channels *common.ResourceChannels, dsQuery 
 		return nil, err
 	}
 
-	return toStorageClassList(storageClasses.Items, dsQuery, cluster)
+	return toStorageClassList(storageClasses, dsQuery, cluster)
 }
 
-func toStorageClassList(storageClasses []storage.StorageClass, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StorageClassList, error) {
+func toStorageClassList(storageClasses []*storage.StorageClass, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StorageClassList, error) {
 	storageClassList := &StorageClassList{
 		BaseList:       common.NewBaseList(cluster),
 		StorageClasses: make([]StorageClass, 0),

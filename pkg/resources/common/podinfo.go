@@ -49,7 +49,7 @@ func (info PodInfo) GetStatus() string {
 }
 
 // GetPodInfo returns aggregate information about a group of pods.
-func GetPodInfo(current int32, desired *int32, pods []api.Pod) PodInfo {
+func GetPodInfo(current int32, desired *int32, pods []*api.Pod) PodInfo {
 	result := PodInfo{
 		Current:  current,
 		Desired:  desired,

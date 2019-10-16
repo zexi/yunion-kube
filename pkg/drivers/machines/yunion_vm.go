@@ -51,7 +51,7 @@ func (d *SYunionVMDriver) GetResourceType() types.MachineResourceType {
 	return types.MachineResourceTypeVm
 }
 
-func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	resType, _ := data.GetString("resource_type")
 	if resType != types.MachineResourceTypeVm {
 		return httperrors.NewInputParameterError("Invalid resource type: %q", resType)
@@ -61,7 +61,7 @@ func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, us
 		return httperrors.NewInputParameterError("Resource id must not provide")
 	}
 
-	return d.sClusterAPIBaseDriver.ValidateCreateData(session, userCred, ownerProjId, query, data)
+	return d.sClusterAPIBaseDriver.ValidateCreateData(session, userCred, ownerId, query, data)
 }
 
 func (d *SYunionVMDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {

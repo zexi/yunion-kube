@@ -31,6 +31,7 @@ var RepoManager *SRepoManager
 
 func init() {
 	RepoManager = &SRepoManager{SStandaloneResourceBaseManager: db.NewStandaloneResourceBaseManager(SRepo{}, "repos_tbl", "repo", "repos")}
+	RepoManager.SetVirtualObject(RepoManager)
 }
 
 func (m *SRepoManager) InitializeData() error {
@@ -85,7 +86,7 @@ func (man *SRepoManager) AllowCreateItem(ctx context.Context, userCred mcclient.
 	return userCred.HasSystemAdminPrivilege()
 }
 
-func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	name, _ := data.GetString("name")
 	if name == "" {
 		return nil, httperrors.NewInputParameterError("Missing name")

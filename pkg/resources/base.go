@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -101,23 +102,23 @@ func (m *SClusterResourceManager) InNamespace() bool {
 }
 
 func (m *SClusterResourceManager) AllowListItems(req *common.Request) bool {
-	return req.IsClusterOwner()
+	return db.IsAdminAllowList(req.UserCred, m) || req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowGetItem(req *common.Request, id string) bool {
-	return req.IsClusterOwner()
+	return db.IsAdminAllowGet(req.UserCred, m) || req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowCreateItem(req *common.Request) bool {
-	return req.IsClusterOwner()
+	return db.IsAdminAllowCreate(req.UserCred, m) || req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
-	return req.IsClusterOwner()
+	return db.IsAdminAllowUpdate(req.UserCred, m) || req.IsClusterOwner()
 }
 
 func (m *SClusterResourceManager) AllowDeleteItem(req *common.Request, id string) bool {
-	return req.IsClusterOwner()
+	return db.IsAdminAllowDelete(req.UserCred, m) || req.IsClusterOwner()
 }
 
 type SNamespaceResourceManager struct {
@@ -139,14 +140,15 @@ func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
-	if req.ShowAllNamespace() && !req.IsSystemAdmin() {
+	if req.ShowAllNamespace() && !db.IsAdminAllowList(req.UserCred, m) {
+		log.Errorf("======not allow list all ns for res %q", m.KeywordPlural())
 		return false
 	}
-	return m.IsOwner(req)
+	return db.IsAdminAllowList(req.UserCred, m) || m.IsOwner(req)
 }
 
 func (m *SNamespaceResourceManager) AllowCreateItem(req *common.Request) bool {
-	return m.IsOwner(req)
+	return db.IsAdminAllowCreate(req.UserCred, m) || m.IsOwner(req)
 }
 
 func (m *SNamespaceResourceManager) ValidateCreateData(req *common.Request) error {
@@ -154,13 +156,13 @@ func (m *SNamespaceResourceManager) ValidateCreateData(req *common.Request) erro
 }
 
 func (m *SNamespaceResourceManager) AllowGetItem(req *common.Request, id string) bool {
-	return m.IsOwner(req)
+	return db.IsAdminAllowGet(req.UserCred, m) || m.IsOwner(req)
 }
 
 func (m *SNamespaceResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
-	return m.IsOwner(req)
+	return db.IsAdminAllowUpdate(req.UserCred, m) || m.IsOwner(req)
 }
 
 func (m *SNamespaceResourceManager) AllowDeleteItem(req *common.Request, id string) bool {
-	return m.IsOwner(req)
+	return db.IsAdminAllowUpdate(req.UserCred, m) || m.IsOwner(req)
 }

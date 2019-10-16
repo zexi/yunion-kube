@@ -20,10 +20,10 @@ func CreateSecret(client kubernetes.Interface, cluster api.ICluster, spec Secret
 		Data: spec.GetData(),
 	}
 	_, err := client.CoreV1().Secrets(namespace).Create(secret)
-	return toSecret(*secret, cluster), err
+	return toSecret(secret, cluster), err
 }
 
-func toSecret(secret v1.Secret, cluster api.ICluster) *Secret {
+func toSecret(secret *v1.Secret, cluster api.ICluster) *Secret {
 	return &Secret{
 		ObjectMeta: api.NewObjectMetaV2(secret.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindSecret),

@@ -2,11 +2,11 @@ package namespace
 
 import (
 	"k8s.io/api/core/v1"
-	client "k8s.io/client-go/kubernetes"
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -38,27 +38,27 @@ func (n Namespace) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SNamespaceManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetNamespaceList(req.GetK8sClient(), req.GetCluster(), req.ToQuery(), req.ProjectNamespaces)
+	return man.GetNamespaceList(req.GetIndexer(), req.GetCluster(), req.ToQuery(), req.ProjectNamespaces)
 }
 
 func (man *SNamespaceManager) GetNamespaceList(
-	client client.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	dsQuery *dataselect.DataSelectQuery,
 	projectNamespaces *common.ProjectNamespaces,
 ) (*NamespaceList, error) {
 	log.Infof("Getting list of all namespaces in the cluster")
 	channels := &common.ResourceChannels{
-		NamespaceList: common.GetNamespaceListChannel(client),
+		NamespaceList: common.GetNamespaceListChannel(indexer),
 	}
 	return GetNamespaceListFromChannels(channels, dsQuery, cluster, projectNamespaces)
 }
 
 func (l *NamespaceList) Append(obj interface{}) {
-	l.Namespaces = append(l.Namespaces, toNamespace(obj.(v1.Namespace), l.GetCluster()))
+	l.Namespaces = append(l.Namespaces, toNamespace(obj.(*v1.Namespace), l.GetCluster()))
 }
 
-func toNamespace(namespace v1.Namespace, cluster api.ICluster) Namespace {
+func toNamespace(namespace *v1.Namespace, cluster api.ICluster) Namespace {
 	return Namespace{
 		ObjectMeta: api.NewObjectMetaV2(namespace.ObjectMeta, cluster),
 		TypeMeta:   api.NewTypeMeta(api.ResourceKindNamespace),
@@ -81,8 +81,8 @@ func GetNamespaceListFromChannels(
 	if err != nil {
 		return nil, err
 	}
-	items := make([]v1.Namespace, 0)
-	allNs := namespaces.Items
+	items := make([]*v1.Namespace, 0)
+	allNs := namespaces
 	if !projectNamespaces.HasAllNamespacePrivelege() {
 		for _, ns := range allNs {
 			if projectNamespaces.Sets().Has(ns.GetName()) {

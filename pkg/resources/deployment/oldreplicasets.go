@@ -3,16 +3,16 @@ package deployment
 import (
 	apps "k8s.io/api/apps/v1beta2"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 //GetDeploymentOldReplicaSets returns old replica sets targeting Deployment with given name
-func GetDeploymentOldReplicaSets(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery,
+func GetDeploymentOldReplicaSets(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery,
 	namespace string, deploymentName string) (*replicaset.ReplicaSetList, error) {
 
 	oldReplicaSetList := &replicaset.ReplicaSetList{
@@ -20,7 +20,7 @@ func GetDeploymentOldReplicaSets(client client.Interface, cluster api.ICluster, 
 		ReplicaSets: make([]replicaset.ReplicaSet, 0),
 	}
 
-	deployment, err := client.AppsV1beta2().Deployments(namespace).Get(deploymentName, metaV1.GetOptions{})
+	deployment, err := indexer.DeploymentLister().Deployments(namespace).Get(deploymentName)
 	if err != nil {
 		return oldReplicaSetList, err
 	}
@@ -29,15 +29,14 @@ func GetDeploymentOldReplicaSets(client client.Interface, cluster api.ICluster, 
 	if err != nil {
 		return oldReplicaSetList, err
 	}
-	options := metaV1.ListOptions{LabelSelector: selector.String()}
 
 	channels := &common.ResourceChannels{
-		ReplicaSetList: common.GetReplicaSetListChannelWithOptions(client,
-			common.NewSameNamespaceQuery(namespace), options),
-		PodList: common.GetPodListChannelWithOptions(client,
-			common.NewSameNamespaceQuery(namespace), options),
-		EventList: common.GetEventListChannelWithOptions(client,
-			common.NewSameNamespaceQuery(namespace), options),
+		ReplicaSetList: common.GetReplicaSetListChannelWithOptions(indexer,
+			common.NewSameNamespaceQuery(namespace), selector),
+		PodList: common.GetPodListChannelWithOptions(indexer,
+			common.NewSameNamespaceQuery(namespace), selector),
+		EventList: common.GetEventListChannelWithOptions(indexer,
+			common.NewSameNamespaceQuery(namespace), selector),
 	}
 
 	rawRs := <-channels.ReplicaSetList.List
@@ -57,19 +56,19 @@ func GetDeploymentOldReplicaSets(client client.Interface, cluster api.ICluster, 
 	}
 
 	rawRepSets := make([]*apps.ReplicaSet, 0)
-	for i := range rawRs.Items {
-		rawRepSets = append(rawRepSets, &rawRs.Items[i])
+	for i := range rawRs {
+		rawRepSets = append(rawRepSets, rawRs[i])
 	}
 	oldRs, _, err := FindOldReplicaSets(deployment, rawRepSets)
 	if err != nil {
 		return oldReplicaSetList, err
 	}
 
-	oldReplicaSets := make([]apps.ReplicaSet, len(oldRs))
+	oldReplicaSets := make([]*apps.ReplicaSet, len(oldRs))
 	for i, replicaSet := range oldRs {
-		oldReplicaSets[i] = *replicaSet
+		oldReplicaSets[i] = replicaSet
 	}
 
-	oldReplicaSetList, err = replicaset.ToReplicaSetList(oldReplicaSets, rawPods.Items, rawEvents.Items, dsQuery, cluster)
+	oldReplicaSetList, err = replicaset.ToReplicaSetList(oldReplicaSets, rawPods, rawEvents, dsQuery, cluster)
 	return oldReplicaSetList, err
 }

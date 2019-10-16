@@ -3,13 +3,13 @@ package job
 import (
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -22,8 +22,8 @@ type JobList struct {
 	// Unordered list of Jobs.
 	Jobs []Job
 
-	Pods   []v1.Pod
-	Events []v1.Event
+	Pods   []*v1.Pod
+	Events []*v1.Event
 }
 
 type JobStatusType string
@@ -71,17 +71,17 @@ type Job struct {
 }
 
 func (man *SJobManager) List(req *common.Request) (common.ListResource, error) {
-	return GetJobList(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
+	return GetJobList(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
 // GetJobList returns a list of all Jobs in the cluster.
-func GetJobList(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*JobList, error) {
+func GetJobList(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*JobList, error) {
 	log.Infof("Getting list of all jobs in the cluster")
 
 	channels := &common.ResourceChannels{
-		JobList:   common.GetJobListChannel(client, nsQuery),
-		PodList:   common.GetPodListChannel(client, nsQuery),
-		EventList: common.GetEventListChannel(client, nsQuery),
+		JobList:   common.GetJobListChannel(indexer, nsQuery),
+		PodList:   common.GetPodListChannel(indexer, nsQuery),
+		EventList: common.GetEventListChannel(indexer, nsQuery),
 	}
 
 	return GetJobListFromChannels(channels, dsQuery, cluster)
@@ -107,15 +107,15 @@ func GetJobListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, err
 	}
 
-	jobList, err := ToJobList(jobs.Items, pods.Items, events.Items, dsQuery, cluster)
+	jobList, err := ToJobList(jobs, pods, events, dsQuery, cluster)
 	if err != nil {
 		return nil, err
 	}
-	jobList.Status = getStatus(jobs, pods.Items, events.Items)
+	jobList.Status = getStatus(jobs, pods, events)
 	return jobList, nil
 }
 
-func ToJobList(jobs []batch.Job, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*JobList, error) {
+func ToJobList(jobs []*batch.Job, pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*JobList, error) {
 	jobList := &JobList{
 		BaseList: common.NewBaseList(cluster),
 		Jobs:     make([]Job, 0),
@@ -133,11 +133,11 @@ func ToJobList(jobs []batch.Job, pods []v1.Pod, events []v1.Event, dsQuery *data
 }
 
 func (l *JobList) Append(obj interface{}) {
-	job := obj.(batch.Job)
+	job := obj.(*batch.Job)
 	matchingPods := common.FilterPodsForJob(job, l.Pods)
 	podInfo := common.GetPodInfo(job.Status.Active, job.Spec.Completions, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(l.Events, matchingPods)
-	l.Jobs = append(l.Jobs, toJob(&job, &podInfo, l.GetCluster()))
+	l.Jobs = append(l.Jobs, toJob(job, &podInfo, l.GetCluster()))
 }
 
 func (l *JobList) GetResponseData() interface{} {
@@ -169,13 +169,13 @@ func toJob(job *batch.Job, podInfo *common.PodInfo, cluster api.ICluster) Job {
 	}
 }
 
-func getStatus(list *batch.JobList, pods []v1.Pod, events []v1.Event) common.ResourceStatus {
+func getStatus(list []*batch.Job, pods []*v1.Pod, events []*v1.Event) common.ResourceStatus {
 	info := common.ResourceStatus{}
 	if list == nil {
 		return info
 	}
 
-	for _, job := range list.Items {
+	for _, job := range list {
 		matchingPods := common.FilterPodsForJob(job, pods)
 		podInfo := common.GetPodInfo(job.Status.Active, job.Spec.Completions, matchingPods)
 		warnings := event.GetPodsEventWarnings(events, matchingPods)

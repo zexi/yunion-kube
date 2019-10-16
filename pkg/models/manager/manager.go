@@ -10,10 +10,14 @@ import (
 )
 
 type ICluster interface {
+	GetName() string
 	GetId() string
 	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
 	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
 	//SetKubeconfig(kubeconfig string) error
+	GetAPIServer() (string, error)
+	GetKubeconfig() (string, error)
+	GetStatus() string
 }
 
 type IClusterManager interface {
