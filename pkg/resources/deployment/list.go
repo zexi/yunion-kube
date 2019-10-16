@@ -1,15 +1,13 @@
 package deployment
 
 import (
-	"yunion.io/x/log"
-
-	"yunion.io/x/jsonutils"
-	//"yunion.io/x/log"
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	//metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
 
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
@@ -41,33 +39,33 @@ func (d Deployment) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SDeploymentManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SDeploymentManager) ListV2(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+func (man *SDeploymentManager) ListV2(client *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
 	return man.GetDeploymentList(client, cluster, nsQuery, dsQuery)
 }
 
 type DeploymentList struct {
 	*common.BaseList
 	deployments []Deployment
-	replicasets []apps.ReplicaSet
-	pods        []v1.Pod
-	events      []v1.Event
+	replicasets []*apps.ReplicaSet
+	pods        []*v1.Pod
+	events      []*v1.Event
 }
 
 func (l *DeploymentList) GetDeployments() []Deployment {
 	return l.deployments
 }
 
-func (man *SDeploymentManager) GetDeploymentList(client client.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*DeploymentList, error) {
+func (man *SDeploymentManager) GetDeploymentList(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*DeploymentList, error) {
 	log.Infof("Getting list of all deployments in the cluster")
 
 	channels := &common.ResourceChannels{
-		DeploymentList: common.GetDeploymentListChannel(client, nsQuery),
-		PodList:        common.GetPodListChannel(client, nsQuery),
-		EventList:      common.GetEventListChannel(client, nsQuery),
-		ReplicaSetList: common.GetReplicaSetListChannel(client, nsQuery),
+		DeploymentList: common.GetDeploymentListChannel(indexer, nsQuery),
+		PodList:        common.GetPodListChannel(indexer, nsQuery),
+		EventList:      common.GetEventListChannel(indexer, nsQuery),
+		ReplicaSetList: common.GetReplicaSetListChannel(indexer, nsQuery),
 	}
 
 	return GetDeploymentListFromChannels(channels, dsQuery, cluster)
@@ -75,7 +73,7 @@ func (man *SDeploymentManager) GetDeploymentList(client client.Interface, cluste
 
 func (l *DeploymentList) Append(obj interface{}) {
 	l.deployments = append(l.deployments, ToDeployment(
-		obj.(apps.Deployment),
+		obj.(*apps.Deployment),
 		l.replicasets,
 		l.pods,
 		l.events,
@@ -87,7 +85,7 @@ func (l *DeploymentList) GetResponseData() interface{} {
 	return l.deployments
 }
 
-func ToDeployment(deployment apps.Deployment, rs []apps.ReplicaSet, pods []v1.Pod, events []v1.Event, cluster api.ICluster) Deployment {
+func ToDeployment(deployment *apps.Deployment, rs []*apps.ReplicaSet, pods []*v1.Pod, events []*v1.Event, cluster api.ICluster) Deployment {
 	matchingPods := common.FilterDeploymentPodsByOwnerReference(deployment, rs, pods)
 	podInfo := common.GetPodInfo(deployment.Status.Replicas, deployment.Spec.Replicas, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
@@ -131,13 +129,13 @@ func GetDeploymentListFromChannels(channels *common.ResourceChannels, dsQuery *d
 	deploymentList := &DeploymentList{
 		BaseList:    common.NewBaseList(cluster),
 		deployments: make([]Deployment, 0),
-		pods:        pods.Items,
-		events:      events.Items,
-		replicasets: rs.Items,
+		pods:        pods,
+		events:      events,
+		replicasets: rs,
 	}
 	err = dataselect.ToResourceList(
 		deploymentList,
-		deployments.Items,
+		deployments,
 		dataselect.NewNamespaceDataCell,
 		dsQuery)
 	return deploymentList, err

@@ -14,15 +14,17 @@
 
 package modules
 
+import "yunion.io/x/onecloud/pkg/mcclient/modulebase"
+
 var (
-	Baremetalagents ResourceManager
+	Baremetalagents modulebase.ResourceManager
 )
 
 func init() {
 	Baremetalagents = NewComputeManager(
 		"baremetalagent",
 		"baremetalagents",
-		[]string{"ID", "Name", "Access_ip", "Manager_URI", "Status", "agent_type"},
+		[]string{"ID", "Name", "Access_ip", "Manager_URI", "Status", "agent_type", "version"},
 		[]string{},
 	)
 	registerCompute(&Baremetalagents)

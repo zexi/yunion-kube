@@ -26,6 +26,7 @@ func init() {
 			"x509keypairs",
 		),
 	}
+	X509KeyPairManager.SetVirtualObject(X509KeyPairManager)
 }
 
 type SX509KeyPairManager struct {
@@ -52,7 +53,7 @@ func (m *SX509KeyPairManager) createKeyPair(ctx context.Context, userCred mcclie
 		PrivateKey:  string(kp.Key),
 	}
 	data := jsonutils.Marshal(input)
-	obj, err := db.DoCreate(m, ctx, userCred, nil, data, cluster.ProjectId)
+	obj, err := db.DoCreate(m, ctx, userCred, nil, data, userCred)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Create x509keypair object for cluster: %s", cluster.GetName())
 	}
@@ -83,7 +84,7 @@ func (m *SX509KeyPairManager) GenerateServiceAccountKeys(ctx context.Context, us
 	return m.createKeyPair(ctx, userCred, cluster, kp, user)
 }
 
-func (m *SX509KeyPairManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (m *SX509KeyPairManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	input := new(apis.X509KeyPairCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return nil, httperrors.NewInputParameterError("Unmarshal create input: %v", err)
@@ -99,7 +100,7 @@ func (m *SX509KeyPairManager) ValidateCreateData(ctx context.Context, userCred m
 		return nil, httperrors.NewInputParameterError("Invalid Certificate PrivateKey: %v", err)
 	}
 	data = jsonutils.Marshal(input).(*jsonutils.JSONDict)
-	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+	return m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
 func (m *SX509KeyPairManager) DeleteKeyPairsByCluster(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error {

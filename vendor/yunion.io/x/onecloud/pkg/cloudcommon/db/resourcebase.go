@@ -31,7 +31,7 @@ type SResourceBase struct {
 	UpdatedAt     time.Time `nullable:"false" updated_at:"true" list:"user"`
 	UpdateVersion int       `default:"0" nullable:"false" auto_version:"true" list:"user"`
 	DeletedAt     time.Time ``
-	Deleted       bool      `nullable:"false" default:"false" index:"true"`
+	Deleted       bool      `nullable:"false" default:"false"`
 }
 
 type SResourceBaseManager struct {
@@ -42,6 +42,10 @@ func NewResourceBaseManager(dt interface{}, tableName string, keyword string, ke
 	return SResourceBaseManager{NewModelBaseManager(dt, tableName, keyword, keywordPlural)}
 }
 
+func (manager *SResourceBaseManager) GetIResourceModelManager() IResourceModelManager {
+	return manager.GetVirtualObject().(IResourceModelManager)
+}
+
 func (manager *SResourceBaseManager) Query(fields ...string) *sqlchemy.SQuery {
 	return manager.SModelBaseManager.Query(fields...).IsFalse("deleted")
 }
@@ -50,17 +54,21 @@ func (manager *SResourceBaseManager) RawQuery(fields ...string) *sqlchemy.SQuery
 	return manager.SModelBaseManager.Query(fields...)
 }
 
-func CanDelete(model IModel, ctx context.Context) bool {
+/*func CanDelete(model IModel, ctx context.Context) bool {
 	err := model.ValidateDeleteCondition(ctx)
 	if err == nil {
 		return true
 	} else {
 		return false
 	}
-}
+}*/
 
 func (model *SResourceBase) ResourceModelManager() IResourceModelManager {
 	return model.GetModelManager().(IResourceModelManager)
+}
+
+func (model *SResourceBase) GetIResourceModel() IResourceModel {
+	return model.GetVirtualObject().(IResourceModel)
 }
 
 /*func (model *SResourceBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
@@ -91,6 +99,12 @@ func (model *SResourceBase) MarkDelete() error {
 	return nil
 }
 
+func (model *SResourceBase) MarkUnDelete() error {
+	model.Deleted = false
+	model.DeletedAt = time.Time{}
+	return nil
+}
+
 func (model *SResourceBase) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return DeleteModel(ctx, userCred, model)
+	return DeleteModel(ctx, userCred, model.GetIResourceModel())
 }

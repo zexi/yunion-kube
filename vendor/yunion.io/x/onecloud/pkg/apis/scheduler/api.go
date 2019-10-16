@@ -52,9 +52,6 @@ type ServerConfig struct {
 	Name        string `json:"name"`
 	GuestStatus string `json:"guest_status"`
 
-	// HostId used by migrate
-	HostId string `json:"host_id"`
-
 	// DEPRECATED
 	Metadata       map[string]string `json:"__meta__"`
 	ForGuests      []*ForGuest       `json:"for_guests"`
@@ -70,6 +67,12 @@ type ScheduleInput struct {
 	ScheduleBaseConfig
 
 	ServerConfig
+
+	// HostId used by migrate
+	HostId       string `json:"host_id"`
+	LiveMigrate  bool   `json:"live_migrate"`
+	CpuDesc      string `json:"cpu_desc"`
+	CpuMicrocode string `json:"cpu_microcode"`
 }
 
 func (input ScheduleInput) ToConditionInput() *jsonutils.JSONDict {
@@ -90,10 +93,11 @@ type CandidateNet struct {
 }
 
 type CandidateResource struct {
-	HostId string           `json:"host_id"`
-	Name   string           `json:"name"`
-	Disks  []*CandidateDisk `json:"disks"`
-	Nets   []*CandidateNet  `json:"nets"`
+	SessionId string           `json:"session_id"`
+	HostId    string           `json:"host_id"`
+	Name      string           `json:"name"`
+	Disks     []*CandidateDisk `json:"disks"`
+	Nets      []*CandidateNet  `json:"nets"`
 
 	// used by backup schedule
 	BackupCandidate *CandidateResource `json:"backup_candidate"`

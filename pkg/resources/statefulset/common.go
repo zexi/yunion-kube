@@ -8,14 +8,14 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 )
 
-func getStatus(list *apps.StatefulSetList, pods []v1.Pod, events []v1.Event) common.ResourceStatus {
+func getStatus(list []*apps.StatefulSet, pods []*v1.Pod, events []*v1.Event) common.ResourceStatus {
 	info := common.ResourceStatus{}
 	if list == nil {
 		return info
 	}
 
-	for _, ss := range list.Items {
-		matchingPods := common.FilterPodsByControllerRef(&ss, pods)
+	for _, ss := range list {
+		matchingPods := common.FilterPodsByControllerRef(ss, pods)
 		podInfo := common.GetPodInfo(ss.Status.Replicas, ss.Spec.Replicas, matchingPods)
 		warnings := event.GetPodsEventWarnings(events, matchingPods)
 

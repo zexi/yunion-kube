@@ -2,12 +2,11 @@ package secret
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -29,14 +28,14 @@ type SecretDetail struct {
 
 func (man *SSecretManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetSecretDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
+	return GetSecretDetail(req.GetIndexer(), req.GetCluster(), namespace, id)
 }
 
 // GetSecretDetail returns returns detailed information about a secret
-func GetSecretDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*SecretDetail, error) {
+func GetSecretDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*SecretDetail, error) {
 	log.Infof("Getting details of %s secret in %s namespace", name, namespace)
 
-	rawSecret, err := client.CoreV1().Secrets(namespace).Get(name, metaV1.GetOptions{})
+	rawSecret, err := indexer.SecretLister().Secrets(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}

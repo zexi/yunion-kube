@@ -3,12 +3,12 @@ package rbacroles
 import (
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -25,7 +25,7 @@ func (l *RbacRoleList) GetResponseData() interface{} {
 }
 
 func (man *SRbacRoleManager) List(req *common.Request) (common.ListResource, error) {
-	return GetRbacRoleList(req.GetK8sClient(), req.GetCluster(), req.ToQuery())
+	return GetRbacRoleList(req.GetIndexer(), req.GetCluster(), req.ToQuery())
 }
 
 // RbacRole provides the simplified, combined presentation layer view of Kubernetes' RBAC Roles and ClusterRoles.
@@ -36,11 +36,11 @@ type RbacRole struct {
 }
 
 // GetRbacRoleList returns a list of all RBAC Roles in the cluster.
-func GetRbacRoleList(client kubernetes.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*RbacRoleList, error) {
+func GetRbacRoleList(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery) (*RbacRoleList, error) {
 	log.Infof("Getting list of RBAC roles")
 	channels := &common.ResourceChannels{
-		RoleList:        common.GetRoleListChannel(client),
-		ClusterRoleList: common.GetClusterRoleListChannel(client),
+		RoleList:        common.GetRoleListChannel(indexer),
+		ClusterRoleList: common.GetClusterRoleListChannel(indexer),
 	}
 
 	return GetRbacRoleListFromChannels(channels, dsQuery, cluster)
@@ -60,7 +60,7 @@ func GetRbacRoleListFromChannels(channels *common.ResourceChannels, dsQuery *dat
 		return nil, err
 	}
 
-	return toRbacRoleLists(roles.Items, clusterRoles.Items, dsQuery, cluster)
+	return toRbacRoleLists(roles, clusterRoles, dsQuery, cluster)
 }
 
 func toRbacRole(meta v1.ObjectMeta, kind api.ResourceKind, cluster api.ICluster) RbacRole {
@@ -71,7 +71,7 @@ func toRbacRole(meta v1.ObjectMeta, kind api.ResourceKind, cluster api.ICluster)
 }
 
 // toRbacRoleLists merges a list of Roles with a list of ClusterRoles to create a simpler, unified list
-func toRbacRoleLists(roles []rbac.Role, clusterRoles []rbac.ClusterRole, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*RbacRoleList, error) {
+func toRbacRoleLists(roles []*rbac.Role, clusterRoles []*rbac.ClusterRole, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*RbacRoleList, error) {
 	result := &RbacRoleList{
 		BaseList: common.NewBaseList(cluster),
 		Items:    make([]RbacRole, 0),

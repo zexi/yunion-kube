@@ -4,7 +4,7 @@ import (
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/log"
 
@@ -27,14 +27,14 @@ type StatefulSetDetail struct {
 
 func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetStatefulSetDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
+	return GetStatefulSetDetail(req.GetIndexer(), req.GetCluster(), namespace, id)
 }
 
 // GetStatefulSetDetail gets Stateful Set details.
-func GetStatefulSetDetail(client kubernetes.Interface, cluster api.ICluster, namespace, name string) (*StatefulSetDetail, error) {
+func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*StatefulSetDetail, error) {
 	log.Printf("Getting details of %s statefulset in %s namespace", name, namespace)
 
-	ss, err := client.AppsV1beta2().StatefulSets(namespace).Get(name, metaV1.GetOptions{})
+	ss, err := indexer.StatefulSetLister().StatefulSets(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
@@ -43,43 +43,42 @@ func GetStatefulSetDetail(client kubernetes.Interface, cluster api.ICluster, nam
 	if err != nil {
 		return nil, err
 	}
-	options := metaV1.ListOptions{LabelSelector: selector.String()}
 	channels := &common.ResourceChannels{
-		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace), options),
+		ServiceList: common.GetServiceListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), selector),
 	}
 	svcList, err := service.GetServiceListFromChannels(channels, ds.DefaultDataSelect(), cluster)
 	if err != nil {
 		return nil, err
 	}
 
-	podList, err := GetStatefulSetPods(client, cluster, ds.DefaultDataSelect(), name, namespace)
+	podList, err := GetStatefulSetPods(indexer, cluster, ds.DefaultDataSelect(), name, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	podInfo, err := getStatefulSetPodInfo(client, ss)
+	podInfo, err := getStatefulSetPodInfo(indexer, ss)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := event.GetResourceEvents(client, cluster, ds.DefaultDataSelect(), ss.Namespace, ss.Name)
+	events, err := event.GetResourceEvents(indexer, cluster, ds.DefaultDataSelect(), ss.Namespace, ss.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	commonSs := ToStatefulSet(ss, podInfo, cluster)
 
-	ssDetail := getStatefulSetDetail(commonSs, ss, *events, *podList, *podInfo, *svcList)
+	ssDetail := getStatefulSetDetail(commonSs, ss, events, podList, podInfo, svcList)
 	return &ssDetail, nil
 }
 
 func getStatefulSetDetail(
 	commonSs StatefulSet,
 	statefulSet *apps.StatefulSet,
-	eventList common.EventList,
-	podList pod.PodList,
-	podInfo common.PodInfo,
-	svcList service.ServiceList,
+	eventList *common.EventList,
+	podList *pod.PodList,
+	podInfo *common.PodInfo,
+	svcList *service.ServiceList,
 ) StatefulSetDetail {
 	return StatefulSetDetail{
 		StatefulSet: commonSs,
@@ -90,16 +89,16 @@ func getStatefulSetDetail(
 }
 
 // GetStatefulSetPods return list of pods targeting pet set.
-func GetStatefulSetPods(client kubernetes.Interface, cluster api.ICluster, dsQuery *ds.DataSelectQuery, name, namespace string) (*pod.PodList, error) {
+func GetStatefulSetPods(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *ds.DataSelectQuery, name, namespace string) (*pod.PodList, error) {
 
 	log.Infof("Getting replication controller %s pods in namespace %s", name, namespace)
 
-	pods, err := getRawStatefulSetPods(client, name, namespace)
+	pods, err := getRawStatefulSetPods(indexer, name, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(client, namespace, pods)
+	events, err := event.GetPodsEvents(indexer, namespace, pods)
 	if err != nil {
 		return nil, err
 	}
@@ -108,14 +107,14 @@ func GetStatefulSetPods(client kubernetes.Interface, cluster api.ICluster, dsQue
 }
 
 // getRawStatefulSetPods return array of api pods targeting pet set with given name.
-func getRawStatefulSetPods(client kubernetes.Interface, name, namespace string) ([]v1.Pod, error) {
-	statefulSet, err := client.AppsV1beta1().StatefulSets(namespace).Get(name, metaV1.GetOptions{})
+func getRawStatefulSetPods(indexer *client.CacheFactory, name, namespace string) ([]*v1.Pod, error) {
+	statefulSet, err := indexer.StatefulSetLister().StatefulSets(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
 
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		PodList: common.GetPodListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	podList := <-channels.PodList.List
@@ -123,12 +122,12 @@ func getRawStatefulSetPods(client kubernetes.Interface, name, namespace string) 
 		return nil, err
 	}
 
-	return common.FilterPodsByControllerRef(statefulSet, podList.Items), nil
+	return common.FilterPodsByControllerRef(statefulSet, podList), nil
 }
 
 // Returns simple info about pods(running, desired, failing, etc.) related to given pet set.
-func getStatefulSetPodInfo(client kubernetes.Interface, statefulSet *apps.StatefulSet) (*common.PodInfo, error) {
-	pods, err := getRawStatefulSetPods(client, statefulSet.Name, statefulSet.Namespace)
+func getStatefulSetPodInfo(indexer *client.CacheFactory, statefulSet *apps.StatefulSet) (*common.PodInfo, error) {
+	pods, err := getRawStatefulSetPods(indexer, statefulSet.Name, statefulSet.Namespace)
 	if err != nil {
 		return nil, err
 	}

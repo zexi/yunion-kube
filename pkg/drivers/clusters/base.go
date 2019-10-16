@@ -12,41 +12,42 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
-type sBaseDriver struct{}
+type SBaseDriver struct{}
 
-func newBaseDriver() *sBaseDriver {
-	return &sBaseDriver{}
+func newBaseDriver() *SBaseDriver {
+	return &SBaseDriver{}
 }
 
-func (d *sBaseDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SBaseDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	return nil
 }
 
-func (d *sBaseDriver) ValidateDeleteCondition() error {
+func (d *SBaseDriver) ValidateDeleteCondition() error {
 	return nil
 }
 
-func (d *sBaseDriver) NeedGenerateCertificate() bool {
+func (d *SBaseDriver) NeedGenerateCertificate() bool {
 	return false
 }
 
-func (d *sBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
+func (d *SBaseDriver) NeedCreateMachines() bool {
+	return true
+}
+
+func (d *SBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
 	// do nothing
 	return nil
 }
 
-func (d *sBaseDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
+func (d *SBaseDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
 	return "", nil
 }
 
-func (d *sBaseDriver) UseClusterAPI() bool {
-	return false
-}
-
-func (d *sBaseDriver) ValidateCreateMachines(
+func (d *SBaseDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *clusters.SCluster,
@@ -71,11 +72,31 @@ func (d *sBaseDriver) ValidateCreateMachines(
 	return controls, nodes, nil
 }
 
-func (d *sBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+func (d *SBaseDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
+	return nil, nil
+}
+
+func (d *SBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterSyncstatusTask", cluster, userCred, nil, parentTaskId, "", nil)
 	if err != nil {
 		return err
 	}
 	task.ScheduleRun(nil)
+	return nil
+}
+
+func (d *SBaseDriver) GetUsableInstances(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
+	return nil, nil
+}
+
+func (d *SBaseDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine, task taskman.ITask) error {
+	return nil
+}
+
+func (d *SBaseDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine, task taskman.ITask) error {
+	return nil
+}
+
+func (d *SBaseDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine) error {
 	return nil
 }

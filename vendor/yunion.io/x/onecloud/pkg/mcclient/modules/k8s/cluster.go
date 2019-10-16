@@ -28,7 +28,7 @@ func init() {
 		NewResourceCols("mode", "k8s_version", "status", "api_endpoint"),
 		NewColumns("is_public"))
 	KubeClusters = NewResourceManager("kubecluster", "kubeclusters",
-		NewResourceCols("cluster_type", "cloud_type", "version", "status", "mode", "provider", "machines"),
+		NewResourceCols("cluster_type", "resource_type", "cloud_type", "version", "status", "mode", "provider", "machines"),
 		NewColumns())
 	modules.Register(Clusters)
 	modules.Register(KubeClusters)

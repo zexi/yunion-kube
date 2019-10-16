@@ -17,9 +17,11 @@ package ssh
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 
 	"yunion.io/x/log"
@@ -109,14 +111,18 @@ func (s *Client) GetConfig() ClientConfig {
 }
 
 func (s *Client) RawRun(cmds ...string) ([]string, error) {
-	return s.run(false, cmds...)
+	return s.run(false, cmds, nil)
 }
 
 func (s *Client) Run(cmds ...string) ([]string, error) {
-	return s.run(true, cmds...)
+	return s.run(true, cmds, nil)
 }
 
-func (s *Client) run(parseOutput bool, cmds ...string) ([]string, error) {
+func (s *Client) RunWithInput(input io.Reader, cmds ...string) ([]string, error) {
+	return s.run(true, cmds, input)
+}
+
+func (s *Client) run(parseOutput bool, cmds []string, input io.Reader) ([]string, error) {
 	ret := []string{}
 	for _, cmd := range cmds {
 		session, err := s.client.NewSession()
@@ -124,15 +130,21 @@ func (s *Client) run(parseOutput bool, cmds ...string) ([]string, error) {
 			return nil, err
 		}
 		defer session.Close()
-		log.Debugf("Run command: %q", cmd)
+		log.Debugf("Run command: %s", cmd)
 		var stdOut bytes.Buffer
 		var stdErr bytes.Buffer
 		session.Stdout = &stdOut
 		session.Stderr = &stdErr
+		session.Stdin = input
 		err = session.Run(cmd)
 		if err != nil {
-			err = fmt.Errorf("%q error: %v, Stderr: %s", cmd, err, stdErr.String())
-			log.Errorf("%v", err)
+			var outputErr error
+			errMsg := stdErr.String()
+			if len(stdOut.String()) != 0 {
+				errMsg = fmt.Sprintf("%s %s", errMsg, stdOut.String())
+			}
+			outputErr = errors.New(errMsg)
+			err = errors.Errorf("%q error: %v, cmd error: %v", cmd, err, outputErr)
 			return nil, err
 		}
 		if parseOutput {

@@ -16,16 +16,19 @@ package quotas
 
 import (
 	"context"
+	"strings"
 
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
 type IQuotaStore interface {
-	GetQuota(ctx context.Context, tenantId string, quota IQuota) error
-	SetQuota(ctx context.Context, userCred mcclient.TokenCredential, tenantId string, quota IQuota) error
+	GetQuota(ctx context.Context, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, platform []string, quota IQuota) error
+	SetQuota(ctx context.Context, userCred mcclient.TokenCredential, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, platform []string, quota IQuota) error
+	DeleteQuota(ctx context.Context, userCred mcclient.TokenCredential, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, platform []string) error
 }
 
 type SMemoryQuotaStore struct {
@@ -38,32 +41,61 @@ func NewMemoryQuotaStore() *SMemoryQuotaStore {
 	}
 }
 
-func (self *SMemoryQuotaStore) GetQuota(ctx context.Context, tenantId string, quota IQuota) error {
-	json, ok := self.store[tenantId]
+func getMemoryStoreKey(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, name []string) string {
+	keys := make([]string, 0)
+	keys = append(keys, ownerId.GetProjectDomainId())
+	if scope == rbacutils.ScopeProject {
+		keys = append(keys, ownerId.GetProjectId())
+	}
+	if len(name) > 0 {
+		keys = append(keys, name...)
+	}
+	return strings.Join(keys, nameSeparator)
+}
+
+func (self *SMemoryQuotaStore) GetQuota(ctx context.Context, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, name []string, quota IQuota) error {
+	key := getMemoryStoreKey(scope, ownerId, name)
+	json, ok := self.store[key]
 	if ok {
 		return json.Unmarshal(quota)
 	}
 	return nil
 }
 
-func (self *SMemoryQuotaStore) SetQuota(ctx context.Context, userCred mcclient.TokenCredential, tenantId string, quota IQuota) error {
+func (self *SMemoryQuotaStore) SetQuota(ctx context.Context, userCred mcclient.TokenCredential, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, name []string, quota IQuota) error {
+	key := getMemoryStoreKey(scope, ownerId, name)
 	if quota.IsEmpty() {
-		delete(self.store, tenantId)
+		delete(self.store, key)
 	} else {
-		self.store[tenantId] = jsonutils.Marshal(quota)
+		self.store[key] = jsonutils.Marshal(quota)
 	}
+	return nil
+}
+
+func (self *SMemoryQuotaStore) DeleteQuota(ctx context.Context, userCred mcclient.TokenCredential, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, name []string) error {
+	key := getMemoryStoreKey(scope, ownerId, name)
+	delete(self.store, key)
 	return nil
 }
 
 type SDBQuotaStore struct {
 }
 
-func NewDBQuotaStore() *SDBQuotaStore {
+func newDBQuotaStore() *SDBQuotaStore {
 	return &SDBQuotaStore{}
 }
 
-func (store *SDBQuotaStore) GetQuota(ctx context.Context, tenantId string, quota IQuota) error {
-	tenant, err := db.TenantCacheManager.FetchTenantById(ctx, tenantId)
+func (store *SDBQuotaStore) GetQuota(ctx context.Context, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, quota IQuota) error {
+	var tenant *db.STenant
+	var err error
+
+	switch scope {
+	case rbacutils.ScopeDomain:
+		tenant, err = db.TenantCacheManager.FetchDomainById(ctx, ownerId.GetProjectDomainId())
+	default:
+		tenant, err = db.TenantCacheManager.FetchTenantById(ctx, ownerId.GetProjectId())
+	}
+
 	if err != nil {
 		return err
 	}
@@ -75,11 +107,20 @@ func (store *SDBQuotaStore) GetQuota(ctx context.Context, tenantId string, quota
 	return nil
 }
 
-func (store *SDBQuotaStore) SetQuota(ctx context.Context, userCred mcclient.TokenCredential, tenantId string, quota IQuota) error {
-	tenant, err := db.TenantCacheManager.FetchTenantById(ctx, tenantId)
+/*func (store *SDBQuotaStore) SetQuota(ctx context.Context, userCred mcclient.TokenCredential, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, quota IQuota) error {
+	var tenant *db.STenant
+	var err error
+
+	switch scope {
+	case rbacutils.ScopeDomain:
+		tenant, err = db.TenantCacheManager.FetchDomainById(ctx, ownerId.GetProjectDomainId())
+	default:
+		tenant, err = db.TenantCacheManager.FetchTenantById(ctx, ownerId.GetProjectId())
+	}
+
 	if err != nil {
 		return err
 	}
 	quotaJson := jsonutils.Marshal(quota)
 	return tenant.SetMetadata(ctx, METADATA_KEY, quotaJson, userCred)
-}
+}*/

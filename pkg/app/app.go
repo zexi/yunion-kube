@@ -19,16 +19,13 @@ import (
 	"yunion.io/x/yunion-kube/pkg/clusterdriver/yke"
 	"yunion.io/x/yunion-kube/pkg/controllers"
 	"yunion.io/x/yunion-kube/pkg/dialer"
+	"yunion.io/x/yunion-kube/pkg/initial"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/server"
 	"yunion.io/x/yunion-kube/pkg/types/config"
 	"yunion.io/x/yunion-kube/pkg/ykedialerfactory"
-
-	_ "yunion.io/x/yunion-kube/pkg/drivers/clusters"
-	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
-	_ "yunion.io/x/yunion-kube/pkg/tasks"
 )
 
 func buildScaledContext(ctx context.Context) (*config.ScaledContext, error) {
@@ -49,8 +46,6 @@ func prepareEnv() {
 	os.Setenv("DISABLE_HTTP2", "true")
 
 	common_options.ParseOptions(&options.Options, os.Args, "kube-server.conf", "k8s")
-	// TODO: support rbac
-	options.Options.EnableRbac = false
 	runtime.ReallyCrash = false
 }
 
@@ -59,7 +54,7 @@ func Run(ctx context.Context) error {
 	cloudcommon.InitDB(&options.Options.DBOptions)
 	defer cloudcommon.CloseDB()
 
-	app := app_commmon.InitApp(&options.Options.CommonOptions, true)
+	app := app_commmon.InitApp(&options.Options.BaseOptions, true)
 	InitHandlers(app)
 
 	if db.CheckSync(options.Options.AutoSyncTable) {
@@ -95,6 +90,8 @@ func Run(ctx context.Context) error {
 			log.Errorf("Migrate cluster error: %v", err)
 		}
 	})
+
+	initial.InitClient()
 
 	if err := server.Start(httpsAddr, scaledCtx, app); err != nil {
 		return err

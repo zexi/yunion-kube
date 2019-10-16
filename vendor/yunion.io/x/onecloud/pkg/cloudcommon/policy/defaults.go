@@ -14,167 +14,426 @@
 
 package policy
 
-import "yunion.io/x/onecloud/pkg/util/rbacutils"
+import (
+	identityapi "yunion.io/x/onecloud/pkg/apis/identity"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
+)
 
 var (
-	defaultRules = []rbacutils.SRbacRule{
+	predefinedDefaultPolicies = []rbacutils.SRbacPolicy{
 		{
-			Resource: "tasks",
-			Action:   PolicyActionPerform,
-			Result:   rbacutils.UserAllow,
+			Auth:  true,
+			Scope: rbacutils.ScopeSystem,
+			Rules: []rbacutils.SRbacRule{
+				{
+					Resource: "tasks",
+					Action:   PolicyActionPerform,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "hosts",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "zones",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "zones",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "metadatas",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "storages",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "storages",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "vpcs",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "vpcs",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "wires",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "wires",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "cloudregions",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "cloudregions",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "cloudproviders",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "cloudproviders",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "cachedimages",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "cachedimages",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "serverskus",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "serverskus",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "secgrouprules",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "secgrouprules",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionagent",
+					Resource: "notices",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionagent",
+					Resource: "readmarks",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionagent",
+					Resource: "readmarks",
+					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 		{
-			Service:  "compute",
-			Resource: "hosts",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
+			Auth:  true,
+			Scope: rbacutils.ScopeUser,
+			Rules: []rbacutils.SRbacRule{
+				{
+					Service:  "compute",
+					Resource: "keypairs",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "keypairs",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "keypairs",
+					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "keypairs",
+					Action:   PolicyActionUpdate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "keypairs",
+					Action:   PolicyActionDelete,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "identity",
+					Resource: "credentials",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "identity",
+					Resource: "credentials",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "identity",
+					Resource: "credentials",
+					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "identity",
+					Resource: "credentials",
+					Action:   PolicyActionUpdate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "identity",
+					Resource: "credentials",
+					Action:   PolicyActionDelete,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionconf",
+					Resource: "parameters",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionconf",
+					Resource: "parameters",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionconf",
+					Resource: "parameters",
+					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionconf",
+					Resource: "parameters",
+					Action:   PolicyActionUpdate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "notify",
+					Resource: "contacts",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 		{
-			Service:  "compute",
-			Resource: "zones",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
+			Auth:  true,
+			Scope: rbacutils.ScopeProject,
+			Rules: []rbacutils.SRbacRule{
+				{
+					Resource: "tasks",
+					Action:   PolicyActionPerform,
+					Result:   rbacutils.Allow,
+				},
+				{
+					// quotas for any services
+					// Service:  "compute",
+					Resource: "quotas",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					// quotas for any services
+					// Service:  "compute",
+					Resource: "quotas",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					// usages for any services
+					// Service:  "compute",
+					Resource: "usages",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "networks",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "networks",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "image",
+					Resource: "images",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "image",
+					Resource: "images",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "log",
+					Resource: "actions",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "log",
+					Resource: "actions",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 		{
-			Service:  "compute",
-			Resource: "zones",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.UserAllow,
+			// meta服务 dbinstance_skus列表不需要认证
+			Auth:  false,
+			Scope: rbacutils.ScopeSystem,
+			Rules: []rbacutils.SRbacRule{
+				{
+					Service:  "yunionmeta",
+					Resource: "dbinstance_skus",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "yunionmeta",
+					Resource: "dbinstance_skus",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 		{
-			Service:  "compute",
-			Resource: "metadatas",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
+			// for anonymous update torrent status
+			Auth:  false,
+			Scope: rbacutils.ScopeSystem,
+			Rules: []rbacutils.SRbacRule{
+				{
+					Service:  "image",
+					Resource: "images",
+					Action:   PolicyActionPerform,
+					Extra:    []string{"update-torrent-status"},
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 		{
-			Service:  "compute",
-			Resource: "storages",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
+			// for domain
+			Auth:  true,
+			Scope: rbacutils.ScopeDomain,
+			Rules: []rbacutils.SRbacRule{
+				{
+					// quotas for any services
+					// Service:  "compute",
+					Resource: "quotas",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					// quotas for any services
+					// Service:  "compute",
+					Resource: "quotas",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					// usages for any services
+					// Service:  "compute",
+					Resource: "usages",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "domains",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 		{
-			Service:  "compute",
-			Resource: "storages",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "schedtags",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "schedtags",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "cloudregions",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "cloudregions",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "cachedimages",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "cachedimages",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			// quotas for any services
-			// Service:  "compute",
-			Resource: "quotas",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.OwnerAllow,
-		},
-		{
-			// usages for any services
-			// Service:  "compute",
-			Resource: "usages",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.OwnerAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "serverskus",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "compute",
-			Resource: "serverskus",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "yunionagent",
-			Resource: "notices",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "yunionagent",
-			Resource: "readmarks",
-			Action:   PolicyActionList,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "yunionagent",
-			Resource: "readmarks",
-			Action:   PolicyActionCreate,
-			Result:   rbacutils.UserAllow,
-		},
-		{
-			Service:  "yunionconf",
-			Resource: "parameters",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.OwnerAllow,
-		},
-		{
-			Service:  "image",
-			Resource: "images",
-			Action:   PolicyActionList,
-			Result:   rbacutils.OwnerAllow,
-		},
-		{
-			Service:  "image",
-			Resource: "images",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.OwnerAllow,
-		},
-		{
-			Service:  "image",
-			Resource: "images",
-			Action:   PolicyActionPerform,
-			Extra:    []string{"update-torrent-status"},
-			Result:   rbacutils.GuestAllow,
-		},
-		{
-			Service:  "log",
-			Resource: "actions",
-			Action:   PolicyActionList,
-			Result:   rbacutils.OwnerAllow,
-		},
-		{
-			Service:  "log",
-			Resource: "actions",
-			Action:   PolicyActionGet,
-			Result:   rbacutils.OwnerAllow,
+			// for policies administration
+			Auth:     true,
+			Scope:    rbacutils.ScopeSystem,
+			DomainId: identityapi.DEFAULT_DOMAIN_ID,
+			Projects: []string{identityapi.SystemAdminProject},
+			Roles:    []string{identityapi.SystemAdminRole},
+			Rules: []rbacutils.SRbacRule{
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "policies",
+					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "policies",
+					Action:   PolicyActionUpdate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "policies",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "policies",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+			},
 		},
 	}
 )

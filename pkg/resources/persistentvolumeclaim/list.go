@@ -2,7 +2,6 @@ package persistentvolumeclaim
 
 import (
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -10,6 +9,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 type PersistentVolumeClaimList struct {
@@ -39,24 +39,24 @@ func (man *SPersistentVolumeClaimManager) List(req *common.Request) (common.List
 		}
 		filter.Append(dataselect.NewFilterBy(dataselect.PVCUnusedProperty, isUnused))
 	}
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), query)
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), query)
 }
 
-func (man *SPersistentVolumeClaimManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return GetPersistentVolumeClaimList(client, cluster, nsQuery, dsQuery)
+func (man *SPersistentVolumeClaimManager) ListV2(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetPersistentVolumeClaimList(indexer, cluster, nsQuery, dsQuery)
 }
 
 // GetPersistentVolumeClaimList returns a list of all Persistent Volume Claims in the cluster.
 func GetPersistentVolumeClaimList(
-	client kubernetes.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,
 ) (*PersistentVolumeClaimList, error) {
 	log.Infof("Getting list persistent volumes claims")
 	channels := &common.ResourceChannels{
-		PersistentVolumeClaimList: common.GetPersistentVolumeClaimListChannel(client, nsQuery),
-		PodList:                   common.GetPodListChannel(client, nsQuery),
+		PersistentVolumeClaimList: common.GetPersistentVolumeClaimListChannel(indexer, nsQuery),
+		PodList:                   common.GetPodListChannel(indexer, nsQuery),
 	}
 
 	return GetPersistentVolumeClaimListFromChannels(channels, nsQuery, dsQuery, cluster)
@@ -83,8 +83,8 @@ func GetPersistentVolumeClaimListFromChannels(
 	}
 
 	pvcs := []PersistentVolumeClaim{}
-	for _, pvc := range persistentVolumeClaims.Items {
-		pvcs = append(pvcs, toPersistentVolumeClaim(pvc, pods.Items, cluster))
+	for _, pvc := range persistentVolumeClaims {
+		pvcs = append(pvcs, toPersistentVolumeClaim(pvc, pods, cluster))
 	}
 
 	return toPersistentVolumeClaimList(pvcs, dsQuery, cluster)
@@ -100,8 +100,8 @@ func getPvcs(volumes []v1.Volume) []v1.Volume {
 	return pvcs
 }
 
-func getMountPods(pvcName string, pods []v1.Pod) []v1.Pod {
-	ret := []v1.Pod{}
+func getMountPods(pvcName string, pods []*v1.Pod) []*v1.Pod {
+	ret := []*v1.Pod{}
 	for _, pod := range pods {
 		pvcs := getPvcs(pod.Spec.Volumes)
 		for _, pvc := range pvcs {
@@ -113,7 +113,7 @@ func getMountPods(pvcName string, pods []v1.Pod) []v1.Pod {
 	return ret
 }
 
-func getMountPodsName(pvcName string, pods []v1.Pod) []string {
+func getMountPodsName(pvcName string, pods []*v1.Pod) []string {
 	pods = getMountPods(pvcName, pods)
 	ret := []string{}
 	for _, pod := range pods {
@@ -122,7 +122,7 @@ func getMountPodsName(pvcName string, pods []v1.Pod) []string {
 	return ret
 }
 
-func toPersistentVolumeClaim(pvc v1.PersistentVolumeClaim, pods []v1.Pod, cluster api.ICluster) PersistentVolumeClaim {
+func toPersistentVolumeClaim(pvc *v1.PersistentVolumeClaim, pods []*v1.Pod, cluster api.ICluster) PersistentVolumeClaim {
 	podsName := getMountPodsName(pvc.Name, pods)
 	return PersistentVolumeClaim{
 		ObjectMeta:   api.NewObjectMetaV2(pvc.ObjectMeta, cluster),

@@ -2,9 +2,10 @@ package ingress
 
 import (
 	extensions "k8s.io/api/extensions/v1beta1"
-	client "k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -26,22 +27,22 @@ type IngressList struct {
 }
 
 func (man *SIngressManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man SIngressManager) ListV2(client client.Interface, cluster api.ICluster, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return GetIngressList(client, cluster, namespace, dsQuery)
+func (man SIngressManager) ListV2(indexer *client.CacheFactory, cluster api.ICluster, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetIngressList(indexer, cluster, namespace, dsQuery)
 }
 
 // GetIngressList returns all ingresses in the given namespace.
-func GetIngressList(client client.Interface, cluster api.ICluster, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*IngressList, error) {
-	ingressList, err := client.Extensions().Ingresses(namespace.ToRequestParam()).List(api.ListEverything)
+func GetIngressList(indexer *client.CacheFactory, cluster api.ICluster, namespace *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (*IngressList, error) {
+	ingressList, err := indexer.IngressLister().Ingresses(namespace.ToRequestParam()).List(labels.Everything())
 
 	if err != nil {
 		return nil, err
 	}
 
-	return ToIngressList(ingressList.Items, dsQuery, cluster)
+	return ToIngressList(ingressList, dsQuery, cluster)
 }
 
 func getEndpoints(ingress *extensions.Ingress) []common.Endpoint {
@@ -55,7 +56,7 @@ func getEndpoints(ingress *extensions.Ingress) []common.Endpoint {
 	return endpoints
 }
 
-func ToIngressList(ingresses []extensions.Ingress, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*IngressList, error) {
+func ToIngressList(ingresses []*extensions.Ingress, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*IngressList, error) {
 	newIngressList := &IngressList{
 		BaseList: common.NewBaseList(cluster),
 		Items:    make([]Ingress, 0),
@@ -78,8 +79,8 @@ func ToIngress(ingress *extensions.Ingress, cluster api.ICluster) Ingress {
 }
 
 func (l *IngressList) Append(obj interface{}) {
-	ingress := obj.(extensions.Ingress)
-	l.Items = append(l.Items, ToIngress(&ingress, l.GetCluster()))
+	ingress := obj.(*extensions.Ingress)
+	l.Items = append(l.Items, ToIngress(ingress, l.GetCluster()))
 }
 
 func (l *IngressList) GetResponseData() interface{} {

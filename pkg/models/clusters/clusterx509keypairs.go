@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
@@ -27,6 +28,8 @@ func init() {
 				X509KeyPairManager,
 			),
 		}
+		log.Errorf("======Call setvirtualObject")
+		ClusterX509KeyPairManager.SetVirtualObject(ClusterX509KeyPairManager)
 		ClusterX509KeyPairManager.TableSpec().AddIndex(true, "keypair_id", "cluster_id")
 	})
 }
@@ -65,6 +68,14 @@ func (m *SClusterX509KeyPairManager) GetKeyPairByClusterUser(clusterId string, u
 
 func (man *SClusterX509KeyPair) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
 	return false
+}
+
+func (joint *SClusterX509KeyPairManager) GetMasterFieldName() string {
+	return "cluster_id"
+}
+
+func (joint *SClusterX509KeyPairManager) GetSlaveFieldName() string {
+	return "keypair_id"
 }
 
 func (joint *SClusterX509KeyPair) Master() db.IStandaloneModel {

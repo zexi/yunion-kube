@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/log"
 
@@ -38,32 +38,32 @@ type Cluster struct {
 }
 
 func (man *SClusterManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCluster(req.GetK8sClient(), req.GetCluster(), dataselect.DefaultDataSelect(), req.ProjectNamespaces)
+	return GetCluster(req.GetIndexer(), req.GetCluster(), dataselect.DefaultDataSelect(), req.ProjectNamespaces)
 }
 
 // GetCluster returns a list of all cluster resources in the cluster.
 func GetCluster(
-	client kubernetes.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	dsQuery *dataselect.DataSelectQuery,
 	projectNamespaces *common.ProjectNamespaces,
 ) (*Cluster, error) {
 	log.Infof("Getting cluster category")
 	channels := &common.ResourceChannels{
-		NamespaceList:        common.GetNamespaceListChannel(client),
-		NodeList:             common.GetNodeListChannel(client),
-		PersistentVolumeList: common.GetPersistentVolumeListChannel(client),
-		RoleList:             common.GetRoleListChannel(client),
-		ClusterRoleList:      common.GetClusterRoleListChannel(client),
-		StorageClassList:     common.GetStorageClassListChannel(client),
+		NamespaceList:        common.GetNamespaceListChannel(indexer),
+		NodeList:             common.GetNodeListChannel(indexer),
+		PersistentVolumeList: common.GetPersistentVolumeListChannel(indexer),
+		RoleList:             common.GetRoleListChannel(indexer),
+		ClusterRoleList:      common.GetClusterRoleListChannel(indexer),
+		StorageClassList:     common.GetStorageClassListChannel(indexer),
 	}
 
-	return GetClusterFromChannels(client, cluster, channels, dsQuery, projectNamespaces)
+	return GetClusterFromChannels(indexer, cluster, channels, dsQuery, projectNamespaces)
 }
 
 // GetClusterFromChannels returns a list of all cluster in the cluster, from the channel sources.
 func GetClusterFromChannels(
-	client kubernetes.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	channels *common.ResourceChannels,
 	dsQuery *dataselect.DataSelectQuery,
@@ -85,7 +85,7 @@ func GetClusterFromChannels(
 	}()
 
 	go func() {
-		items, err := node.GetNodeListFromChannels(client, channels, dsQuery, cluster)
+		items, err := node.GetNodeListFromChannels(indexer, channels, dsQuery, cluster)
 		errChan <- err
 		nodeChan <- items
 	}()

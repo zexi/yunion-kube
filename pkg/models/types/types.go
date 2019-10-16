@@ -52,6 +52,8 @@ const (
 	ProviderTypeAzure ProviderType = "azure"
 	// Tencent cloud provider
 	ProviderTypeQcloud ProviderType = "qcloud"
+	// External provider type by import
+	ProviderTypeExternal ProviderType = "external"
 )
 
 const (
@@ -63,8 +65,9 @@ const (
 type ClusterResourceType string
 
 const (
-	ClusterResourceTypeHost  = "host"
-	ClusterResourceTypeGuest = "guest"
+	ClusterResourceTypeHost    = "host"
+	ClusterResourceTypeGuest   = "guest"
+	ClusterResourceTypeUnknown = "unknown"
 )
 
 type MachineResourceType string
@@ -118,6 +121,13 @@ type CreateClusterData struct {
 	Version       string               `json:"version"`
 	HA            bool                 `json:"ha"`
 	Machines      []*CreateMachineData `json:"machines"`
+	// imported cluster data
+	ImportClusterData
+}
+
+type ImportClusterData struct {
+	Kubeconfig string `json:"kubeconfig"`
+	ApiServer  string `json:"api_server"`
 }
 
 type CreateMachineData struct {

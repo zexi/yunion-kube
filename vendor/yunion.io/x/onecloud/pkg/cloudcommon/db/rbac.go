@@ -21,174 +21,294 @@ import (
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
-func isListRbacAllowed(manager IModelManager, userCred mcclient.TokenCredential, isAdminMode bool) bool {
-	return isListRbacAllowedInternal(manager, manager.KeywordPlural(), userCred, isAdminMode)
+func IsObjectRbacAllowed(model IModel, userCred mcclient.TokenCredential, action string, extra ...string) bool {
+	return isObjectRbacAllowed(model, userCred, action, extra...)
 }
 
-func isListRbacAllowedInternal(manager IModelManager, resource string, userCred mcclient.TokenCredential, isAdminMode bool) bool {
-	var requireAdmin bool
-	var ownerId string
+func isObjectRbacAllowed(model IModel, userCred mcclient.TokenCredential, action string, extra ...string) bool {
+	manager := model.GetModelManager()
+	objOwnerId := model.GetOwnerId()
+
+	var ownerId mcclient.IIdentityProvider
 	if userCred != nil {
-		ownerId = manager.GetOwnerId(userCred)
+		ownerId = userCred
 	}
-	if len(ownerId) > 0 {
-		if isAdminMode {
-			requireAdmin = true
+
+	var requireScope rbacutils.TRbacScope
+	resScope := manager.ResourceScope()
+	switch resScope {
+	case rbacutils.ScopeSystem:
+		requireScope = rbacutils.ScopeSystem
+	case rbacutils.ScopeDomain:
+		if ownerId != nil && objOwnerId != nil && (ownerId.GetProjectDomainId() == objOwnerId.GetProjectDomainId() || (model.IsSharable(ownerId) && action == policy.PolicyActionGet)) {
+			requireScope = rbacutils.ScopeDomain
 		} else {
-			requireAdmin = false
+			requireScope = rbacutils.ScopeSystem
 		}
-	} else {
-		requireAdmin = true
+	case rbacutils.ScopeUser:
+		if ownerId != nil && objOwnerId != nil && (ownerId.GetUserId() == objOwnerId.GetUserId() || (model.IsSharable(ownerId) && action == policy.PolicyActionGet)) {
+			requireScope = rbacutils.ScopeUser
+		} else {
+			requireScope = rbacutils.ScopeSystem
+		}
+	default:
+		// objOwnerId should not be nil
+		if ownerId != nil && objOwnerId != nil && (ownerId.GetProjectId() == objOwnerId.GetProjectId() || (model.IsSharable(ownerId) && action == policy.PolicyActionGet)) {
+			requireScope = rbacutils.ScopeProject
+		} else if ownerId != nil && objOwnerId != nil && ownerId.GetProjectDomainId() == objOwnerId.GetProjectDomainId() {
+			requireScope = rbacutils.ScopeDomain
+		} else {
+			requireScope = rbacutils.ScopeSystem
+		}
 	}
-	result := policy.PolicyManager.Allow(false, userCred, consts.GetServiceType(),
-		resource, policy.PolicyActionList)
 
-	switch {
-	case result == rbacutils.GuestAllow:
-		return true
-	case result == rbacutils.UserAllow && userCred != nil && userCred.IsValid():
-		return true
-	case result == rbacutils.OwnerAllow && !requireAdmin:
+	scope := policy.PolicyManager.AllowScope(userCred, consts.GetServiceType(), manager.KeywordPlural(), action, extra...)
+
+	if !requireScope.HigherThan(scope) {
 		return true
 	}
 
-	result = policy.PolicyManager.Allow(true, userCred, consts.GetServiceType(),
-		resource, policy.PolicyActionList)
-
-	return result == rbacutils.AdminAllow
+	return false
 }
 
-func isJointListRbacAllowed(manager IJointModelManager, userCred mcclient.TokenCredential, isAdminMode bool) bool {
-	return isListRbacAllowedInternal(manager.GetMasterManager(), manager.KeywordPlural(), userCred, isAdminMode)
+func isJointObjectRbacAllowed(item IJointModel, userCred mcclient.TokenCredential, action string, extra ...string) bool {
+	return isObjectRbacAllowed(item.Master(), userCred, action, extra...) || isObjectRbacAllowed(item.Slave(), userCred, action, extra...)
 }
 
-func isClassActionRbacAllowed(manager IModelManager, userCred mcclient.TokenCredential, ownerProjId string, action string, extra ...string) bool {
-	var requireAdmin bool
-	var ownerId string
+func isClassRbacAllowed(manager IModelManager, userCred mcclient.TokenCredential, objOwnerId mcclient.IIdentityProvider, action string, extra ...string) bool {
+	var ownerId mcclient.IIdentityProvider
 	if userCred != nil {
-		ownerId = manager.GetOwnerId(userCred)
+		ownerId = userCred
 	}
-	if len(ownerId) > 0 {
-		if ownerProjId == ownerId {
-			requireAdmin = false
+
+	var requireScope rbacutils.TRbacScope
+	resScope := manager.ResourceScope()
+	switch resScope {
+	case rbacutils.ScopeSystem:
+		requireScope = rbacutils.ScopeSystem
+	case rbacutils.ScopeDomain:
+		// objOwnerId should not be nil
+		if ownerId != nil && ownerId.GetProjectDomainId() == objOwnerId.GetProjectDomainId() {
+			requireScope = rbacutils.ScopeDomain
 		} else {
-			requireAdmin = true
+			requireScope = rbacutils.ScopeSystem
 		}
-	} else {
-		requireAdmin = true
-	}
-
-	result := policy.PolicyManager.Allow(false, userCred, consts.GetServiceType(),
-		manager.KeywordPlural(), action, extra...)
-	switch {
-	case result == rbacutils.GuestAllow:
-		return true
-	case result == rbacutils.UserAllow && userCred != nil && userCred.IsValid():
-		return true
-	case result == rbacutils.OwnerAllow && !requireAdmin:
-		return true
-	}
-
-	result = policy.PolicyManager.Allow(true, userCred, consts.GetServiceType(),
-		manager.KeywordPlural(), action, extra...)
-	return result == rbacutils.AdminAllow
-}
-
-func isObjectRbacAllowed(manager IModelManager, model IModel, userCred mcclient.TokenCredential, action string, extra ...string) bool {
-	var requireAdmin bool
-	var isOwner bool
-
-	var ownerId string
-
-	if userCred != nil {
-		ownerId = model.GetModelManager().GetOwnerId(userCred)
-	}
-
-	if len(ownerId) > 0 {
-		objOwnerId := model.GetOwnerProjectId()
-		if ownerId == objOwnerId || (model.IsSharable() && action == policy.PolicyActionGet) {
-			isOwner = true
-			requireAdmin = false
+	case rbacutils.ScopeUser:
+		if ownerId != nil && ownerId.GetUserId() == objOwnerId.GetUserId() {
+			requireScope = rbacutils.ScopeUser
 		} else {
-			isOwner = false
-			requireAdmin = true
+			requireScope = rbacutils.ScopeSystem
 		}
-	} else {
-		requireAdmin = true
+	default:
+		// objOwnerId should not be nil
+		if ownerId != nil && ownerId.GetProjectId() == objOwnerId.GetProjectId() {
+			requireScope = rbacutils.ScopeProject
+		} else if ownerId != nil && ownerId.GetProjectDomainId() == objOwnerId.GetProjectDomainId() {
+			requireScope = rbacutils.ScopeDomain
+		} else {
+			requireScope = rbacutils.ScopeSystem
+		}
 	}
 
-	result := policy.PolicyManager.Allow(false, userCred, consts.GetServiceType(),
-		manager.KeywordPlural(), action, extra...)
-	switch {
-	case result == rbacutils.GuestAllow:
+	allowScope := policy.PolicyManager.AllowScope(userCred, consts.GetServiceType(), manager.KeywordPlural(), action, extra...)
+
+	if !requireScope.HigherThan(allowScope) {
 		return true
-	case result == rbacutils.UserAllow && userCred != nil && userCred.IsValid():
-		return true
-	case result == rbacutils.OwnerAllow && isOwner && !requireAdmin:
-		return true
 	}
 
-	result = policy.PolicyManager.Allow(true, userCred, consts.GetServiceType(),
-		manager.KeywordPlural(), action, extra...)
-	return result == rbacutils.AdminAllow
+	return false
 }
 
-func isJointObjectRbacAllowed(manager IJointModelManager, item IJointModel, userCred mcclient.TokenCredential, action string, extra ...string) bool {
-	return isObjectRbacAllowed(manager, item.Master(), userCred, action, extra...)
+type IResource interface {
+	KeywordPlural() string
 }
 
-func IsAdminAllowList(userCred mcclient.TokenCredential, manager IModelManager) bool {
+func IsAllowList(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, manager IResource) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionList)
+	return userCred.IsAllow(scope, consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionList)
 }
 
-func IsAdminAllowCreate(userCred mcclient.TokenCredential, manager IModelManager) bool {
+func IsAdminAllowList(userCred mcclient.TokenCredential, manager IResource) bool {
+	return IsAllowList(rbacutils.ScopeSystem, userCred, manager)
+}
+
+func IsDomainAllowList(userCred mcclient.TokenCredential, manager IResource) bool {
+	return IsAllowList(rbacutils.ScopeDomain, userCred, manager)
+}
+
+func IsProjectAllowList(userCred mcclient.TokenCredential, manager IResource) bool {
+	return IsAllowList(rbacutils.ScopeProject, userCred, manager)
+}
+
+func IsAllowCreate(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, manager IResource) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionCreate)
+	return userCred.IsAllow(scope, consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionCreate)
 }
 
-func IsAdminAllowClassPerform(userCred mcclient.TokenCredential, manager IModelManager, action string) bool {
+func IsAdminAllowCreate(userCred mcclient.TokenCredential, manager IResource) bool {
+	return IsAllowCreate(rbacutils.ScopeSystem, userCred, manager)
+}
+
+func IsDomainAllowCreate(userCred mcclient.TokenCredential, manager IResource) bool {
+	return IsAllowCreate(rbacutils.ScopeDomain, userCred, manager)
+}
+
+func IsProjectAllowCreate(userCred mcclient.TokenCredential, manager IResource) bool {
+	return IsAllowCreate(rbacutils.ScopeProject, userCred, manager)
+}
+
+func IsAllowClassPerform(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, manager IResource, action string) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionPerform, action)
+	return userCred.IsAllow(scope, consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionPerform, action)
 }
 
-func IsAdminAllowGet(userCred mcclient.TokenCredential, obj IModel) bool {
+func IsAdminAllowClassPerform(userCred mcclient.TokenCredential, manager IResource, action string) bool {
+	return IsAllowClassPerform(rbacutils.ScopeSystem, userCred, manager, action)
+}
+
+func IsDomainAllowClassPerform(userCred mcclient.TokenCredential, manager IResource, action string) bool {
+	return IsAllowClassPerform(rbacutils.ScopeDomain, userCred, manager, action)
+}
+
+func IsProjectAllowClassPerform(userCred mcclient.TokenCredential, manager IResource, action string) bool {
+	return IsAllowClassPerform(rbacutils.ScopeProject, userCred, manager, action)
+}
+
+func IsAllowGet(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionGet)
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionGet)
 }
 
-func IsAdminAllowGetSpec(userCred mcclient.TokenCredential, obj IModel, spec string) bool {
+func IsAdminAllowGet(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowGet(rbacutils.ScopeSystem, userCred, obj)
+}
+
+func IsDomainAllowGet(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowGet(rbacutils.ScopeDomain, userCred, obj)
+}
+
+func IsProjectAllowGet(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowGet(rbacutils.ScopeProject, userCred, obj)
+}
+
+func IsAllowGetSpec(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource, spec string) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionGet, spec)
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionGet, spec)
 }
 
-func IsAdminAllowPerform(userCred mcclient.TokenCredential, obj IModel, action string) bool {
+func IsAdminAllowGetSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowGetSpec(rbacutils.ScopeSystem, userCred, obj, spec)
+}
+
+func IsDomainAllowGetSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowGetSpec(rbacutils.ScopeDomain, userCred, obj, spec)
+}
+
+func IsProjectAllowGetSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowGetSpec(rbacutils.ScopeProject, userCred, obj, spec)
+}
+
+func IsAllowPerform(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource, action string) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionPerform, action)
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionPerform, action)
 }
 
-func IsAdminAllowUpdate(userCred mcclient.TokenCredential, obj IModel) bool {
+func IsAdminAllowPerform(userCred mcclient.TokenCredential, obj IResource, action string) bool {
+	return IsAllowPerform(rbacutils.ScopeSystem, userCred, obj, action)
+}
+
+func IsDomainAllowPerform(userCred mcclient.TokenCredential, obj IResource, action string) bool {
+	return IsAllowPerform(rbacutils.ScopeDomain, userCred, obj, action)
+}
+
+func IsProjectAllowPerform(userCred mcclient.TokenCredential, obj IResource, action string) bool {
+	return IsAllowPerform(rbacutils.ScopeProject, userCred, obj, action)
+}
+
+func IsAllowUpdate(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionUpdate)
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionUpdate)
 }
 
-func IsAdminAllowDelete(userCred mcclient.TokenCredential, obj IModel) bool {
+func IsAdminAllowUpdate(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowUpdate(rbacutils.ScopeSystem, userCred, obj)
+}
+
+func IsDomainAllowUpdate(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowUpdate(rbacutils.ScopeDomain, userCred, obj)
+}
+
+func IsProjectAllowUpdate(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowUpdate(rbacutils.ScopeProject, userCred, obj)
+}
+
+func IsAllowUpdateSpec(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource, spec string) bool {
 	if userCred == nil {
 		return false
 	}
-	return userCred.IsAdminAllow(consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionDelete)
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionUpdate, spec)
+}
+
+func IsAdminAllowUpdateSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowUpdateSpec(rbacutils.ScopeSystem, userCred, obj, spec)
+}
+
+func IsDomainAllowUpdateSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowUpdateSpec(rbacutils.ScopeDomain, userCred, obj, spec)
+}
+
+func IsProjectAllowUpdateSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowUpdateSpec(rbacutils.ScopeProject, userCred, obj, spec)
+}
+
+func IsAllowDelete(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource) bool {
+	if userCred == nil {
+		return false
+	}
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionDelete)
+}
+
+func IsAdminAllowDelete(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowDelete(rbacutils.ScopeSystem, userCred, obj)
+}
+
+func IsDomainAllowDelete(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowDelete(rbacutils.ScopeDomain, userCred, obj)
+}
+
+func IsProjectAllowDelete(userCred mcclient.TokenCredential, obj IResource) bool {
+	return IsAllowDelete(rbacutils.ScopeProject, userCred, obj)
+}
+
+func IsAllowDeleteSpec(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	if userCred == nil {
+		return false
+	}
+	return userCred.IsAllow(scope, consts.GetServiceType(), obj.KeywordPlural(), policy.PolicyActionDelete, spec)
+}
+
+func IsAdminAllowDeleteSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowDeleteSpec(rbacutils.ScopeSystem, userCred, obj, spec)
+}
+
+func IsDomainAllowDeleteSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowDeleteSpec(rbacutils.ScopeDomain, userCred, obj, spec)
+}
+
+func IsProjectAllowDeleteSpec(userCred mcclient.TokenCredential, obj IResource, spec string) bool {
+	return IsAllowDeleteSpec(rbacutils.ScopeProject, userCred, obj, spec)
 }

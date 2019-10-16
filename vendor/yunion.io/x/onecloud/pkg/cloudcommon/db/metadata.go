@@ -29,6 +29,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
 const (
@@ -37,9 +38,10 @@ const (
 	CLOUD_TAG_PREFIX    = "ext:"
 	USER_TAG_PREFIX     = "user:"
 
-	TAG_DELETE_RANGE_USER  = "user"
-	TAG_DELETE_RANGE_CLOUD = "cloud"
-	TAG_DELETE_RANGE_ALL   = "all"
+	// TAG_DELETE_RANGE_USER  = "user"
+	// TAG_DELETE_RANGE_CLOUD = CLOUD_TAG_PREFIX // "cloud"
+
+	TAG_DELETE_RANGE_ALL = "all"
 )
 
 type SMetadataManager struct {
@@ -60,7 +62,16 @@ var Metadata *SMetadataManager
 var ResourceMap map[string]*SVirtualResourceBaseManager
 
 func init() {
-	Metadata = &SMetadataManager{SModelBaseManager: NewModelBaseManager(SMetadata{}, "metadata_tbl", "metadata", "metadatas")}
+	Metadata = &SMetadataManager{
+		SModelBaseManager: NewModelBaseManager(
+			SMetadata{},
+			"metadata_tbl",
+			"metadata",
+			"metadatas",
+		),
+	}
+	Metadata.SetVirtualObject(Metadata)
+
 	ResourceMap = map[string]*SVirtualResourceBaseManager{
 		"disk":     {SStatusStandaloneResourceBaseManager: NewStatusStandaloneResourceBaseManager(SVirtualResourceBase{}, "disks_tbl", "disk", "disks")},
 		"server":   {SStatusStandaloneResourceBaseManager: NewStatusStandaloneResourceBaseManager(SVirtualResourceBase{}, "guests_tbl", "server", "servers")},
@@ -147,16 +158,13 @@ func (manager *SMetadataManager) ListItemFilter(ctx context.Context, q *sqlchemy
 	conditions := []sqlchemy.ICondition{}
 	admin := jsonutils.QueryBoolean(query, "admin", false)
 	for _, resource := range resources {
-		if manager, ok := ResourceMap[resource]; ok {
-			resourceView := manager.Query().SubQuery()
-			prefix := sqlchemy.NewStringField(fmt.Sprintf("%s::", manager.Keyword()))
-			field := sqlchemy.CONCAT(manager.Keyword(), prefix, resourceView.Field("id"))
+		if man, ok := ResourceMap[resource]; ok {
+			resourceView := man.Query().SubQuery()
+			prefix := sqlchemy.NewStringField(fmt.Sprintf("%s::", man.Keyword()))
+			field := sqlchemy.CONCAT(man.Keyword(), prefix, resourceView.Field("id"))
 			sq := resourceView.Query(field)
-			if !admin || !IsAdminAllowList(userCred, manager) {
-				ownerId := manager.GetOwnerId(userCred)
-				if len(ownerId) > 0 {
-					sq = manager.FilterByOwner(sq, ownerId)
-				}
+			if !admin && !IsAllowList(rbacutils.ScopeSystem, userCred, man) {
+				sq = man.FilterByOwner(sq, userCred, man.ResourceScope())
 			}
 			conditions = append(conditions, sqlchemy.In(q.Field("id"), sq))
 		} else {
@@ -171,22 +179,23 @@ func (manager *SMetadataManager) ListItemFilter(ctx context.Context, q *sqlchemy
 			q = q.Filter(sqlchemy.Startswith(q.Field("key"), prefix))
 		}
 	}
+
+	withConditions := []sqlchemy.ICondition{}
+	for args, prefix := range map[string]string{"with_sys_meta": SYS_TAG_PREFIX, "with_cloud_meta": CLOUD_TAG_PREFIX, "with_user_meta": USER_TAG_PREFIX} {
+		if jsonutils.QueryBoolean(query, args, false) {
+			withConditions = append(withConditions, sqlchemy.Startswith(q.Field("key"), prefix))
+		}
+	}
+
+	if len(withConditions) > 0 {
+		q = q.Filter(sqlchemy.OR(withConditions...))
+	}
+
 	return q, nil
 }
 
-/* @classmethod
-def get_object_idstr(cls, obj, keygen_func):
-idstr = None
-if keygen_func is not None and callable(keygen_func):
-idstr = keygen_func(obj)
-elif isinstance(obj, SStandaloneResourceBase):
-idstr = '%s::%s' % (obj._resource_name_, obj.id)
-if idstr is None:
-raise Exception('get_object_idstr: failed to generate obj ID')
-return idstr */
-
 func (manager *SMetadataManager) GetStringValue(model IModel, key string, userCred mcclient.TokenCredential) string {
-	if strings.HasPrefix(key, SYSTEM_ADMIN_PREFIX) && (userCred == nil || !IsAdminAllowGetSpec(userCred, model, "metadata")) {
+	if strings.HasPrefix(key, SYSTEM_ADMIN_PREFIX) && (userCred == nil || !IsAllowGetSpec(rbacutils.ScopeSystem, userCred, model, "metadata")) {
 		return ""
 	}
 	idStr := GetObjectIdstr(model)
@@ -199,7 +208,7 @@ func (manager *SMetadataManager) GetStringValue(model IModel, key string, userCr
 }
 
 func (manager *SMetadataManager) GetJsonValue(model IModel, key string, userCred mcclient.TokenCredential) jsonutils.JSONObject {
-	if strings.HasPrefix(key, SYSTEM_ADMIN_PREFIX) && (userCred == nil || !IsAdminAllowGetSpec(userCred, model, "metadata")) {
+	if strings.HasPrefix(key, SYSTEM_ADMIN_PREFIX) && (userCred == nil || !IsAllowGetSpec(rbacutils.ScopeSystem, userCred, model, "metadata")) {
 		return nil
 	}
 	idStr := GetObjectIdstr(model)
@@ -270,9 +279,6 @@ func (manager *SMetadataManager) SetValues(ctx context.Context, obj IModel, stor
 
 	changes := make([]sMetadataChange, 0)
 	for key, value := range store {
-		if strings.HasPrefix(key, SYS_TAG_PREFIX) && (userCred == nil || !IsAdminAllowGetSpec(userCred, obj, "metadata")) {
-			return nil, httperrors.NewForbiddenError("Ordinary users can't set the tags that begin with an underscore")
-		}
 
 		valStr := stringutils.Interface2String(value)
 		valStrLower := strings.ToLower(valStr)
@@ -336,9 +342,9 @@ func (manager *SMetadataManager) SetAll(ctx context.Context, obj IModel, store m
 	records := []SMetadata{}
 	q := manager.Query().Equals("id", idStr).NotLike("key", `\_\_%`) //避免删除系统内置的metadata, _ 在mysql里面有特殊含义,需要转义
 	switch delRange {
-	case TAG_DELETE_RANGE_USER:
+	case USER_TAG_PREFIX:
 		q = q.Like("key", USER_TAG_PREFIX+"%")
-	case TAG_DELETE_RANGE_CLOUD:
+	case CLOUD_TAG_PREFIX:
 		q = q.Like("key", CLOUD_TAG_PREFIX+"%")
 	}
 	q = q.Filter(sqlchemy.NOT(sqlchemy.In(q.Field("key"), keys)))
@@ -413,19 +419,3 @@ func GetVisiableMetadata(model IMetadataModel, userCred mcclient.TokenCredential
 	}
 	return metaData, nil
 }
-
-/*
-
-@classmethod
-def get_sysadmin_key_object_ids(cls, obj_cls, key):
-sys_key = cls.get_sysadmin_key(key)
-ids = Metadata.query(Metadata.id).filter(Metadata.key==sys_key) \
-.filter(Metadata.value!=None) \
-.filter(Metadata.id.like('%s::%%' % obj_cls._resource_name_)) \
-.all()
-ret = []
-for id, in ids:
-ret.append(id[len(obj_cls._resource_name_)+2:])
-return ret
-
-*/

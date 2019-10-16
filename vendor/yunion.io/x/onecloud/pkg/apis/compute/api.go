@@ -25,6 +25,7 @@ type SchedtagConfig struct {
 
 	Id       string `json:"id"`
 	Strategy string `json:"strategy"`
+	Weight   int    `json:"weight"`
 }
 
 type NetworkConfig struct {
@@ -44,6 +45,8 @@ type NetworkConfig struct {
 	Reserved bool   `json:"reserved"`
 	NetType  string `json:"net_type"`
 
+	RequireDesignatedIP bool `json:"require_designated_ip"`
+
 	RequireTeaming bool `json:"require_teaming"`
 	TryTeaming     bool `json:"try_teaming"`
 
@@ -51,6 +54,7 @@ type NetworkConfig struct {
 	StandbyAddrCount int `json:"standby_addr_count"`
 
 	Project   string            `json:"project_id"`
+	Domain    string            `json:"domain_id"`
 	Ifname    string            `json:"ifname"`
 	Schedtags []*SchedtagConfig `json:"schedtags"`
 }
@@ -89,13 +93,13 @@ type IsolatedDeviceConfig struct {
 type BaremetalDiskConfig struct {
 	//Index int `json:"index"`
 	// disk type
-	Type string `json:"type"`
+	Type string `json:"type"` // ssd / rotate
 	// raid config
-	Conf         string  `json:"conf"`
-	Count        int64   `json:"count"`
-	Range        []int64 `json:"range"`
+	Conf         string  `json:"conf"`  // raid配置
+	Count        int64   `json:"count"` // 连续几块
+	Range        []int64 `json:"range"` // 指定几块
 	Splits       string  `json:"splits"`
-	Size         []int64 `json:"size"`
+	Size         []int64 `json:"size"` //
 	Adapter      *int    `json:"adapter,omitempty"`
 	Driver       string  `json:"driver"`
 	Cachedbadbbu *bool   `json:"cachedbadbbu,omitempty"`
@@ -118,6 +122,7 @@ type ServerConfigs struct {
 	ResourceType string `json:"resource_type"`
 	InstanceType string `json:"instance_type"`
 	Project      string `json:"project_id"`
+	Domain       string `json:"domain_id"`
 	Backup       bool   `json:"backup"`
 	Count        int    `json:"count"`
 
@@ -127,8 +132,21 @@ type ServerConfigs struct {
 	IsolatedDevices      []*IsolatedDeviceConfig `json:"isolated_devices"`
 	BaremetalDiskConfigs []*BaremetalDiskConfig  `json:"baremetal_disk_configs"`
 
+	InstanceGroupIds []string `json:"groups"`
+
 	// DEPRECATE
 	Suggestion bool `json:"suggestion"`
+}
+
+func NewServerConfigs() *ServerConfigs {
+	return &ServerConfigs{
+		Disks:                make([]*DiskConfig, 0),
+		Networks:             make([]*NetworkConfig, 0),
+		Schedtags:            make([]*SchedtagConfig, 0),
+		IsolatedDevices:      make([]*IsolatedDeviceConfig, 0),
+		BaremetalDiskConfigs: make([]*BaremetalDiskConfig, 0),
+		InstanceGroupIds:     make([]string, 0),
+	}
 }
 
 type DeployConfig struct {
@@ -169,6 +187,7 @@ type ServerCreateInput struct {
 	EipBw              int             `json:"eip_bw,omitzero"`
 	EipChargeType      string          `json:"eip_charge_type,omitempty"`
 	Eip                string          `json:"eip,omitempty"`
+	InstanceSnapshotId string          `json:"instance_snapshot_id,omitempty"`
 
 	OsType string `json:"os_type"`
 	// Fill by server
@@ -209,6 +228,20 @@ type ServerDeployInput struct {
 	ResetPassword *bool           `json:"reset_password"`
 	Password      string          `json:"password"`
 	AutoStart     *bool           `json:"auto_start"`
+}
+
+type GuestBatchMigrateRequest struct {
+	apis.Meta
+
+	GuestIds   []string
+	PreferHost string
+}
+
+type GuestBatchMigrateParams struct {
+	Id          string
+	LiveMigrate bool
+	RescueMode  bool
+	OldStatus   string
 }
 
 type HostLoginInfo struct {

@@ -21,7 +21,7 @@ func newBaseDriver() *sBaseDriver {
 	return &sBaseDriver{}
 }
 
-func (d *sBaseDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *sBaseDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	man := machines.MachineManager
 	name, err := data.GetString("name")
 	if err != nil {

@@ -35,13 +35,12 @@ const (
 )
 
 func InitDB(options *common_options.DBOptions) {
-	if options.GlobalVirtualResourceNamespace {
-		consts.EnableGlobalVirtualResourceNamespace()
-	}
-
 	if options.DebugSqlchemy {
+		log.Warningf("debug Sqlchemy is turned on")
 		sqlchemy.DEBUG_SQLCHEMY = true
 	}
+
+	consts.QueryOffsetOptimization = options.QueryOffsetOptimization
 
 	dialect, sqlStr, err := options.GetDBConnection()
 	if err != nil {

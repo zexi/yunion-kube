@@ -16,33 +16,30 @@ package modules
 
 import (
 	"fmt"
-	"sync"
 
 	"yunion.io/x/jsonutils"
 
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/httputils"
+	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 )
 
 type ProjectManagerV3 struct {
-	ResourceManager
+	modulebase.ResourceManager
 }
 
 var (
 	Projects ProjectManagerV3
 )
 
-func (this *ProjectManagerV3) _join(s *mcclient.ClientSession, pid, uid, rid, resource string, ch chan int) error {
-	defer func() {
-		ch <- 1
-	}()
+func (this *ProjectManagerV3) _join(s *mcclient.ClientSession, pid, uid, rid, resource string) error {
 	if resource == "users" {
-		_, err := RolesV3.PutInContexts(s, rid, nil, []ManagerContext{{&Projects, pid}, {&UsersV3, uid}})
+		_, err := RolesV3.PutInContexts(s, rid, nil, []modulebase.ManagerContext{{&Projects, pid}, {&UsersV3, uid}})
 		if err != nil {
 			return err
 		}
 	} else if resource == "groups" {
-		_, err := RolesV3.PutInContexts(s, rid, nil, []ManagerContext{{&Projects, pid}, {&Groups, uid}})
+		_, err := RolesV3.PutInContexts(s, rid, nil, []modulebase.ManagerContext{{&Projects, pid}, {&Groups, uid}})
 		if err != nil {
 			return err
 		}
@@ -50,11 +47,13 @@ func (this *ProjectManagerV3) _join(s *mcclient.ClientSession, pid, uid, rid, re
 	return nil
 }
 
-func (this *ProjectManagerV3) _leave(s *mcclient.ClientSession, pid string, uid string, rid string, ch chan int) error {
-	defer func() {
-		ch <- 1
-	}()
-	_, err := RolesV3.DeleteInContexts(s, rid, nil, []ManagerContext{{&Projects, pid}, {&UsersV3, uid}})
+func (this *ProjectManagerV3) _leave(s *mcclient.ClientSession, pid string, resource string, uid string, rid string) error {
+	var err error
+	if resource == "users" {
+		_, err = RolesV3.DeleteInContexts(s, rid, nil, []modulebase.ManagerContext{{&Projects, pid}, {&UsersV3, uid}})
+	} else if resource == "groups" {
+		_, err = RolesV3.DeleteInContexts(s, rid, nil, []modulebase.ManagerContext{{&Projects, pid}, {&Groups, uid}})
+	}
 	if err != nil {
 		return err
 	}
@@ -72,32 +71,35 @@ func (this *ProjectManagerV3) DoLeaveProject(s *mcclient.ClientSession, params j
 	ret := jsonutils.NewDict()
 	uid, e := params.GetString("uid")
 	if e != nil {
-		return ret, e
+		return nil, httperrors.NewInputParameterError("missing uid")
 	}
 	pids, e := params.GetArray("pids")
 	if e != nil {
-		return ret, e
+		return nil, httperrors.NewInputParameterError("missing pids")
 	}
 
-	chs := make([]chan int, len(pids))
+	resource, _ := params.GetString("resource")
 
-	for i, pid := range pids {
+	if len(resource) == 0 {
+		resource = "users"
+	}
+
+	for _, pid := range pids {
 		_pid, e := pid.GetString("pid")
 		if e != nil {
-			return ret, e
+			return nil, httperrors.NewInputParameterError("missing pid in pids")
 		}
 		_rid, e := pid.GetString("rid")
 		if e != nil {
-			return ret, e
+			return nil, httperrors.NewInputParameterError("missing rid in pids")
 		}
 
-		chs[i] = make(chan int)
-		go this._leave(s, _pid, uid, _rid, chs[i])
+		err := this._leave(s, _pid, resource, uid, _rid)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	for _, ch := range chs {
-		<-ch
-	}
 	return ret, nil
 }
 
@@ -114,16 +116,18 @@ func (this *ProjectManagerV3) DoJoinProject(s *mcclient.ClientSession, params js
 	ret := jsonutils.NewDict()
 	uid, e := params.GetString("uid")
 	if e != nil {
-		return ret, e
+		return nil, httperrors.NewInputParameterError("missing uid")
 	}
-	rid, e := params.GetString("rid")
+	ridsA, e := params.Get("rid")
 	if e != nil {
-		return ret, e
+		return nil, httperrors.NewInputParameterError("missing rid")
 	}
-	pids, e := params.GetArray("pids")
+	rids := ridsA.(*jsonutils.JSONArray).GetStringArray()
+	pidsA, e := params.Get("pids")
 	if e != nil {
-		return ret, e
+		return nil, httperrors.NewInputParameterError("missing pids")
 	}
+	pids := pidsA.(*jsonutils.JSONArray).GetStringArray()
 
 	resource, _ := params.GetString("resource")
 
@@ -131,19 +135,13 @@ func (this *ProjectManagerV3) DoJoinProject(s *mcclient.ClientSession, params js
 		resource = "users"
 	}
 
-	chs := make([]chan int, len(pids))
-
-	for i, pid := range pids {
-		_pid, e := pid.GetString()
-		if e != nil {
-			return ret, e
+	for _, rid := range rids {
+		for _, pid := range pids {
+			err := this._join(s, pid, uid, rid, resource)
+			if err != nil {
+				return nil, err
+			}
 		}
-		chs[i] = make(chan int)
-		go this._join(s, _pid, uid, rid, resource, chs[i])
-	}
-
-	for _, ch := range chs {
-		<-ch
 	}
 	return ret, nil
 }
@@ -163,11 +161,11 @@ func (this *ProjectManagerV3) DoProjectBatchJoin(s *mcclient.ClientSession, para
 	if e != nil {
 		return ret, e
 	}
-	ids := make([]string, 0)
-	for _, u := range _ids {
-		name, _ := u.GetString()
-		ids = append(ids, name)
-	}
+	// ids := make([]string, 0)
+	// for _, u := range _ids {
+	// 	name, _ := u.GetString()
+	// 	ids = append(ids, name)
+	// }
 	resource, e := params.GetString("resource")
 	if e != nil {
 		return ret, e
@@ -175,7 +173,7 @@ func (this *ProjectManagerV3) DoProjectBatchJoin(s *mcclient.ClientSession, para
 	if resource != "users" && resource != "groups" {
 		return ret, fmt.Errorf("不支持的 resource type")
 	}
-	rid, e := params.GetString("rid")
+	_rids, e := params.GetArray("rid")
 	if e != nil {
 		return ret, e
 	}
@@ -184,27 +182,37 @@ func (this *ProjectManagerV3) DoProjectBatchJoin(s *mcclient.ClientSession, para
 		return ret, e
 	}
 
-	BatchDo(ids, func(id string) (jsonutils.JSONObject, error) {
-		if resource == "users" {
-			return RolesV3.PutInContexts(
-				s,
-				rid,
-				nil,
-				[]ManagerContext{
-					{&Projects,
-						pid},
-					{&UsersV3, id}})
+	for i := range _rids {
+		rid, _ := _rids[i].GetString()
+		for _, u := range _ids {
+			id, _ := u.GetString()
+			if resource == "users" {
+				_, err := RolesV3.PutInContexts(
+					s,
+					rid,
+					nil,
+					[]modulebase.ManagerContext{
+						{&Projects,
+							pid},
+						{&UsersV3, id}})
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				_, err := RolesV3.PutInContexts(
+					s,
+					rid,
+					nil,
+					[]modulebase.ManagerContext{
+						{&Projects,
+							pid},
+						{&Groups, id}})
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
-		return RolesV3.PutInContexts(
-			s,
-			rid,
-			nil,
-			[]ManagerContext{
-				{&Projects,
-					pid},
-				{&Groups, id}})
-
-	})
+	}
 
 	return ret, nil
 }
@@ -219,7 +227,6 @@ func (this *ProjectManagerV3) DoProjectBatchDeleteUserGroup(s *mcclient.ClientSe
 	//     ]}
 	// }
 
-	var wg sync.WaitGroup
 	ret := jsonutils.NewDict()
 	items, e := params.GetArray("items")
 
@@ -229,76 +236,53 @@ func (this *ProjectManagerV3) DoProjectBatchDeleteUserGroup(s *mcclient.ClientSe
 
 	for _, item := range items {
 
-		wg.Add(1)
 		id, _ := item.GetString("id")
 		role_id, _ := item.GetString("role_id")
 		res_type, _ := item.GetString("res_type")
 
-		go func(id string) {
-			defer wg.Done()
-			if res_type == "user" {
-				RolesV3.DeleteInContexts(s, role_id, nil, []ManagerContext{{&Projects, pid}, {&UsersV3, id}})
-			} else if res_type == "group" {
-				RolesV3.DeleteInContexts(s, role_id, nil, []ManagerContext{{&Projects, pid}, {&Groups, id}})
+		if res_type == "user" {
+			_, err := RolesV3.DeleteInContexts(s, role_id, nil, []modulebase.ManagerContext{{&Projects, pid}, {&UsersV3, id}})
+			if err != nil {
+				return nil, err
 			}
-		}(id)
-	}
-
-	wg.Wait()
-	return ret, nil
-}
-
-func (this *ProjectManagerV3) Delete(session *mcclient.ClientSession, id string, body jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	return this.DeleteInContexts(session, id, body, nil)
-}
-
-func (this *ProjectManagerV3) DeleteInContexts(session *mcclient.ClientSession, id string, body jsonutils.JSONObject, ctxs []ManagerContext) (jsonutils.JSONObject, error) {
-	if ctxs == nil {
-		p := jsonutils.NewDict()
-		p.Add(jsonutils.JSONTrue, "admin")
-		p.Add(jsonutils.JSONTrue, "system")
-		p.Add(jsonutils.NewString(id), "tenant")
-		ret, e := Servers.List(session, p)
-		if e != nil {
-			return nil, e
-		} else {
-			if ret.Total > 0 {
-				err := &httputils.JSONClientError{}
-				err.Code = 403
-				err.Details = fmt.Sprintf("该项目（%s）下存在云服务器，请清除后重试", id)
+		} else if res_type == "group" {
+			_, err := RolesV3.DeleteInContexts(s, role_id, nil, []modulebase.ManagerContext{{&Projects, pid}, {&Groups, id}})
+			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	return this.deleteInContexts(session, id, nil, body, ctxs)
-}
-
-func (this *ProjectManagerV3) BatchDelete(session *mcclient.ClientSession, idlist []string, body jsonutils.JSONObject) []SubmitResult {
-	return this.BatchDeleteInContexts(session, idlist, body, nil)
-}
-
-func (this *ProjectManagerV3) BatchDeleteInContexts(session *mcclient.ClientSession, idlist []string, body jsonutils.JSONObject, ctxs []ManagerContext) []SubmitResult {
-	return BatchDo(idlist, func(id string) (jsonutils.JSONObject, error) {
-		return this.DeleteInContexts(session, id, body, ctxs)
-	})
+	return ret, nil
 }
 
 func (this *ProjectManagerV3) AddTags(session *mcclient.ClientSession, id string, tags []string) error {
 	path := fmt.Sprintf("/projects/%s/tags", id)
 	body := jsonutils.NewDict()
 	body.Add(jsonutils.NewStringArray(tags), "tags")
-	_, err := this._put(session, path, body, "")
+	_, err := modulebase.Put(this.ResourceManager, session, path, body, "")
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
+func (this *ProjectManagerV3) FetchId(s *mcclient.ClientSession, project string, domain string) (string, error) {
+	query := jsonutils.NewDict()
+	if len(domain) > 0 {
+		domainId, err := Domains.GetId(s, domain, nil)
+		if err != nil {
+			return "", err
+		}
+		query.Add(jsonutils.NewString(domainId), "domain_id")
+	}
+	return this.GetId(s, project, query)
+}
+
 func init() {
 	Projects = ProjectManagerV3{NewIdentityV3Manager("project", "projects",
 		[]string{},
-		[]string{"ID", "Name", "Domain_Id", "Enabled", "Description"})}
+		[]string{"ID", "Name", "Domain_Id", "Project_Domain", "Parent_Id", "Enabled", "Description", "Created_At"})}
 
 	register(&Projects)
 }
