@@ -26,6 +26,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
@@ -95,7 +96,8 @@ func getContent(topic string, contType string, channel notify.TNotifyChannel, da
 	return buf.String(), nil
 }
 
-func Notify(recipientId string, isGroup bool, priority notify.TNotifyPriority, event string, data jsonutils.JSONObject) {
+func Notify(recipientId []string, isGroup bool, priority notify.TNotifyPriority, event string,
+	data jsonutils.JSONObject) {
 	switch priority {
 	case notify.NotifyPriorityCritical:
 		NotifyCritical(recipientId, isGroup, event, data)
@@ -106,7 +108,8 @@ func Notify(recipientId string, isGroup bool, priority notify.TNotifyPriority, e
 	}
 }
 
-func RawNotify(recipientId string, isGroup bool, channel notify.TNotifyChannel, priority notify.TNotifyPriority, event string, data jsonutils.JSONObject) {
+func RawNotify(recipientId []string, isGroup bool, channel notify.TNotifyChannel, priority notify.TNotifyPriority,
+	event string, data jsonutils.JSONObject) {
 	log.Infof("notify %s event %s priority %s", recipientId, event, priority)
 	msg := notify.SNotifyMessage{}
 	if isGroup {
@@ -133,7 +136,7 @@ func RawNotify(recipientId string, isGroup bool, channel notify.TNotifyChannel, 
 	}, nil, nil)
 }
 
-func NotifyNormal(recipientId string, isGroup bool, event string, data jsonutils.JSONObject) {
+func NotifyNormal(recipientId []string, isGroup bool, event string, data jsonutils.JSONObject) {
 	for _, c := range []notify.TNotifyChannel{
 		notify.NotifyByEmail,
 		notify.NotifyByDingTalk,
@@ -146,7 +149,7 @@ func NotifyNormal(recipientId string, isGroup bool, event string, data jsonutils
 	}
 }
 
-func NotifyImportant(recipientId string, isGroup bool, event string, data jsonutils.JSONObject) {
+func NotifyImportant(recipientId []string, isGroup bool, event string, data jsonutils.JSONObject) {
 	for _, c := range []notify.TNotifyChannel{
 		notify.NotifyByEmail,
 		notify.NotifyByDingTalk,
@@ -160,7 +163,7 @@ func NotifyImportant(recipientId string, isGroup bool, event string, data jsonut
 	}
 }
 
-func NotifyCritical(recipientId string, isGroup bool, event string, data jsonutils.JSONObject) {
+func NotifyCritical(recipientId []string, isGroup bool, event string, data jsonutils.JSONObject) {
 	for _, c := range []notify.TNotifyChannel{
 		notify.NotifyByEmail,
 		notify.NotifyByDingTalk,
@@ -175,12 +178,11 @@ func NotifyCritical(recipientId string, isGroup bool, event string, data jsonuti
 }
 
 func SystemNotify(priority notify.TNotifyPriority, event string, data jsonutils.JSONObject) {
-	for _, uid := range notifyAdminUsers {
-		Notify(uid, false, priority, event, data)
-	}
-	for _, gid := range notifyAdminGroups {
-		Notify(gid, true, priority, event, data)
-	}
+	// userId
+	Notify(notifyAdminUsers, false, priority, event, data)
+
+	// groupId
+	Notify(notifyAdminGroups, true, priority, event, data)
 }
 
 func NotifyGeneralSystemError(data jsonutils.JSONObject) {
@@ -230,7 +232,7 @@ var (
 	domainCache = make(map[string]string)
 )
 
-func getIdentityId(s *mcclient.ClientSession, idName string, manager modules.Manager) (string, error) {
+func getIdentityId(s *mcclient.ClientSession, idName string, manager modulebase.Manager) (string, error) {
 	domain, idName := parseIdName(idName)
 
 	query := jsonutils.NewDict()

@@ -15,7 +15,7 @@ type EventList struct {
 }
 
 func (l *EventList) Append(obj interface{}) {
-	event := obj.(v1.Event)
+	event := obj.(*v1.Event)
 	l.Events = append(l.Events, Event{
 		ObjectMeta:      api.NewObjectMetaV2(event.ObjectMeta, l.GetCluster()),
 		TypeMeta:        api.NewTypeMeta(api.ResourceKindEvent),

@@ -1,16 +1,14 @@
 package job
 
 import (
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 func (man *SJobManager) Delete(req *common.Request, id string) error {
-	cli := req.GetK8sClient()
+	cli := req.GetK8sManager()
 	namespace := req.GetDefaultNamespace()
-	job, err := cli.BatchV1().Jobs(namespace).Get(id, metaV1.GetOptions{})
+	job, err := cli.GetIndexer().JobLister().Jobs(namespace).Get(id)
 	if err != nil {
 		return err
 	}

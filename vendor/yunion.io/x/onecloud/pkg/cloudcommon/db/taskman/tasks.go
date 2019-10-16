@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -35,8 +36,10 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/quotas"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/httputils"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
 const (
@@ -64,7 +67,9 @@ type STaskManager struct {
 var TaskManager *STaskManager
 
 func init() {
-	TaskManager = &STaskManager{SResourceBaseManager: db.NewResourceBaseManager(STask{}, "tasks_tbl", "task", "tasks")}
+	TaskManager = &STaskManager{
+		SResourceBaseManager: db.NewResourceBaseManager(STask{}, "tasks_tbl", "task", "tasks")}
+	TaskManager.SetVirtualObject(TaskManager)
 }
 
 type STask struct {
@@ -75,9 +80,9 @@ type STask struct {
 	ObjName  string                   `width:"128" charset:"utf8" nullable:"false" list:"user"`               //  Column(VARCHAR(128, charset='utf8'), nullable=False)
 	ObjId    string                   `width:"128" charset:"ascii" nullable:"false" list:"user" index:"true"` // Column(VARCHAR(ID_LENGTH, charset='ascii'), nullable=False)
 	TaskName string                   `width:"64" charset:"ascii" nullable:"false" list:"user"`               // Column(VARCHAR(64, charset='ascii'), nullable=False)
-	UserCred mcclient.TokenCredential `width:"1024" charset:"ascii" nullable:"false" get:"user"`              // Column(VARCHAR(1024, charset='ascii'), nullable=False)
+	UserCred mcclient.TokenCredential `width:"1024" charset:"utf8" nullable:"false" get:"user"`               // Column(VARCHAR(1024, charset='ascii'), nullable=False)
 	// OwnerCred string `width:"512" charset:"ascii" nullable:"true"` // Column(VARCHAR(512, charset='ascii'), nullable=True)
-	Params *jsonutils.JSONDict `charset:"ascii" length:"medium" nullable:"false" get:"user"` // Column(MEDIUMTEXT(charset='ascii'), nullable=False)
+	Params *jsonutils.JSONDict `charset:"utf8" length:"medium" nullable:"false" get:"user"` // Column(MEDIUMTEXT(charset='ascii'), nullable=False)
 
 	Stage string `width:"64" charset:"ascii" nullable:"false" default:"on_init" list:"user"` // Column(VARCHAR(64, charset='ascii'), nullable=False, default='on_init')
 
@@ -117,16 +122,25 @@ func (manager *STaskManager) PerformAction(ctx context.Context, userCred mcclien
 	return resp, nil
 }
 
-func (manager *STaskManager) GetOwnerId(userCred mcclient.IIdentityProvider) string {
-	return userCred.GetProjectId()
+func (self *STask) GetOwnerId() mcclient.IIdentityProvider {
+	owner := db.SOwnerId{DomainId: self.UserCred.GetProjectDomainId(), Domain: self.UserCred.GetProjectDomain(),
+		ProjectId: self.UserCred.GetProjectId(), Project: self.UserCred.GetProjectName()}
+	return &owner
 }
 
-func (self *STask) GetOwnerProjectId() string {
-	return self.UserCred.GetProjectId()
-}
-
-func (manager *STaskManager) FilterByOwner(q *sqlchemy.SQuery, owner string) *sqlchemy.SQuery {
-	q = q.Contains("user_cred", owner)
+func (manager *STaskManager) FilterByOwner(q *sqlchemy.SQuery, owner mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	if owner != nil {
+		switch scope {
+		case rbacutils.ScopeProject:
+			if len(owner.GetProjectId()) > 0 {
+				q = q.Contains("user_cred", owner.GetProjectId())
+			}
+		case rbacutils.ScopeDomain:
+			if len(owner.GetProjectDomainId()) > 0 {
+				q = q.Contains("user_cred", owner.GetProjectDomainId())
+			}
+		}
+	}
 	return q
 }
 
@@ -143,7 +157,11 @@ func (self *STask) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (self *STask) ValidateDeleteCondition(ctx context.Context) error {
-	return fmt.Errorf("forbidden")
+	return httperrors.NewForbiddenError("forbidden")
+}
+
+func (self *STask) ValidateUpdateCondition(ctx context.Context) error {
+	return httperrors.NewForbiddenError("forbidden")
 }
 
 func (self *STask) BeforeInsert() {
@@ -420,7 +438,7 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 				task.SaveRequestContext(&ctxData)
 				return
 			}
-			objs[i] = obj
+			objs[i] = obj.(db.IStandaloneModel)
 		}
 		task.taskObjects = objs
 
@@ -437,7 +455,7 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 			task.SaveRequestContext(&ctxData)
 			return
 		}
-		task.taskObject = obj
+		task.taskObject = obj.(db.IStandaloneModel)
 
 		lockman.LockObject(ctx, obj)
 		defer lockman.ReleaseObject(ctx, obj)
@@ -452,6 +470,21 @@ func execITask(taskValue reflect.Value, task *STask, odata jsonutils.JSONObject,
 		log.Errorf("Cannot locate baseTask embedded struct, give up...")
 		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			// call set stage failed, should not call task.SetStageFailed
+			// func SetStageFailed may be overloading
+			log.Errorf("Task %s PANIC on stage %s: %v \n%s", task.TaskName, stageName, r, debug.Stack())
+			SetStageFailedFuncValue := taskValue.MethodByName("SetStageFailed")
+			SetStageFailedFuncValue.Call(
+				[]reflect.Value{
+					reflect.ValueOf(ctx),
+					reflect.ValueOf(fmt.Sprintf("%v", r)),
+				},
+			)
+		}
+	}()
 
 	log.Debugf("Call %s %s %#v", task.TaskName, stageName, params)
 	funcValue.Call(params)
@@ -628,9 +661,6 @@ func notifyRemoteTask(ctx context.Context, notifyUrl string, taskid string, body
 func (self *STask) NotifyParentTaskFailure(ctx context.Context, reason string) {
 	body := jsonutils.NewDict()
 	body.Add(jsonutils.NewString("error"), "__status__")
-	if len(reason) > 100 {
-		reason = reason[:100] + "..."
-	}
 	body.Add(jsonutils.NewString(fmt.Sprintf("Subtask %s failed: %s", self.TaskName, reason)), "__reason__")
 	self.NotifyParentTaskComplete(ctx, body, true)
 }
@@ -750,13 +780,9 @@ func (manager *STaskManager) QueryTasksOfObject(obj db.IStandaloneModel, since t
 		}
 	}
 
-	// subq1 and subq2 do not intersect for the fact that they have
-	// different condition on tasks_tbl.obj_id field
-	uq := sqlchemy.Union(subq1, subq2)
-	uq = uq.Desc("created_at")
-
-	q := uq.SubQuery().Query()
-	return q
+	// subq1 and subq2 do not overlap for the fact that they have
+	// different conditions on tasks_tbl.obj_id field
+	return sqlchemy.Union(subq1, subq2).Query().Desc("created_at")
 }
 
 func (manager *STaskManager) IsInTask(obj db.IStandaloneModel) bool {

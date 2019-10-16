@@ -2,10 +2,7 @@ package service
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
@@ -14,6 +11,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/endpoint"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -54,31 +52,31 @@ type ServiceDetail struct {
 
 func (man *SServiceManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetServiceDetail(req.GetK8sClient(), req.GetCluster(), namespace, id, req.ToQuery())
+	return GetServiceDetail(req.GetIndexer(), req.GetCluster(), namespace, id, req.ToQuery())
 }
 
 func GetServiceDetail(
-	client client.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	namespace, name string,
 	dsQuery *dataselect.DataSelectQuery,
 ) (*ServiceDetail, error) {
 	log.Infof("Getting details of %s service in %s namespace", name, namespace)
-	serviceData, err := client.CoreV1().Services(namespace).Get(name, metaV1.GetOptions{})
+	serviceData, err := indexer.ServiceLister().Services(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
-	endpointList, err := endpoint.GetServiceEndpoints(client, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	podList, err := GetServicePods(client, cluster, namespace, name, dsQuery)
+	endpointList, err := endpoint.GetServiceEndpoints(indexer, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := GetServiceEvents(client, cluster, dataselect.DefaultDataSelect(), namespace, name)
+	podList, err := GetServicePods(indexer, cluster, namespace, name, dsQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	eventList, err := GetServiceEvents(indexer, cluster, dataselect.DefaultDataSelect(), namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +87,12 @@ func GetServiceDetail(
 
 // GetServicePods gets list of pods targeted by given label selector in given namespace.
 func GetServicePods(
-	cli client.Interface,
+	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	namespace, name string,
 	dsQuery *dataselect.DataSelectQuery,
 ) (*pod.PodList, error) {
-	service, err := cli.CoreV1().Services(namespace).Get(name, metaV1.GetOptions{})
+	service, err := indexer.ServiceLister().Services(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +103,7 @@ func GetServicePods(
 
 	labelSelector := labels.SelectorFromSet(service.Spec.Selector)
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannelWithOptions(cli, common.NewSameNamespaceQuery(namespace),
-			metaV1.ListOptions{
-				LabelSelector: labelSelector.String(),
-				FieldSelector: fields.Everything().String(),
-			}),
+		PodList: common.GetPodListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), labelSelector),
 	}
 
 	apiPodList := <-channels.PodList.List
@@ -117,24 +111,24 @@ func GetServicePods(
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(cli, namespace, apiPodList.Items)
+	events, err := event.GetPodsEvents(indexer, namespace, apiPodList)
 	if err != nil {
 		return nil, err
 	}
 
-	return pod.ToPodList(apiPodList.Items, events, dsQuery, cluster)
+	return pod.ToPodList(apiPodList, events, dsQuery, cluster)
 }
 
 // GetServiceEvents returns model events for a service with the given name in the given namespace.
-func GetServiceEvents(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
-	serviceEvents, err := event.GetEvents(client, namespace, name)
+func GetServiceEvents(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*common.EventList, error) {
+	serviceEvents, err := event.GetEvents(indexer, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
 	eventList, err := event.CreateEventList(event.FillEventsType(serviceEvents), dsQuery, cluster)
 	log.Infof("Found %d events related to %s service in %s namespace", len(eventList.Events), name, namespace)
-	return &eventList, err
+	return eventList, err
 }
 
 // ToServiceDetail returns api service object based on kubernetes service object

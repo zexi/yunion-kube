@@ -67,7 +67,7 @@ func ToResourceList(list IList, data interface{}, cellConvertF convertF, dsQuery
 
 func getObjectMeta(obj interface{}) (metaV1.ObjectMeta, error) {
 	v := reflect.ValueOf(obj)
-	f := v.FieldByName("ObjectMeta")
+	f := reflect.Indirect(v).FieldByName("ObjectMeta")
 	if !f.IsValid() {
 		return metaV1.ObjectMeta{}, fmt.Errorf("Object %#v not have ObjectMeta field", obj)
 	}
@@ -87,7 +87,7 @@ func getObjectMeta(obj interface{}) (metaV1.ObjectMeta, error) {
 
 func getObjectPodStatus(obj interface{}) (v1.PodStatus, error) {
 	v := reflect.ValueOf(obj)
-	f := v.FieldByName("Status")
+	f := reflect.Indirect(v).FieldByName("Status")
 	if !f.IsValid() {
 		return v1.PodStatus{}, fmt.Errorf("Object %#v not have Status field", obj)
 	}
@@ -234,7 +234,7 @@ type SecretDataCell struct {
 
 func getSecretType(obj interface{}) (v1.SecretType, error) {
 	v := reflect.ValueOf(obj)
-	f := v.FieldByName("Type")
+	f := reflect.Indirect(v).FieldByName("Type")
 	if !f.IsValid() {
 		return "", fmt.Errorf("Object %#v not hava Type field", obj)
 	}
@@ -272,7 +272,7 @@ type PVCDataCell struct {
 
 func getPVCMountedBy(obj interface{}) ([]string, error) {
 	v := reflect.ValueOf(obj)
-	f := v.FieldByName("MountedBy")
+	f := reflect.Indirect(v).FieldByName("MountedBy")
 	if !f.IsValid() {
 		return nil, fmt.Errorf("Object %#v not hava MountedBy field", obj)
 	}
@@ -314,7 +314,7 @@ type ServiceDataCell struct {
 
 func getServiceSpec(obj interface{}) (v1.ServiceSpec, error) {
 	v := reflect.ValueOf(obj)
-	f := v.FieldByName("Spec")
+	f := reflect.Indirect(v).FieldByName("Spec")
 	if !f.IsValid() {
 		return v1.ServiceSpec{}, fmt.Errorf("Object %#v not hava Spec field", obj)
 	}

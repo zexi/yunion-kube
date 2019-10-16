@@ -14,8 +14,10 @@
 
 package modules
 
+import "yunion.io/x/onecloud/pkg/mcclient/modulebase"
+
 var (
-	Cloudaccounts ResourceManager
+	Cloudaccounts modulebase.ResourceManager
 )
 
 func init() {
@@ -23,8 +25,10 @@ func init() {
 		[]string{"ID", "Name", "Enabled", "Status", "Access_url",
 			"balance", "error_count", "health_status",
 			"Sync_Status", "Last_sync",
-			"guest_count",
-			"Provider", "Enable_Auto_Sync", "Sync_Interval_Seconds"},
+			"guest_count", "project_domain", "domain_id",
+			"Provider", "Brand",
+			"Enable_Auto_Sync", "Sync_Interval_Seconds",
+			"Is_Public"},
 		[]string{})
 
 	registerCompute(&Cloudaccounts)

@@ -11,6 +11,7 @@ import (
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
+	yclient "yunion.io/x/yunion-kube/pkg/client"
 )
 
 type ReleaseDetail struct {
@@ -39,7 +40,7 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail
 		return nil, err
 	}
 
-	detail, err := GetReleaseDetail(cli, req.GetCluster(), genericCli, namespace, id)
+	detail, err := GetReleaseDetail(cli, req.GetCluster(), genericCli, req.GetIndexer(), namespace, id)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +51,7 @@ func GetReleaseDetail(
 	helmclient *client.HelmTunnelClient,
 	cluster apis.ICluster,
 	genericClient *k8sclient.GenericClient,
+	indexer *yclient.CacheFactory,
 	namespace, releaseName string,
 ) (*ReleaseDetail, error) {
 	log.Infof("Get helm release: %q", releaseName)
@@ -75,7 +77,7 @@ func GetReleaseDetail(
 		return nil, fmt.Errorf("CoalesceValues: %v", err)
 	}
 
-	res, err := GetReleaseResources(genericClient, cluster, rls.Release)
+	res, err := GetReleaseResources(genericClient, indexer, cluster, rls.Release)
 	if err != nil {
 		return nil, fmt.Errorf("Get release resources: %v", err)
 	}

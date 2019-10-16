@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	tcmd "k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/cluster-api/cmd/clusterctl/clientcmd"
-	"sigs.k8s.io/cluster-api/pkg/util"
 
 	"yunion.io/x/log"
 )
@@ -34,7 +33,7 @@ func NewClientFromKubeconfig(kubeconfig string) (*Client, error) {
 	defer ifErrRemove(err, f)
 	c := &Client{
 		kubeconfigFile:  f,
-		configOverrides: clientcmd.NewConfigOverrides(),
+		configOverrides: tcmd.ConfigOverrides{},
 	}
 	c.closeFn = c.removeKubeconfigFile
 	return c, nil
@@ -108,7 +107,7 @@ func (c *Client) kubectlApply(manifest string) error {
 }
 
 func (c *Client) waitForKubectlApply(manifest string) error {
-	err := util.PollImmediate(retryIntervalKubectlApply, timeoutKubectlApply, func() (bool, error) {
+	err := wait.PollImmediate(retryIntervalKubectlApply, timeoutKubectlApply, func() (bool, error) {
 		log.Infof("Waiting for kubectl apply...")
 		err := c.kubectlApply(manifest)
 		if err != nil {

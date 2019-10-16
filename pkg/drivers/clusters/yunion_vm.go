@@ -45,6 +45,10 @@ func init() {
 	clusters.RegisterClusterDriver(NewYunionVMDriver())
 }
 
+func (d *SYunionVMDriver) GetMode() types.ModeType {
+	return types.ModeTypeSelfBuild
+}
+
 func (d *SYunionVMDriver) GetProvider() types.ProviderType {
 	return types.ProviderTypeOnecloud
 }
@@ -208,8 +212,8 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 	return nil
 }
 
-func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerProjId, query, data); err != nil {
+func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
 	createData := types.CreateClusterData{}
@@ -324,7 +328,10 @@ func (d *SYunionVMDriver) RequestDeployMachines(ctx context.Context, userCred mc
 }
 
 func (d *SYunionVMDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
-	commonConf := d.GetCommonAddonsConfig(cluster)
+	commonConf, err := d.GetCommonAddonsConfig(cluster)
+	if err != nil {
+		return "", err
+	}
 
 	pluginConf := &addons.YunionVMPluginsConfig{
 		YunionCommonPluginsConfig: commonConf,

@@ -3,12 +3,12 @@ package replicaset
 import (
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	client "k8s.io/client-go/kubernetes"
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -43,21 +43,21 @@ func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *common.PodInfo, cluster 
 type ReplicaSetList struct {
 	*common.BaseList
 	ReplicaSets []ReplicaSet
-	events      []v1.Event
-	pods        []v1.Pod
+	events      []*v1.Event
+	pods        []*v1.Pod
 	// Basic information about resources status on the list.
 	Status common.ResourceStatus
 }
 
 // GetReplicaSetList returns a list of all Replica Sets in the cluster.
-func GetReplicaSetList(client client.Interface, nsQuery *common.NamespaceQuery,
+func GetReplicaSetList(indexer *client.CacheFactory, nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ReplicaSetList, error) {
 	log.Infof("Getting list of all replica sets in the cluster")
 
 	channels := &common.ResourceChannels{
-		ReplicaSetList: common.GetReplicaSetListChannel(client, nsQuery),
-		PodList:        common.GetPodListChannel(client, nsQuery),
-		EventList:      common.GetEventListChannel(client, nsQuery),
+		ReplicaSetList: common.GetReplicaSetListChannel(indexer, nsQuery),
+		PodList:        common.GetPodListChannel(indexer, nsQuery),
+		EventList:      common.GetEventListChannel(indexer, nsQuery),
 	}
 
 	return GetReplicaSetListFromChannels(channels, dsQuery, cluster)
@@ -86,29 +86,29 @@ func GetReplicaSetListFromChannels(channels *common.ResourceChannels,
 		return nil, err
 	}
 
-	rsList, err := ToReplicaSetList(replicaSets.Items, pods.Items, events.Items, dsQuery, cluster)
+	rsList, err := ToReplicaSetList(replicaSets, pods, events, dsQuery, cluster)
 	if err != nil {
 		return nil, err
 	}
-	rsList.Status = getStatus(replicaSets, pods.Items, events.Items)
+	rsList.Status = getStatus(replicaSets, pods, events)
 	return rsList, nil
 }
 
 func (l *ReplicaSetList) Append(obj interface{}) {
-	replicaSet := obj.(apps.ReplicaSet)
+	replicaSet := obj.(*apps.ReplicaSet)
 	pods := l.pods
 	events := l.events
-	matchingPods := common.FilterPodsByControllerRef(&replicaSet, pods)
+	matchingPods := common.FilterPodsByControllerRef(replicaSet, pods)
 	podInfo := common.GetPodInfo(replicaSet.Status.Replicas, replicaSet.Spec.Replicas,
 		matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
 
-	l.ReplicaSets = append(l.ReplicaSets, ToReplicaSet(&replicaSet, &podInfo, l.GetCluster()))
+	l.ReplicaSets = append(l.ReplicaSets, ToReplicaSet(replicaSet, &podInfo, l.GetCluster()))
 }
 
 // ToReplicaSetList creates paginated list of Replica Set model
 // objects based on Kubernetes Replica Set objects array and related resources arrays.
-func ToReplicaSetList(replicaSets []apps.ReplicaSet, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ReplicaSetList, error) {
+func ToReplicaSetList(replicaSets []*apps.ReplicaSet, pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ReplicaSetList, error) {
 
 	replicaSetList := &ReplicaSetList{
 		BaseList:    common.NewBaseList(cluster),
@@ -125,14 +125,14 @@ func ToReplicaSetList(replicaSets []apps.ReplicaSet, pods []v1.Pod, events []v1.
 	return replicaSetList, err
 }
 
-func getStatus(list *apps.ReplicaSetList, pods []v1.Pod, events []v1.Event) common.ResourceStatus {
+func getStatus(list []*apps.ReplicaSet, pods []*v1.Pod, events []*v1.Event) common.ResourceStatus {
 	info := common.ResourceStatus{}
 	if list == nil {
 		return info
 	}
 
-	for _, rs := range list.Items {
-		matchingPods := common.FilterPodsByControllerRef(&rs, pods)
+	for _, rs := range list {
+		matchingPods := common.FilterPodsByControllerRef(rs, pods)
 		podInfo := common.GetPodInfo(rs.Status.Replicas, rs.Spec.Replicas, matchingPods)
 		warnings := event.GetPodsEventWarnings(events, matchingPods)
 

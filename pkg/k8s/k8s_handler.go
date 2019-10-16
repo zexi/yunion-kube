@@ -12,6 +12,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
@@ -20,6 +21,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	//"yunion.io/x/yunion-kube/pkg/models/types"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/errors"
 )
@@ -96,11 +98,7 @@ func (h *K8sResourceHandler) KeywordPlural() string {
 }
 
 func getUserCredential(ctx context.Context) mcclient.TokenCredential {
-	token := auth.FetchUserCredential(ctx, nil)
-	if token == nil {
-		log.Fatalf("user token credential not found?")
-	}
-	return token
+	return policy.FetchUserCredential(ctx)
 }
 
 func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredential) (*clusters.SCluster, error) {
@@ -123,22 +121,6 @@ func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredenti
 	}
 	return cluster.(*clusters.SCluster), nil
 }
-
-/*func newK8sUserClient(cluster *clusters.SCluster, userCred mcclient.TokenCredential) (kubernetes.Interface, *rest.Config, error) {
-	info, err := models.DecodeClusterInfo(cluster.ToInfo())
-	if err != nil {
-		return nil, nil, err
-	}
-	config := &rest.Config{
-		Host: info.Endpoint,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: []byte(info.RootCaCertificate),
-		},
-		BearerToken: userCred.GetTokenString(),
-	}
-	cli, err := kubernetes.NewForConfig(config)
-	return cli, config, err
-}*/
 
 func newK8sAdminClient(cluster *clusters.SCluster) (kubernetes.Interface, *rest.Config, error) {
 	cli, err := cluster.GetK8sClient()
@@ -164,6 +146,10 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 	if err != nil {
 		return nil, err
 	}*/
+	man, err := client.GetManagerByCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
 
 	k8sAdminCli, adminConfig, err := newK8sAdminClient(cluster)
 	if err != nil {
@@ -174,7 +160,8 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 		return nil, err
 	}
 	req := &common.Request{
-		Cluster: cluster,
+		Cluster:        cluster,
+		ClusterManager: man,
 		//K8sClient:       k8sCli,
 		//K8sConfig:       config,
 		K8sAdminClient:  k8sAdminCli,

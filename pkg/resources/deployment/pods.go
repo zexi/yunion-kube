@@ -1,9 +1,9 @@
 package deployment
 
 import (
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
@@ -12,16 +12,19 @@ import (
 )
 
 // GetDeploymentPods returns list of pods targeting deployment.
-func GetDeploymentPods(client client.Interface, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, deploymentName string) (*pod.PodList, error) {
+func GetDeploymentPods(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, deploymentName string) (*pod.PodList, error) {
 
-	deployment, err := client.AppsV1beta2().Deployments(namespace).Get(deploymentName, metaV1.GetOptions{})
+	deployment, err := indexer.DeploymentLister().Deployments(namespace).Get(deploymentName)
+	if err != nil {
+		return nil, err
+	}
+	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
 	if err != nil {
 		return nil, err
 	}
 
 	channels := &common.ResourceChannels{
-		PodList:        common.GetPodListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		ReplicaSetList: common.GetReplicaSetListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		PodList: common.GetPodListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), selector),
 	}
 
 	rawPods := <-channels.PodList.List
@@ -29,18 +32,11 @@ func GetDeploymentPods(client client.Interface, cluster api.ICluster, dsQuery *d
 		return nil, err
 	}
 
-	rawRs := <-channels.ReplicaSetList.List
-	err = <-channels.ReplicaSetList.Error
+	events, err := event.GetPodsEvents(indexer, namespace, rawPods)
 	if err != nil {
 		return nil, err
 	}
 
-	pods := common.FilterDeploymentPodsByOwnerReference(*deployment, rawRs.Items, rawPods.Items)
-	events, err := event.GetPodsEvents(client, namespace, pods)
-	if err != nil {
-		return nil, err
-	}
-
-	podList, err := pod.ToPodList(pods, events, dsQuery, cluster)
+	podList, err := pod.ToPodList(rawPods, events, dsQuery, cluster)
 	return podList, err
 }

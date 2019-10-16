@@ -6,10 +6,6 @@ import (
 	//"strings"
 
 	//"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	providerv1 "yunion.io/x/cluster-api-provider-onecloud/pkg/apis/onecloudprovider/v1alpha1"
-	"yunion.io/x/cluster-api-provider-onecloud/pkg/cloud/onecloud/services/certificates"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	//"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
@@ -24,6 +20,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
+	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 )
 
 type sClusterAPIBaseDriver struct {
@@ -38,39 +35,6 @@ func newClusterAPIBaseDriver() *sClusterAPIBaseDriver {
 
 func (d *sClusterAPIBaseDriver) UseClusterAPI() bool {
 	return true
-}
-
-func (d *sClusterAPIBaseDriver) newClusterAPIMachine(machine *machines.SMachine) (*clusterv1.Machine, error) {
-	privateIP, err := machine.GetPrivateIP()
-	if err != nil {
-		//return nil, err
-		// TODO: fix this for vm
-		log.Errorf("Get privateIP error: %v", err)
-	}
-	spec := &providerv1.OneCloudMachineProviderSpec{
-		ResourceType: machine.ResourceType,
-		Provider:     machine.Provider,
-		MachineID:    machine.Id,
-		Role:         machine.Role,
-		PrivateIP:    privateIP,
-	}
-	specVal, err := providerv1.EncodeMachineSpec(spec)
-	if err != nil {
-		return nil, err
-	}
-	return &clusterv1.Machine{
-		ObjectMeta: v1.ObjectMeta{
-			Name: machine.Name,
-			Labels: map[string]string{
-				"set": machine.Role,
-			},
-		},
-		Spec: clusterv1.MachineSpec{
-			ProviderSpec: clusterv1.ProviderSpec{
-				Value: specVal,
-			},
-		},
-	}, nil
 }
 
 func (d *sClusterAPIBaseDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {

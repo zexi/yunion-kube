@@ -51,6 +51,7 @@ func init() {
 	ClusterManager = &SClusterManager{
 		SStatusStandaloneResourceBaseManager: db.NewStatusStandaloneResourceBaseManager(SCluster{}, "clusters_tbl", "kube_cluster", "kube_clusters"),
 	}
+	ClusterManager.SetVirtualObject(ClusterManager)
 }
 
 const (
@@ -163,7 +164,7 @@ func (c *SCluster) AllowDeleteItem(ctx context.Context, userCred mcclient.TokenC
 	return db.IsAdminAllowDelete(userCred, c)
 }
 
-func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	setDefaultStr := func(key, def string) string {
 		val, _ := data.GetString(key)
 		if val == "" {

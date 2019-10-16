@@ -1,16 +1,14 @@
 package deployment
 
 import (
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 func (man *SDeploymentManager) Delete(req *common.Request, id string) error {
-	cli := req.GetK8sClient()
+	cli := req.GetK8sManager()
 	namespace := req.GetDefaultNamespace()
-	deployment, err := cli.AppsV1beta2().Deployments(namespace).Get(id, metaV1.GetOptions{})
+	deployment, err := cli.GetIndexer().DeploymentLister().Deployments(namespace).Get(id)
 	if err != nil {
 		return err
 	}

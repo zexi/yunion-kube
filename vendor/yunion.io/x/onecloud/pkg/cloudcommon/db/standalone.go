@@ -16,27 +16,35 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
+)
+
+type UUIDGenerator func() string
+
+var (
+	DefaultUUIDGenerator = stringutils.UUID4
 )
 
 type SStandaloneResourceBase struct {
 	SResourceBase
 
-	Id         string `width:"128" charset:"ascii" primary:"true" list:"user"`
-	Name       string `width:"128" charset:"utf8" nullable:"false" index:"true" list:"user" update:"user" create:"required"`
-	ExternalId string `width:"256" charset:"utf8" index:"true" list:"user" create:"admin_optional"`
+	Id   string `width:"128" charset:"ascii" primary:"true" list:"user"`
+	Name string `width:"128" charset:"utf8" nullable:"false" index:"true" list:"user" update:"user" create:"required"`
 
 	Description string `width:"256" charset:"utf8" get:"user" list:"user" update:"user" create:"optional"`
 
@@ -45,7 +53,7 @@ type SStandaloneResourceBase struct {
 
 func (model *SStandaloneResourceBase) BeforeInsert() {
 	if len(model.Id) == 0 {
-		model.Id = stringutils.UUID4()
+		model.Id = DefaultUUIDGenerator()
 	}
 }
 
@@ -57,6 +65,10 @@ type SStandaloneResourceBaseManager struct {
 
 func NewStandaloneResourceBaseManager(dt interface{}, tableName string, keyword string, keywordPlural string) SStandaloneResourceBaseManager {
 	return SStandaloneResourceBaseManager{SResourceBaseManager: NewResourceBaseManager(dt, tableName, keyword, keywordPlural)}
+}
+
+func (manager *SStandaloneResourceBaseManager) GetIStandaloneModelManager() IStandaloneModelManager {
+	return manager.GetVirtualObject().(IStandaloneModelManager)
 }
 
 func (manager *SStandaloneResourceBaseManager) FilterById(q *sqlchemy.SQuery, idStr string) *sqlchemy.SQuery {
@@ -71,9 +83,30 @@ func (manager *SStandaloneResourceBaseManager) FilterByName(q *sqlchemy.SQuery, 
 	return q.Equals("name", name)
 }
 
-/*func (manager *SStandaloneResourceBaseManager) IsNewNameUnique(name string, projectId string) bool {
-	return manager.Query().Equals("name", name).Count() == 0
-}*/
+func (manager *SStandaloneResourceBaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	q = manager.SResourceBaseManager.FilterByHiddenSystemAttributes(q, userCred, query, scope)
+	showEmulated := jsonutils.QueryBoolean(query, "show_emulated", false)
+	if showEmulated {
+		var isAllow bool
+		if consts.IsRbacEnabled() {
+			allowScope := policy.PolicyManager.AllowScope(userCred, consts.GetServiceType(), manager.KeywordPlural(), policy.PolicyActionList, "show_emulated")
+			if !scope.HigherThan(allowScope) {
+				isAllow = true
+			}
+		} else {
+			if userCred.HasSystemAdminPrivilege() {
+				isAllow = true
+			}
+		}
+		if !isAllow {
+			showEmulated = false
+		}
+	}
+	if !showEmulated {
+		q = q.IsFalse("is_emulated")
+	}
+	return q
+}
 
 func (manager *SStandaloneResourceBaseManager) ValidateName(name string) error {
 	if manager.NameRequireAscii && !regutils.MatchName(name) {
@@ -86,39 +119,15 @@ func (manager *SStandaloneResourceBaseManager) ValidateName(name string) error {
 }
 
 func (manager *SStandaloneResourceBaseManager) FetchById(idStr string) (IModel, error) {
-	return FetchById(manager, idStr)
+	return FetchById(manager.GetIStandaloneModelManager(), idStr)
 }
 
 func (manager *SStandaloneResourceBaseManager) FetchByName(userCred mcclient.IIdentityProvider, idStr string) (IModel, error) {
-	return FetchByName(manager, userCred, idStr)
+	return FetchByName(manager.GetIStandaloneModelManager(), userCred, idStr)
 }
 
 func (manager *SStandaloneResourceBaseManager) FetchByIdOrName(userCred mcclient.IIdentityProvider, idStr string) (IModel, error) {
-	return FetchByIdOrName(manager, userCred, idStr)
-}
-
-func (manager *SStandaloneResourceBaseManager) FetchByExternalId(idStr string) (IStandaloneModel, error) {
-	q := manager.Query().Equals("external_id", idStr)
-	count, err := q.CountWithError()
-	if err != nil {
-		return nil, err
-	}
-	if count == 1 {
-		obj, err := NewModelObject(manager)
-		if err != nil {
-			return nil, err
-		}
-		err = q.First(obj)
-		if err != nil {
-			return nil, err
-		} else {
-			return obj.(IStandaloneModel), nil
-		}
-	} else if count > 1 {
-		return nil, sqlchemy.ErrDuplicateEntry
-	} else {
-		return nil, sql.ErrNoRows
-	}
+	return FetchByIdOrName(manager.GetIStandaloneModelManager(), userCred, idStr)
 }
 
 type STagValue struct {
@@ -130,11 +139,6 @@ func (manager *SStandaloneResourceBaseManager) ListItemFilter(ctx context.Contex
 	q, err := manager.SResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
 	if err != nil {
 		return q, err
-	}
-
-	showEmulated := jsonutils.QueryBoolean(query, "show_emulated", false)
-	if !showEmulated {
-		q = q.Filter(sqlchemy.IsFalse(q.Field("is_emulated")))
 	}
 
 	tags := map[string]STagValue{}
@@ -156,7 +160,7 @@ func (manager *SStandaloneResourceBaseManager) ListItemFilter(ctx context.Contex
 	}
 
 	if len(tags) > 0 {
-		metadataView := Metadata.Query("id")
+		metadataView := Metadata.Query()
 		idx := 0
 		for k, v := range tags {
 			if idx == 0 {
@@ -174,25 +178,26 @@ func (manager *SStandaloneResourceBaseManager) ListItemFilter(ctx context.Contex
 			}
 			idx++
 		}
-		metadataView = metadataView.Filter(sqlchemy.Like(metadataView.Field("id"), manager.Keyword()+"::%")).Distinct()
-		resourceIds := []string{}
-		rows, err := metadataView.Rows()
-		if err != nil {
-			log.Errorf("query metadata ids error: %v", err)
-			return nil, err
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var metadataID string
-			err = rows.Scan(&metadataID)
-			if err != nil {
-				log.Errorf("get metadata id scan error: %v", err)
-				return nil, err
-			}
-			resourceIds = append(resourceIds, strings.TrimLeft(metadataID, manager.Keyword()+"::"))
-		}
-		q = q.Filter(sqlchemy.In(q.Field("id"), resourceIds))
+		metadatas := metadataView.SubQuery()
+		fieldName := fmt.Sprintf("%s_id", manager.Keyword())
+		metadataSQ := metadatas.Query(
+			sqlchemy.REPLACE(fieldName, metadatas.Field("id"), manager.Keyword()+"::", ""),
+		)
+		sq := metadataSQ.Filter(sqlchemy.Like(metadatas.Field("id"), manager.Keyword()+"::%")).Distinct()
+		q = q.Filter(sqlchemy.In(q.Field("id"), sq))
 	}
+
+	if withoutUserMeta, _ := query.Bool("without_user_meta"); withoutUserMeta {
+		metadatas := Metadata.Query().SubQuery()
+		fieldName := fmt.Sprintf("%s_id", manager.Keyword())
+		metadataSQ := metadatas.Query(
+			sqlchemy.REPLACE(fieldName, metadatas.Field("id"), manager.Keyword()+"::", ""),
+		)
+		sq := metadataSQ.Filter(sqlchemy.Like(metadatas.Field("key"), USER_TAG_PREFIX+"%")).Distinct()
+
+		q.Filter(sqlchemy.NotIn(q.Field("id"), sq))
+	}
+
 	return q, nil
 }
 
@@ -208,13 +213,17 @@ func (model *SStandaloneResourceBase) GetName() string {
 	return model.Name
 }
 
+func (model *SStandaloneResourceBase) GetIStandaloneModel() IStandaloneModel {
+	return model.GetVirtualObject().(IStandaloneModel)
+}
+
 func (model *SStandaloneResourceBase) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
 	desc := model.SResourceBase.GetShortDesc(ctx)
 	desc.Add(jsonutils.NewString(model.GetName()), "name")
 	desc.Add(jsonutils.NewString(model.GetId()), "id")
-	if len(model.ExternalId) > 0 {
+	/*if len(model.ExternalId) > 0 {
 		desc.Add(jsonutils.NewString(model.ExternalId), "external_id")
-	}
+	}*/
 	return desc
 }
 
@@ -230,18 +239,10 @@ func (model *SStandaloneResourceBase) GetMetadataJson(key string, userCred mccli
 }
 
 func (model *SStandaloneResourceBase) SetMetadata(ctx context.Context, key string, value interface{}, userCred mcclient.TokenCredential) error {
-	if Metadata.IsSystemAdminKey(key) && !IsAdminAllowPerform(userCred, model, "metadata") {
-		return httperrors.NewNotSufficientPrivilegeError("cannot set system key")
-	}
 	return Metadata.SetValue(ctx, model, key, value, userCred)
 }
 
 func (model *SStandaloneResourceBase) SetAllMetadata(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
-	for k := range dictstore {
-		if Metadata.IsSystemAdminKey(k) && !IsAdminAllowPerform(userCred, model, "metadata") {
-			return httperrors.NewNotSufficientPrivilegeError("not allow to set system key %s", k)
-		}
-	}
 	return Metadata.SetValuesWithLog(ctx, model, dictstore, userCred)
 }
 
@@ -250,7 +251,11 @@ func (model *SStandaloneResourceBase) SetUserMetadataValues(ctx context.Context,
 }
 
 func (model *SStandaloneResourceBase) SetUserMetadataAll(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
-	return Metadata.SetAll(ctx, model, dictstore, userCred, "user")
+	return Metadata.SetAll(ctx, model, dictstore, userCred, USER_TAG_PREFIX)
+}
+
+func (model *SStandaloneResourceBase) SetCloudMetadataAll(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
+	return Metadata.SetAll(ctx, model, dictstore, userCred, CLOUD_TAG_PREFIX)
 }
 
 func (model *SStandaloneResourceBase) RemoveMetadata(ctx context.Context, key string, userCred mcclient.TokenCredential) error {
@@ -266,7 +271,7 @@ func (model *SStandaloneResourceBase) GetAllMetadata(userCred mcclient.TokenCred
 }
 
 func (model *SStandaloneResourceBase) AllowGetDetailsMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return IsAdminAllowGetSpec(userCred, model, "metadata")
+	return IsAllowGetSpec(rbacutils.ScopeSystem, userCred, model, "metadata")
 }
 
 func (model *SStandaloneResourceBase) GetDetailsMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -279,7 +284,7 @@ func (model *SStandaloneResourceBase) GetDetailsMetadata(ctx context.Context, us
 }
 
 func (model *SStandaloneResourceBase) AllowPerformMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return IsAdminAllowPerform(userCred, model, "metadata")
+	return IsAllowPerform(rbacutils.ScopeSystem, userCred, model, "metadata")
 }
 
 func (model *SStandaloneResourceBase) PerformMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -293,6 +298,10 @@ func (model *SStandaloneResourceBase) PerformMetadata(ctx context.Context, userC
 	}
 	dictStore := make(map[string]interface{})
 	for k, v := range dictMap {
+		// 已双下滑线开头的metadata是系统内置，普通用户不可添加，只能查看
+		if strings.HasPrefix(k, SYS_TAG_PREFIX) && (userCred == nil || !IsAllowPerform(rbacutils.ScopeSystem, userCred, model, "metadata")) {
+			return nil, httperrors.NewForbiddenError("not allow to set system key, please remove the underscore at the beginning")
+		}
 		dictStore[k], _ = v.GetString()
 	}
 	err = model.SetAllMetadata(ctx, dictStore, userCred)
@@ -300,7 +309,7 @@ func (model *SStandaloneResourceBase) PerformMetadata(ctx context.Context, userC
 }
 
 func (model *SStandaloneResourceBase) AllowPerformUserMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return IsAdminAllowPerform(userCred, model, "user-metadata")
+	return IsAllowPerform(rbacutils.ScopeSystem, userCred, model, "user-metadata")
 }
 
 func (model *SStandaloneResourceBase) PerformUserMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -314,14 +323,14 @@ func (model *SStandaloneResourceBase) PerformUserMetadata(ctx context.Context, u
 	}
 	dictStore := make(map[string]interface{})
 	for k, v := range dictMap {
-		dictStore["user:"+k], _ = v.GetString()
+		dictStore[USER_TAG_PREFIX+k], _ = v.GetString()
 	}
 	err = model.SetUserMetadataValues(ctx, dictStore, userCred)
 	return nil, err
 }
 
 func (model *SStandaloneResourceBase) AllowPerformSetUserMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return IsAdminAllowPerform(userCred, model, "set-user-metadata")
+	return IsAllowPerform(rbacutils.ScopeSystem, userCred, model, "set-user-metadata")
 }
 
 func (model *SStandaloneResourceBase) PerformSetUserMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -335,7 +344,7 @@ func (model *SStandaloneResourceBase) PerformSetUserMetadata(ctx context.Context
 	}
 	dictStore := make(map[string]interface{})
 	for k, v := range dictMap {
-		dictStore["user:"+k], _ = v.GetString()
+		dictStore[USER_TAG_PREFIX+k], _ = v.GetString()
 	}
 	err = model.SetUserMetadataAll(ctx, dictStore, userCred)
 	return nil, err
@@ -364,8 +373,8 @@ func (model *SStandaloneResourceBase) PostUpdate(ctx context.Context, userCred m
 	}
 }
 
-func (model *SStandaloneResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	model.SResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+func (model *SStandaloneResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	model.SResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
 
 	jsonMeta, _ := data.Get("__meta__")
 	if jsonMeta != nil {
@@ -380,10 +389,30 @@ func (model *SStandaloneResourceBase) PostDelete(ctx context.Context, userCred m
 	model.SResourceBase.PostDelete(ctx, userCred)
 }
 
-func (model *SStandaloneResourceBase) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return DeleteModel(ctx, userCred, model)
+// func (model *SStandaloneResourceBase) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
+// 	return DeleteModel(ctx, userCred, model)
+// }
+
+func (model *SStandaloneResourceBase) ClearSchedDescCache() error {
+	return nil
 }
 
+func (model *SStandaloneResourceBase) AppendDescription(userCred mcclient.TokenCredential, msg string) error {
+	_, err := Update(model.GetIStandaloneModel(), func() error {
+		if len(model.Description) > 0 {
+			model.Description += ";"
+		}
+		model.Description += msg
+		return nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "db.Update")
+	}
+	OpsLog.LogEvent(model, "append_desc", msg, userCred)
+	return nil
+}
+
+/*
 func (model SStandaloneResourceBase) GetExternalId() string {
 	return model.ExternalId
 }
@@ -401,3 +430,4 @@ func (model *SStandaloneResourceBase) SetExternalId(userCred mcclient.TokenCrede
 	}
 	return nil
 }
+*/

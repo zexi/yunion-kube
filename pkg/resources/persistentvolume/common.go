@@ -4,21 +4,20 @@ import (
 	"strings"
 
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 // GetStorageClassPersistentVolumes gets persistentvolumes that are associated with this storageclass.
-func GetStorageClassPersistentVolumes(client client.Interface, cluster api.ICluster, storageClassName string,
+func GetStorageClassPersistentVolumes(indexer *client.CacheFactory, cluster api.ICluster, storageClassName string,
 	dsQuery *dataselect.DataSelectQuery) (*PersistentVolumeList, error) {
 
-	storageClass, err := client.StorageV1().StorageClasses().Get(storageClassName, metaV1.GetOptions{})
+	storageClass, err := indexer.StorageClassLister().Get(storageClassName)
 
 	if err != nil {
 		return nil, err
@@ -26,7 +25,7 @@ func GetStorageClassPersistentVolumes(client client.Interface, cluster api.IClus
 
 	channels := &common.ResourceChannels{
 		PersistentVolumeList: common.GetPersistentVolumeListChannel(
-			client),
+			indexer),
 	}
 
 	persistentVolumeList := <-channels.PersistentVolumeList.List
@@ -36,8 +35,8 @@ func GetStorageClassPersistentVolumes(client client.Interface, cluster api.IClus
 		return nil, err
 	}
 
-	storagePersistentVolumes := make([]v1.PersistentVolume, 0)
-	for _, pv := range persistentVolumeList.Items {
+	storagePersistentVolumes := make([]*v1.PersistentVolume, 0)
+	for _, pv := range persistentVolumeList {
 		if strings.Compare(pv.Spec.StorageClassName, storageClass.Name) == 0 {
 			storagePersistentVolumes = append(storagePersistentVolumes, pv)
 		}

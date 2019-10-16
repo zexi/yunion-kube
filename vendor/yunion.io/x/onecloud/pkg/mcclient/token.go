@@ -19,6 +19,8 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/gotypes"
+
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
 type ExternalService struct {
@@ -35,10 +37,32 @@ type Endpoint struct {
 	Interface   string
 }
 
+func OwnerIdString(owner IIdentityProvider, scope rbacutils.TRbacScope) string {
+	switch scope {
+	case rbacutils.ScopeDomain:
+		return owner.GetProjectDomainId()
+	case rbacutils.ScopeProject:
+		return owner.GetProjectId()
+	case rbacutils.ScopeUser:
+		return owner.GetUserId()
+	default:
+		return ""
+	}
+}
+
 type IIdentityProvider interface {
 	GetProjectId() string
 	GetUserId() string
 	GetTenantId() string
+	GetProjectDomainId() string
+
+	GetTenantName() string
+	GetProjectName() string
+	GetProjectDomain() string
+
+	GetUserName() string
+	GetDomainId() string
+	GetDomainName() string
 }
 
 type TokenCredential interface {
@@ -49,18 +73,15 @@ type TokenCredential interface {
 	IIdentityProvider
 
 	GetTokenString() string
-	GetDomainId() string
-	GetDomainName() string
-	GetTenantName() string
-	GetProjectName() string
-	GetUserName() string
 	GetRoles() []string
 	GetExpires() time.Time
 	IsValid() bool
 	ValidDuration() time.Duration
 	// IsAdmin() bool
 	HasSystemAdminPrivilege() bool
-	IsAdminAllow(service string, resource string, action string, extra ...string) bool
+
+	IsAllow(scope rbacutils.TRbacScope, service string, resource string, action string, extra ...string) bool
+
 	GetRegions() []string
 
 	GetServiceCatalog() IServiceCatalog
@@ -71,4 +92,7 @@ type TokenCredential interface {
 	GetEndpoints(region string, endpointType string) []Endpoint
 
 	ToJson() jsonutils.JSONObject
+
+	GetLoginSource() string
+	GetLoginIp() string
 }

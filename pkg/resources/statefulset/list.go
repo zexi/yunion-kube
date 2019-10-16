@@ -3,7 +3,7 @@ package statefulset
 import (
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
+	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/log"
 
@@ -17,8 +17,8 @@ type StatefulSetList struct {
 	*common.BaseList
 
 	StatefulSets []StatefulSet
-	Pods         []v1.Pod
-	Events       []v1.Event
+	Pods         []*v1.Pod
+	Events       []*v1.Event
 }
 
 // StatefulSet is a presentation layer view of Kubernetes Stateful Set resource. This means it is
@@ -41,22 +41,22 @@ type StatefulSet struct {
 }
 
 func (man *SStatefuleSetManager) List(req *common.Request) (common.ListResource, error) {
-	return man.ListV2(req.GetK8sClient(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
+	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
 }
 
-func (man *SStatefuleSetManager) ListV2(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	return GetStatefulSetList(client, cluster, nsQuery, dsQuery)
+func (man *SStatefuleSetManager) ListV2(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	return GetStatefulSetList(indexer, cluster, nsQuery, dsQuery)
 }
 
 // GetStatefulSetList returns a list of all Stateful Sets in the cluster.
-func GetStatefulSetList(client kubernetes.Interface, cluster api.ICluster, nsQuery *common.NamespaceQuery,
+func GetStatefulSetList(indexer *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery) (*StatefulSetList, error) {
 	log.Infof("Getting list of all pet sets in the cluster")
 
 	channels := &common.ResourceChannels{
-		StatefulSetList: common.GetStatefulSetListChannel(client, nsQuery),
-		PodList:         common.GetPodListChannel(client, nsQuery),
-		EventList:       common.GetEventListChannel(client, nsQuery),
+		StatefulSetList: common.GetStatefulSetListChannel(indexer, nsQuery),
+		PodList:         common.GetPodListChannel(indexer, nsQuery),
+		EventList:       common.GetEventListChannel(indexer, nsQuery),
 	}
 
 	return GetStatefulSetListFromChannels(cluster, channels, dsQuery)
@@ -83,10 +83,10 @@ func GetStatefulSetListFromChannels(cluster api.ICluster, channels *common.Resou
 		return nil, err
 	}
 
-	return ToStatefulSetList(statefulSets.Items, pods.Items, events.Items, dsQuery, cluster)
+	return ToStatefulSetList(statefulSets, pods, events, dsQuery, cluster)
 }
 
-func ToStatefulSetList(statefulSets []apps.StatefulSet, pods []v1.Pod, events []v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StatefulSetList, error) {
+func ToStatefulSetList(statefulSets []*apps.StatefulSet, pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StatefulSetList, error) {
 	statefulSetList := &StatefulSetList{
 		BaseList:     common.NewBaseList(cluster),
 		StatefulSets: make([]StatefulSet, 0),
@@ -102,17 +102,17 @@ func ToStatefulSetList(statefulSets []apps.StatefulSet, pods []v1.Pod, events []
 	return statefulSetList, err
 }
 
-func GetPodInfo(statefulSet apps.StatefulSet, pods []v1.Pod, events []v1.Event) common.PodInfo {
-	matchingPods := common.FilterPodsByControllerRef(&statefulSet, pods)
+func GetPodInfo(statefulSet *apps.StatefulSet, pods []*v1.Pod, events []*v1.Event) common.PodInfo {
+	matchingPods := common.FilterPodsByControllerRef(statefulSet, pods)
 	podInfo := common.GetPodInfo(statefulSet.Status.Replicas, statefulSet.Spec.Replicas, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
 	return podInfo
 }
 
 func (l *StatefulSetList) Append(obj interface{}) {
-	statefulSet := obj.(apps.StatefulSet)
+	statefulSet := obj.(*apps.StatefulSet)
 	podInfo := GetPodInfo(statefulSet, l.Pods, l.Events)
-	l.StatefulSets = append(l.StatefulSets, ToStatefulSet(&statefulSet, &podInfo, l.GetCluster()))
+	l.StatefulSets = append(l.StatefulSets, ToStatefulSet(statefulSet, &podInfo, l.GetCluster()))
 }
 
 func (l *StatefulSetList) GetResponseData() interface{} {

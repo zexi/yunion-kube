@@ -4,7 +4,6 @@ import (
 	apps "k8s.io/api/apps/v1beta2"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
@@ -12,6 +11,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	//hpa "yunion.io/x/yunion-kube/pkg/resources/horizontalpodautoscaler"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
@@ -78,12 +78,12 @@ type DeploymentDetail struct {
 
 func (man *SDeploymentManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetDeploymentDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
+	return GetDeploymentDetail(req.GetIndexer(), req.GetCluster(), namespace, id)
 }
 
-func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespace, deploymentName string) (*DeploymentDetail, error) {
+func GetDeploymentDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, deploymentName string) (*DeploymentDetail, error) {
 	log.Infof("Getting details of %q deployment in %q namespace", deploymentName, namespace)
-	deployment, err := client.AppsV1beta2().Deployments(namespace).Get(deploymentName, metaV1.GetOptions{})
+	deployment, err := indexer.DeploymentLister().Deployments(namespace).Get(deploymentName)
 	if err != nil {
 		return nil, err
 	}
@@ -91,14 +91,13 @@ func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespac
 	if err != nil {
 		return nil, err
 	}
-	options := metaV1.ListOptions{LabelSelector: selector.String()}
 	channels := &common.ResourceChannels{
-		ReplicaSetList: common.GetReplicaSetListChannelWithOptions(client,
-			common.NewSameNamespaceQuery(namespace), options),
-		PodList: common.GetPodListChannelWithOptions(client,
-			common.NewSameNamespaceQuery(namespace), options),
-		EventList:   common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		ServiceList: common.GetServiceListChannelWithOptions(client, common.NewSameNamespaceQuery(namespace), options),
+		ReplicaSetList: common.GetReplicaSetListChannelWithOptions(indexer,
+			common.NewSameNamespaceQuery(namespace), selector),
+		PodList: common.GetPodListChannelWithOptions(indexer,
+			common.NewSameNamespaceQuery(namespace), selector),
+		EventList:   common.GetEventListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		ServiceList: common.GetServiceListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), selector),
 	}
 
 	rawRs := <-channels.ReplicaSetList.List
@@ -124,26 +123,26 @@ func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespac
 		return nil, err
 	}
 
-	commonDeployment := ToDeployment(*deployment, rawRs.Items, rawPods.Items, rawEvents.Items, cluster)
+	commonDeployment := ToDeployment(deployment, rawRs, rawPods, rawEvents, cluster)
 
-	podList, err := GetDeploymentPods(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	podList, err := GetDeploymentPods(indexer, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	eventList, err := event.GetResourceEvents(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	eventList, err := event.GetResourceEvents(indexer, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
-	oldReplicaSetList, err := GetDeploymentOldReplicaSets(client, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
+	oldReplicaSetList, err := GetDeploymentOldReplicaSets(indexer, cluster, dataselect.DefaultDataSelect(), namespace, deploymentName)
 	if err != nil {
 		return nil, err
 	}
 
 	rawRepSets := make([]*apps.ReplicaSet, 0)
-	for i := range rawRs.Items {
-		rawRepSets = append(rawRepSets, &rawRs.Items[i])
+	for i := range rawRs {
+		rawRepSets = append(rawRepSets, rawRs[i])
 	}
 	newRs, err := FindNewReplicaSet(deployment, rawRepSets)
 	if err != nil {
@@ -152,9 +151,9 @@ func GetDeploymentDetail(client client.Interface, cluster api.ICluster, namespac
 
 	var newReplicaSet replicaset.ReplicaSet
 	if newRs != nil {
-		matchingPods := common.FilterPodsByControllerRef(newRs, rawPods.Items)
+		matchingPods := common.FilterPodsByControllerRef(newRs, rawPods)
 		newRsPodInfo := common.GetPodInfo(newRs.Status.Replicas, newRs.Spec.Replicas, matchingPods)
-		events, err := event.GetPodsEvents(client, namespace, matchingPods)
+		events, err := event.GetPodsEvents(indexer, namespace, matchingPods)
 		if err != nil {
 			return nil, err
 		}

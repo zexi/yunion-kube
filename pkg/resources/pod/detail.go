@@ -8,16 +8,15 @@ import (
 
 	"k8s.io/api/core/v1"
 	res "k8s.io/apimachinery/pkg/api/resource"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -66,18 +65,18 @@ type EnvVar struct {
 
 func (man *SPodManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
-	return GetPodDetail(req.GetK8sClient(), req.GetCluster(), namespace, id)
+	return GetPodDetail(req.GetIndexer(), req.GetCluster(), namespace, id)
 }
 
-func GetPodDetail(client client.Interface, cluster api.ICluster, namespace, name string) (*PodDetail, error) {
+func GetPodDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*PodDetail, error) {
 	log.Infof("Getting details of %s pod in %s namespace", name, namespace)
 	channels := &common.ResourceChannels{
-		ConfigMapList: common.GetConfigMapListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		SecretList:    common.GetSecretListChannel(client, common.NewSameNamespaceQuery(namespace)),
-		EventList:     common.GetEventListChannel(client, common.NewSameNamespaceQuery(namespace)),
+		ConfigMapList: common.GetConfigMapListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		SecretList:    common.GetSecretListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
+		EventList:     common.GetEventListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
 	}
 
-	pod, err := client.CoreV1().Pods(namespace).Get(name, metaV1.GetOptions{})
+	pod, err := indexer.PodLister().Pods(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
@@ -99,21 +98,21 @@ func GetPodDetail(client client.Interface, cluster api.ICluster, namespace, name
 		return nil, err
 	}
 
-	eventList, err := GetEventsForPod(client, cluster, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
+	eventList, err := GetEventsForPod(indexer, cluster, dataselect.DefaultDataSelect(), pod.Namespace, pod.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	warnings := event.GetPodsEventWarnings(rawEventList.Items, []v1.Pod{*pod})
-	commonPod := ToPod(*pod, warnings, cluster)
+	warnings := event.GetPodsEventWarnings(rawEventList, []*v1.Pod{pod})
+	commonPod := ToPod(pod, warnings, cluster)
 
-	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(client, cluster, namespace, name, dataselect.DefaultDataSelect())
+	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(indexer, cluster, namespace, name, dataselect.DefaultDataSelect())
 
 	podDetail := toPodDetail(commonPod, pod, configMapList, secretList, eventList, persistentVolumeClaimList)
 	return &podDetail, nil
 }
 
-func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps *v1.ConfigMapList, secrets *v1.SecretList) []Container {
+func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []Container {
 	containers := make([]Container, 0)
 	for _, container := range containerList {
 		vars := make([]EnvVar, 0)
@@ -142,8 +141,8 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps *v1.ConfigMapList,
-	secrets *v1.SecretList, events *common.EventList,
+func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps []*v1.ConfigMap,
+	secrets []*v1.Secret, events *common.EventList,
 	persistentVolumeClaimList *persistentvolumeclaim.PersistentVolumeClaimList,
 ) PodDetail {
 	return PodDetail{
@@ -159,13 +158,13 @@ func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps *v1.ConfigMapList,
 	}
 }
 
-func evalEnvFrom(container v1.Container, configMaps *v1.ConfigMapList, secrets *v1.SecretList) []EnvVar {
+func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []EnvVar {
 	vars := make([]EnvVar, 0)
 	for _, envFromVar := range container.EnvFrom {
 		switch {
 		case envFromVar.ConfigMapRef != nil:
 			name := envFromVar.ConfigMapRef.LocalObjectReference.Name
-			for _, configMap := range configMaps.Items {
+			for _, configMap := range configMaps {
 				if configMap.ObjectMeta.Name == name {
 					for key, value := range configMap.Data {
 						valueFrom := &v1.EnvVarSource{
@@ -188,7 +187,7 @@ func evalEnvFrom(container v1.Container, configMaps *v1.ConfigMapList, secrets *
 			}
 		case envFromVar.SecretRef != nil:
 			name := envFromVar.SecretRef.LocalObjectReference.Name
-			for _, secret := range secrets.Items {
+			for _, secret := range secrets {
 				if secret.ObjectMeta.Name == name {
 					for key, value := range secret.Data {
 						valueFrom := &v1.EnvVarSource{
@@ -217,18 +216,18 @@ func evalEnvFrom(container v1.Container, configMaps *v1.ConfigMapList, secrets *
 // evalValueFrom evaluates environment value from given source. For more details check:
 // https://github.com/kubernetes/kubernetes/blob/d82e51edc5f02bff39661203c9b503d054c3493b/pkg/kubectl/describe.go#L1056
 func evalValueFrom(src *v1.EnvVarSource, container *v1.Container, pod *v1.Pod,
-	configMaps *v1.ConfigMapList, secrets *v1.SecretList) string {
+	configMaps []*v1.ConfigMap, secrets []*v1.Secret) string {
 	switch {
 	case src.ConfigMapKeyRef != nil:
 		name := src.ConfigMapKeyRef.LocalObjectReference.Name
-		for _, configMap := range configMaps.Items {
+		for _, configMap := range configMaps {
 			if configMap.ObjectMeta.Name == name {
 				return configMap.Data[src.ConfigMapKeyRef.Key]
 			}
 		}
 	case src.SecretKeyRef != nil:
 		name := src.SecretKeyRef.LocalObjectReference.Name
-		for _, secret := range secrets.Items {
+		for _, secret := range secrets {
 			if secret.ObjectMeta.Name == name {
 				return base64.StdEncoding.EncodeToString([]byte(
 					secret.Data[src.SecretKeyRef.Key]))

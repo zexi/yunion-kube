@@ -1,3 +1,17 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package compute
 
 type SImportNic struct {
@@ -53,6 +67,7 @@ type SImportGuestDesc struct {
 	BootOrder   string            `json:"boot_order"`
 	IsSystem    bool              `json:"is_system"`
 	Description string            `json:"description"`
+	MonitorPath string            `json:"monitor_path"`
 }
 
 type SLibvirtServerConfig struct {
@@ -62,6 +77,7 @@ type SLibvirtServerConfig struct {
 type SLibvirtHostConfig struct {
 	Servers     []SLibvirtServerConfig `json:"servers"`
 	XmlFilePath string                 `json:"xml_file_path"`
+	MonitorPath string                 `json:"monitor_path"`
 	HostIp      string                 `json:"host_ip"`
 }
 

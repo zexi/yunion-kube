@@ -2,15 +2,13 @@ package endpoint
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -32,8 +30,8 @@ type Endpoint struct {
 }
 
 // GetServiceEndpoints gets list of endpoints targeted by given label selector in given namespace.
-func GetServiceEndpoints(client client.Interface, namespace, name string) (*EndpointList, error) {
-	serviceEndpoints, err := GetEndpoints(client, namespace, name)
+func GetServiceEndpoints(indexer *client.CacheFactory, namespace, name string) (*EndpointList, error) {
+	serviceEndpoints, err := GetEndpoints(indexer, namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -44,19 +42,12 @@ func GetServiceEndpoints(client client.Interface, namespace, name string) (*Endp
 }
 
 // GetEndpoints gets endpoints associated to resource with given name.
-func GetEndpoints(client client.Interface, namespace, name string) ([]v1.Endpoints, error) {
-	fieldSelector, err := fields.ParseSelector("metadata.name" + "=" + name)
-	if err != nil {
-		return nil, err
-	}
-
+func GetEndpoints(client *client.CacheFactory, namespace, name string) ([]*v1.Endpoints, error) {
 	channels := &common.ResourceChannels{
 		EndpointList: common.GetEndpointListChannelWithOptions(client,
 			common.NewSameNamespaceQuery(namespace),
-			metaV1.ListOptions{
-				LabelSelector: labels.Everything().String(),
-				FieldSelector: fieldSelector.String(),
-			}),
+			labels.Everything(),
+		),
 	}
 
 	endpointList := <-channels.EndpointList.List
@@ -64,7 +55,14 @@ func GetEndpoints(client client.Interface, namespace, name string) ([]v1.Endpoin
 		return nil, err
 	}
 
-	return endpointList.Items, nil
+	rs := make([]*v1.Endpoints, 0)
+	for _, ep := range endpointList {
+		if ep.Name == name {
+			rs = append(rs, ep)
+		}
+	}
+
+	return rs, nil
 }
 
 // toEndpoint converts endpoint api Endpoint to Endpoint model object.
@@ -85,7 +83,7 @@ type EndpointList struct {
 }
 
 // toEndpointList converts array of api events to endpoint List structure
-func toEndpointList(endpoints []v1.Endpoints) *EndpointList {
+func toEndpointList(endpoints []*v1.Endpoints) *EndpointList {
 	endpointList := EndpointList{
 		Endpoints: make([]Endpoint, 0),
 		ListMeta:  dataselect.NewListMeta(),

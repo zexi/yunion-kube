@@ -35,6 +35,7 @@ func init() {
 		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(SMachine{}, "machines_tbl", "kubemachine", "kubemachines"),
 	}
 	manager.RegisterMachineManager(MachineManager)
+	MachineManager.SetVirtualObject(MachineManager)
 }
 
 type SMachineManager struct {
@@ -124,7 +125,7 @@ func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, i
 
 func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
 	input := jsonutils.Marshal(data)
-	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred.GetTenantId())
+	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +154,7 @@ func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient
 	func() {
 		lockman.LockObject(ctx, m)
 		defer lockman.ReleaseObject(ctx, m)
-		m.PostCreate(ctx, userCred, userCred.GetTenantId(), nil, input)
+		m.PostCreate(ctx, userCred, userCred, nil, input)
 	}()
 	return obj.(*SMachine), nil
 }
@@ -246,7 +247,7 @@ func ValidateResourceType(resType string) error {
 	return nil
 }
 
-func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	clusterId := jsonutils.GetAnyString(data, []string{"cluster", "cluster_id"})
 	if len(clusterId) == 0 {
 		return nil, httperrors.NewInputParameterError("Cluster must specified")
@@ -290,11 +291,11 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 	data = jsonutils.Marshal(ms[0]).(*jsonutils.JSONDict)
 
-	return man.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+	return man.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data)
 }
 
-func (m *SMachine) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId string, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	m.SVirtualResourceBase.PostCreate(ctx, userCred, ownerProjId, query, data)
+func (m *SMachine) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	m.SVirtualResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
 	if err := m.StartMachineCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("StartMachineCreateTask error: %v", err)
 	}

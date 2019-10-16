@@ -2,12 +2,11 @@ package persistentvolume
 
 import (
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
+	"yunion.io/x/yunion-kube/pkg/client"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -27,14 +26,14 @@ type PersistentVolumeDetail struct {
 }
 
 func (man *SPersistentVolumeManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetPersistentVolumeDetail(req.GetK8sClient(), req.GetCluster(), id)
+	return GetPersistentVolumeDetail(req.GetIndexer(), req.GetCluster(), id)
 }
 
 // GetPersistentVolumeDetail returns detailed information about a persistent volume
-func GetPersistentVolumeDetail(client kubernetes.Interface, cluster api.ICluster, name string) (*PersistentVolumeDetail, error) {
+func GetPersistentVolumeDetail(indexer *client.CacheFactory, cluster api.ICluster, name string) (*PersistentVolumeDetail, error) {
 	log.Infof("Getting details of %s persistent volume", name)
 
-	rawPersistentVolume, err := client.CoreV1().PersistentVolumes().Get(name, metaV1.GetOptions{})
+	rawPersistentVolume, err := indexer.PVLister().Get(name)
 	if err != nil {
 		return nil, err
 	}
