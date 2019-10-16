@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/pkg/util/sets"
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
+	yclient "yunion.io/x/yunion-kube/pkg/client"
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
@@ -23,12 +24,11 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/types"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
-	yclient "yunion.io/x/yunion-kube/pkg/client"
 )
 
 type Request struct {
 	Cluster           *clusters.SCluster
-	ClusterManager *yclient.ClusterManager
+	ClusterManager    *yclient.ClusterManager
 	K8sClient         client.Interface
 	K8sAdminClient    client.Interface
 	K8sConfig         *rest.Config
@@ -179,9 +179,9 @@ func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery 
 	)
 }
 
-func (r *Request) IsSystemAdmin() bool {
-	return r.UserCred.HasSystemAdminPrivilege()
-}
+//func (r *Request) IsSystemAdmin() bool {
+//return r.UserCred.HasSystemAdminPrivilege()
+//}
 
 func (r *Request) ToQuery() *dataselect.DataSelectQuery {
 	return NewDataSelectQuery(r.Query)

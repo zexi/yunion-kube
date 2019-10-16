@@ -119,10 +119,11 @@ func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.T
 
 // TODO: fix scope list bug
 func (m *SClusterManager) FilterByOwner(q *sqlchemy.SQuery, owner mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
-	q = q.Filter(sqlchemy.OR(sqlchemy.Equals(q.Field("tenant_id"), owner.GetProjectId()), sqlchemy.IsTrue(q.Field("is_public"))))
-	q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("pending_deleted")), sqlchemy.IsFalse(q.Field("pending_deleted"))))
-	q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
-	return q
+	return m.SVirtualResourceBaseManager.FilterByOwner(q, owner, scope)
+	//q = q.Filter(sqlchemy.OR(sqlchemy.Equals(q.Field("tenant_id"), owner.GetProjectId()), sqlchemy.IsTrue(q.Field("is_public"))))
+	//q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("pending_deleted")), sqlchemy.IsFalse(q.Field("pending_deleted"))))
+	//q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
+	//return q
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {

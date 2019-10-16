@@ -12,6 +12,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
@@ -20,9 +21,9 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	//"yunion.io/x/yunion-kube/pkg/models/types"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/errors"
-	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 type IK8sResourceHandler interface {
@@ -97,11 +98,7 @@ func (h *K8sResourceHandler) KeywordPlural() string {
 }
 
 func getUserCredential(ctx context.Context) mcclient.TokenCredential {
-	token := auth.FetchUserCredential(ctx, nil)
-	if token == nil {
-		log.Fatalf("user token credential not found?")
-	}
-	return token
+	return policy.FetchUserCredential(ctx)
 }
 
 func getCluster(query, data *jsonutils.JSONDict, userCred mcclient.TokenCredential) (*clusters.SCluster, error) {
@@ -163,7 +160,7 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 		return nil, err
 	}
 	req := &common.Request{
-		Cluster: cluster,
+		Cluster:        cluster,
 		ClusterManager: man,
 		//K8sClient:       k8sCli,
 		//K8sConfig:       config,
