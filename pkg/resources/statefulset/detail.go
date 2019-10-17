@@ -1,9 +1,10 @@
 package statefulset
 
 import (
+	"reflect"
+
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/log"
@@ -39,12 +40,8 @@ func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, na
 		return nil, err
 	}
 
-	selector, err := metaV1.LabelSelectorAsSelector(ss.Spec.Selector)
-	if err != nil {
-		return nil, err
-	}
 	channels := &common.ResourceChannels{
-		ServiceList: common.GetServiceListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), selector),
+		ServiceList: common.GetServiceListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
 	}
 	svcList, err := service.GetServiceListFromChannels(channels, ds.DefaultDataSelect(), cluster)
 	if err != nil {
@@ -68,7 +65,16 @@ func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, na
 
 	commonSs := ToStatefulSet(ss, podInfo, cluster)
 
-	ssDetail := getStatefulSetDetail(commonSs, ss, events, podList, podInfo, svcList)
+	// filter services by selector
+	podLabel := ss.Spec.Selector.MatchLabels
+	svcs := make([]service.Service, 0)
+	for _, svc := range svcList.Services {
+		if reflect.DeepEqual(svc.Selector, podLabel) {
+			svcs = append(svcs, svc)
+		}
+	}
+
+	ssDetail := getStatefulSetDetail(commonSs, ss, events, podList, podInfo, svcs)
 	return &ssDetail, nil
 }
 
@@ -78,13 +84,13 @@ func getStatefulSetDetail(
 	eventList *common.EventList,
 	podList *pod.PodList,
 	podInfo *common.PodInfo,
-	svcList *service.ServiceList,
+	svcList []service.Service,
 ) StatefulSetDetail {
 	return StatefulSetDetail{
 		StatefulSet: commonSs,
 		PodList:     podList.Pods,
 		EventList:   eventList.Events,
-		ServiceList: svcList.Services,
+		ServiceList: svcList,
 	}
 }
 
