@@ -5,6 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/listers/core/v1"
 
 	yerrors "yunion.io/x/pkg/util/errors"
 	"yunion.io/x/pkg/util/workqueue"
@@ -29,9 +30,9 @@ func IsK8sResourceExist(checkF func() (interface{}, error)) (bool, error) {
 	return true, nil
 }
 
-func IsNamespaceExist(cli kubernetes.Interface, name string) (bool, error) {
+func IsNamespaceExist(indexer v1.NamespaceLister, name string) (bool, error) {
 	return IsK8sResourceExist(func() (interface{}, error) {
-		return cli.CoreV1().Namespaces().Get(name, metav1.GetOptions{})
+		return indexer.Get(name)
 	})
 }
 
@@ -63,19 +64,19 @@ func EnsureResourceFunc(
 	return nil
 }
 
-func EnsureNamespace(cli kubernetes.Interface, name string) error {
+func EnsureNamespace(indexer v1.NamespaceLister, cli kubernetes.Interface, name string) error {
 	return EnsureResourceFunc(
 		func() (bool, error) {
-			return IsNamespaceExist(cli, name)
+			return IsNamespaceExist(indexer, name)
 		},
 		func() error {
 			return CreateNamespace(cli, name)
 		})
 }
 
-func EnsureNamespaces(cli kubernetes.Interface, names ...string) error {
+func EnsureNamespaces(indexer v1.NamespaceLister, cli kubernetes.Interface, names ...string) error {
 	return Parallelize(func(name string) error {
-		return EnsureNamespace(cli, name)
+		return EnsureNamespace(indexer, cli, name)
 	}, names...)
 }
 
