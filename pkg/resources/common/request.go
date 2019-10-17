@@ -257,7 +257,7 @@ func (r *Request) EnsureProjectNamespaces() error {
 		return err
 	}
 	r.ProjectNamespaces = projectNamespaces
-	return k8sutil.EnsureNamespaces(r.GetK8sAdminClient(), projectNamespaces.List()...)
+	return k8sutil.EnsureNamespaces(r.GetIndexer().NamespaceLister(), r.GetK8sAdminClient(), projectNamespaces.List()...)
 }
 
 func ValidateK8sResourceCreateData(req *Request, kind string, inNamespace bool) error {

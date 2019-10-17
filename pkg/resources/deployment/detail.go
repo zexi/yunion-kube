@@ -1,6 +1,8 @@
 package deployment
 
 import (
+	"reflect"
+
 	apps "k8s.io/api/apps/v1beta2"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -97,7 +99,7 @@ func GetDeploymentDetail(indexer *client.CacheFactory, cluster api.ICluster, nam
 		PodList: common.GetPodListChannelWithOptions(indexer,
 			common.NewSameNamespaceQuery(namespace), selector),
 		EventList:   common.GetEventListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
-		ServiceList: common.GetServiceListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), selector),
+		ServiceList: common.GetServiceListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	rawRs := <-channels.ReplicaSetList.List
@@ -171,10 +173,19 @@ func GetDeploymentDetail(indexer *client.CacheFactory, cluster api.ICluster, nam
 		}
 	}
 
+	// filter services by selector
+	podLabel := deployment.Spec.Selector.MatchLabels
+	svcs := make([]service.Service, 0)
+	for _, svc := range svcList.Services {
+		if reflect.DeepEqual(svc.Selector, podLabel) {
+			svcs = append(svcs, svc)
+		}
+	}
+
 	return &DeploymentDetail{
 		Deployment:            commonDeployment,
 		PodList:               podList.Pods,
-		ServiceList:           svcList.Services,
+		ServiceList:           svcs,
 		StatusInfo:            GetStatusInfo(&deployment.Status),
 		Strategy:              deployment.Spec.Strategy.Type,
 		MinReadySeconds:       deployment.Spec.MinReadySeconds,

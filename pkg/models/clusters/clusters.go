@@ -288,6 +288,7 @@ func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred m
 }
 
 func (m *SClusterManager) AllowPerformCheckSystemReady(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	log.Errorf("========AllowPerformCheckSystemReady")
 	return true
 }
 
