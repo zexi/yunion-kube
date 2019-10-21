@@ -6,13 +6,13 @@ import (
 
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/limitrange"
 	rq "yunion.io/x/yunion-kube/pkg/resources/resourcequota"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
-	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 // NamespaceDetail is a presentation layer view of Kubernetes Namespace resource. This means it is Namespace plus

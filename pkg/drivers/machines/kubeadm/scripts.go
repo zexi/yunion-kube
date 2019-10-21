@@ -31,4 +31,3 @@ sudo systemctl restart docker
 sudo kubeadm join --config /run/kubeadm-node.yaml
 `
 }
-
