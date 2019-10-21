@@ -5,9 +5,9 @@ import (
 
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
-	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 // IngressDetail API resource provides mechanisms to inject containers with configuration data while keeping

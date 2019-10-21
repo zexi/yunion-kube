@@ -4,11 +4,11 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	apps "k8s.io/client-go/listers/apps/v1beta2"
-	extensions "k8s.io/client-go/listers/extensions/v1beta1"
 	autoscalingv1 "k8s.io/client-go/listers/autoscaling/v1"
 	batch "k8s.io/client-go/listers/batch/v1"
 	batch2 "k8s.io/client-go/listers/batch/v1beta1"
 	"k8s.io/client-go/listers/core/v1"
+	extensions "k8s.io/client-go/listers/extensions/v1beta1"
 	rbac "k8s.io/client-go/listers/rbac/v1"
 	storage "k8s.io/client-go/listers/storage/v1"
 
