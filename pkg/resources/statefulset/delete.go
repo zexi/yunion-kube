@@ -12,7 +12,7 @@ func (man *SStatefuleSetManager) Delete(req *common.Request, id string) error {
 	if err != nil {
 		return err
 	}
-	err = app.DeleteServices(cli, req.GetCluster(), namespace, ss.Spec.Selector)
+	err = app.DeleteServices(cli, namespace, ss.Spec.Selector)
 	if err != nil {
 		return err
 	}
