@@ -63,4 +63,9 @@ bin_dir:
 clean:
 	@rm -rf $(BUILD_DIR)
 
+fmt:
+	@git ls-files --exclude '*' '*.go' \
+		| grep -v '^vendor/' \
+		| xargs gofmt -w
+
 .PHONY: all build prepare_dir bin_dir clean rpm

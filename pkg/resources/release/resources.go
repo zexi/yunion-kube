@@ -10,10 +10,10 @@ import (
 
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
-	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
