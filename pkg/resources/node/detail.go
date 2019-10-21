@@ -7,8 +7,8 @@ import (
 
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
@@ -62,8 +62,7 @@ type NodeAllocatedResources struct {
 // NodeDetail is a presentation layer view of Kubernetes Node resource. This means it is Node plus
 // additional augmented data we can get from other sources.
 type NodeDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
+	Node
 
 	// NodePhase is the current lifecycle phase of the node.
 	Phase v1.NodePhase `json:"status"`
@@ -76,12 +75,6 @@ type NodeDetail struct {
 
 	// ID of the node assigned by the cloud provider.
 	ProviderID string `json:"providerID"`
-
-	// Unschedulable controls node schedulability of new pods. By default node is schedulable.
-	Unschedulable bool `json:"unschedulable"`
-
-	// Set of ids/uuids to uniquely identify the node.
-	NodeInfo v1.NodeSystemInfo `json:"nodeInfo"`
 
 	// Conditions is an array of current node conditions.
 	Conditions []common.Condition `json:"conditions"`
@@ -97,12 +90,6 @@ type NodeDetail struct {
 
 	// Metrics collected for this resource
 	//Metrics []metricapi.Metric `json:"metrics"`
-
-	// Taints
-	Taints []v1.Taint `json:"taints,omitempty"`
-
-	// Addresses is a list of addresses reachable to the node. Queried from cloud provider, if available.
-	Addresses []v1.NodeAddress `json:"addresses,omitempty"`
 }
 
 func (man *SNodeManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -142,7 +129,7 @@ func GetNodeDetail(
 		return nil, err
 	}
 
-	nodeDetails := toNodeDetail(*node, podList, eventList, allocatedResources, cluster)
+	nodeDetails := toNodeDetail(*node, pods, podList, eventList, allocatedResources, cluster)
 	return &nodeDetails, nil
 }
 
@@ -302,24 +289,19 @@ func getNodePods(client *client.CacheFactory, node *v1.Node) ([]*v1.Pod, error) 
 	return rs, nil
 }
 
-func toNodeDetail(node v1.Node, pods *pod.PodList, eventList *common.EventList,
+func toNodeDetail(node v1.Node, rawPods []*v1.Pod, pods *pod.PodList, eventList *common.EventList,
 	allocatedResources NodeAllocatedResources, cluster api.ICluster) NodeDetail {
 
 	return NodeDetail{
-		ObjectMeta:         api.NewObjectMetaV2(node.ObjectMeta, cluster),
-		TypeMeta:           api.NewTypeMeta(api.ResourceKindNode),
+		Node:               toNode(&node, rawPods, cluster),
 		Phase:              node.Status.Phase,
 		ProviderID:         node.Spec.ProviderID,
 		PodCIDR:            node.Spec.PodCIDR,
-		Unschedulable:      node.Spec.Unschedulable,
-		NodeInfo:           node.Status.NodeInfo,
 		Conditions:         getNodeConditions(node),
 		ContainerImages:    getContainerImages(node),
 		PodList:            *pods,
 		EventList:          *eventList,
 		AllocatedResources: allocatedResources,
 		//Metrics:            metrics,
-		Taints:    node.Spec.Taints,
-		Addresses: node.Status.Addresses,
 	}
 }
