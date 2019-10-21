@@ -73,6 +73,11 @@ func (r *Request) GetK8sManager() *yclient.ClusterManager {
 	return r.ClusterManager
 }
 
+// GetHandler return generic kubenretes CRUD resource handler
+func (r *Request) GetHandler() yclient.ResourceHandler {
+	return r.ClusterManager.KubeClient
+}
+
 func (r *Request) GetIndexer() *yclient.CacheFactory {
 	return r.ClusterManager.GetIndexer()
 }
