@@ -4,16 +4,12 @@ import (
 	"net/http"
 	"strings"
 
-	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/httperrors"
-
 	"yunion.io/x/yunion-kube/pkg/controllers/auth"
-	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type authFactory struct{}
 
-func NewAuthHandlerFactory() http.Handler {
+func NewAuthHandlerFactory() interface{} {
 	return &authFactory{}
 }
 
@@ -39,24 +35,24 @@ func (f *authFactory) getKeystoneAuthenticator(clusterId string) (*auth.Keystone
 	return ctrl.GetKeystoneAuthenticator(), nil
 }
 
-func (f *authFactory) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("Auth request url: %s", r.URL)
-	clusterId := GetClusterId(r)
-	if clusterId == "" {
-		httperrors.NotAcceptableError(w, "Cluster id not provide")
-		return
-	}
-	cluster, err := models.ClusterManager.FetchClusterByIdOrName(nil, clusterId)
-	if err != nil {
-		httperrors.NotFoundError(w, err.Error())
-		return
-	}
-	kauth, err := f.getKeystoneAuthenticator(cluster.Id)
-	if err != nil {
-		log.Errorf("xxxxxx get authticator error: %v", err)
-		httperrors.NotFoundError(w, err.Error())
-		return
-	}
-	h := &auth.WebhookHandler{kauth}
-	h.ServeHTTP(w, r)
-}
+//func (f *authFactory) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//log.Debugf("Auth request url: %s", r.URL)
+//clusterId := GetClusterId(r)
+//if clusterId == "" {
+//httperrors.NotAcceptableError(w, "Cluster id not provide")
+//return
+//}
+//cluster, err := models.ClusterManager.FetchClusterByIdOrName(nil, clusterId)
+//if err != nil {
+//httperrors.NotFoundError(w, err.Error())
+//return
+//}
+//kauth, err := f.getKeystoneAuthenticator(cluster.Id)
+//if err != nil {
+//log.Errorf("xxxxxx get authticator error: %v", err)
+//httperrors.NotFoundError(w, err.Error())
+//return
+//}
+//h := &auth.WebhookHandler{kauth}
+//h.ServeHTTP(w, r)
+//}

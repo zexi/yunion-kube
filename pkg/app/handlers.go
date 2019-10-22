@@ -55,8 +55,6 @@ func InitHandlers(app *appsrv.Application) {
 
 	for _, man := range []db.IModelManager{
 		db.OpsLog,
-		models.ClusterManager,
-		models.NodeManager,
 		models.RepoManager,
 		clusters.ClusterManager,
 		clusters.X509KeyPairManager,

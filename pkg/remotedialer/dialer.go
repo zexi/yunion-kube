@@ -3,8 +3,6 @@ package remotedialer
 import (
 	"net"
 	"time"
-
-	"yunion.io/x/yunion-kube/pkg/types/config/dialer"
 )
 
 func (s *Server) HasSession(clientKey string) bool {
@@ -21,7 +19,7 @@ func (s *Server) Dial(clientKey string, deadline time.Duration, proto, address s
 	return session.serverConnect(deadline, proto, address)
 }
 
-func (s *Server) Dialer(clientKey string, deadline time.Duration) dialer.Dialer {
+func (s *Server) Dialer(clientKey string, deadline time.Duration) interface{} {
 	return func(proto, address string) (net.Conn, error) {
 		return s.Dial(clientKey, deadline, proto, address)
 	}
