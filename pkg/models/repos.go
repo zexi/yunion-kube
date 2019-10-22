@@ -186,7 +186,7 @@ func (r *SRepo) AddToBackend() error {
 }
 
 func (r *SRepo) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return allowPerformAction(ctx, userCred, query, data)
+	return db.IsAdminAllowPerform(userCred, r, "sync")
 }
 
 func (r *SRepo) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

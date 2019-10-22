@@ -14,13 +14,16 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
-	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
+)
+
+const (
+	DEFAULT_DOCKER_GRAPH_DIR = "/opt/docker"
 )
 
 type sClusterAPIBaseDriver struct {
@@ -49,7 +52,7 @@ func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters
 	}
 	return userdata.BaseConfigure{
 		DockerConfigure: userdata.DockerConfigure{
-			DockerGraphDir: models.DEFAULT_DOCKER_GRAPH_DIR,
+			DockerGraphDir: DEFAULT_DOCKER_GRAPH_DIR,
 			DockerBIP:      o.DockerdBip,
 		},
 		OnecloudConfigure: userdata.OnecloudConfigure{
