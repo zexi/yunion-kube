@@ -268,6 +268,10 @@ func TrimKindPlural(plural string) string {
 		return ResourceKindIngress
 	case "k8s_services":
 		return ResourceKindService
+	case "k8s_nodes":
+		return ResourceKindNode
+	case "k8s_endpoints":
+		return ResourceKindEndpoint
 	default:
 		return strings.TrimRight(plural, "s")
 	}

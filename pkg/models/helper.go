@@ -25,12 +25,3 @@ func RunBatchTask(
 	task.ScheduleRun(nil)
 	return nil
 }
-
-func getNodesById(nodes []*SNode, id string) *SNode {
-	for _, node := range nodes {
-		if node.Id == id || node.Name == id {
-			return node
-		}
-	}
-	return nil
-}
