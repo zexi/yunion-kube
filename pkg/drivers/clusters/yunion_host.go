@@ -2,6 +2,7 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,11 +16,13 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
+	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/utils/etcd"
@@ -65,6 +68,40 @@ func (d *SYunionHostDriver) ValidateCreateData(ctx context.Context, userCred mcc
 		return err
 	}
 	return yunion_host.ValidateClusterCreateData(data)
+}
+
+func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
+	params := jsonutils.NewDict()
+	filter := jsonutils.NewArray()
+	filter.Add(jsonutils.NewString(fmt.Sprintf("host_type.in(%s, %s)", "hypervisor", "kubelet")))
+	filter.Add(jsonutils.NewString("host_status.equals(online)"))
+	filter.Add(jsonutils.NewString("status.equals(running)"))
+	params.Add(filter, "filter")
+	result, err := cloudmod.Hosts.List(s, params)
+	if err != nil {
+		return nil, err
+	}
+	ret := []types.UsableInstance{}
+	for _, host := range result.Data {
+		id, _ := host.GetString("id")
+		if len(id) == 0 {
+			continue
+		}
+		name, _ := host.GetString("name")
+		machine, err := machines.MachineManager.GetMachineByResourceId(id)
+		if err != nil {
+			return nil, err
+		}
+		if machine != nil {
+			continue
+		}
+		ret = append(ret, types.UsableInstance{
+			Id:   id,
+			Name: name,
+			Type: types.MachineResourceTypeBaremetal,
+		})
+	}
+	return ret, nil
 }
 
 func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]types.UsableInstance, error) {

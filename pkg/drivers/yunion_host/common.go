@@ -14,7 +14,6 @@ import (
 	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/yunion-kube/pkg/drivers"
-	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/types"
@@ -53,14 +52,6 @@ func ValidateHostId(s *mcclient.ClientSession, privateKey string, hostId string)
 		return nil, httperrors.NewUnsupportOperationError("host %s: %v", accessIP, err.Error())
 	}
 	return ret, nil
-}
-
-func GetV1Cluster(cluster *clusters.SCluster) (*models.SCluster, error) {
-	return models.ClusterManager.FetchClusterByIdOrName(nil, cluster.GetName())
-}
-
-func GetV1Node(machine *machines.SMachine) (*models.SNode, error) {
-	return models.NodeManager.FetchNodeByHostId(machine.ResourceId)
 }
 
 func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *types.CreateMachineData) error {

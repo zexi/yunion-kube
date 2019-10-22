@@ -23,13 +23,12 @@ import (
 	rpcserver "yunion.io/x/yunion-kube/pkg/agent/localvolume/server"
 	"yunion.io/x/yunion-kube/pkg/agent/node"
 	"yunion.io/x/yunion-kube/pkg/remotedialer"
-	"yunion.io/x/yunion-kube/pkg/tunnelserver"
 	ytypes "yunion.io/x/yunion-kube/pkg/types"
 )
 
 const (
-	Token  = tunnelserver.Token
-	Params = tunnelserver.Params
+	Token  = "tunnelserverToken"
+	Params = "tunnelserverParams"
 )
 
 var (
