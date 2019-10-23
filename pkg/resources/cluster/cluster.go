@@ -38,7 +38,7 @@ type Cluster struct {
 }
 
 func (man *SClusterManager) Get(req *common.Request, id string) (interface{}, error) {
-	return GetCluster(req.GetIndexer(), req.GetCluster(), dataselect.DefaultDataSelect(), req.ProjectNamespaces)
+	return GetCluster(req.GetIndexer(), req.GetCluster(), dataselect.DefaultDataSelect())
 }
 
 // GetCluster returns a list of all cluster resources in the cluster.
@@ -46,7 +46,6 @@ func GetCluster(
 	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	dsQuery *dataselect.DataSelectQuery,
-	projectNamespaces *common.ProjectNamespaces,
 ) (*Cluster, error) {
 	log.Infof("Getting cluster category")
 	channels := &common.ResourceChannels{
@@ -58,7 +57,7 @@ func GetCluster(
 		StorageClassList:     common.GetStorageClassListChannel(indexer),
 	}
 
-	return GetClusterFromChannels(indexer, cluster, channels, dsQuery, projectNamespaces)
+	return GetClusterFromChannels(indexer, cluster, channels, dsQuery)
 }
 
 // GetClusterFromChannels returns a list of all cluster in the cluster, from the channel sources.
@@ -67,7 +66,6 @@ func GetClusterFromChannels(
 	cluster api.ICluster,
 	channels *common.ResourceChannels,
 	dsQuery *dataselect.DataSelectQuery,
-	projectNamespaces *common.ProjectNamespaces,
 ) (*Cluster, error) {
 
 	numErrs := 5
@@ -79,7 +77,7 @@ func GetClusterFromChannels(
 	storageChan := make(chan *storageclass.StorageClassList)
 
 	go func() {
-		items, err := namespace.GetNamespaceListFromChannels(channels, dsQuery, cluster, projectNamespaces)
+		items, err := namespace.GetNamespaceListFromChannels(channels, dsQuery, cluster)
 		errChan <- err
 		nsChan <- items
 	}()

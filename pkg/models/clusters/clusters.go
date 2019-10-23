@@ -41,7 +41,7 @@ var ClusterManager *SClusterManager
 
 func init() {
 	ClusterManager = &SClusterManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(
+		SSharableVirtualResourceBaseManager: db.NewSharableVirtualResourceBaseManager(
 			SCluster{},
 			"kubeclusters_tbl",
 			"kubecluster",
@@ -53,11 +53,11 @@ func init() {
 }
 
 type SClusterManager struct {
-	db.SVirtualResourceBaseManager
+	db.SSharableVirtualResourceBaseManager
 }
 
 type SCluster struct {
-	db.SVirtualResourceBase
+	db.SSharableVirtualResourceBase
 
 	ClusterType   string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	CloudType     string            `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
@@ -69,7 +69,6 @@ type SCluster struct {
 	PodCidr       string            `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user"`
 	Version       string            `width:"128" charset:"ascii" nullable:"false" create:"optional" list:"user"`
 	Ha            tristate.TriState `nullable:"true" create:"required" list:"user"`
-	IsPublic      bool              `default:"false" nullable:"false" index:"true" create:"admin_optional" list:"user" update:"user"`
 
 	// kubernetes config
 	Kubeconfig string `nullable:"true" charset:"utf8" create:"optional"`
@@ -115,15 +114,6 @@ func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.T
 		return nil, err
 	}
 	return obj.(*SCluster), nil
-}
-
-// TODO: fix scope list bug
-func (m *SClusterManager) FilterByOwner(q *sqlchemy.SQuery, owner mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
-	return m.SVirtualResourceBaseManager.FilterByOwner(q, owner, scope)
-	//q = q.Filter(sqlchemy.OR(sqlchemy.Equals(q.Field("tenant_id"), owner.GetProjectId()), sqlchemy.IsTrue(q.Field("is_public"))))
-	//q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("pending_deleted")), sqlchemy.IsFalse(q.Field("pending_deleted"))))
-	//q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
-	//return q
 }
 
 func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
@@ -395,44 +385,6 @@ func (m *SClusterManager) GetCluster(id string) (*SCluster, error) {
 		return nil, err
 	}
 	return obj.(*SCluster), nil
-}
-
-func (c *SCluster) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred) || c.IsShared() || db.IsAdminAllowGet(userCred, c)
-}
-
-func (c *SCluster) IsShared() bool {
-	return c.IsPublic
-}
-
-func (c *SCluster) AllowPerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, c, "public")
-}
-
-func (c *SCluster) AllowPerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred) || db.IsAdminAllowPerform(userCred, c, "private")
-}
-
-func (c *SCluster) PerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !c.IsPublic {
-		_, err := c.GetModelManager().TableSpec().Update(c, func() error {
-			c.IsPublic = true
-			return nil
-		})
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (c *SCluster) PerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if c.IsPublic {
-		_, err := c.GetModelManager().TableSpec().Update(c, func() error {
-			c.IsPublic = false
-			return nil
-		})
-		return nil, err
-	}
-	return nil, nil
 }
 
 func (c *SCluster) GetDriver() IClusterDriver {

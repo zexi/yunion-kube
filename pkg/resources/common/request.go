@@ -13,13 +13,11 @@ import (
 	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/util/sets"
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
 	yclient "yunion.io/x/yunion-kube/pkg/client"
 	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
-	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/types"
@@ -27,18 +25,18 @@ import (
 )
 
 type Request struct {
-	Cluster           *clusters.SCluster
-	ClusterManager    *yclient.ClusterManager
-	K8sClient         client.Interface
-	K8sAdminClient    client.Interface
-	K8sConfig         *rest.Config
-	K8sAdminConfig    *rest.Config
-	UserCred          mcclient.TokenCredential
-	Query             *jsonutils.JSONDict
-	Data              *jsonutils.JSONDict
-	Context           context.Context
-	KubeAdminConfig   string
-	ProjectNamespaces *ProjectNamespaces
+	Cluster         *clusters.SCluster
+	ClusterManager  *yclient.ClusterManager
+	K8sClient       client.Interface
+	K8sAdminClient  client.Interface
+	K8sConfig       *rest.Config
+	K8sAdminConfig  *rest.Config
+	UserCred        mcclient.TokenCredential
+	Query           *jsonutils.JSONDict
+	Data            *jsonutils.JSONDict
+	Context         context.Context
+	KubeAdminConfig string
+	//ProjectNamespaces *ProjectNamespaces
 }
 
 func (r *Request) AllowListItems() bool {
@@ -50,7 +48,7 @@ func (r *Request) AllowListItems() bool {
 }
 
 func (r *Request) IsClusterOwner() bool {
-	return r.UserCred.HasSystemAdminPrivilege() || r.GetCluster().IsOwner(r.UserCred)
+	return r.UserCred.HasSystemAdminPrivilege() || r.GetCluster().IsSharable(r.UserCred)
 }
 
 func (r *Request) ShowAllNamespace() bool {
@@ -215,37 +213,37 @@ func (r *Request) IsK8sResourceExists(kind string, namespace string, id string) 
 	return false, err
 }
 
-type ProjectNamespaces struct {
-	Request    *Request
-	namespaces []string
-}
+//type ProjectNamespaces struct {
+//Request    *Request
+//namespaces []string
+//}
 
-func newProjectNamespaces(req *Request) (*ProjectNamespaces, error) {
-	nss, err := req.getProjectNamespaces()
-	if err != nil {
-		return nil, err
-	}
-	return &ProjectNamespaces{
-		Request:    req,
-		namespaces: nss,
-	}, nil
-}
+//func newProjectNamespaces(req *Request) (*ProjectNamespaces, error) {
+//nss, err := req.getProjectNamespaces()
+//if err != nil {
+//return nil, err
+//}
+//return &ProjectNamespaces{
+//Request:    req,
+//namespaces: nss,
+//}, nil
+//}
 
-func (pns *ProjectNamespaces) List() []string {
-	return pns.namespaces
-}
+//func (pns *ProjectNamespaces) List() []string {
+//return pns.namespaces
+//}
 
-func (pns *ProjectNamespaces) Sets() sets.String {
-	return sets.NewString(pns.namespaces...)
-}
+//func (pns *ProjectNamespaces) Sets() sets.String {
+//return sets.NewString(pns.namespaces...)
+//}
 
-func (pns *ProjectNamespaces) HasAllNamespacePrivelege() bool {
-	return pns.Request.UserCred.HasSystemAdminPrivilege()
-}
+//func (pns *ProjectNamespaces) HasAllNamespacePrivelege() bool {
+//return pns.Request.UserCred.HasSystemAdminPrivilege()
+//}
 
-func (r *Request) NewProjectNamespaces() (*ProjectNamespaces, error) {
-	return newProjectNamespaces(r)
-}
+//func (r *Request) NewProjectNamespaces() (*ProjectNamespaces, error) {
+//return newProjectNamespaces(r)
+//}
 
 // TODO: support multiple namespace related to one project
 func (r *Request) getProjectNamespaces() ([]string, error) {
@@ -256,14 +254,14 @@ func (r *Request) getProjectNamespaces() ([]string, error) {
 	return []string{ns}, nil
 }
 
-func (r *Request) EnsureProjectNamespaces() error {
-	projectNamespaces, err := r.NewProjectNamespaces()
-	if err != nil {
-		return err
-	}
-	r.ProjectNamespaces = projectNamespaces
-	return k8sutil.EnsureNamespaces(r.GetIndexer().NamespaceLister(), r.GetK8sAdminClient(), projectNamespaces.List()...)
-}
+//func (r *Request) EnsureProjectNamespaces() error {
+//projectNamespaces, err := r.NewProjectNamespaces()
+//if err != nil {
+//return err
+//}
+//r.ProjectNamespaces = projectNamespaces
+//return k8sutil.EnsureNamespaces(r.GetIndexer().NamespaceLister(), r.GetK8sAdminClient(), projectNamespaces.List()...)
+//}
 
 func ValidateK8sResourceCreateData(req *Request, kind string, inNamespace bool) error {
 	data := req.Data
