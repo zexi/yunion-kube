@@ -172,9 +172,9 @@ func NewCloudK8sRequest(ctx context.Context, query, data *jsonutils.JSONDict) (*
 		Context:         ctx,
 		KubeAdminConfig: kubeAdminConfig,
 	}
-	if err := req.EnsureProjectNamespaces(); err != nil {
-		return req, err
-	}
+	//if err := req.EnsureProjectNamespaces(); err != nil {
+	//return req, err
+	//}
 	return req, nil
 }
 
