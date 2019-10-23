@@ -38,20 +38,19 @@ func (n Namespace) ToListItem() jsonutils.JSONObject {
 }
 
 func (man *SNamespaceManager) List(req *common.Request) (common.ListResource, error) {
-	return man.GetNamespaceList(req.GetIndexer(), req.GetCluster(), req.ToQuery(), req.ProjectNamespaces)
+	return man.GetNamespaceList(req.GetIndexer(), req.GetCluster(), req.ToQuery())
 }
 
 func (man *SNamespaceManager) GetNamespaceList(
 	indexer *client.CacheFactory,
 	cluster api.ICluster,
 	dsQuery *dataselect.DataSelectQuery,
-	projectNamespaces *common.ProjectNamespaces,
 ) (*NamespaceList, error) {
 	log.Infof("Getting list of all namespaces in the cluster")
 	channels := &common.ResourceChannels{
 		NamespaceList: common.GetNamespaceListChannel(indexer),
 	}
-	return GetNamespaceListFromChannels(channels, dsQuery, cluster, projectNamespaces)
+	return GetNamespaceListFromChannels(channels, dsQuery, cluster)
 }
 
 func (l *NamespaceList) Append(obj interface{}) {
@@ -74,7 +73,7 @@ func GetNamespaceListFromChannels(
 	channels *common.ResourceChannels,
 	dsQuery *dataselect.DataSelectQuery,
 	cluster api.ICluster,
-	projectNamespaces *common.ProjectNamespaces,
+	//projectNamespaces *common.ProjectNamespaces,
 ) (*NamespaceList, error) {
 	namespaces := <-channels.NamespaceList.List
 	err := <-channels.NamespaceList.Error
@@ -83,15 +82,16 @@ func GetNamespaceListFromChannels(
 	}
 	items := make([]*v1.Namespace, 0)
 	allNs := namespaces
-	if !projectNamespaces.HasAllNamespacePrivelege() {
-		for _, ns := range allNs {
-			if projectNamespaces.Sets().Has(ns.GetName()) {
-				items = append(items, ns)
-			}
-		}
-	} else {
-		items = allNs
-	}
+	//if !projectNamespaces.HasAllNamespacePrivelege() {
+	//for _, ns := range allNs {
+	//if projectNamespaces.Sets().Has(ns.GetName()) {
+	//items = append(items, ns)
+	//}
+	//}
+	//} else {
+	//items = allNs
+	//}
+	items = allNs
 	namespaceList := &NamespaceList{
 		BaseList:   common.NewBaseList(cluster),
 		Namespaces: make([]Namespace, 0),
