@@ -136,12 +136,11 @@ func (m *SNamespaceResourceManager) InNamespace() bool {
 }
 
 func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
-	return req.IsClusterOwner() || req.ProjectNamespaces.Sets().Has(req.GetDefaultNamespace())
+	return req.IsClusterOwner() // || req.ProjectNamespaces.Sets().Has(req.GetDefaultNamespace())
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
 	if req.ShowAllNamespace() && !db.IsAdminAllowList(req.UserCred, m) {
-		log.Errorf("======not allow list all ns for res %q", m.KeywordPlural())
 		return false
 	}
 	return db.IsAdminAllowList(req.UserCred, m) || m.IsOwner(req)

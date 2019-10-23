@@ -18,7 +18,7 @@ func init() {
 }
 
 func (m *SNamespaceManager) AllowListItems(req *common.Request) bool {
-	return m.SClusterResourceManager.AllowListItems(req) || req.GetCluster().IsShared()
+	return m.SClusterResourceManager.AllowListItems(req) || req.GetCluster().IsSharable(req.UserCred)
 }
 
 func (m *SNamespaceManager) AllowGetItem(req *common.Request, id string) bool {
