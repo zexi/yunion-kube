@@ -7,6 +7,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
@@ -49,19 +50,12 @@ func (spec *ImagePullSecretSpec) GetData() map[string][]byte {
 	return map[string][]byte{v1.DockerConfigKey: spec.Data}
 }
 
-// Secret is a single secret returned to the frontend.
-type Secret struct {
-	api.ObjectMeta
-	api.TypeMeta
-	Type v1.SecretType `json:"type"`
-}
-
 // SecretsList is a response structure for a queried secrets list.
 type SecretList struct {
 	*common.BaseList
 
 	// Unordered list of Secrets.
-	Secrets []Secret
+	Secrets []apis.Secret
 }
 
 func (man *SSecretManager) List(req *common.Request) (common.ListResource, error) {
@@ -103,7 +97,7 @@ func GetSecretList(indexer *client.CacheFactory, cluster api.ICluster, namespace
 func toSecretList(secrets []*v1.Secret, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*SecretList, error) {
 	secretList := &SecretList{
 		BaseList: common.NewBaseList(cluster),
-		Secrets:  make([]Secret, 0),
+		Secrets:  make([]apis.Secret, 0),
 	}
 	err := dataselect.ToResourceList(
 		secretList,
