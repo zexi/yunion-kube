@@ -6,15 +6,24 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
-func ToPod(pod *v1.Pod, warnings []api.Event, cluster api.ICluster) api.Pod {
+func ToPod(
+	pod *v1.Pod,
+	warnings []api.Event,
+	cfgs []*v1.ConfigMap,
+	secrets []*v1.Secret,
+	cluster api.ICluster,
+) api.Pod {
 	podDetail := api.Pod{
-		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta, cluster),
-		TypeMeta:     api.NewTypeMeta(pod.TypeMeta),
-		Warnings:     warnings,
-		PodStatus:    getPodStatus(pod),
-		RestartCount: getRestartCount(pod),
-		NodeName:     pod.Spec.NodeName,
-		PodIP:        pod.Status.PodIP,
+		ObjectMeta:     api.NewObjectMeta(pod.ObjectMeta, cluster),
+		TypeMeta:       api.NewTypeMeta(pod.TypeMeta),
+		Warnings:       warnings,
+		PodStatus:      getPodStatus(pod),
+		RestartCount:   getRestartCount(pod),
+		NodeName:       pod.Spec.NodeName,
+		PodIP:          pod.Status.PodIP,
+		QOSClass:       string(pod.Status.QOSClass),
+		Containers:     extractContainerInfo(pod.Spec.Containers, pod, cfgs, secrets),
+		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, cfgs, secrets),
 	}
 	return podDetail
 }

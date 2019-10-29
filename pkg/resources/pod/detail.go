@@ -62,11 +62,11 @@ func GetPodDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace,
 	}
 
 	warnings := event.GetPodsEventWarnings(rawEventList, []*v1.Pod{pod})
-	commonPod := ToPod(pod, warnings, cluster)
+	commonPod := ToPod(pod, warnings, configMapList, secretList, cluster)
 
 	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(indexer, cluster, namespace, name, dataselect.DefaultDataSelect())
 
-	podDetail := toPodDetail(commonPod, pod, configMapList, secretList, eventList, persistentVolumeClaimList)
+	podDetail := toPodDetail(commonPod, pod, eventList, persistentVolumeClaimList)
 	return &podDetail, nil
 }
 
@@ -99,16 +99,12 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func toPodDetail(commonPod api.Pod, pod *v1.Pod, configMaps []*v1.ConfigMap,
-	secrets []*v1.Secret, events *common.EventList,
+func toPodDetail(commonPod api.Pod, pod *v1.Pod, events *common.EventList,
 	persistentVolumeClaimList *persistentvolumeclaim.PersistentVolumeClaimList,
 ) api.PodDetail {
 	return api.PodDetail{
-		Pod:      commonPod,
-		QOSClass: string(pod.Status.QOSClass),
+		Pod: commonPod,
 		//Controller:                controller,
-		Containers:     extractContainerInfo(pod.Spec.Containers, pod, configMaps, secrets),
-		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, configMaps, secrets),
 		//Metrics:                   metrics,
 		Conditions:                getPodConditions(*pod),
 		Events:                    events.Events,

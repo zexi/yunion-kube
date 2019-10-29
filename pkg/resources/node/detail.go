@@ -189,12 +189,7 @@ func GetNodePods(
 		return &podList, err
 	}
 
-	events, err := event.GetPodsEvents(indexer, v1.NamespaceAll, pods)
-	if err != nil {
-		return &podList, err
-	}
-
-	return pod.ToPodList(pods, events, dsQuery, cluster)
+	return pod.ToPodListByIndexerV2(indexer, pods, "", dsQuery, labels.Everything(), cluster)
 }
 
 func getNodePods(client *client.CacheFactory, node *v1.Node) ([]*v1.Pod, error) {

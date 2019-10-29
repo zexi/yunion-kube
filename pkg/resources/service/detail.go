@@ -67,8 +67,11 @@ func GetServicePods(
 	}
 
 	labelSelector := labels.SelectorFromSet(service.Spec.Selector)
+	nsQuery := common.NewSameNamespaceQuery(namespace)
 	channels := &common.ResourceChannels{
-		PodList: common.GetPodListChannelWithOptions(indexer, common.NewSameNamespaceQuery(namespace), labelSelector),
+		PodList:       common.GetPodListChannelWithOptions(indexer, nsQuery, labelSelector),
+		ConfigMapList: common.GetConfigMapListChannel(indexer, nsQuery),
+		SecretList:    common.GetSecretListChannel(indexer, nsQuery),
 	}
 
 	apiPodList := <-channels.PodList.List
@@ -76,12 +79,7 @@ func GetServicePods(
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(indexer, namespace, apiPodList)
-	if err != nil {
-		return nil, err
-	}
-
-	return pod.ToPodList(apiPodList, events, dsQuery, cluster)
+	return pod.ToPodListByIndexerV2(indexer, apiPodList, namespace, dsQuery, labelSelector, cluster)
 }
 
 // GetServiceEvents returns model events for a service with the given name in the given namespace.
@@ -99,12 +97,12 @@ func GetServiceEvents(indexer *client.CacheFactory, cluster api.ICluster, dsQuer
 // ToServiceDetail returns api service object based on kubernetes service object
 func ToServiceDetail(service *v1.Service, events common.EventList, pods pod.PodList, endpointList endpoint.EndpointList, cluster api.ICluster) api.ServiceDetail {
 	return api.ServiceDetail{
-		Service: ToService(service, cluster),
-		EndpointList:      endpointList.Endpoints,
-		ClusterIP:         service.Spec.ClusterIP,
-		Type:              service.Spec.Type,
-		EventList:         events.Events,
-		PodList:           pods.Pods,
-		SessionAffinity:   service.Spec.SessionAffinity,
+		Service:         ToService(service, cluster),
+		EndpointList:    endpointList.Endpoints,
+		ClusterIP:       service.Spec.ClusterIP,
+		Type:            service.Spec.Type,
+		EventList:       events.Events,
+		PodList:         pods.Pods,
+		SessionAffinity: service.Spec.SessionAffinity,
 	}
 }

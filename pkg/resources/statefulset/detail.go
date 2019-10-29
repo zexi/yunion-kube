@@ -5,6 +5,7 @@ import (
 
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/log"
@@ -95,12 +96,7 @@ func GetStatefulSetPods(indexer *client.CacheFactory, cluster api.ICluster, dsQu
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(indexer, namespace, pods)
-	if err != nil {
-		return nil, err
-	}
-
-	return pod.ToPodList(pods, events, dsQuery, cluster)
+	return pod.ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, labels.Everything(), cluster)
 }
 
 // getRawStatefulSetPods return array of api pods targeting pet set with given name.

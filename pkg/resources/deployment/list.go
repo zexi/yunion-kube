@@ -73,6 +73,7 @@ func ToDeployment(deployment *apps.Deployment, rs []*apps.ReplicaSet, pods []*v1
 		Pods:                podInfo,
 		Status:              podInfo.GetStatus(),
 		Selector:            deployment.Spec.Selector.MatchLabels,
+		Replicas:            deployment.Spec.Replicas,
 	}
 }
 

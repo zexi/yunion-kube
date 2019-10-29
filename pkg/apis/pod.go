@@ -22,6 +22,10 @@ type Pod struct {
 
 	// Name of the Node this pod runs on
 	NodeName string `json:"nodeName"`
+
+	QOSClass       string      `json:"qosClass"`
+	Containers     []Container `json:"containers"`
+	InitContainers []Container `json:"initContainers"`
 }
 
 type PodStatus struct {
@@ -32,9 +36,6 @@ type PodStatus struct {
 
 type PodDetail struct {
 	Pod
-	QOSClass                  string                  `json:"qosClass"`
-	Containers                []Container             `json:"containers"`
-	InitContainers            []Container             `json:"initContainers"`
 	Conditions                []Condition             `json:"conditions"`
 	Events                    []Event                 `json:"events"`
 	PersistentvolumeclaimList []PersistentVolumeClaim `json:"persistentVolumeClaims"`

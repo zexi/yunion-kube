@@ -118,31 +118,6 @@ definitions:
       to the pod.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  Capabilities:
-    properties:
-      add:
-        description: |-
-          Added capabilities
-          +optional
-        items:
-          $ref: '#/definitions/Capability'
-        type: array
-        x-go-name: Add
-      drop:
-        description: |-
-          Removed capabilities
-          +optional
-        items:
-          $ref: '#/definitions/Capability'
-        type: array
-        x-go-name: Drop
-    title: Adds and removes POSIX capabilities from running containers.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  Capability:
-    description: Capability represent POSIX capabilities type
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   CauseType:
     description: |-
       CauseType is a machine readable value providing more detail about what
@@ -384,12 +359,22 @@ definitions:
         additionalProperties:
           type: string
         description: |-
-          Annotations are unstructured key value data stored with a resource that may be set by
-          external tooling. They are not queryable and should be preserved when modifying
-          objects.  Annotation keys have the same formatting restrictions as Label keys. See the
-          comments on Labels for details.
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: http://kubernetes.io/docs/user-guide/annotations
+          +optional
         type: object
         x-go-name: Annotations
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+          +optional
+        type: string
+        x-go-name: APIVersion
       cluster:
         description: Onecloud cluster data
         type: string
@@ -397,6 +382,14 @@ definitions:
       clusterID:
         type: string
         x-go-name: ClusterId
+      clusterName:
+        description: |-
+          The name of the cluster which the object belongs to.
+          This is used to distinguish resources with same name and namespace in different clusters.
+          This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+          +optional
+        type: string
+        x-go-name: ClusterName
       creationTimestamp:
         $ref: '#/definitions/Time'
       data:
@@ -407,68 +400,151 @@ definitions:
           Each key must be a valid DNS_SUBDOMAIN with an optional leading dot.
         type: object
         x-go-name: Data
+      deletionGracePeriodSeconds:
+        description: |-
+          Number of seconds allowed for this object to gracefully terminate before
+          it will be removed from the system. Only set when deletionTimestamp is also set.
+          May only be shortened.
+          Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: DeletionGracePeriodSeconds
+      deletionTimestamp:
+        $ref: '#/definitions/Time'
+      finalizers:
+        description: |-
+          Must be empty before the object is deleted from the registry. Each entry
+          is an identifier for the responsible component that will remove the entry
+          from the list. If the deletionTimestamp of the object is non-nil, entries
+          in this list can only be removed.
+          +optional
+          +patchStrategy=merge
+        items:
+          type: string
+        type: array
+        x-go-name: Finalizers
+      generateName:
+        description: |-
+          GenerateName is an optional prefix, used by the server, to generate a unique
+          name ONLY IF the Name field has not been provided.
+          If this field is used, the name returned to the client will be different
+          than the name passed. This value will also be combined with a unique suffix.
+          The provided value has the same validation rules as the Name field,
+          and may be truncated by the length of the suffix required to make the value
+          unique on the server.
+
+          If this field is specified and the generated name exists, the server will
+          NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+          ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+          should retry (optionally after the time indicated in the Retry-After header).
+
+          Applied only if Name is not specified.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#idempotency
+          +optional
+        type: string
+        x-go-name: GenerateName
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: Generation
+      initializers:
+        $ref: '#/definitions/Initializers'
       kind:
-        $ref: '#/definitions/ResourceKind'
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+          +optional
+        type: string
+        x-go-name: Kind
       labels:
         additionalProperties:
           type: string
         description: |-
-          Labels are key value pairs that may be used to scope and select individual resources.
-          Label keys are of the form:
-          label-key ::= prefixed-name | name
-          prefixed-name ::= prefix '/' name
-          prefix ::= DNS_SUBDOMAIN
-          name ::= DNS_LABEL
-          The prefix is optional.  If the prefix is not specified, the key is assumed to be private
-          to the user.  Other system components that wish to use labels must specify a prefix.
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: http://kubernetes.io/docs/user-guide/labels
+          +optional
         type: object
         x-go-name: Labels
       name:
         description: |-
-          Name is unique within a namespace. Name is primarily intended for creation
-          idempotence and configuration definition.
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/identifiers#names
+          +optional
         type: string
         x-go-name: Name
       namespace:
         description: |-
-          Namespace defines the space within which name must be unique. An empty namespace is
+          Namespace defines the space within each name must be unique. An empty namespace is
           equivalent to the "default" namespace, but "default" is the canonical representation.
           Not all objects are required to be scoped to a namespace - the value of this field for
           those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/namespaces
+          +optional
         type: string
         x-go-name: Namespace
+      ownerReferences:
+        description: |-
+          List of objects depended by this object. If ALL objects in the list have
+          been deleted, this object will be garbage collected. If this object is managed by a controller,
+          then an entry in this list will point to this controller, with the controller field set to true.
+          There cannot be more than one managing controller.
+          +optional
+          +patchMergeKey=uid
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/OwnerReference'
+        type: array
+        x-go-name: OwnerReferences
       pods:
         description: Pods use configmap
         items:
           $ref: '#/definitions/Pod'
         type: array
         x-go-name: Pods
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/pkg/apis
-  ConfigMapEnvSource:
-    description: |-
-      The contents of the target ConfigMap's Data field will represent the
-      key-value pairs as environment variables.
-    properties:
-      name:
+      resourceVersion:
         description: |-
-          Name of the referent.
-          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-          TODO: Add other useful fields. apiVersion, kind, uid?
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
           +optional
         type: string
-        x-go-name: Name
-      optional:
+        x-go-name: ResourceVersion
+      selfLink:
         description: |-
-          Specify whether the ConfigMap must be defined
+          SelfLink is a URL representing this object.
+          Populated by the system.
+          Read-only.
           +optional
-        type: boolean
-        x-go-name: Optional
-    title: |-
-      ConfigMapEnvSource selects a ConfigMap to populate the environment
-      variables with.
+        type: string
+        x-go-name: SelfLink
+      uid:
+        $ref: '#/definitions/UID'
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   ConfigMapKeySelector:
     properties:
       key:
@@ -583,219 +659,34 @@ definitions:
   Container:
     properties:
       args:
-        description: |-
-          Arguments to the entrypoint.
-          The docker image's CMD is used if this is not provided.
-          Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-          cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-          can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-          regardless of whether the variable exists or not.
-          Cannot be updated.
-          More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
-          +optional
+        description: Command arguments
         items:
           type: string
         type: array
         x-go-name: Args
-      command:
-        description: |-
-          Entrypoint array. Not executed within a shell.
-          The docker image's ENTRYPOINT is used if this is not provided.
-          Variable references $(VAR_NAME) are expanded using the container's environment. If a variable
-          cannot be resolved, the reference in the input string will be unchanged. The $(VAR_NAME) syntax
-          can be escaped with a double $$, ie: $$(VAR_NAME). Escaped references will never be expanded,
-          regardless of whether the variable exists or not.
-          Cannot be updated.
-          More info: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/#running-a-command-in-a-shell
-          +optional
+      commands:
+        description: Commands of the container
         items:
           type: string
         type: array
-        x-go-name: Command
+        x-go-name: Commands
       env:
-        description: |-
-          List of environment variables to set in the container.
-          Cannot be updated.
-          +optional
-          +patchMergeKey=name
-          +patchStrategy=merge
+        description: List of environment variables.
         items:
           $ref: '#/definitions/EnvVar'
         type: array
         x-go-name: Env
-      envFrom:
-        description: |-
-          List of sources to populate environment variables in the container.
-          The keys defined within a source must be a C_IDENTIFIER. All invalid keys
-          will be reported as an event when the container is starting. When a key exists in multiple
-          sources, the value associated with the last source will take precedence.
-          Values defined by an Env with a duplicate key will take precedence.
-          Cannot be updated.
-          +optional
-        items:
-          $ref: '#/definitions/EnvFromSource'
-        type: array
-        x-go-name: EnvFrom
       image:
-        description: |-
-          Docker image name.
-          More info: https://kubernetes.io/docs/concepts/containers/images
-          This field is optional to allow higher level config management to default or override
-          container images in workload controllers like Deployments and StatefulSets.
-          +optional
+        description: Image URI of the container.
         type: string
         x-go-name: Image
-      imagePullPolicy:
-        $ref: '#/definitions/PullPolicy'
-      lifecycle:
-        $ref: '#/definitions/Lifecycle'
-      livenessProbe:
-        $ref: '#/definitions/Probe'
       name:
-        description: |-
-          Name of the container specified as a DNS_LABEL.
-          Each container in a pod must have a unique name (DNS_LABEL).
-          Cannot be updated.
+        description: Name of the container.
         type: string
         x-go-name: Name
-      ports:
-        description: |-
-          List of ports to expose from the container. Exposing a port here gives
-          the system additional information about the network connections a
-          container uses, but is primarily informational. Not specifying a port here
-          DOES NOT prevent that port from being exposed. Any port which is
-          listening on the default "0.0.0.0" address inside a container will be
-          accessible from the network.
-          Cannot be updated.
-          +optional
-          +patchMergeKey=containerPort
-          +patchStrategy=merge
-          +listType=map
-          +listMapKey=containerPort
-          +listMapKey=protocol
-        items:
-          $ref: '#/definitions/ContainerPort'
-        type: array
-        x-go-name: Ports
-      readinessProbe:
-        $ref: '#/definitions/Probe'
-      resources:
-        $ref: '#/definitions/ResourceRequirements'
-      securityContext:
-        $ref: '#/definitions/SecurityContext'
-      stdin:
-        description: |-
-          Whether this container should allocate a buffer for stdin in the container runtime. If this
-          is not set, reads from stdin in the container will always result in EOF.
-          Default is false.
-          +optional
-        type: boolean
-        x-go-name: Stdin
-      stdinOnce:
-        description: |-
-          Whether the container runtime should close the stdin channel after it has been opened by
-          a single attach. When stdin is true the stdin stream will remain open across multiple attach
-          sessions. If stdinOnce is set to true, stdin is opened on container start, is empty until the
-          first client attaches to stdin, and then remains open and accepts data until the client disconnects,
-          at which time stdin is closed and remains closed until the container is restarted. If this
-          flag is false, a container processes that reads from stdin will never receive an EOF.
-          Default is false
-          +optional
-        type: boolean
-        x-go-name: StdinOnce
-      terminationMessagePath:
-        description: |-
-          Optional: Path at which the file to which the container's termination message
-          will be written is mounted into the container's filesystem.
-          Message written is intended to be brief final status, such as an assertion failure message.
-          Will be truncated by the node if greater than 4096 bytes. The total message length across
-          all containers will be limited to 12kb.
-          Defaults to /dev/termination-log.
-          Cannot be updated.
-          +optional
-        type: string
-        x-go-name: TerminationMessagePath
-      terminationMessagePolicy:
-        $ref: '#/definitions/TerminationMessagePolicy'
-      tty:
-        description: |-
-          Whether this container should allocate a TTY for itself, also requires 'stdin' to be true.
-          Default is false.
-          +optional
-        type: boolean
-        x-go-name: TTY
-      volumeDevices:
-        description: |-
-          volumeDevices is the list of block devices to be used by the container.
-          This is a beta feature.
-          +patchMergeKey=devicePath
-          +patchStrategy=merge
-          +optional
-        items:
-          $ref: '#/definitions/VolumeDevice'
-        type: array
-        x-go-name: VolumeDevices
-      volumeMounts:
-        description: |-
-          Pod volumes to mount into the container's filesystem.
-          Cannot be updated.
-          +optional
-          +patchMergeKey=mountPath
-          +patchStrategy=merge
-        items:
-          $ref: '#/definitions/VolumeMount'
-        type: array
-        x-go-name: VolumeMounts
-      workingDir:
-        description: |-
-          Container's working directory.
-          If not specified, the container runtime's default will be used, which
-          might be configured in the container image.
-          Cannot be updated.
-          +optional
-        type: string
-        x-go-name: WorkingDir
-    title: A single application container that you want to run within a pod.
+    title: Container represents a docker/rkt/etc. container that lives in a pod.
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  ContainerPort:
-    properties:
-      containerPort:
-        description: |-
-          Number of port to expose on the pod's IP address.
-          This must be a valid port number, 0 < x < 65536.
-        format: int32
-        type: integer
-        x-go-name: ContainerPort
-      hostIP:
-        description: |-
-          What host IP to bind the external port to.
-          +optional
-        type: string
-        x-go-name: HostIP
-      hostPort:
-        description: |-
-          Number of port to expose on the host.
-          If specified, this must be a valid port number, 0 < x < 65536.
-          If HostNetwork is specified, this must match ContainerPort.
-          Most containers do not need this.
-          +optional
-        format: int32
-        type: integer
-        x-go-name: HostPort
-      name:
-        description: |-
-          If specified, this must be an IANA_SVC_NAME and unique within the pod. Each
-          named port in a pod must have a unique name. Name for the port that can be
-          referred to by services.
-          +optional
-        type: string
-        x-go-name: Name
-      protocol:
-        $ref: '#/definitions/Protocol'
-    title: ContainerPort represents a network port in a single container.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   ContainerState:
     description: |-
       Only one of its members may be specified.
@@ -871,51 +762,6 @@ definitions:
         type: string
         x-go-name: Reason
     title: ContainerStateWaiting is a waiting state of a container.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  ContainerStatus:
-    properties:
-      containerID:
-        description: |-
-          Container's ID in the format 'docker://<container_id>'.
-          +optional
-        type: string
-        x-go-name: ContainerID
-      image:
-        description: |-
-          The image the container is running.
-          More info: https://kubernetes.io/docs/concepts/containers/images
-          TODO(dchen1107): Which image the container is running with?
-        type: string
-        x-go-name: Image
-      imageID:
-        description: ImageID of the container's image.
-        type: string
-        x-go-name: ImageID
-      lastState:
-        $ref: '#/definitions/ContainerState'
-      name:
-        description: |-
-          This must be a DNS_LABEL. Each container in a pod must have a unique name.
-          Cannot be updated.
-        type: string
-        x-go-name: Name
-      ready:
-        description: Specifies whether the container has passed its readiness probe.
-        type: boolean
-        x-go-name: Ready
-      restartCount:
-        description: |-
-          The number of times the container has been restarted, currently based on
-          the number of dead containers that have not yet been removed.
-          Note that this is calculated from dead containers. But those containers are subject to
-          garbage collection. This value will get capped at 5 by GC.
-        format: int32
-        type: integer
-        x-go-name: RestartCount
-      state:
-        $ref: '#/definitions/ContainerState'
-    title: ContainerStatus contains details for the current status of this container.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   ContainerUpdateInput:
@@ -1470,45 +1316,21 @@ definitions:
     title: Represents an empty directory for a pod.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  EnvFromSource:
-    description: EnvFromSource represents the source of a set of ConfigMaps
-    properties:
-      configMapRef:
-        $ref: '#/definitions/ConfigMapEnvSource'
-      prefix:
-        description: |-
-          An optional identifier to prepend to each key in the ConfigMap. Must be a C_IDENTIFIER.
-          +optional
-        type: string
-        x-go-name: Prefix
-      secretRef:
-        $ref: '#/definitions/SecretEnvSource'
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   EnvVar:
     properties:
       name:
-        description: Name of the environment variable. Must be a C_IDENTIFIER.
+        description: Name of the variable.
         type: string
         x-go-name: Name
       value:
-        description: |-
-          Variable references $(VAR_NAME) are expanded
-          using the previous defined environment variables in the container and
-          any service environment variables. If a variable cannot be resolved,
-          the reference in the input string will be unchanged. The $(VAR_NAME)
-          syntax can be escaped with a double $$, ie: $$(VAR_NAME). Escaped
-          references will never be expanded, regardless of whether the variable
-          exists or not.
-          Defaults to "".
-          +optional
+        description: Value of the variable. May be empty if value from is defined.
         type: string
         x-go-name: Value
       valueFrom:
         $ref: '#/definitions/EnvVarSource'
-    title: EnvVar represents an environment variable present in a Container.
+    title: EnvVar represents an environment variable of a container.
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   EnvVarSource:
     properties:
       configMapKeyRef:
@@ -1522,23 +1344,224 @@ definitions:
     title: EnvVarSource represents a source for the value of an EnvVar.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  ExecAction:
+  Event:
     properties:
-      command:
+      annotations:
+        additionalProperties:
+          type: string
         description: |-
-          Command is the command line to execute inside the container, the working directory for the
-          command  is root ('/') in the container's filesystem. The command is simply exec'd, it is
-          not run inside a shell, so traditional shell instructions ('|', etc) won't work. To use
-          a shell, you need to explicitly call out to that shell.
-          Exit status of 0 is treated as live/healthy and non-zero is unhealthy.
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: http://kubernetes.io/docs/user-guide/annotations
           +optional
+        type: object
+        x-go-name: Annotations
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+          +optional
+        type: string
+        x-go-name: APIVersion
+      cluster:
+        description: Onecloud cluster data
+        type: string
+        x-go-name: Cluster
+      clusterID:
+        type: string
+        x-go-name: ClusterId
+      clusterName:
+        description: |-
+          The name of the cluster which the object belongs to.
+          This is used to distinguish resources with same name and namespace in different clusters.
+          This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+          +optional
+        type: string
+        x-go-name: ClusterName
+      count:
+        description: The number of times this event has occurred.
+        format: int32
+        type: integer
+        x-go-name: Count
+      creationTimestamp:
+        $ref: '#/definitions/Time'
+      deletionGracePeriodSeconds:
+        description: |-
+          Number of seconds allowed for this object to gracefully terminate before
+          it will be removed from the system. Only set when deletionTimestamp is also set.
+          May only be shortened.
+          Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: DeletionGracePeriodSeconds
+      deletionTimestamp:
+        $ref: '#/definitions/Time'
+      finalizers:
+        description: |-
+          Must be empty before the object is deleted from the registry. Each entry
+          is an identifier for the responsible component that will remove the entry
+          from the list. If the deletionTimestamp of the object is non-nil, entries
+          in this list can only be removed.
+          +optional
+          +patchStrategy=merge
         items:
           type: string
         type: array
-        x-go-name: Command
-    title: ExecAction describes a "run in container" action.
+        x-go-name: Finalizers
+      firstSeen:
+        $ref: '#/definitions/Time'
+      generateName:
+        description: |-
+          GenerateName is an optional prefix, used by the server, to generate a unique
+          name ONLY IF the Name field has not been provided.
+          If this field is used, the name returned to the client will be different
+          than the name passed. This value will also be combined with a unique suffix.
+          The provided value has the same validation rules as the Name field,
+          and may be truncated by the length of the suffix required to make the value
+          unique on the server.
+
+          If this field is specified and the generated name exists, the server will
+          NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+          ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+          should retry (optionally after the time indicated in the Retry-After header).
+
+          Applied only if Name is not specified.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#idempotency
+          +optional
+        type: string
+        x-go-name: GenerateName
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: Generation
+      initializers:
+        $ref: '#/definitions/Initializers'
+      kind:
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+          +optional
+        type: string
+        x-go-name: Kind
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: http://kubernetes.io/docs/user-guide/labels
+          +optional
+        type: object
+        x-go-name: Labels
+      lastSeen:
+        $ref: '#/definitions/Time'
+      message:
+        description: A human-readable description of the status of related object.
+        type: string
+        x-go-name: Message
+      name:
+        description: |-
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/identifiers#names
+          +optional
+        type: string
+        x-go-name: Name
+      namespace:
+        description: |-
+          Namespace defines the space within each name must be unique. An empty namespace is
+          equivalent to the "default" namespace, but "default" is the canonical representation.
+          Not all objects are required to be scoped to a namespace - the value of this field for
+          those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/namespaces
+          +optional
+        type: string
+        x-go-name: Namespace
+      object:
+        description: |-
+          Reference to a piece of an object, which triggered an event. For example
+          "spec.containers{name}" refers to container within pod with given name, if no container
+          name is specified, for example "spec.containers[2]", then it refers to container with
+          index 2 in this pod.
+        type: string
+        x-go-name: SubObject
+      ownerReferences:
+        description: |-
+          List of objects depended by this object. If ALL objects in the list have
+          been deleted, this object will be garbage collected. If this object is managed by a controller,
+          then an entry in this list will point to this controller, with the controller field set to true.
+          There cannot be more than one managing controller.
+          +optional
+          +patchMergeKey=uid
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/OwnerReference'
+        type: array
+        x-go-name: OwnerReferences
+      reason:
+        description: |-
+          Short, machine understandable string that gives the reason
+          for this event being generated.
+        type: string
+        x-go-name: Reason
+      resourceVersion:
+        description: |-
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
+          +optional
+        type: string
+        x-go-name: ResourceVersion
+      selfLink:
+        description: |-
+          SelfLink is a URL representing this object.
+          Populated by the system.
+          Read-only.
+          +optional
+        type: string
+        x-go-name: SelfLink
+      sourceComponent:
+        description: Component from which the event is generated.
+        type: string
+        x-go-name: SourceComponent
+      sourceHost:
+        description: Host name on which the event is generated.
+        type: string
+        x-go-name: SourceHost
+      type:
+        description: Event type (at the moment only normal and warning are supported).
+        type: string
+        x-go-name: Type
+      uid:
+        $ref: '#/definitions/UID'
+    title: Event is a single event representation.
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   FCVolumeSource:
     description: |-
       Fibre Channel volumes can only be mounted as read/write once.
@@ -1745,62 +1768,6 @@ definitions:
         type: boolean
         x-go-name: ReadOnly
     title: Represents a Glusterfs mount that lasts the lifetime of a pod.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  HTTPGetAction:
-    properties:
-      host:
-        description: |-
-          Host name to connect to, defaults to the pod IP. You probably want to set
-          "Host" in httpHeaders instead.
-          +optional
-        type: string
-        x-go-name: Host
-      httpHeaders:
-        description: |-
-          Custom headers to set in the request. HTTP allows repeated headers.
-          +optional
-        items:
-          $ref: '#/definitions/HTTPHeader'
-        type: array
-        x-go-name: HTTPHeaders
-      path:
-        description: |-
-          Path to access on the HTTP server.
-          +optional
-        type: string
-        x-go-name: Path
-      port:
-        $ref: '#/definitions/IntOrString'
-      scheme:
-        $ref: '#/definitions/URIScheme'
-    title: HTTPGetAction describes an action based on HTTP Get requests.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  HTTPHeader:
-    description: HTTPHeader describes a custom header to be used in HTTP probes
-    properties:
-      name:
-        description: The header field name
-        type: string
-        x-go-name: Name
-      value:
-        description: The header field value
-        type: string
-        x-go-name: Value
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  Handler:
-    description: |-
-      Handler defines a specific action that should be taken
-      TODO: pass structured data to these actions, and document that data here.
-    properties:
-      exec:
-        $ref: '#/definitions/ExecAction'
-      httpGet:
-        $ref: '#/definitions/HTTPGetAction'
-      tcpSocket:
-        $ref: '#/definitions/TCPSocketAction'
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   HostAlias:
@@ -2072,18 +2039,6 @@ definitions:
         x-go-name: Values
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/apimachinery/pkg/apis/meta/v1
-  Lifecycle:
-    description: |-
-      Lifecycle describes actions that the management system should take in response to container lifecycle
-      events. For the PostStart and PreStop lifecycle handlers, management of the container blocks
-      until the action is complete, unless the container process fails, in which case the handler is aborted.
-    properties:
-      postStart:
-        $ref: '#/definitions/Handler'
-      preStop:
-        $ref: '#/definitions/Handler'
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   LocalObjectReference:
     description: |-
       LocalObjectReference contains enough information to let you locate the
@@ -2155,10 +2110,6 @@ definitions:
         x-go-name: VmemSize
     type: object
     x-go-package: yunion.io/x/yunion-kube/pkg/apis
-  MountPropagationMode:
-    title: MountPropagationMode describes mount propagation.
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   NFSVolumeSource:
     description: NFS volumes do not support ownership management or SELinux relabeling.
     properties:
@@ -2453,8 +2404,8 @@ definitions:
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   Pod:
     description: |-
-      Pod is a collection of containers that can run on a host. This resource is created
-      by clients and scheduled onto hosts.
+      Pod is a presentation layer view of Pod resource. This means it is Pod plus additional augmented data
+      we can get from other sources (like services that target it).
     properties:
       annotations:
         additionalProperties:
@@ -2476,6 +2427,13 @@ definitions:
           +optional
         type: string
         x-go-name: APIVersion
+      cluster:
+        description: Onecloud cluster data
+        type: string
+        x-go-name: Cluster
+      clusterID:
+        type: string
+        x-go-name: ClusterId
       clusterName:
         description: |-
           The name of the cluster which the object belongs to.
@@ -2484,6 +2442,16 @@ definitions:
           +optional
         type: string
         x-go-name: ClusterName
+      containerStates:
+        items:
+          $ref: '#/definitions/ContainerState'
+        type: array
+        x-go-name: ContainerStates
+      containers:
+        items:
+          $ref: '#/definitions/Container'
+        type: array
+        x-go-name: Containers
       creationTimestamp:
         $ref: '#/definitions/Time'
       deletionGracePeriodSeconds:
@@ -2538,6 +2506,11 @@ definitions:
         format: int64
         type: integer
         x-go-name: Generation
+      initContainers:
+        items:
+          $ref: '#/definitions/Container'
+        type: array
+        x-go-name: InitContainers
       initializers:
         $ref: '#/definitions/Initializers'
       kind:
@@ -2585,6 +2558,10 @@ definitions:
           +optional
         type: string
         x-go-name: Namespace
+      nodeName:
+        description: Name of the Node this pod runs on
+        type: string
+        x-go-name: NodeName
       ownerReferences:
         description: |-
           List of objects depended by this object. If ALL objects in the list have
@@ -2598,6 +2575,14 @@ definitions:
           $ref: '#/definitions/OwnerReference'
         type: array
         x-go-name: OwnerReferences
+      podIP:
+        type: string
+        x-go-name: PodIP
+      podPhase:
+        $ref: '#/definitions/PodPhase'
+      qosClass:
+        type: string
+        x-go-name: QOSClass
       resourceVersion:
         description: |-
           An opaque value that represents the internal version of this object that can
@@ -2613,6 +2598,11 @@ definitions:
           +optional
         type: string
         x-go-name: ResourceVersion
+      restartCount:
+        description: Count of containers restarts
+        format: int32
+        type: integer
+        x-go-name: RestartCount
       selfLink:
         description: |-
           SelfLink is a URL representing this object.
@@ -2621,14 +2611,19 @@ definitions:
           +optional
         type: string
         x-go-name: SelfLink
-      spec:
-        $ref: '#/definitions/PodSpec'
       status:
-        $ref: '#/definitions/PodStatus'
+        type: string
+        x-go-name: Status
       uid:
         $ref: '#/definitions/UID'
+      warnings:
+        description: Pod warning events
+        items:
+          $ref: '#/definitions/Event'
+        type: array
+        x-go-name: Warnings
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   PodAffinity:
     properties:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -2730,31 +2725,6 @@ definitions:
     title: Pod anti affinity is a group of inter pod anti affinity scheduling rules.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  PodCondition:
-    properties:
-      lastProbeTime:
-        $ref: '#/definitions/Time'
-      lastTransitionTime:
-        $ref: '#/definitions/Time'
-      message:
-        description: |-
-          Human-readable message indicating details about last transition.
-          +optional
-        type: string
-        x-go-name: Message
-      reason:
-        description: |-
-          Unique, one-word, CamelCase reason for the condition's last transition.
-          +optional
-        type: string
-        x-go-name: Reason
-      status:
-        $ref: '#/definitions/ConditionStatus'
-      type:
-        $ref: '#/definitions/PodConditionType'
-    title: PodCondition contains details for the current condition of this pod.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodConditionType:
     description: PodConditionType is a valid value for PodCondition.Type
     type: string
@@ -2812,10 +2782,6 @@ definitions:
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodPhase:
     title: PodPhase is a label for the condition of a pod at the current time.
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  PodQOSClass:
-    title: PodQOSClass defines the supported qos classes of Pods.
     type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodReadinessGate:
@@ -3165,89 +3131,6 @@ definitions:
     title: PodSpec is a description of a pod.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  PodStatus:
-    description: |-
-      PodStatus represents information about the status of a pod. Status may trail the actual
-      state of a system, especially if the node that hosts the pod cannot contact the control
-      plane.
-    properties:
-      conditions:
-        description: |-
-          Current service state of pod.
-          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions
-          +optional
-          +patchMergeKey=type
-          +patchStrategy=merge
-        items:
-          $ref: '#/definitions/PodCondition'
-        type: array
-        x-go-name: Conditions
-      containerStatuses:
-        description: |-
-          The list has one entry per container in the manifest. Each entry is currently the output
-          of `docker inspect`.
-          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-and-container-status
-          +optional
-        items:
-          $ref: '#/definitions/ContainerStatus'
-        type: array
-        x-go-name: ContainerStatuses
-      hostIP:
-        description: |-
-          IP address of the host to which the pod is assigned. Empty if not yet scheduled.
-          +optional
-        type: string
-        x-go-name: HostIP
-      initContainerStatuses:
-        description: |-
-          The list has one entry per init container in the manifest. The most recent successful
-          init container will have ready = true, the most recently started container will have
-          startTime set.
-          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-and-container-status
-        items:
-          $ref: '#/definitions/ContainerStatus'
-        type: array
-        x-go-name: InitContainerStatuses
-      message:
-        description: |-
-          A human readable message indicating details about why the pod is in this condition.
-          +optional
-        type: string
-        x-go-name: Message
-      nominatedNodeName:
-        description: |-
-          nominatedNodeName is set only when this pod preempts other pods on the node, but it cannot be
-          scheduled right away as preemption victims receive their graceful termination periods.
-          This field does not guarantee that the pod will be scheduled on this node. Scheduler may decide
-          to place the pod elsewhere if other nodes become available sooner. Scheduler may also decide to
-          give the resources on this node to a higher priority pod that is created after preemption.
-          As a result, this field may be different than PodSpec.nodeName when the pod is
-          scheduled.
-          +optional
-        type: string
-        x-go-name: NominatedNodeName
-      phase:
-        $ref: '#/definitions/PodPhase'
-      podIP:
-        description: |-
-          IP address allocated to the pod. Routable at least within the cluster.
-          Empty if not yet allocated.
-          +optional
-        type: string
-        x-go-name: PodIP
-      qosClass:
-        $ref: '#/definitions/PodQOSClass'
-      reason:
-        description: |-
-          A brief CamelCase message indicating details about why the pod is in this state.
-          e.g. 'Evicted'
-          +optional
-        type: string
-        x-go-name: Reason
-      startTime:
-        $ref: '#/definitions/Time'
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodTemplateSpec:
     description: PodTemplateSpec describes the data a pod should have when created
       from a template
@@ -3442,63 +3325,6 @@ definitions:
         x-go-name: Weight
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  Probe:
-    description: |-
-      Probe describes a health check to be performed against a container to determine whether it is
-      alive or ready to receive traffic.
-    properties:
-      exec:
-        $ref: '#/definitions/ExecAction'
-      failureThreshold:
-        description: |-
-          Minimum consecutive failures for the probe to be considered failed after having succeeded.
-          Defaults to 3. Minimum value is 1.
-          +optional
-        format: int32
-        type: integer
-        x-go-name: FailureThreshold
-      httpGet:
-        $ref: '#/definitions/HTTPGetAction'
-      initialDelaySeconds:
-        description: |-
-          Number of seconds after the container has started before liveness probes are initiated.
-          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
-          +optional
-        format: int32
-        type: integer
-        x-go-name: InitialDelaySeconds
-      periodSeconds:
-        description: |-
-          How often (in seconds) to perform the probe.
-          Default to 10 seconds. Minimum value is 1.
-          +optional
-        format: int32
-        type: integer
-        x-go-name: PeriodSeconds
-      successThreshold:
-        description: |-
-          Minimum consecutive successes for the probe to be considered successful after having failed.
-          Defaults to 1. Must be 1 for liveness. Minimum value is 1.
-          +optional
-        format: int32
-        type: integer
-        x-go-name: SuccessThreshold
-      tcpSocket:
-        $ref: '#/definitions/TCPSocketAction'
-      timeoutSeconds:
-        description: |-
-          Number of seconds after which the probe times out.
-          Defaults to 1 second. Minimum value is 1.
-          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
-          +optional
-        format: int32
-        type: integer
-        x-go-name: TimeoutSeconds
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  ProcMountType:
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   ProjectedVolumeSource:
     description: Represents a projected volume source
     properties:
@@ -3520,15 +3346,6 @@ definitions:
         type: array
         x-go-name: Sources
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  Protocol:
-    title: Protocol defines network protocols supported for things like container
-      ports.
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  PullPolicy:
-    description: PullPolicy describes a policy for if/when to pull a container image
-    type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   Quantity:
     description: |-
@@ -3745,28 +3562,6 @@ definitions:
         x-go-name: Resource
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  ResourceKind:
-    description: |-
-      ResourceKind is an unique name for each resource. It can used for API discovery and generic
-      code that does things based on the kind. For example, there may be a generic "deleter"
-      that based on resource kind, name and namespace deletes it.
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/pkg/types/apis
-  ResourceList:
-    additionalProperties:
-      $ref: '#/definitions/Quantity'
-    title: ResourceList is a set of (resource name, quantity) pairs.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  ResourceRequirements:
-    properties:
-      limits:
-        $ref: '#/definitions/ResourceList'
-      requests:
-        $ref: '#/definitions/ResourceList'
-    title: ResourceRequirements describes the compute resource requirements.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   RestartPolicy:
     description: |-
       Only one of the following restart policies may be specified.
@@ -3898,12 +3693,22 @@ definitions:
         additionalProperties:
           type: string
         description: |-
-          Annotations are unstructured key value data stored with a resource that may be set by
-          external tooling. They are not queryable and should be preserved when modifying
-          objects.  Annotation keys have the same formatting restrictions as Label keys. See the
-          comments on Labels for details.
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: http://kubernetes.io/docs/user-guide/annotations
+          +optional
         type: object
         x-go-name: Annotations
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+          +optional
+        type: string
+        x-go-name: APIVersion
       cluster:
         description: Onecloud cluster data
         type: string
@@ -3911,6 +3716,14 @@ definitions:
       clusterID:
         type: string
         x-go-name: ClusterId
+      clusterName:
+        description: |-
+          The name of the cluster which the object belongs to.
+          This is used to distinguish resources with same name and namespace in different clusters.
+          This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+          +optional
+        type: string
+        x-go-name: ClusterName
       creationTimestamp:
         $ref: '#/definitions/Time'
       data:
@@ -3926,64 +3739,147 @@ definitions:
           representing the arbitrary (possibly non-string) data value here.
         type: object
         x-go-name: Data
+      deletionGracePeriodSeconds:
+        description: |-
+          Number of seconds allowed for this object to gracefully terminate before
+          it will be removed from the system. Only set when deletionTimestamp is also set.
+          May only be shortened.
+          Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: DeletionGracePeriodSeconds
+      deletionTimestamp:
+        $ref: '#/definitions/Time'
+      finalizers:
+        description: |-
+          Must be empty before the object is deleted from the registry. Each entry
+          is an identifier for the responsible component that will remove the entry
+          from the list. If the deletionTimestamp of the object is non-nil, entries
+          in this list can only be removed.
+          +optional
+          +patchStrategy=merge
+        items:
+          type: string
+        type: array
+        x-go-name: Finalizers
+      generateName:
+        description: |-
+          GenerateName is an optional prefix, used by the server, to generate a unique
+          name ONLY IF the Name field has not been provided.
+          If this field is used, the name returned to the client will be different
+          than the name passed. This value will also be combined with a unique suffix.
+          The provided value has the same validation rules as the Name field,
+          and may be truncated by the length of the suffix required to make the value
+          unique on the server.
+
+          If this field is specified and the generated name exists, the server will
+          NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+          ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+          should retry (optionally after the time indicated in the Retry-After header).
+
+          Applied only if Name is not specified.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#idempotency
+          +optional
+        type: string
+        x-go-name: GenerateName
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: Generation
+      initializers:
+        $ref: '#/definitions/Initializers'
       kind:
-        $ref: '#/definitions/ResourceKind'
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+          +optional
+        type: string
+        x-go-name: Kind
       labels:
         additionalProperties:
           type: string
         description: |-
-          Labels are key value pairs that may be used to scope and select individual resources.
-          Label keys are of the form:
-          label-key ::= prefixed-name | name
-          prefixed-name ::= prefix '/' name
-          prefix ::= DNS_SUBDOMAIN
-          name ::= DNS_LABEL
-          The prefix is optional.  If the prefix is not specified, the key is assumed to be private
-          to the user.  Other system components that wish to use labels must specify a prefix.
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: http://kubernetes.io/docs/user-guide/labels
+          +optional
         type: object
         x-go-name: Labels
       name:
         description: |-
-          Name is unique within a namespace. Name is primarily intended for creation
-          idempotence and configuration definition.
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/identifiers#names
+          +optional
         type: string
         x-go-name: Name
       namespace:
         description: |-
-          Namespace defines the space within which name must be unique. An empty namespace is
+          Namespace defines the space within each name must be unique. An empty namespace is
           equivalent to the "default" namespace, but "default" is the canonical representation.
           Not all objects are required to be scoped to a namespace - the value of this field for
           those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/namespaces
+          +optional
         type: string
         x-go-name: Namespace
-      type:
-        $ref: '#/definitions/SecretType'
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/pkg/apis
-  SecretEnvSource:
-    description: |-
-      The contents of the target Secret's Data field will represent the
-      key-value pairs as environment variables.
-    properties:
-      name:
+      ownerReferences:
         description: |-
-          Name of the referent.
-          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-          TODO: Add other useful fields. apiVersion, kind, uid?
+          List of objects depended by this object. If ALL objects in the list have
+          been deleted, this object will be garbage collected. If this object is managed by a controller,
+          then an entry in this list will point to this controller, with the controller field set to true.
+          There cannot be more than one managing controller.
+          +optional
+          +patchMergeKey=uid
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/OwnerReference'
+        type: array
+        x-go-name: OwnerReferences
+      resourceVersion:
+        description: |-
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
           +optional
         type: string
-        x-go-name: Name
-      optional:
+        x-go-name: ResourceVersion
+      selfLink:
         description: |-
-          Specify whether the Secret must be defined
+          SelfLink is a URL representing this object.
+          Populated by the system.
+          Read-only.
           +optional
-        type: boolean
-        x-go-name: Optional
-    title: |-
-      SecretEnvSource selects a Secret to populate the environment
-      variables with.
+        type: string
+        x-go-name: SelfLink
+      type:
+        $ref: '#/definitions/SecretType'
+      uid:
+        $ref: '#/definitions/UID'
     type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   SecretKeySelector:
     properties:
       key:
@@ -4094,78 +3990,6 @@ definitions:
         type: string
         x-go-name: SecretName
     title: Adapts a Secret into a volume.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  SecurityContext:
-    description: |-
-      Some fields are present in both SecurityContext and PodSecurityContext.  When both
-      are set, the values in SecurityContext take precedence.
-    properties:
-      allowPrivilegeEscalation:
-        description: |-
-          AllowPrivilegeEscalation controls whether a process can gain more
-          privileges than its parent process. This bool directly controls if
-          the no_new_privs flag will be set on the container process.
-          AllowPrivilegeEscalation is true always when the container is:
-          1) run as Privileged
-          2) has CAP_SYS_ADMIN
-          +optional
-        type: boolean
-        x-go-name: AllowPrivilegeEscalation
-      capabilities:
-        $ref: '#/definitions/Capabilities'
-      privileged:
-        description: |-
-          Run container in privileged mode.
-          Processes in privileged containers are essentially equivalent to root on the host.
-          Defaults to false.
-          +optional
-        type: boolean
-        x-go-name: Privileged
-      procMount:
-        $ref: '#/definitions/ProcMountType'
-      readOnlyRootFilesystem:
-        description: |-
-          Whether this container has a read-only root filesystem.
-          Default is false.
-          +optional
-        type: boolean
-        x-go-name: ReadOnlyRootFilesystem
-      runAsGroup:
-        description: |-
-          The GID to run the entrypoint of the container process.
-          Uses runtime default if unset.
-          May also be set in PodSecurityContext.  If set in both SecurityContext and
-          PodSecurityContext, the value specified in SecurityContext takes precedence.
-          +optional
-        format: int64
-        type: integer
-        x-go-name: RunAsGroup
-      runAsNonRoot:
-        description: |-
-          Indicates that the container must run as a non-root user.
-          If true, the Kubelet will validate the image at runtime to ensure that it
-          does not run as UID 0 (root) and fail to start the container if it does.
-          If unset or false, no such validation will be performed.
-          May also be set in PodSecurityContext.  If set in both SecurityContext and
-          PodSecurityContext, the value specified in SecurityContext takes precedence.
-          +optional
-        type: boolean
-        x-go-name: RunAsNonRoot
-      runAsUser:
-        description: |-
-          The UID to run the entrypoint of the container process.
-          Defaults to user specified in image metadata if unspecified.
-          May also be set in PodSecurityContext.  If set in both SecurityContext and
-          PodSecurityContext, the value specified in SecurityContext takes precedence.
-          +optional
-        format: int64
-        type: integer
-        x-go-name: RunAsUser
-      seLinuxOptions:
-        $ref: '#/definitions/SELinuxOptions'
-    title: SecurityContext holds security configuration that will be applied to a
-      container.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   ServiceAccountTokenProjection:
@@ -4464,25 +4288,7 @@ definitions:
         x-go-name: Value
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  TCPSocketAction:
-    description: TCPSocketAction describes an action based on opening a socket
-    properties:
-      host:
-        description: |-
-          Optional: Host name to connect to, defaults to the pod IP.
-          +optional
-        type: string
-        x-go-name: Host
-      port:
-        $ref: '#/definitions/IntOrString'
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   TaintEffect:
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  TerminationMessagePolicy:
-    title: TerminationMessagePolicy describes how termination messages are retrieved
-      from a container.
     type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   Time:
@@ -4547,11 +4353,6 @@ definitions:
       intent and helps make sure that UIDs and names do not get conflated.
     type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/apimachinery/pkg/types
-  URIScheme:
-    description: URIScheme identifies the scheme used for connection to a host for
-      Get actions
-    type: string
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   Volume:
     properties:
       awsElasticBlockStore:
@@ -4617,51 +4418,6 @@ definitions:
         $ref: '#/definitions/VsphereVirtualDiskVolumeSource'
     title: Volume represents a named volume in a pod that may be accessed by any container
       in the pod.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  VolumeDevice:
-    properties:
-      devicePath:
-        description: devicePath is the path inside of the container that the device
-          will be mapped to.
-        type: string
-        x-go-name: DevicePath
-      name:
-        description: name must match the name of a persistentVolumeClaim in the pod
-        type: string
-        x-go-name: Name
-    title: volumeDevice describes a mapping of a raw block device within a container.
-    type: object
-    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
-  VolumeMount:
-    properties:
-      mountPath:
-        description: |-
-          Path within the container at which the volume should be mounted.  Must
-          not contain ':'.
-        type: string
-        x-go-name: MountPath
-      mountPropagation:
-        $ref: '#/definitions/MountPropagationMode'
-      name:
-        description: This must match the Name of a Volume.
-        type: string
-        x-go-name: Name
-      readOnly:
-        description: |-
-          Mounted read-only if true, read-write otherwise (false or unspecified).
-          Defaults to false.
-          +optional
-        type: boolean
-        x-go-name: ReadOnly
-      subPath:
-        description: |-
-          Path within the volume from which the container's volume should be mounted.
-          Defaults to "" (volume's root).
-          +optional
-        type: string
-        x-go-name: SubPath
-    title: VolumeMount describes a mounting of a Volume within a container.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   VolumeProjection:

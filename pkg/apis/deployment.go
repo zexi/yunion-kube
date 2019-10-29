@@ -31,6 +31,11 @@ type StatefulsetUpdateInput struct {
 	PodUpdateInput
 }
 
+type ContainerImage struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
+}
+
 // Deployment is a presentation layer view of kubernetes Deployment resource. This means
 // it is Deployment plus additional augmented data we can get from other sources
 // (like services that target the same pods)
@@ -41,11 +46,13 @@ type Deployment struct {
 	// Aggregate information about pods belonging to this deployment
 	Pods PodInfo `json:"podsInfo"`
 
+	Replicas *int32 `json:"replicas"`
+
 	// Container images of the Deployment
-	ContainerImages []string `json:"containerImages"`
+	ContainerImages []ContainerImage `json:"containerImages"`
 
 	// Init Container images of deployment
-	InitContainerImages []string `json:"initContainerImages"`
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
 
 	Status   string            `json:"status"`
 	Selector map[string]string `json:"selector"`

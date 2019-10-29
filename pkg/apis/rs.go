@@ -11,8 +11,8 @@ type ReplicaSet struct {
 	Pods PodInfo `json:"pods"`
 
 	// Container images of the Replica Set.
-	ContainerImages []string `json:"containerImages"`
+	ContainerImages []ContainerImage `json:"containerImages"`
 
 	// Init Container images of the Replica Set.
-	InitContainerImages []string `json:"initContainerImages"`
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
 }

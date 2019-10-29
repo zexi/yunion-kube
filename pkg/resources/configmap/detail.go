@@ -7,11 +7,11 @@ import (
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/resources/pod"
 )
 
 func (man *SConfigMapManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -27,17 +27,18 @@ func GetConfigMapDetail(indexer *client.CacheFactory, cluster api.ICluster, name
 	if err != nil {
 		return nil, err
 	}
+
 	pods, err := indexer.PodLister().Pods(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
-	return getConfigMapDetail(rawConfigMap, pods, cluster)
+	return getConfigMapDetail(indexer, rawConfigMap, pods, cluster)
 }
 
-func getConfigMapDetail(rawConfigMap *v1.ConfigMap, pods []*v1.Pod, cluster api.ICluster) (*apis.ConfigMapDetail, error) {
+func getConfigMapDetail(indexer *client.CacheFactory, rawConfigMap *v1.ConfigMap, pods []*v1.Pod, cluster api.ICluster) (*apis.ConfigMapDetail, error) {
 	pods = getMountPods(rawConfigMap.GetName(), pods)
-	mountPods, err := pod.ToPodList(pods, nil, dataselect.DefaultDataSelect(), cluster)
+	mountPods, err := pod.ToPodListByIndexer(indexer, rawConfigMap.Namespace, dataselect.DefaultDataSelect(), labels.Everything(), cluster)
 	if err != nil {
 		return nil, err
 	}

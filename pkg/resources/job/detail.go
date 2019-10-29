@@ -59,12 +59,7 @@ func GetJobPods(
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(indexer, namespace, pods)
-	if err != nil {
-		return nil, err
-	}
-
-	return pod.ToPodList(pods, events, dsQuery, cluster)
+	return pod.ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, labels.Everything(), cluster)
 }
 
 // Returns array of api pods targeting job with given name.

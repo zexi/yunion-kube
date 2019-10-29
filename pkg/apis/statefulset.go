@@ -11,10 +11,10 @@ type StatefulSet struct {
 	Pods PodInfo `json:"podsInfo"`
 
 	// Container images of the Stateful Set.
-	ContainerImages []string `json:"containerImages"`
+	ContainerImages []ContainerImage `json:"containerImages"`
 
 	// Init container images of the Stateful Set.
-	InitContainerImages []string          `json:"initContainerImages"`
+	InitContainerImages []ContainerImage  `json:"initContainerImages"`
 	Status              string            `json:"status"`
 	Selector            map[string]string `json:"selector"`
 }

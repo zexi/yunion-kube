@@ -32,10 +32,10 @@ type Job struct {
 	Pods PodInfo `json:"podsInfo"`
 
 	// Container images of the Job.
-	ContainerImages []string `json:"containerImages"`
+	ContainerImages []ContainerImage `json:"containerImages"`
 
 	// Init Container images of the Job.
-	InitContainerImages []string `json:"initContainerImages"`
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
 
 	// number of parallel jobs defined.
 	Parallelism *int32 `json:"parallelism"`
