@@ -7,37 +7,18 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type StatefulSetList struct {
 	*common.BaseList
 
-	StatefulSets []StatefulSet
+	StatefulSets []api.StatefulSet
 	Pods         []*v1.Pod
 	Events       []*v1.Event
-}
-
-// StatefulSet is a presentation layer view of Kubernetes Stateful Set resource. This means it is
-// Stateful Set plus additional augmented data we can get from other sources (like services that
-// target the same pods).
-type StatefulSet struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Aggregate information about pods belonging to this Pet Set.
-	Pods common.PodInfo `json:"podsInfo"`
-
-	// Container images of the Stateful Set.
-	ContainerImages []string `json:"containerImages"`
-
-	// Init container images of the Stateful Set.
-	InitContainerImages []string          `json:"initContainerImages"`
-	Status              string            `json:"status"`
-	Selector            map[string]string `json:"selector"`
 }
 
 func (man *SStatefuleSetManager) List(req *common.Request) (common.ListResource, error) {
@@ -89,7 +70,7 @@ func GetStatefulSetListFromChannels(cluster api.ICluster, channels *common.Resou
 func ToStatefulSetList(statefulSets []*apps.StatefulSet, pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StatefulSetList, error) {
 	statefulSetList := &StatefulSetList{
 		BaseList:     common.NewBaseList(cluster),
-		StatefulSets: make([]StatefulSet, 0),
+		StatefulSets: make([]api.StatefulSet, 0),
 		Pods:         pods,
 		Events:       events,
 	}
@@ -102,7 +83,7 @@ func ToStatefulSetList(statefulSets []*apps.StatefulSet, pods []*v1.Pod, events 
 	return statefulSetList, err
 }
 
-func GetPodInfo(statefulSet *apps.StatefulSet, pods []*v1.Pod, events []*v1.Event) common.PodInfo {
+func GetPodInfo(statefulSet *apps.StatefulSet, pods []*v1.Pod, events []*v1.Event) api.PodInfo {
 	matchingPods := common.FilterPodsByControllerRef(statefulSet, pods)
 	podInfo := common.GetPodInfo(statefulSet.Status.Replicas, statefulSet.Spec.Replicas, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
@@ -119,10 +100,10 @@ func (l *StatefulSetList) GetResponseData() interface{} {
 	return l.StatefulSets
 }
 
-func ToStatefulSet(statefulSet *apps.StatefulSet, podInfo *common.PodInfo, cluster api.ICluster) StatefulSet {
-	return StatefulSet{
-		ObjectMeta:          api.NewObjectMetaV2(statefulSet.ObjectMeta, cluster),
-		TypeMeta:            api.NewTypeMeta(api.ResourceKindStatefulSet),
+func ToStatefulSet(statefulSet *apps.StatefulSet, podInfo *api.PodInfo, cluster api.ICluster) api.StatefulSet {
+	return api.StatefulSet{
+		ObjectMeta:          api.NewObjectMeta(statefulSet.ObjectMeta, cluster),
+		TypeMeta:            api.NewTypeMeta(statefulSet.TypeMeta),
 		ContainerImages:     common.GetContainerImages(&statefulSet.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&statefulSet.Spec.Template.Spec),
 		Pods:                *podInfo,

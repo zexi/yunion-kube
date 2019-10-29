@@ -378,6 +378,73 @@ definitions:
   ConditionStatus:
     type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ConfigMapDetail:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        description: |-
+          Annotations are unstructured key value data stored with a resource that may be set by
+          external tooling. They are not queryable and should be preserved when modifying
+          objects.  Annotation keys have the same formatting restrictions as Label keys. See the
+          comments on Labels for details.
+        type: object
+        x-go-name: Annotations
+      cluster:
+        description: Onecloud cluster data
+        type: string
+        x-go-name: Cluster
+      clusterID:
+        type: string
+        x-go-name: ClusterId
+      creationTimestamp:
+        $ref: '#/definitions/Time'
+      data:
+        additionalProperties:
+          type: string
+        description: |-
+          Data contains the configuration data.
+          Each key must be a valid DNS_SUBDOMAIN with an optional leading dot.
+        type: object
+        x-go-name: Data
+      kind:
+        $ref: '#/definitions/ResourceKind'
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Labels are key value pairs that may be used to scope and select individual resources.
+          Label keys are of the form:
+          label-key ::= prefixed-name | name
+          prefixed-name ::= prefix '/' name
+          prefix ::= DNS_SUBDOMAIN
+          name ::= DNS_LABEL
+          The prefix is optional.  If the prefix is not specified, the key is assumed to be private
+          to the user.  Other system components that wish to use labels must specify a prefix.
+        type: object
+        x-go-name: Labels
+      name:
+        description: |-
+          Name is unique within a namespace. Name is primarily intended for creation
+          idempotence and configuration definition.
+        type: string
+        x-go-name: Name
+      namespace:
+        description: |-
+          Namespace defines the space within which name must be unique. An empty namespace is
+          equivalent to the "default" namespace, but "default" is the canonical representation.
+          Not all objects are required to be scoped to a namespace - the value of this field for
+          those objects will be empty.
+        type: string
+        x-go-name: Namespace
+      pods:
+        description: Pods use configmap
+        items:
+          $ref: '#/definitions/Pod'
+        type: array
+        x-go-name: Pods
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   ConfigMapEnvSource:
     description: |-
       The contents of the target ConfigMap's Data field will represent the
@@ -727,6 +794,128 @@ definitions:
       protocol:
         $ref: '#/definitions/Protocol'
     title: ContainerPort represents a network port in a single container.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ContainerState:
+    description: |-
+      Only one of its members may be specified.
+      If none of them is specified, the default one is ContainerStateWaiting.
+    properties:
+      running:
+        $ref: '#/definitions/ContainerStateRunning'
+      terminated:
+        $ref: '#/definitions/ContainerStateTerminated'
+      waiting:
+        $ref: '#/definitions/ContainerStateWaiting'
+    title: ContainerState holds a possible state of container.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ContainerStateRunning:
+    properties:
+      startedAt:
+        $ref: '#/definitions/Time'
+    title: ContainerStateRunning is a running state of a container.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ContainerStateTerminated:
+    properties:
+      containerID:
+        description: |-
+          Container's ID in the format 'docker://<container_id>'
+          +optional
+        type: string
+        x-go-name: ContainerID
+      exitCode:
+        description: Exit status from the last termination of the container
+        format: int32
+        type: integer
+        x-go-name: ExitCode
+      finishedAt:
+        $ref: '#/definitions/Time'
+      message:
+        description: |-
+          Message regarding the last termination of the container
+          +optional
+        type: string
+        x-go-name: Message
+      reason:
+        description: |-
+          (brief) reason from the last termination of the container
+          +optional
+        type: string
+        x-go-name: Reason
+      signal:
+        description: |-
+          Signal from the last termination of the container
+          +optional
+        format: int32
+        type: integer
+        x-go-name: Signal
+      startedAt:
+        $ref: '#/definitions/Time'
+    title: ContainerStateTerminated is a terminated state of a container.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ContainerStateWaiting:
+    properties:
+      message:
+        description: |-
+          Message regarding why the container is not yet running.
+          +optional
+        type: string
+        x-go-name: Message
+      reason:
+        description: |-
+          (brief) reason the container is not yet running.
+          +optional
+        type: string
+        x-go-name: Reason
+    title: ContainerStateWaiting is a waiting state of a container.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ContainerStatus:
+    properties:
+      containerID:
+        description: |-
+          Container's ID in the format 'docker://<container_id>'.
+          +optional
+        type: string
+        x-go-name: ContainerID
+      image:
+        description: |-
+          The image the container is running.
+          More info: https://kubernetes.io/docs/concepts/containers/images
+          TODO(dchen1107): Which image the container is running with?
+        type: string
+        x-go-name: Image
+      imageID:
+        description: ImageID of the container's image.
+        type: string
+        x-go-name: ImageID
+      lastState:
+        $ref: '#/definitions/ContainerState'
+      name:
+        description: |-
+          This must be a DNS_LABEL. Each container in a pod must have a unique name.
+          Cannot be updated.
+        type: string
+        x-go-name: Name
+      ready:
+        description: Specifies whether the container has passed its readiness probe.
+        type: boolean
+        x-go-name: Ready
+      restartCount:
+        description: |-
+          The number of times the container has been restarted, currently based on
+          the number of dead containers that have not yet been removed.
+          Note that this is calculated from dead containers. But those containers are subject to
+          garbage collection. This value will get capped at 5 by GC.
+        format: int32
+        type: integer
+        x-go-name: RestartCount
+      state:
+        $ref: '#/definitions/ContainerState'
+    title: ContainerStatus contains details for the current status of this container.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   ContainerUpdateInput:
@@ -2262,6 +2451,184 @@ definitions:
     title: Represents a Photon Controller persistent disk resource.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  Pod:
+    description: |-
+      Pod is a collection of containers that can run on a host. This resource is created
+      by clients and scheduled onto hosts.
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        description: |-
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: http://kubernetes.io/docs/user-guide/annotations
+          +optional
+        type: object
+        x-go-name: Annotations
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+          +optional
+        type: string
+        x-go-name: APIVersion
+      clusterName:
+        description: |-
+          The name of the cluster which the object belongs to.
+          This is used to distinguish resources with same name and namespace in different clusters.
+          This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+          +optional
+        type: string
+        x-go-name: ClusterName
+      creationTimestamp:
+        $ref: '#/definitions/Time'
+      deletionGracePeriodSeconds:
+        description: |-
+          Number of seconds allowed for this object to gracefully terminate before
+          it will be removed from the system. Only set when deletionTimestamp is also set.
+          May only be shortened.
+          Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: DeletionGracePeriodSeconds
+      deletionTimestamp:
+        $ref: '#/definitions/Time'
+      finalizers:
+        description: |-
+          Must be empty before the object is deleted from the registry. Each entry
+          is an identifier for the responsible component that will remove the entry
+          from the list. If the deletionTimestamp of the object is non-nil, entries
+          in this list can only be removed.
+          +optional
+          +patchStrategy=merge
+        items:
+          type: string
+        type: array
+        x-go-name: Finalizers
+      generateName:
+        description: |-
+          GenerateName is an optional prefix, used by the server, to generate a unique
+          name ONLY IF the Name field has not been provided.
+          If this field is used, the name returned to the client will be different
+          than the name passed. This value will also be combined with a unique suffix.
+          The provided value has the same validation rules as the Name field,
+          and may be truncated by the length of the suffix required to make the value
+          unique on the server.
+
+          If this field is specified and the generated name exists, the server will
+          NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+          ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+          should retry (optionally after the time indicated in the Retry-After header).
+
+          Applied only if Name is not specified.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#idempotency
+          +optional
+        type: string
+        x-go-name: GenerateName
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: Generation
+      initializers:
+        $ref: '#/definitions/Initializers'
+      kind:
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+          +optional
+        type: string
+        x-go-name: Kind
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: http://kubernetes.io/docs/user-guide/labels
+          +optional
+        type: object
+        x-go-name: Labels
+      name:
+        description: |-
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/identifiers#names
+          +optional
+        type: string
+        x-go-name: Name
+      namespace:
+        description: |-
+          Namespace defines the space within each name must be unique. An empty namespace is
+          equivalent to the "default" namespace, but "default" is the canonical representation.
+          Not all objects are required to be scoped to a namespace - the value of this field for
+          those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/namespaces
+          +optional
+        type: string
+        x-go-name: Namespace
+      ownerReferences:
+        description: |-
+          List of objects depended by this object. If ALL objects in the list have
+          been deleted, this object will be garbage collected. If this object is managed by a controller,
+          then an entry in this list will point to this controller, with the controller field set to true.
+          There cannot be more than one managing controller.
+          +optional
+          +patchMergeKey=uid
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/OwnerReference'
+        type: array
+        x-go-name: OwnerReferences
+      resourceVersion:
+        description: |-
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
+          +optional
+        type: string
+        x-go-name: ResourceVersion
+      selfLink:
+        description: |-
+          SelfLink is a URL representing this object.
+          Populated by the system.
+          Read-only.
+          +optional
+        type: string
+        x-go-name: SelfLink
+      spec:
+        $ref: '#/definitions/PodSpec'
+      status:
+        $ref: '#/definitions/PodStatus'
+      uid:
+        $ref: '#/definitions/UID'
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodAffinity:
     properties:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -2363,6 +2730,31 @@ definitions:
     title: Pod anti affinity is a group of inter pod anti affinity scheduling rules.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  PodCondition:
+    properties:
+      lastProbeTime:
+        $ref: '#/definitions/Time'
+      lastTransitionTime:
+        $ref: '#/definitions/Time'
+      message:
+        description: |-
+          Human-readable message indicating details about last transition.
+          +optional
+        type: string
+        x-go-name: Message
+      reason:
+        description: |-
+          Unique, one-word, CamelCase reason for the condition's last transition.
+          +optional
+        type: string
+        x-go-name: Reason
+      status:
+        $ref: '#/definitions/ConditionStatus'
+      type:
+        $ref: '#/definitions/PodConditionType'
+    title: PodCondition contains details for the current condition of this pod.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodConditionType:
     description: PodConditionType is a valid value for PodCondition.Type
     type: string
@@ -2417,6 +2809,14 @@ definitions:
         x-go-name: Value
     title: PodDNSConfigOption defines DNS resolver options of a pod.
     type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  PodPhase:
+    title: PodPhase is a label for the condition of a pod at the current time.
+    type: string
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  PodQOSClass:
+    title: PodQOSClass defines the supported qos classes of Pods.
+    type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodReadinessGate:
     description: PodReadinessGate contains the reference to a pod condition
@@ -2763,6 +3163,89 @@ definitions:
         type: array
         x-go-name: Volumes
     title: PodSpec is a description of a pod.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  PodStatus:
+    description: |-
+      PodStatus represents information about the status of a pod. Status may trail the actual
+      state of a system, especially if the node that hosts the pod cannot contact the control
+      plane.
+    properties:
+      conditions:
+        description: |-
+          Current service state of pod.
+          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions
+          +optional
+          +patchMergeKey=type
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/PodCondition'
+        type: array
+        x-go-name: Conditions
+      containerStatuses:
+        description: |-
+          The list has one entry per container in the manifest. Each entry is currently the output
+          of `docker inspect`.
+          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-and-container-status
+          +optional
+        items:
+          $ref: '#/definitions/ContainerStatus'
+        type: array
+        x-go-name: ContainerStatuses
+      hostIP:
+        description: |-
+          IP address of the host to which the pod is assigned. Empty if not yet scheduled.
+          +optional
+        type: string
+        x-go-name: HostIP
+      initContainerStatuses:
+        description: |-
+          The list has one entry per init container in the manifest. The most recent successful
+          init container will have ready = true, the most recently started container will have
+          startTime set.
+          More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-and-container-status
+        items:
+          $ref: '#/definitions/ContainerStatus'
+        type: array
+        x-go-name: InitContainerStatuses
+      message:
+        description: |-
+          A human readable message indicating details about why the pod is in this condition.
+          +optional
+        type: string
+        x-go-name: Message
+      nominatedNodeName:
+        description: |-
+          nominatedNodeName is set only when this pod preempts other pods on the node, but it cannot be
+          scheduled right away as preemption victims receive their graceful termination periods.
+          This field does not guarantee that the pod will be scheduled on this node. Scheduler may decide
+          to place the pod elsewhere if other nodes become available sooner. Scheduler may also decide to
+          give the resources on this node to a higher priority pod that is created after preemption.
+          As a result, this field may be different than PodSpec.nodeName when the pod is
+          scheduled.
+          +optional
+        type: string
+        x-go-name: NominatedNodeName
+      phase:
+        $ref: '#/definitions/PodPhase'
+      podIP:
+        description: |-
+          IP address allocated to the pod. Routable at least within the cluster.
+          Empty if not yet allocated.
+          +optional
+        type: string
+        x-go-name: PodIP
+      qosClass:
+        $ref: '#/definitions/PodQOSClass'
+      reason:
+        description: |-
+          A brief CamelCase message indicating details about why the pod is in this state.
+          e.g. 'Evicted'
+          +optional
+        type: string
+        x-go-name: Reason
+      startTime:
+        $ref: '#/definitions/Time'
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   PodTemplateSpec:
@@ -4247,6 +4730,30 @@ info:
   description: swagger define
   version: "1.0"
 paths:
+  /configmaps/{name}:
+    get:
+      description: Get configmap details
+      operationId: configMapShowInput
+      parameters:
+      - description: The Name of kubernetes object
+        in: path
+        name: name
+        required: true
+        type: string
+        x-go-name: Name
+      - in: query
+        name: cluster
+        required: true
+        type: string
+        x-go-name: Cluster
+      - in: query
+        name: namespace
+        required: true
+        type: string
+        x-go-name: Namespace
+      responses:
+        "200":
+          $ref: '#/responses/configMapShowOutput'
   /deployments:
     put:
       description: Update deployment spec
@@ -4303,6 +4810,12 @@ responses:
       properties:
         kubecluster:
           $ref: '#/definitions/ClusterCreateOutput'
+      type: object
+  configMapShowOutput:
+    schema:
+      properties:
+        configmap:
+          $ref: '#/definitions/ConfigMapDetail'
       type: object
   deploymentUpdateOutput:
     schema:

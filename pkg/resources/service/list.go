@@ -3,42 +3,13 @@ package service
 import (
 	"k8s.io/api/core/v1"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type Service struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// InternalEndpoint of all kubernetes services that have the same label selector as connected Replication
-	// Controller. Endpoint is DNS name merged with ports
-	InternalEndpoint common.Endpoint `json:"internalEndpoint"`
-
-	// ExternalEndpoints of all kubernetes services that have the same label selector as connected Replication
-	// Controller. Endpoint is DNS name merged with ports
-	ExternalEndpoints []common.Endpoint `json:"externalEndpoint"`
-
-	// Label selector of the service
-	Selector map[string]string `json:"selector"`
-
-	// Type determines how the service will be exposed. Valid options: ClusterIP, NodePort, LoadBalancer
-	Type v1.ServiceType `json:"type"`
-
-	// ClusterIP is usually assigned by the master. Valid values are None, empty string (""), or
-	// a valid IP address. None can be specified for headless services when proxying is not required
-	ClusterIP string `json:"clusterIP"`
-}
-
-// ToListItem dynamic called by common.ToListJsonData
-func (s Service) ToListItem() jsonutils.JSONObject {
-	return jsonutils.Marshal(s)
-}
 
 func (man *SServiceManager) List(req *common.Request) (common.ListResource, error) {
 	query := req.ToQuery()
@@ -64,7 +35,7 @@ func (man *SServiceManager) GetServiceList(indexer *client.CacheFactory, cluster
 
 type ServiceList struct {
 	*common.BaseList
-	Services []Service
+	Services []api.Service
 }
 
 func (l *ServiceList) Append(obj interface{}) {
@@ -84,7 +55,7 @@ func GetServiceListFromChannels(channels *common.ResourceChannels, dsQuery *data
 
 	serviceList := &ServiceList{
 		BaseList: common.NewBaseList(cluster),
-		Services: make([]Service, 0),
+		Services: make([]api.Service, 0),
 	}
 	err = dataselect.ToResourceList(
 		serviceList,

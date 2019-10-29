@@ -1,43 +1,28 @@
 package limitrange
 
-import api "k8s.io/api/core/v1"
+import (
+	"k8s.io/api/core/v1"
+	"yunion.io/x/yunion-kube/pkg/apis"
+)
 
 // limitRanges provides set of limit ranges by limit types and resource names
-type limitRangesMap map[api.LimitType]rangeMap
+type limitRangesMap map[v1.LimitType]rangeMap
 
 // rangeMap provides limit ranges by resource name
-type rangeMap map[api.ResourceName]*LimitRangeItem
+type rangeMap map[v1.ResourceName]*apis.LimitRangeItem
 
-func (rMap rangeMap) getRange(resource api.ResourceName) *LimitRangeItem {
+func (rMap rangeMap) getRange(resource v1.ResourceName) *apis.LimitRangeItem {
 	r, ok := rMap[resource]
 	if !ok {
-		rMap[resource] = &LimitRangeItem{}
+		rMap[resource] = &apis.LimitRangeItem{}
 		return rMap[resource]
 	} else {
 		return r
 	}
 }
 
-// LimitRange provides resource limit range values
-type LimitRangeItem struct {
-	// ResourceName usage constraints on this kind by resource name
-	ResourceName string `json:"resourceName,omitempty"`
-	// ResourceType of resource that this limit applies to
-	ResourceType string `json:"resourceType,omitempty"`
-	// Min usage constraints on this kind by resource name
-	Min string `json:"min,omitempty"`
-	// Max usage constraints on this kind by resource name
-	Max string `json:"max,omitempty"`
-	// Default resource requirement limit value by resource name.
-	Default string `json:"default,omitempty"`
-	// DefaultRequest resource requirement request value by resource name.
-	DefaultRequest string `json:"defaultRequest,omitempty"`
-	// MaxLimitRequestRatio represents the max burst value for the named resource
-	MaxLimitRequestRatio string `json:"maxLimitRequestRatio,omitempty"`
-}
-
 // toLimitRanges converts raw limit ranges to limit ranges map
-func toLimitRangesMap(rawLimitRange *api.LimitRange) limitRangesMap {
+func toLimitRangesMap(rawLimitRange *v1.LimitRange) limitRangesMap {
 
 	rawLimitRanges := rawLimitRange.Spec.Limits
 
@@ -73,9 +58,9 @@ func toLimitRangesMap(rawLimitRange *api.LimitRange) limitRangesMap {
 	return limitRanges
 }
 
-func ToLimitRanges(rawLimitRange *api.LimitRange) []LimitRangeItem {
+func ToLimitRanges(rawLimitRange *v1.LimitRange) []apis.LimitRangeItem {
 	limitRangeMap := toLimitRangesMap(rawLimitRange)
-	limitRangeList := make([]LimitRangeItem, 0)
+	limitRangeList := make([]apis.LimitRangeItem, 0)
 	for limitType, rangeMap := range limitRangeMap {
 		for resourceName, limit := range rangeMap {
 			limit.ResourceName = resourceName.String()

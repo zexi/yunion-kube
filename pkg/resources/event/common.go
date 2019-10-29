@@ -8,7 +8,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // GetEvents gets events associated to resource with given name.
@@ -133,7 +133,7 @@ func GetResourceEvents(indexer *client.CacheFactory, cluster api.ICluster, dsQue
 func CreateEventList(events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*common.EventList, error) {
 	eventList := &common.EventList{
 		BaseList: common.NewBaseList(cluster),
-		Events:   make([]common.Event, 0),
+		Events:   make([]api.Event, 0),
 	}
 	err := dataselect.ToResourceList(
 		eventList,

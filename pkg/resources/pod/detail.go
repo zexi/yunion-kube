@@ -13,62 +13,20 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type PodDetail struct {
-	Pod
-	QOSClass                  string                                        `json:"qosClass"`
-	Containers                []Container                                   `json:"containers"`
-	InitContainers            []Container                                   `json:"initContainers"`
-	Conditions                []common.Condition                            `json:"conditions"`
-	Events                    []common.Event                                `json:"events"`
-	PersistentvolumeclaimList []persistentvolumeclaim.PersistentVolumeClaim `json:"persistentVolumeClaims"`
-}
-
-// Container represents a docker/rkt/etc. container that lives in a pod.
-type Container struct {
-	// Name of the container.
-	Name string `json:"name"`
-
-	// Image URI of the container.
-	Image string `json:"image"`
-
-	// List of environment variables.
-	Env []EnvVar `json:"env"`
-
-	// Commands of the container
-	Commands []string `json:"commands"`
-
-	// Command arguments
-	Args []string `json:"args"`
-}
-
-// EnvVar represents an environment variable of a container.
-type EnvVar struct {
-	// Name of the variable.
-	Name string `json:"name"`
-
-	// Value of the variable. May be empty if value from is defined.
-	Value string `json:"value"`
-
-	// Defined for derived variables. If non-null, the value is get from the reference.
-	// Note that this is an API struct. This is intentional, as EnvVarSources are plain struct
-	// references.
-	ValueFrom *v1.EnvVarSource `json:"valueFrom"`
-}
 
 func (man *SPodManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
 	return GetPodDetail(req.GetIndexer(), req.GetCluster(), namespace, id)
 }
 
-func GetPodDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*PodDetail, error) {
+func GetPodDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*api.PodDetail, error) {
 	log.Infof("Getting details of %s pod in %s namespace", name, namespace)
 	channels := &common.ResourceChannels{
 		ConfigMapList: common.GetConfigMapListChannel(indexer, common.NewSameNamespaceQuery(namespace)),
@@ -112,12 +70,12 @@ func GetPodDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace,
 	return &podDetail, nil
 }
 
-func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []Container {
-	containers := make([]Container, 0)
+func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []api.Container {
+	containers := make([]api.Container, 0)
 	for _, container := range containerList {
-		vars := make([]EnvVar, 0)
+		vars := make([]api.EnvVar, 0)
 		for _, envVar := range container.Env {
-			variable := EnvVar{
+			variable := api.EnvVar{
 				Name:      envVar.Name,
 				Value:     envVar.Value,
 				ValueFrom: envVar.ValueFrom,
@@ -130,7 +88,7 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 		}
 		vars = append(vars, evalEnvFrom(container, configMaps, secrets)...)
 
-		containers = append(containers, Container{
+		containers = append(containers, api.Container{
 			Name:     container.Name,
 			Image:    container.Image,
 			Env:      vars,
@@ -141,11 +99,11 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps []*v1.ConfigMap,
+func toPodDetail(commonPod api.Pod, pod *v1.Pod, configMaps []*v1.ConfigMap,
 	secrets []*v1.Secret, events *common.EventList,
 	persistentVolumeClaimList *persistentvolumeclaim.PersistentVolumeClaimList,
-) PodDetail {
-	return PodDetail{
+) api.PodDetail {
+	return api.PodDetail{
 		Pod:      commonPod,
 		QOSClass: string(pod.Status.QOSClass),
 		//Controller:                controller,
@@ -158,8 +116,8 @@ func toPodDetail(commonPod Pod, pod *v1.Pod, configMaps []*v1.ConfigMap,
 	}
 }
 
-func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []EnvVar {
-	vars := make([]EnvVar, 0)
+func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []api.EnvVar {
+	vars := make([]api.EnvVar, 0)
 	for _, envFromVar := range container.EnvFrom {
 		switch {
 		case envFromVar.ConfigMapRef != nil:
@@ -175,7 +133,7 @@ func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*
 								Key: key,
 							},
 						}
-						variable := EnvVar{
+						variable := api.EnvVar{
 							Name:      envFromVar.Prefix + key,
 							Value:     value,
 							ValueFrom: valueFrom,
@@ -198,7 +156,7 @@ func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*
 								Key: key,
 							},
 						}
-						variable := EnvVar{
+						variable := api.EnvVar{
 							Name:      envFromVar.Prefix + key,
 							Value:     base64.StdEncoding.EncodeToString(value),
 							ValueFrom: valueFrom,

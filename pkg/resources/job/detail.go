@@ -8,31 +8,18 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-// JobDetail is a presentation layer view of Kubernetes Job resource. This means
-// it is Job plus additional augmented data we can get from other sources
-// (like services that target the same pods).
-type JobDetail struct {
-	Job
-
-	// Detailed information about Pods belonging to this Job.
-	PodList []pod.Pod `json:"pods"`
-
-	// List of events related to this Job.
-	EventList []common.Event `json:"events"`
-}
 
 func (man *SJobManager) Get(req *common.Request, id string) (interface{}, error) {
 	return GetJobDetail(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
-func GetJobDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*JobDetail, error) {
+func GetJobDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*api.JobDetail, error) {
 	jobData, err := indexer.JobLister().Jobs(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -101,7 +88,7 @@ func getRawJobPods(indexer *client.CacheFactory, petSetName, namespace string) (
 }
 
 // Returns simple info about pods(running, desired, failing, etc.) related to given job.
-func getJobPodInfo(indexer *client.CacheFactory, job *batch.Job) (*common.PodInfo, error) {
+func getJobPodInfo(indexer *client.CacheFactory, job *batch.Job) (*api.PodInfo, error) {
 	labelSelector := labels.SelectorFromSet(job.Spec.Selector.MatchLabels)
 	channels := &common.ResourceChannels{
 		PodList: common.GetPodListChannelWithOptions(indexer, common.NewSameNamespaceQuery(
@@ -123,8 +110,8 @@ func getJobPodInfo(indexer *client.CacheFactory, job *batch.Job) (*common.PodInf
 	return &podInfo, nil
 }
 
-func toJobDetail(job Job, eventList common.EventList, podList pod.PodList, podInfo common.PodInfo) JobDetail {
-	return JobDetail{
+func toJobDetail(job api.Job, eventList common.EventList, podList pod.PodList, podInfo api.PodInfo) api.JobDetail {
+	return api.JobDetail{
 		Job:       job,
 		PodList:   podList.Pods,
 		EventList: eventList.Events,

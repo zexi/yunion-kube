@@ -2,8 +2,6 @@ package apis
 
 import (
 	"k8s.io/api/core/v1"
-
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type RegistrySecretCreateInput struct {
@@ -20,8 +18,8 @@ type RegistrySecretCreateInput struct {
 
 // Secret is a single secret returned to the frontend.
 type Secret struct {
-	api.ObjectMeta
-	api.TypeMeta
+	ObjectMeta
+	TypeMeta
 	Type v1.SecretType `json:"type"`
 }
 

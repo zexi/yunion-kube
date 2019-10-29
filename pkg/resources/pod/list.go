@@ -6,46 +6,20 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type PodStatus struct {
-	Status          string              `json:"status"`
-	PodPhase        v1.PodPhase         `json:"podPhase"`
-	ContainerStates []v1.ContainerState `json:"containerStates"`
-}
-
-// Pod is a presentation layer view of Pod resource. This means it is Pod plus additional augmented data
-// we can get from other sources (like services that target it).
-type Pod struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// More info on pod status
-	PodStatus
-
-	PodIP string `json:"podIP"`
-	// Count of containers restarts
-	RestartCount int32 `json:"restartCount"`
-
-	// Pod warning events
-	Warnings []common.Event `json:"warnings"`
-
-	// Name of the Node this pod runs on
-	NodeName string `json:"nodeName"`
-}
 
 type PodList struct {
 	*common.BaseList
-	Pods   []Pod
+	Pods   []api.Pod
 	Events []*v1.Event
 }
 
-func (l PodList) GetPods() []Pod {
+func (l PodList) GetPods() []api.Pod {
 	return l.Pods
 }
 
@@ -106,7 +80,7 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 func ToPodList(pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
 	podList := &PodList{
 		BaseList: common.NewBaseList(cluster),
-		Pods:     make([]Pod, 0),
+		Pods:     make([]api.Pod, 0),
 		Events:   events,
 	}
 	err := dataselect.ToResourceList(

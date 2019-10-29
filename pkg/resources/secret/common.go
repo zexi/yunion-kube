@@ -6,7 +6,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // CreateSecret creates a single secret using the cluster API client
@@ -26,8 +26,8 @@ func CreateSecret(client kubernetes.Interface, cluster api.ICluster, spec Secret
 
 func toSecret(secret *v1.Secret, cluster api.ICluster) *apis.Secret {
 	return &apis.Secret{
-		ObjectMeta: api.NewObjectMetaV2(secret.ObjectMeta, cluster),
-		TypeMeta:   api.NewTypeMeta(api.ResourceKindSecret),
+		ObjectMeta: api.NewObjectMeta(secret.ObjectMeta, cluster),
+		TypeMeta:   api.NewTypeMeta(secret.TypeMeta),
 		Type:       secret.Type,
 	}
 }

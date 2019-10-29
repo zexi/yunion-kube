@@ -9,22 +9,13 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	ds "yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-// StatefulSetDetail is a presentation layer view of Kubernetes Stateful Set resource. This means it is Stateful
-// Set plus additional augmented data we can get from other sources (like services that target the same pods).
-type StatefulSetDetail struct {
-	StatefulSet
-	PodList     []pod.Pod         `json:"pods"`
-	EventList   []common.Event    `json:"events"`
-	ServiceList []service.Service `json:"services"`
-}
 
 func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{}, error) {
 	namespace := req.GetNamespaceQuery().ToRequestParam()
@@ -32,7 +23,7 @@ func (man *SStatefuleSetManager) Get(req *common.Request, id string) (interface{
 }
 
 // GetStatefulSetDetail gets Stateful Set details.
-func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*StatefulSetDetail, error) {
+func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*api.StatefulSetDetail, error) {
 	log.Printf("Getting details of %s statefulset in %s namespace", name, namespace)
 
 	ss, err := indexer.StatefulSetLister().StatefulSets(namespace).Get(name)
@@ -67,7 +58,7 @@ func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, na
 
 	// filter services by selector
 	podLabel := ss.Spec.Selector.MatchLabels
-	svcs := make([]service.Service, 0)
+	svcs := make([]api.Service, 0)
 	for _, svc := range svcList.Services {
 		if reflect.DeepEqual(svc.Selector, podLabel) {
 			svcs = append(svcs, svc)
@@ -79,14 +70,14 @@ func GetStatefulSetDetail(indexer *client.CacheFactory, cluster api.ICluster, na
 }
 
 func getStatefulSetDetail(
-	commonSs StatefulSet,
+	commonSs api.StatefulSet,
 	statefulSet *apps.StatefulSet,
 	eventList *common.EventList,
 	podList *pod.PodList,
-	podInfo *common.PodInfo,
-	svcList []service.Service,
-) StatefulSetDetail {
-	return StatefulSetDetail{
+	podInfo *api.PodInfo,
+	svcList []api.Service,
+) api.StatefulSetDetail {
+	return api.StatefulSetDetail{
 		StatefulSet: commonSs,
 		PodList:     podList.Pods,
 		EventList:   eventList.Events,
@@ -132,7 +123,7 @@ func getRawStatefulSetPods(indexer *client.CacheFactory, name, namespace string)
 }
 
 // Returns simple info about pods(running, desired, failing, etc.) related to given pet set.
-func getStatefulSetPodInfo(indexer *client.CacheFactory, statefulSet *apps.StatefulSet) (*common.PodInfo, error) {
+func getStatefulSetPodInfo(indexer *client.CacheFactory, statefulSet *apps.StatefulSet) (*api.PodInfo, error) {
 	pods, err := getRawStatefulSetPods(indexer, statefulSet.Name, statefulSet.Namespace)
 	if err != nil {
 		return nil, err
