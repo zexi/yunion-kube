@@ -22,12 +22,13 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 func GetReleaseResources(
 	cli *k8sclient.GenericClient,
 	indexer *client.CacheFactory,
-	cluster apis.ICluster,
+	cluster api.ICluster,
 	rls *release.Release) (map[string]interface{}, error) {
 	namespace := rls.Namespace
 	reader := bytes.NewBufferString(rls.Manifest)
@@ -40,7 +41,7 @@ func GetReleaseResources(
 
 func convertRuntimeObjs(
 	cli *client.CacheFactory,
-	cluster apis.ICluster,
+	cluster api.ICluster,
 	objMap map[string][]runtime.Object,
 	namespace string,
 ) (map[string]interface{}, error) {
@@ -57,13 +58,13 @@ func convertRuntimeObjs(
 }
 
 type IObjLister interface {
-	ListV2(k8sCli *client.CacheFactory, cluster apis.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
+	ListV2(k8sCli *client.CacheFactory, cluster api.ICluster, nsQuery *common.NamespaceQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error)
 }
 
 func processObjs(
 	kind string,
 	cli *client.CacheFactory,
-	cluster apis.ICluster,
+	cluster api.ICluster,
 	objs []runtime.Object,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,
@@ -100,7 +101,7 @@ func transToKindPlural(kind string) string {
 
 func processResources(
 	cli *client.CacheFactory,
-	cluster apis.ICluster,
+	cluster api.ICluster,
 	objs []runtime.Object,
 	nsQuery *common.NamespaceQuery,
 	dsQuery *dataselect.DataSelectQuery,

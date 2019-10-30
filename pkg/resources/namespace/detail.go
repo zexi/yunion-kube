@@ -6,40 +6,21 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/limitrange"
 	rq "yunion.io/x/yunion-kube/pkg/resources/resourcequota"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-// NamespaceDetail is a presentation layer view of Kubernetes Namespace resource. This means it is Namespace plus
-// additional augmented data we can get from other sources.
-type NamespaceDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Phase is the current lifecycle phase of the namespace.
-	Phase v1.NamespacePhase `json:"status"`
-
-	// Events is list of events associated to the namespace.
-	EventList *common.EventList `json:"eventList"`
-
-	// ResourceQuotaList is list of resource quotas associated to the namespace
-	ResourceQuotaList *rq.ResourceQuotaDetailList `json:"resourceQuotaList"`
-
-	// ResourceLimits is list of limit ranges associated to the namespace
-	ResourceLimits []limitrange.LimitRangeItem `json:"resourceLimits"`
-}
 
 func (man *SNamespaceManager) Get(req *common.Request, id string) (interface{}, error) {
 	return GetNamespaceDetail(req.GetIndexer(), req.GetCluster(), id)
 }
 
 // GetNamespaceDetail gets namespace details.
-func GetNamespaceDetail(indexer *client.CacheFactory, cluster api.ICluster, name string) (*NamespaceDetail, error) {
+func GetNamespaceDetail(indexer *client.CacheFactory, cluster api.ICluster, name string) (*api.NamespaceDetail, error) {
 	log.Infof("Getting details of %s namespace", name)
 
 	namespace, err := indexer.NamespaceLister().Get(name)
@@ -66,14 +47,12 @@ func GetNamespaceDetail(indexer *client.CacheFactory, cluster api.ICluster, name
 	return &namespaceDetails, nil
 }
 
-func toNamespaceDetail(namespace *v1.Namespace, events *common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []limitrange.LimitRangeItem, cluster api.ICluster) NamespaceDetail {
+func toNamespaceDetail(namespace *v1.Namespace, events *common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []api.LimitRangeItem, cluster api.ICluster) api.NamespaceDetail {
 
-	return NamespaceDetail{
-		ObjectMeta:        api.NewObjectMeta(namespace.ObjectMeta, cluster),
-		TypeMeta:          api.NewTypeMeta(api.ResourceKindNamespace),
-		Phase:             namespace.Status.Phase,
-		EventList:         events,
-		ResourceQuotaList: resourceQuotaList,
+	return api.NamespaceDetail{
+		Namespace: toNamespace(namespace, cluster),
+		EventList:         events.Events,
+		ResourceQuotaList: resourceQuotaList.Items,
 		ResourceLimits:    resourceLimits,
 	}
 }
@@ -82,8 +61,7 @@ func getResourceQuotas(indexer *client.CacheFactory, cluster api.ICluster, names
 	list, err := indexer.ResourceQuotaLister().ResourceQuotas(namespace.Name).List(labels.Everything())
 
 	result := &rq.ResourceQuotaDetailList{
-		Items:    make([]rq.ResourceQuotaDetail, 0),
-		ListMeta: api.ListMeta{Total: len(list)},
+		Items:    make([]api.ResourceQuotaDetail, 0),
 	}
 
 	for _, item := range list {
@@ -94,13 +72,13 @@ func getResourceQuotas(indexer *client.CacheFactory, cluster api.ICluster, names
 	return result, err
 }
 
-func getLimitRanges(indexer *client.CacheFactory, namespace v1.Namespace) ([]limitrange.LimitRangeItem, error) {
+func getLimitRanges(indexer *client.CacheFactory, namespace v1.Namespace) ([]api.LimitRangeItem, error) {
 	list, err := indexer.LimitRangeLister().LimitRanges(namespace.Name).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
-	resourceLimits := make([]limitrange.LimitRangeItem, 0)
+	resourceLimits := make([]api.LimitRangeItem, 0)
 	for _, item := range list {
 		list := limitrange.ToLimitRanges(item)
 		resourceLimits = append(resourceLimits, list...)

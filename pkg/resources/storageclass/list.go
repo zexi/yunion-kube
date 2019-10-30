@@ -5,16 +5,16 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // StorageClassList holds a list of storage class objects in the cluster.
 type StorageClassList struct {
 	*common.BaseList
-	StorageClasses []StorageClass
+	StorageClasses []api.StorageClass
 }
 
 func (man *SStorageClassManager) List(req *common.Request) (common.ListResource, error) {
@@ -46,7 +46,7 @@ func GetStorageClassListFromChannels(channels *common.ResourceChannels, dsQuery 
 func toStorageClassList(storageClasses []*storage.StorageClass, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*StorageClassList, error) {
 	storageClassList := &StorageClassList{
 		BaseList:       common.NewBaseList(cluster),
-		StorageClasses: make([]StorageClass, 0),
+		StorageClasses: make([]api.StorageClass, 0),
 	}
 
 	err := dataselect.ToResourceList(
@@ -67,10 +67,10 @@ func (l *StorageClassList) GetResponseData() interface{} {
 	return l.StorageClasses
 }
 
-func ToStorageClass(storageClass *storage.StorageClass, cluster api.ICluster) StorageClass {
-	return StorageClass{
-		ObjectMeta:  api.NewObjectMetaV2(storageClass.ObjectMeta, cluster),
-		TypeMeta:    api.NewTypeMeta(api.ResourceKindStorageClass),
+func ToStorageClass(storageClass *storage.StorageClass, cluster api.ICluster) api.StorageClass {
+	return api.StorageClass{
+		ObjectMeta:  api.NewObjectMeta(storageClass.ObjectMeta, cluster),
+		TypeMeta:    api.NewTypeMeta(storageClass.TypeMeta),
 		Provisioner: storageClass.Provisioner,
 		Parameters:  storageClass.Parameters,
 	}

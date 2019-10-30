@@ -2,34 +2,25 @@ package configmap
 
 import (
 	"k8s.io/api/core/v1"
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type ConfigMap struct {
-	api.ObjectMeta
-	api.TypeMeta
-}
-
-func (c ConfigMap) ToListItem() jsonutils.JSONObject {
-	return jsonutils.Marshal(c)
-}
 
 type ConfigMapList struct {
 	*common.BaseList
-	configMaps []ConfigMap
+	configMaps []apis.ConfigMap
 }
 
 func (l *ConfigMapList) GetResponseData() interface{} {
 	return l.configMaps
 }
 
-func (l *ConfigMapList) GetConfigMaps() []ConfigMap {
+func (l *ConfigMapList) GetConfigMaps() []apis.ConfigMap {
 	return l.configMaps
 }
 
@@ -50,7 +41,7 @@ func (man *SConfigMapManager) GetConfigMapList(indexer *client.CacheFactory, clu
 }
 
 func (l *ConfigMapList) Append(obj interface{}) {
-	l.configMaps = append(l.configMaps, ToConfigMap(obj.(*v1.ConfigMap), l.GetCluster()))
+	l.configMaps = append(l.configMaps, common.ToConfigMap(obj.(*v1.ConfigMap), l.GetCluster()))
 }
 
 func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ConfigMapList, error) {
@@ -61,7 +52,7 @@ func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *da
 	}
 	configMapList := &ConfigMapList{
 		BaseList:   common.NewBaseList(cluster),
-		configMaps: make([]ConfigMap, 0),
+		configMaps: make([]apis.ConfigMap, 0),
 	}
 	err = dataselect.ToResourceList(
 		configMapList,

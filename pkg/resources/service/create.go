@@ -8,6 +8,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/utils"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
@@ -16,55 +17,38 @@ func (man *SServiceManager) ValidateCreateData(req *common.Request) error {
 }
 
 func (man *SServiceManager) Create(req *common.Request) (interface{}, error) {
-	objMeta, err := common.GetK8sObjectCreateMeta(req.Data)
+	objMeta, err := common.GetK8sObjectCreateMetaByRequest(req)
 	if err != nil {
 		return nil, err
 	}
-	data := req.Data
-	svcType, _ := data.GetString("type")
+	opt := &apis.ServiceCreateOption{}
+	if err := req.Data.Unmarshal(opt); err != nil {
+		return nil, err
+	}
+	svcType := opt.Type
 	if svcType == "" {
 		svcType = string(api.ServiceTypeClusterIP)
 	}
-	if isExternal, _ := data.Bool("isExternal"); isExternal {
+	if opt.IsExternal {
 		svcType = string(api.ServiceTypeLoadBalancer)
 	}
 	if !utils.IsInStringArray(svcType, []string{string(api.ServiceTypeClusterIP), string(api.ServiceTypeLoadBalancer)}) {
 		return nil, httperrors.NewInputParameterError("service type %s not supported", svcType)
 	}
-	portMaps := []PortMapping{}
-	portMapsObj, err := req.Data.Get("portMappings")
-	if err != nil {
-		return nil, httperrors.NewInputParameterError("No ports spec")
-	}
-	err = portMapsObj.Unmarshal(&portMaps)
-	if err != nil {
-		return nil, httperrors.NewInputParameterError("Invalid ports input: %v", err)
-	}
-	selector := make(map[string]string)
-	data.Unmarshal(&selector, "selector")
-	if len(selector) == 0 {
+	opt.Type = svcType
+	if len(opt.Selector) == 0 {
 		return nil, httperrors.NewInputParameterError("Selector is empty")
 	}
-	opt := CreateOption{
-		ObjectMeta: *objMeta,
-		Ports:      portMaps,
-		Type:       api.ServiceType(svcType),
-		Selector:   selector,
-		Namespace:  req.GetDefaultNamespace(),
+	option := CreateOption{
+		ObjectMeta:          *objMeta,
+		ServiceCreateOption: *opt,
 	}
-	if lbNet, _ := data.GetString("loadBalancerNetwork"); lbNet != "" {
-		opt.LBNetwork = lbNet
-	}
-	return CreateService(req.GetK8sClient(), opt)
+	return CreateService(req.GetK8sClient(), option)
 }
 
 type CreateOption struct {
 	ObjectMeta metaV1.ObjectMeta
-	Ports      []PortMapping
-	Type       api.ServiceType
-	LBNetwork  string
-	Selector   map[string]string
-	Namespace  string
+	apis.ServiceCreateOption
 }
 
 func (o CreateOption) ToService() *api.Service {
@@ -72,24 +56,24 @@ func (o CreateOption) ToService() *api.Service {
 		ObjectMeta: o.ObjectMeta,
 		Spec: api.ServiceSpec{
 			Selector: o.Selector,
-			Type:     o.Type,
+			Type:     api.ServiceType(o.Type),
 		},
 	}
-	if o.LBNetwork != "" {
+	if o.LoadBalancerNetwork != "" {
 		svc.Annotations = map[string]string{
-			common.YUNION_LB_NETWORK_ANNOTATION: o.LBNetwork,
+			common.YUNION_LB_NETWORK_ANNOTATION: o.LoadBalancerNetwork,
 		}
 	}
-	svc.Spec.Ports = GetServicePorts(o.Ports)
+	svc.Spec.Ports = GetServicePorts(o.PortMappings)
 	return svc
 }
 
 func CreateService(cli client.Interface, opt CreateOption) (*api.Service, error) {
 	svc := opt.ToService()
-	return cli.CoreV1().Services(opt.Namespace).Create(svc)
+	return cli.CoreV1().Services(opt.ObjectMeta.GetNamespace()).Create(svc)
 }
 
-func GetServicePorts(ps []PortMapping) []api.ServicePort {
+func GetServicePorts(ps []apis.PortMapping) []api.ServicePort {
 	ports := []api.ServicePort{}
 	for _, p := range ps {
 		ports = append(ports, p.ToServicePort())

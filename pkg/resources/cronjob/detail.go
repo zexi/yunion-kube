@@ -8,34 +8,20 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/job"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type CronJobDetail struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	ConcurrencyPolicy       string         `json:"concurrencyPolicy"`
-	StartingDeadLineSeconds *int64         `json:"startingDeadlineSeconds"`
-	ActiveJobs              []job.Job      `json:"activeJobs"`
-	InactiveJobs            []job.Job      `json:"inactiveJobs"`
-	Events                  []common.Event `json:"events"`
-
-	// Extends list item structure.
-	CronJob `json:",inline"`
-}
 
 func (man *SCronJobManager) Get(req *common.Request, id string) (interface{}, error) {
 	return GetCronJobDetail(req.GetIndexer(), req.GetCluster(), req.ToQuery(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
 // GetCronJobDetail gets Cron Job details.
-func GetCronJobDetail(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*CronJobDetail, error) {
+func GetCronJobDetail(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace, name string) (*api.CronJobDetail, error) {
 	rawObject, err := indexer.CronJobLister().CronJobs(namespace).Get(name)
 	if err != nil {
 		return nil, err
@@ -57,10 +43,8 @@ func GetCronJobDetail(indexer *client.CacheFactory, cluster api.ICluster, dsQuer
 	return &cj, nil
 }
 
-func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs job.JobList, events common.EventList, cluster api.ICluster) CronJobDetail {
-	return CronJobDetail{
-		ObjectMeta:              api.NewObjectMetaV2(cj.ObjectMeta, cluster),
-		TypeMeta:                api.NewTypeMeta(api.ResourceKindCronJob),
+func toCronJobDetail(cj *batch2.CronJob, activeJobs job.JobList, inactiveJobs job.JobList, events common.EventList, cluster api.ICluster) api.CronJobDetail {
+	return api.CronJobDetail{
 		CronJob:                 toCronJob(cj, cluster),
 		ConcurrencyPolicy:       string(cj.Spec.ConcurrencyPolicy),
 		StartingDeadLineSeconds: cj.Spec.StartingDeadlineSeconds,

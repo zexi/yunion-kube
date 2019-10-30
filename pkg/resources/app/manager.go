@@ -7,6 +7,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/util/sets"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -93,4 +94,37 @@ func (man *SAppFromFileManager) Create(req *common.Request) (interface{}, error)
 		Name:    deploymentSpec.Name,
 		Content: deploymentSpec.Content,
 	}, nil
+}
+
+func UpdatePodTemplate(temp *v1.PodTemplateSpec, input api.PodUpdateInput) error {
+	if len(input.RestartPolicy) != 0 {
+		temp.Spec.RestartPolicy = input.RestartPolicy
+	}
+	if len(input.DNSPolicy) != 0 {
+		temp.Spec.DNSPolicy = input.DNSPolicy
+	}
+	cf := func(container *v1.Container, cs []api.ContainerUpdateInput) error {
+		if len(cs) == 0 {
+			return nil
+		}
+		for _, c := range cs {
+			if container.Name == c.Name {
+				container.Image = c.Image
+				return nil
+			}
+		}
+		return httperrors.NewNotFoundError("Not found container %s in input", container.Name)
+	}
+	for _, c := range temp.Spec.InitContainers {
+		if err := cf(&c, input.InitContainers); err != nil {
+			return err
+		}
+	}
+	for i, c := range temp.Spec.Containers {
+		if err := cf(&c, input.Containers); err != nil {
+			return err
+		}
+		temp.Spec.Containers[i] = c
+	}
+	return nil
 }

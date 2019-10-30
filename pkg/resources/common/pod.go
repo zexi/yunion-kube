@@ -6,6 +6,8 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // FilterPodsByControllerResource returns a subset of pods controlled by given deployment.
@@ -45,19 +47,24 @@ func FilterPodsForJob(job *batch.Job, pods []*v1.Pod) []*v1.Pod {
 }
 
 // GetContainerImages returns container image strings from the given pod spec.
-func GetContainerImages(podTemplate *v1.PodSpec) []string {
-	var containerImages []string
+func GetContainerImages(podTemplate *v1.PodSpec) []api.ContainerImage {
+	containerImages := []api.ContainerImage{}
 	for _, container := range podTemplate.Containers {
-		containerImages = append(containerImages, container.Image)
+		containerImages = append(containerImages, api.ContainerImage{
+			Name:  container.Name,
+			Image: container.Image,
+		})
 	}
 	return containerImages
 }
 
 // GetInitContainerImages returns init container image strings from the given pod spec.
-func GetInitContainerImages(podTemplate *v1.PodSpec) []string {
-	var initContainerImages []string
+func GetInitContainerImages(podTemplate *v1.PodSpec) []api.ContainerImage {
+	initContainerImages := []api.ContainerImage{}
 	for _, initContainer := range podTemplate.InitContainers {
-		initContainerImages = append(initContainerImages, initContainer.Image)
+		initContainerImages = append(initContainerImages, api.ContainerImage{
+			Name:  initContainer.Name,
+			Image: initContainer.Image})
 	}
 	return initContainerImages
 }

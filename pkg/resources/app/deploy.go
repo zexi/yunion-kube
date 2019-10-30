@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	api "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,6 +22,7 @@ import (
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/sets"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -64,7 +65,7 @@ func NewAppCreateData(data jsonutils.JSONObject) (*AppDeploymentSpec, error) {
 	return &appSpec, nil
 }
 
-type CreateResourceFunc func(client.Interface, metaV1.ObjectMeta, map[string]string, api.PodTemplateSpec, *AppDeploymentSpec) error
+type CreateResourceFunc func(client.Interface, metaV1.ObjectMeta, map[string]string, v1.PodTemplateSpec, *AppDeploymentSpec) error
 
 // DeployApp deploys an app based on the given configuration. The app is deployed using the given
 // client. App deployment consists of a deployment and an optional service. Both of them
@@ -88,10 +89,11 @@ func DeployApp(spec *AppDeploymentSpec, cli client.Interface, createFunc CreateR
 		Annotations: annotations,
 		Name:        spec.Name,
 		Labels:      labels,
+		Namespace:   spec.Namespace,
 	}
 
 	// get podTemplate
-	podTemplate := api.PodTemplateSpec{
+	podTemplate := v1.PodTemplateSpec{
 		ObjectMeta: objectMeta,
 		Spec:       getPodSpec(spec),
 	}
@@ -123,33 +125,34 @@ func createAppService(
 ) error {
 	opt := service.CreateOption{
 		ObjectMeta: objectMeta,
-		Selector:   selector,
-		Namespace:  spec.Namespace,
+		ServiceCreateOption: api.ServiceCreateOption{
+			Selector: selector,
+		},
 	}
 	if spec.IsExternal {
-		opt.Type = api.ServiceTypeLoadBalancer
+		opt.Type = string(v1.ServiceTypeLoadBalancer)
 		if spec.LoadBalancerNetworkId != "" {
-			opt.LBNetwork = spec.LoadBalancerNetworkId
+			opt.LoadBalancerNetwork = spec.LoadBalancerNetworkId
 		}
 	} else {
-		opt.Type = api.ServiceTypeClusterIP
+		opt.Type = string(v1.ServiceTypeClusterIP)
 	}
-	opt.Ports = spec.PortMappings
+	opt.PortMappings = spec.PortMappings
 
 	_, err := service.CreateService(cli, opt)
 	return err
 }
 
-func getPodSpec(spec *AppDeploymentSpec) api.PodSpec {
+func getPodSpec(spec *AppDeploymentSpec) v1.PodSpec {
 	// parse container spec
-	containerSpec := api.Container{
+	containerSpec := v1.Container{
 		Name:  spec.Name,
 		Image: spec.ContainerImage,
-		SecurityContext: &api.SecurityContext{
+		SecurityContext: &v1.SecurityContext{
 			Privileged: &spec.RunAsPrivileged,
 		},
-		Resources: api.ResourceRequirements{
-			Requests: make(map[api.ResourceName]resource.Quantity),
+		Resources: v1.ResourceRequirements{
+			Requests: make(map[v1.ResourceName]resource.Quantity),
 		},
 		Env: convertEnvVarsSpec(spec.Variables),
 	}
@@ -162,22 +165,22 @@ func getPodSpec(spec *AppDeploymentSpec) api.PodSpec {
 	}
 
 	if spec.CpuRequirement != nil {
-		containerSpec.Resources.Requests[api.ResourceCPU] = *spec.CpuRequirement
+		containerSpec.Resources.Requests[v1.ResourceCPU] = *spec.CpuRequirement
 	}
 	if spec.MemoryRequirement != nil {
-		containerSpec.Resources.Requests[api.ResourceMemory] = *spec.MemoryRequirement
+		containerSpec.Resources.Requests[v1.ResourceMemory] = *spec.MemoryRequirement
 	}
 	if len(spec.VolumeMounts) != 0 {
 		containerSpec.VolumeMounts = spec.VolumeMounts
 	}
-	podSpec := api.PodSpec{
-		Containers: []api.Container{containerSpec},
+	podSpec := v1.PodSpec{
+		Containers: []v1.Container{containerSpec},
 	}
 
-	podSpec.RestartPolicy = api.RestartPolicy(spec.RestartPolicy)
+	podSpec.RestartPolicy = v1.RestartPolicy(spec.RestartPolicy)
 
 	if spec.ImagePullSecret != nil {
-		podSpec.ImagePullSecrets = []api.LocalObjectReference{{Name: *spec.ImagePullSecret}}
+		podSpec.ImagePullSecrets = []v1.LocalObjectReference{{Name: *spec.ImagePullSecret}}
 	}
 
 	if len(spec.Volumes) != 0 {
@@ -199,13 +202,13 @@ func getLabelsMap(labels []Label) map[string]string {
 
 // GetAvailableProtocols returns list of available protocols. Currently it is TCP and UDP.
 func GetAvailableProtocols() *Protocols {
-	return &Protocols{Protocols: []api.Protocol{api.ProtocolTCP, api.ProtocolUDP}}
+	return &Protocols{Protocols: []v1.Protocol{v1.ProtocolTCP, v1.ProtocolUDP}}
 }
 
-func convertEnvVarsSpec(variables []EnvironmentVariable) []api.EnvVar {
-	var result []api.EnvVar
+func convertEnvVarsSpec(variables []EnvironmentVariable) []v1.EnvVar {
+	var result []v1.EnvVar
 	for _, variable := range variables {
-		result = append(result, api.EnvVar{Name: variable.Name, Value: variable.Value})
+		result = append(result, v1.EnvVar{Name: variable.Name, Value: variable.Value})
 	}
 	return result
 }

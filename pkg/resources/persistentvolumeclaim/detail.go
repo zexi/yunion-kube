@@ -8,23 +8,18 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-// PersistentVolumeClaimDetail provides the presentation layer view of Kubernetes Persistent Volume Claim resource.
-type PersistentVolumeClaimDetail struct {
-	PersistentVolumeClaim
-}
 
 func (man *SPersistentVolumeClaimManager) Get(req *common.Request, id string) (interface{}, error) {
 	return GetPersistentVolumeClaimDetail(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery().ToRequestParam(), id)
 }
 
 // GetPersistentVolumeClaimDetail returns detailed information about a persistent volume claim
-func GetPersistentVolumeClaimDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace string, name string) (*PersistentVolumeClaimDetail, error) {
+func GetPersistentVolumeClaimDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace string, name string) (*api.PersistentVolumeClaimDetail, error) {
 	log.Infof("Getting details of %s persistent volume claim", name)
 
 	rawPersistentVolumeClaim, err := indexer.PVCLister().PersistentVolumeClaims(namespace).Get(name)
@@ -40,8 +35,8 @@ func GetPersistentVolumeClaimDetail(indexer *client.CacheFactory, cluster api.IC
 	return getPersistentVolumeClaimDetail(cluster, rawPersistentVolumeClaim, pods), nil
 }
 
-func getPersistentVolumeClaimDetail(cluster api.ICluster, pvc *v1.PersistentVolumeClaim, pods []*v1.Pod) *PersistentVolumeClaimDetail {
-	return &PersistentVolumeClaimDetail{
+func getPersistentVolumeClaimDetail(cluster api.ICluster, pvc *v1.PersistentVolumeClaim, pods []*v1.Pod) *api.PersistentVolumeClaimDetail {
+	return &api.PersistentVolumeClaimDetail{
 		PersistentVolumeClaim: toPersistentVolumeClaim(pvc, pods, cluster),
 	}
 }
@@ -89,7 +84,7 @@ func GetPodPersistentVolumeClaims(indexer *client.CacheFactory, cluster api.IClu
 		log.Infof("Found %d persistentvolumeclaims related to %s pod",
 			len(podPersistentVolumeClaims), podName)
 
-		pvcs := []PersistentVolumeClaim{}
+		pvcs := []api.PersistentVolumeClaim{}
 		for _, pvc := range podPersistentVolumeClaims {
 			pvcs = append(pvcs, toPersistentVolumeClaim(pvc, []*v1.Pod{pod}, cluster))
 		}

@@ -2,13 +2,13 @@ package deployment
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	"yunion.io/x/yunion-kube/pkg/resources/event"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // GetDeploymentPods returns list of pods targeting deployment.
@@ -32,11 +32,6 @@ func GetDeploymentPods(indexer *client.CacheFactory, cluster api.ICluster, dsQue
 		return nil, err
 	}
 
-	events, err := event.GetPodsEvents(indexer, namespace, rawPods)
-	if err != nil {
-		return nil, err
-	}
-
-	podList, err := pod.ToPodList(rawPods, events, dsQuery, cluster)
+	podList, err := pod.ToPodListByIndexerV2(indexer, rawPods, namespace, dsQuery, labels.Everything(), cluster)
 	return podList, err
 }

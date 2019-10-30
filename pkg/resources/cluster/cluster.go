@@ -13,7 +13,7 @@ import (
 	pv "yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 var ClusterManager *SClusterManager

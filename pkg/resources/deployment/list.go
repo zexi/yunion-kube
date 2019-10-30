@@ -4,39 +4,14 @@ import (
 	apps "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 
-	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-// Deployment is a presentation layer view of kubernetes Deployment resource. This means
-// it is Deployment plus additional augmented data we can get from other sources
-// (like services that target the same pods)
-type Deployment struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Aggregate information about pods belonging to this deployment
-	Pods common.PodInfo `json:"podsInfo"`
-
-	// Container images of the Deployment
-	ContainerImages []string `json:"containerImages"`
-
-	// Init Container images of deployment
-	InitContainerImages []string `json:"initContainerImages"`
-
-	Status   string            `json:"status"`
-	Selector map[string]string `json:"selector"`
-}
-
-func (d Deployment) ToListItem() jsonutils.JSONObject {
-	return jsonutils.Marshal(d)
-}
 
 func (man *SDeploymentManager) List(req *common.Request) (common.ListResource, error) {
 	return man.ListV2(req.GetIndexer(), req.GetCluster(), req.GetNamespaceQuery(), req.ToQuery())
@@ -48,13 +23,13 @@ func (man *SDeploymentManager) ListV2(client *client.CacheFactory, cluster api.I
 
 type DeploymentList struct {
 	*common.BaseList
-	deployments []Deployment
+	deployments []api.Deployment
 	replicasets []*apps.ReplicaSet
 	pods        []*v1.Pod
 	events      []*v1.Event
 }
 
-func (l *DeploymentList) GetDeployments() []Deployment {
+func (l *DeploymentList) GetDeployments() []api.Deployment {
 	return l.deployments
 }
 
@@ -85,19 +60,20 @@ func (l *DeploymentList) GetResponseData() interface{} {
 	return l.deployments
 }
 
-func ToDeployment(deployment *apps.Deployment, rs []*apps.ReplicaSet, pods []*v1.Pod, events []*v1.Event, cluster api.ICluster) Deployment {
+func ToDeployment(deployment *apps.Deployment, rs []*apps.ReplicaSet, pods []*v1.Pod, events []*v1.Event, cluster api.ICluster) api.Deployment {
 	matchingPods := common.FilterDeploymentPodsByOwnerReference(deployment, rs, pods)
 	podInfo := common.GetPodInfo(deployment.Status.Replicas, deployment.Spec.Replicas, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
 
-	return Deployment{
-		ObjectMeta:          api.NewObjectMetaV2(deployment.ObjectMeta, cluster),
-		TypeMeta:            api.NewTypeMeta(api.ResourceKindDeployment),
+	return api.Deployment{
+		ObjectMeta:          api.NewObjectMeta(deployment.ObjectMeta, cluster),
+		TypeMeta:            api.NewTypeMeta(deployment.TypeMeta),
 		ContainerImages:     common.GetContainerImages(&deployment.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&deployment.Spec.Template.Spec),
 		Pods:                podInfo,
 		Status:              podInfo.GetStatus(),
 		Selector:            deployment.Spec.Selector.MatchLabels,
+		Replicas:            deployment.Spec.Replicas,
 	}
 }
 
@@ -128,7 +104,7 @@ func GetDeploymentListFromChannels(channels *common.ResourceChannels, dsQuery *d
 
 	deploymentList := &DeploymentList{
 		BaseList:    common.NewBaseList(cluster),
-		deployments: make([]Deployment, 0),
+		deployments: make([]api.Deployment, 0),
 		pods:        pods,
 		events:      events,
 		replicasets: rs,

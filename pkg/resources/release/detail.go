@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type ReleaseDetail struct {
