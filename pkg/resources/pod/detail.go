@@ -65,8 +65,19 @@ func GetPodDetail(indexer *client.CacheFactory, cluster api.ICluster, namespace,
 	commonPod := ToPod(pod, warnings, configMapList, secretList, cluster)
 
 	persistentVolumeClaimList, err := persistentvolumeclaim.GetPodPersistentVolumeClaims(indexer, cluster, namespace, name, dataselect.DefaultDataSelect())
+	if err != nil {
+		return nil, err
+	}
 
-	podDetail := toPodDetail(commonPod, pod, eventList, persistentVolumeClaimList)
+	configMapList = common.GetConfigMapsForPod(pod, configMapList)
+	secretList = common.GetSecretsForPod(pod, secretList)
+
+	podDetail := toPodDetail(
+		commonPod, pod, eventList,
+		persistentVolumeClaimList.Items,
+		common.ToConfigMaps(configMapList, cluster),
+		common.ToSecrets(secretList, cluster),
+	)
 	return &podDetail, nil
 }
 
@@ -99,8 +110,13 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func toPodDetail(commonPod api.Pod, pod *v1.Pod, events *common.EventList,
-	persistentVolumeClaimList *persistentvolumeclaim.PersistentVolumeClaimList,
+func toPodDetail(
+	commonPod api.Pod,
+	pod *v1.Pod,
+	events *common.EventList,
+	pvcs []api.PersistentVolumeClaim,
+	cfgs []api.ConfigMap,
+	secrets []api.Secret,
 ) api.PodDetail {
 	return api.PodDetail{
 		Pod: commonPod,
@@ -108,7 +124,9 @@ func toPodDetail(commonPod api.Pod, pod *v1.Pod, events *common.EventList,
 		//Metrics:                   metrics,
 		Conditions:                getPodConditions(*pod),
 		Events:                    events.Events,
-		PersistentvolumeclaimList: persistentVolumeClaimList.Items,
+		PersistentvolumeclaimList: pvcs,
+		ConfigMaps:                cfgs,
+		Secrets:                   secrets,
 	}
 }
 

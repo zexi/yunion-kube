@@ -39,6 +39,8 @@ type PodDetail struct {
 	Conditions                []Condition             `json:"conditions"`
 	Events                    []Event                 `json:"events"`
 	PersistentvolumeclaimList []PersistentVolumeClaim `json:"persistentVolumeClaims"`
+	ConfigMaps                []ConfigMap             `json:"configMaps"`
+	Secrets                   []Secret                `json:"secrets"`
 }
 
 // Container represents a docker/rkt/etc. container that lives in a pod.

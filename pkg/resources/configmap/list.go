@@ -5,10 +5,10 @@ import (
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type ConfigMapList struct {
@@ -41,7 +41,7 @@ func (man *SConfigMapManager) GetConfigMapList(indexer *client.CacheFactory, clu
 }
 
 func (l *ConfigMapList) Append(obj interface{}) {
-	l.configMaps = append(l.configMaps, ToConfigMap(obj.(*v1.ConfigMap), l.GetCluster()))
+	l.configMaps = append(l.configMaps, common.ToConfigMap(obj.(*v1.ConfigMap), l.GetCluster()))
 }
 
 func GetConfigMapListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*ConfigMapList, error) {

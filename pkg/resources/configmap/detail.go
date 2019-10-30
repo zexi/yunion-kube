@@ -43,26 +43,16 @@ func getConfigMapDetail(indexer *client.CacheFactory, rawConfigMap *v1.ConfigMap
 		return nil, err
 	}
 	return &apis.ConfigMapDetail{
-		ConfigMap: ToConfigMap(rawConfigMap, cluster),
+		ConfigMap: common.ToConfigMap(rawConfigMap, cluster),
 		Data:      rawConfigMap.Data,
 		Pods:      mountPods.GetPods(),
 	}, nil
 }
 
-func getPodConfigMaps(vols []v1.Volume) []v1.Volume {
-	var cfgs []v1.Volume
-	for _, vol := range vols {
-		if vol.VolumeSource.ConfigMap != nil {
-			cfgs = append(cfgs, vol)
-		}
-	}
-	return cfgs
-}
-
 func getMountPods(cfgName string, pods []*v1.Pod) []*v1.Pod {
 	ret := []*v1.Pod{}
 	for _, pod := range pods {
-		cfgs := getPodConfigMaps(pod.Spec.Volumes)
+		cfgs := common.GetPodConfigMapVolumes(pod)
 		for _, cfg := range cfgs {
 			if cfg.ConfigMap.Name == cfgName {
 				ret = append(ret, pod)

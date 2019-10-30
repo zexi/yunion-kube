@@ -6,9 +6,9 @@ import (
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 func (man *SSecretManager) Get(req *common.Request, id string) (interface{}, error) {
@@ -30,7 +30,7 @@ func GetSecretDetail(indexer *client.CacheFactory, cluster api.ICluster, namespa
 
 func getSecretDetail(rawSecret *v1.Secret, cluster api.ICluster) *apis.SecretDetail {
 	return &apis.SecretDetail{
-		Secret: *toSecret(rawSecret, cluster),
+		Secret: *common.ToSecret(rawSecret, cluster),
 		Data:   rawSecret.Data,
 	}
 }

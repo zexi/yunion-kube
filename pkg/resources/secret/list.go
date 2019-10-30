@@ -8,9 +8,9 @@ import (
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // SecretSpec is a common interface for the specification of different secrets.
@@ -109,7 +109,7 @@ func toSecretList(secrets []*v1.Secret, dsQuery *dataselect.DataSelectQuery, clu
 }
 
 func (l *SecretList) Append(obj interface{}) {
-	l.Secrets = append(l.Secrets, *toSecret(obj.(*v1.Secret), l.GetCluster()))
+	l.Secrets = append(l.Secrets, *common.ToSecret(obj.(*v1.Secret), l.GetCluster()))
 }
 
 func (l *SecretList) GetResponseData() interface{} {
