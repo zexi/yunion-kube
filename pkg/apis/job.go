@@ -1,6 +1,7 @@
 package apis
 
 import (
+	batch "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -79,4 +80,9 @@ type CronJobDetail struct {
 	ActiveJobs              []Job   `json:"activeJobs"`
 	InactiveJobs            []Job   `json:"inactiveJobs"`
 	Events                  []Event `json:"events"`
+}
+
+type JobCreateInput struct {
+	K8sNamespaceResourceCreateInput
+	batch.JobSpec
 }

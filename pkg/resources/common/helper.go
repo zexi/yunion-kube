@@ -137,3 +137,21 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 	}
 	return ret
 }
+
+func GetPodTemplate(req *Request, wrapperKey string) (*v1.PodTemplateSpec, error) {
+	if wrapperKey == "" {
+		wrapperKey = "template"
+	}
+	ret := &v1.PodTemplateSpec{}
+	if err := req.Data.Unmarshal(ret, wrapperKey); err != nil {
+		return nil, httperrors.NewInputParameterError("invalid pod template")
+	}
+	return ret, nil
+}
+
+func AddObjectMetaRunLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
+	if len(meta.Labels) == 0 {
+		meta.Labels["run"] = meta.GetName()
+	}
+	return meta
+}
