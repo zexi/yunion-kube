@@ -5,35 +5,18 @@ import (
 	"k8s.io/api/core/v1"
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-// ReplicaSet is a presentation layer view of Kubernetes Replica Set resource. This means
-// it is Replica Set plus additional augmented data we can get from other sources
-// (like services that target the same pods).
-type ReplicaSet struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Aggregate information about pods belonging to this Replica Set.
-	Pods common.PodInfo `json:"pods"`
-
-	// Container images of the Replica Set.
-	ContainerImages []string `json:"containerImages"`
-
-	// Init Container images of the Replica Set.
-	InitContainerImages []string `json:"initContainerImages"`
-}
-
 // ToReplicaSet converts replica set api object to replica set model object.
-func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *common.PodInfo, cluster api.ICluster) ReplicaSet {
-	return ReplicaSet{
+func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *api.PodInfo, cluster api.ICluster) api.ReplicaSet {
+	return api.ReplicaSet{
 		ObjectMeta:          api.NewObjectMeta(replicaSet.ObjectMeta, cluster),
-		TypeMeta:            api.NewTypeMeta(api.ResourceKindReplicaSet),
+		TypeMeta:            api.NewTypeMeta(replicaSet.TypeMeta),
 		ContainerImages:     common.GetContainerImages(&replicaSet.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&replicaSet.Spec.Template.Spec),
 		Pods:                *podInfo,
@@ -42,7 +25,7 @@ func ToReplicaSet(replicaSet *apps.ReplicaSet, podInfo *common.PodInfo, cluster 
 
 type ReplicaSetList struct {
 	*common.BaseList
-	ReplicaSets []ReplicaSet
+	ReplicaSets []api.ReplicaSet
 	events      []*v1.Event
 	pods        []*v1.Pod
 	// Basic information about resources status on the list.
@@ -112,7 +95,7 @@ func ToReplicaSetList(replicaSets []*apps.ReplicaSet, pods []*v1.Pod, events []*
 
 	replicaSetList := &ReplicaSetList{
 		BaseList:    common.NewBaseList(cluster),
-		ReplicaSets: make([]ReplicaSet, 0),
+		ReplicaSets: make([]api.ReplicaSet, 0),
 		events:      events,
 		pods:        pods,
 	}

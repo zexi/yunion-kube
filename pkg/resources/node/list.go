@@ -9,14 +9,14 @@ import (
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // NodeList contains a list of nodes in the cluster.
 type NodeList struct {
 	indexer *client.CacheFactory
 	*common.BaseList
-	Nodes []Node `json:"nodes"`
+	Nodes []api.Node `json:"nodes"`
 }
 
 func (l *NodeList) GetResponseData() interface{} {
@@ -54,7 +54,7 @@ func toNodeList(indexer *client.CacheFactory, nodes []*v1.Node, dsQuery *datasel
 	nodeList := &NodeList{
 		BaseList: common.NewBaseList(cluster),
 		indexer:  indexer,
-		Nodes:    make([]Node, 0),
+		Nodes:    make([]api.Node, 0),
 	}
 
 	err := dataselect.ToResourceList(

@@ -7,14 +7,14 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 func GetEventsForPod(indexer *client.CacheFactory, cluster api.ICluster, dsQuery *dataselect.DataSelectQuery, namespace,
 	podName string) (*common.EventList, error) {
 	eventList := &common.EventList{
 		BaseList: common.NewBaseList(cluster),
-		Events:   make([]common.Event, 0),
+		Events:   make([]api.Event, 0),
 	}
 	podEvents, err := event.GetPodEvents(indexer, namespace, podName)
 	if err != nil {

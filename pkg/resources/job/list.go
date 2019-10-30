@@ -6,11 +6,11 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // JobList contains a list of Jobs in the cluster.
@@ -20,54 +20,10 @@ type JobList struct {
 	Status common.ResourceStatus
 
 	// Unordered list of Jobs.
-	Jobs []Job
+	Jobs []api.Job
 
 	Pods   []*v1.Pod
 	Events []*v1.Event
-}
-
-type JobStatusType string
-
-const (
-	// JobRunning means the job is still running.
-	JobStatusRunning JobStatusType = "Running"
-	// JobComplete means the job has completed its execution.
-	JobStatusComplete JobStatusType = "Complete"
-	// JobFailed means the job has failed its execution.
-	JobStatusFailed JobStatusType = "Failed"
-)
-
-type JobStatus struct {
-	// Short, machine understandable job status code.
-	Status JobStatusType `json:"status"`
-	// A human-readable description of the status of related job.
-	Message string `json:"message"`
-}
-
-// Job is a presentation layer view of Kubernetes Job resource. This means it is Job plus additional
-// augmented data we can get from other sources
-type Job struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Aggregate information about pods belonging to this Job.
-	Pods common.PodInfo `json:"podsInfo"`
-
-	// Container images of the Job.
-	ContainerImages []string `json:"containerImages"`
-
-	// Init Container images of the Job.
-	InitContainerImages []string `json:"initContainerImages"`
-
-	// number of parallel jobs defined.
-	Parallelism *int32 `json:"parallelism"`
-
-	// Completions specifies the desired number of successfully finished pods the job should be run with.
-	Completions *int32 `json:"completions"`
-
-	// JobStatus contains inferred job status based on job conditions
-	JobStatus JobStatus `json:"jobStatus"`
-	Status    string    `json:"status"`
 }
 
 func (man *SJobManager) List(req *common.Request) (common.ListResource, error) {
@@ -118,7 +74,7 @@ func GetJobListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 func ToJobList(jobs []*batch.Job, pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*JobList, error) {
 	jobList := &JobList{
 		BaseList: common.NewBaseList(cluster),
-		Jobs:     make([]Job, 0),
+		Jobs:     make([]api.Job, 0),
 		Pods:     pods,
 		Events:   events,
 	}
@@ -144,21 +100,21 @@ func (l *JobList) GetResponseData() interface{} {
 	return l.Jobs
 }
 
-func toJob(job *batch.Job, podInfo *common.PodInfo, cluster api.ICluster) Job {
-	jobStatus := JobStatus{Status: JobStatusRunning}
+func toJob(job *batch.Job, podInfo *api.PodInfo, cluster api.ICluster) api.Job {
+	jobStatus := api.JobStatus{Status: api.JobStatusRunning}
 	for _, condition := range job.Status.Conditions {
 		if condition.Type == batch.JobComplete && condition.Status == v1.ConditionTrue {
-			jobStatus.Status = JobStatusComplete
+			jobStatus.Status = api.JobStatusComplete
 			break
 		} else if condition.Type == batch.JobFailed && condition.Status == v1.ConditionTrue {
-			jobStatus.Status = JobStatusFailed
+			jobStatus.Status = api.JobStatusFailed
 			jobStatus.Message = condition.Message
 			break
 		}
 	}
-	return Job{
-		ObjectMeta:          api.NewObjectMetaV2(job.ObjectMeta, cluster),
-		TypeMeta:            api.NewTypeMeta(api.ResourceKindJob),
+	return api.Job{
+		ObjectMeta:          api.NewObjectMeta(job.ObjectMeta, cluster),
+		TypeMeta:            api.NewTypeMeta(job.TypeMeta),
 		ContainerImages:     common.GetContainerImages(&job.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&job.Spec.Template.Spec),
 		Pods:                *podInfo,

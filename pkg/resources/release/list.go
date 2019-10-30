@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/helm/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type Release struct {

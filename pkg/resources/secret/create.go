@@ -63,7 +63,10 @@ func (man *SSecretManager) Create(req *common.Request) (interface{}, error) {
 		Type:       kind,
 	}
 	obj, err := req.GetK8sClient().CoreV1().Secrets(ns).Create(secret)
-	return obj, err
+	if err != nil {
+		return nil, err
+	}
+	return getSecretDetail(obj, req.GetCluster()), nil
 }
 
 type registrySecretSpec struct {

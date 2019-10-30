@@ -5,28 +5,15 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PersistentVolumeList struct {
 	*common.BaseList
-	Items []PersistentVolume
-}
-
-// PersistentVolume provides the simplified presentation layer view of Kubernetes Persistent Volume resource.
-type PersistentVolume struct {
-	api.ObjectMeta
-	api.TypeMeta
-	Capacity      v1.ResourceList                  `json:"capacity"`
-	AccessModes   []v1.PersistentVolumeAccessMode  `json:"accessModes"`
-	ReclaimPolicy v1.PersistentVolumeReclaimPolicy `json:"reclaimPolicy"`
-	StorageClass  string                           `json:"storageClass"`
-	Status        v1.PersistentVolumePhase         `json:"status"`
-	Claim         string                           `json:"claim"`
-	Reason        string                           `json:"reason"`
+	Items []api.PersistentVolume
 }
 
 func (man *SPersistentVolumeManager) List(req *common.Request) (common.ListResource, error) {
@@ -59,7 +46,7 @@ func GetPersistentVolumeListFromChannels(channels *common.ResourceChannels, dsQu
 func toPersistentVolumeList(persistentVolumes []*v1.PersistentVolume, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeList, error) {
 	result := &PersistentVolumeList{
 		BaseList: common.NewBaseList(cluster),
-		Items:    make([]PersistentVolume, 0),
+		Items:    make([]api.PersistentVolume, 0),
 	}
 
 	err := dataselect.ToResourceList(
@@ -74,18 +61,21 @@ func toPersistentVolumeList(persistentVolumes []*v1.PersistentVolume, dsQuery *d
 
 func (l *PersistentVolumeList) Append(obj interface{}) {
 	item := obj.(*v1.PersistentVolume)
-	l.Items = append(l.Items,
-		PersistentVolume{
-			ObjectMeta:    api.NewObjectMetaV2(item.ObjectMeta, l.GetCluster()),
-			TypeMeta:      api.NewTypeMeta(api.ResourceKindPersistentVolume),
-			Capacity:      item.Spec.Capacity,
-			AccessModes:   item.Spec.AccessModes,
-			ReclaimPolicy: item.Spec.PersistentVolumeReclaimPolicy,
-			StorageClass:  item.Spec.StorageClassName,
-			Status:        item.Status.Phase,
-			Claim:         getPersistentVolumeClaim(item),
-			Reason:        item.Status.Reason,
-		})
+	l.Items = append(l.Items,ToPeristentVolume(item, l.GetCluster()))
+}
+
+func ToPeristentVolume(pv *v1.PersistentVolume, cluster api.ICluster) api.PersistentVolume {
+	return api.PersistentVolume{
+		ObjectMeta:    api.NewObjectMeta(pv.ObjectMeta, cluster),
+		TypeMeta:      api.NewTypeMeta(pv.TypeMeta),
+		Capacity:      pv.Spec.Capacity,
+		AccessModes:   pv.Spec.AccessModes,
+		ReclaimPolicy: pv.Spec.PersistentVolumeReclaimPolicy,
+		StorageClass:  pv.Spec.StorageClassName,
+		Status:        pv.Status.Phase,
+		Claim:         getPersistentVolumeClaim(pv),
+		Reason:        pv.Status.Reason,
+	}
 }
 
 func (l *PersistentVolumeList) GetResponseData() interface{} {

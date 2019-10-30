@@ -6,27 +6,15 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type PersistentVolumeClaimList struct {
 	*common.BaseList
-	Items []PersistentVolumeClaim
-}
-
-// PersistentVolumeClaim provides the simplified presentation layer view of Kubernetes Persistent Volume Claim resource.
-type PersistentVolumeClaim struct {
-	api.ObjectMeta
-	api.TypeMeta
-	Status       string                          `json:"status"`
-	Volume       string                          `json:"volume"`
-	Capacity     v1.ResourceList                 `json:"capacity"`
-	AccessModes  []v1.PersistentVolumeAccessMode `json:"accessModes"`
-	StorageClass *string                         `json:"storageClass"`
-	MountedBy    []string                        `json:"mountedBy"`
+	Items []api.PersistentVolumeClaim
 }
 
 func (man *SPersistentVolumeClaimManager) List(req *common.Request) (common.ListResource, error) {
@@ -82,7 +70,7 @@ func GetPersistentVolumeClaimListFromChannels(
 		return nil, err
 	}
 
-	pvcs := []PersistentVolumeClaim{}
+	pvcs := []api.PersistentVolumeClaim{}
 	for _, pvc := range persistentVolumeClaims {
 		pvcs = append(pvcs, toPersistentVolumeClaim(pvc, pods, cluster))
 	}
@@ -122,11 +110,11 @@ func getMountPodsName(pvcName string, pods []*v1.Pod) []string {
 	return ret
 }
 
-func toPersistentVolumeClaim(pvc *v1.PersistentVolumeClaim, pods []*v1.Pod, cluster api.ICluster) PersistentVolumeClaim {
+func toPersistentVolumeClaim(pvc *v1.PersistentVolumeClaim, pods []*v1.Pod, cluster api.ICluster) api.PersistentVolumeClaim {
 	podsName := getMountPodsName(pvc.Name, pods)
-	return PersistentVolumeClaim{
-		ObjectMeta:   api.NewObjectMetaV2(pvc.ObjectMeta, cluster),
-		TypeMeta:     api.NewTypeMeta(api.ResourceKindPersistentVolumeClaim),
+	return api.PersistentVolumeClaim{
+		ObjectMeta:   api.NewObjectMeta(pvc.ObjectMeta, cluster),
+		TypeMeta:     api.NewTypeMeta(pvc.TypeMeta),
 		Status:       string(pvc.Status.Phase),
 		Volume:       pvc.Spec.VolumeName,
 		Capacity:     pvc.Status.Capacity,
@@ -136,10 +124,10 @@ func toPersistentVolumeClaim(pvc *v1.PersistentVolumeClaim, pods []*v1.Pod, clus
 	}
 }
 
-func toPersistentVolumeClaimList(pvcs []PersistentVolumeClaim, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeClaimList, error) {
+func toPersistentVolumeClaimList(pvcs []api.PersistentVolumeClaim, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PersistentVolumeClaimList, error) {
 	result := &PersistentVolumeClaimList{
 		BaseList: common.NewBaseList(cluster),
-		Items:    make([]PersistentVolumeClaim, 0),
+		Items:    make([]api.PersistentVolumeClaim, 0),
 	}
 
 	err := dataselect.ToResourceList(
@@ -153,7 +141,7 @@ func toPersistentVolumeClaimList(pvcs []PersistentVolumeClaim, dsQuery *datasele
 }
 
 func (l *PersistentVolumeClaimList) Append(obj interface{}) {
-	item := obj.(PersistentVolumeClaim)
+	item := obj.(api.PersistentVolumeClaim)
 	l.Items = append(l.Items, item)
 }
 

@@ -4,26 +4,18 @@ import (
 	extensions "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type Ingress struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// External endpoints of this ingress.
-	Endpoints []common.Endpoint `json:"endpoints"`
-}
 
 // IngressList - response structure for a queried ingress list.
 type IngressList struct {
 	*common.BaseList
 
 	// Unordered list of Ingresss.
-	Items []Ingress
+	Items []api.Ingress
 }
 
 func (man *SIngressManager) List(req *common.Request) (common.ListResource, error) {
@@ -45,11 +37,11 @@ func GetIngressList(indexer *client.CacheFactory, cluster api.ICluster, namespac
 	return ToIngressList(ingressList, dsQuery, cluster)
 }
 
-func getEndpoints(ingress *extensions.Ingress) []common.Endpoint {
-	endpoints := make([]common.Endpoint, 0)
+func getEndpoints(ingress *extensions.Ingress) []api.Endpoint {
+	endpoints := make([]api.Endpoint, 0)
 	if len(ingress.Status.LoadBalancer.Ingress) > 0 {
 		for _, status := range ingress.Status.LoadBalancer.Ingress {
-			endpoint := common.Endpoint{Host: status.IP}
+			endpoint := api.Endpoint{Host: status.IP}
 			endpoints = append(endpoints, endpoint)
 		}
 	}
@@ -59,7 +51,7 @@ func getEndpoints(ingress *extensions.Ingress) []common.Endpoint {
 func ToIngressList(ingresses []*extensions.Ingress, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*IngressList, error) {
 	newIngressList := &IngressList{
 		BaseList: common.NewBaseList(cluster),
-		Items:    make([]Ingress, 0),
+		Items:    make([]api.Ingress, 0),
 	}
 	err := dataselect.ToResourceList(
 		newIngressList,
@@ -69,10 +61,10 @@ func ToIngressList(ingresses []*extensions.Ingress, dsQuery *dataselect.DataSele
 	return newIngressList, err
 }
 
-func ToIngress(ingress *extensions.Ingress, cluster api.ICluster) Ingress {
-	modelIngress := Ingress{
+func ToIngress(ingress *extensions.Ingress, cluster api.ICluster) api.Ingress {
+	modelIngress := api.Ingress{
 		ObjectMeta: api.NewObjectMeta(ingress.ObjectMeta, cluster),
-		TypeMeta:   api.NewTypeMeta(api.ResourceKindIngress),
+		TypeMeta:   api.NewTypeMeta(ingress.TypeMeta),
 		Endpoints:  getEndpoints(ingress),
 	}
 	return modelIngress

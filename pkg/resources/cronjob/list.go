@@ -2,33 +2,22 @@ package cronjob
 
 import (
 	"k8s.io/api/batch/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 // CronJobList contains a list of CronJobs in the cluster.
 type CronJobList struct {
 	*common.BaseList
-	Items []CronJob
+	Items []api.CronJob
 
 	// Basic information about resources status on the list.
 	Status common.ResourceStatus `json:"status"`
-}
-
-// CronJob is a presentation layer view of Kubernetes Cron Job resource.
-type CronJob struct {
-	api.ObjectMeta
-	api.TypeMeta
-	Schedule     string       `json:"schedule"`
-	Suspend      *bool        `json:"suspend"`
-	Active       int          `json:"active"`
-	LastSchedule *metav1.Time `json:"lastSchedule"`
 }
 
 func (man *SCronJobManager) List(req *common.Request) (common.ListResource, error) {
@@ -67,7 +56,7 @@ func GetCronJobListFromChannels(channels *common.ResourceChannels, dsQuery *data
 func toCronJobList(cronJobs []*v1beta1.CronJob, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*CronJobList, error) {
 	list := &CronJobList{
 		BaseList: common.NewBaseList(cluster),
-		Items:    make([]CronJob, 0),
+		Items:    make([]api.CronJob, 0),
 	}
 
 	err := dataselect.ToResourceList(
@@ -105,10 +94,10 @@ func getStatus(list []*v1beta1.CronJob) common.ResourceStatus {
 	return info
 }
 
-func toCronJob(cj *v1beta1.CronJob, cluster api.ICluster) CronJob {
-	return CronJob{
-		ObjectMeta:   api.NewObjectMetaV2(cj.ObjectMeta, cluster),
-		TypeMeta:     api.NewTypeMeta(api.ResourceKindCronJob),
+func toCronJob(cj *v1beta1.CronJob, cluster api.ICluster) api.CronJob {
+	return api.CronJob{
+		ObjectMeta:   api.NewObjectMeta(cj.ObjectMeta, cluster),
+		TypeMeta:     api.NewTypeMeta(cj.TypeMeta),
 		Schedule:     cj.Spec.Schedule,
 		Suspend:      cj.Spec.Suspend,
 		Active:       len(cj.Status.Active),
