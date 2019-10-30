@@ -8,7 +8,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 //GetDeploymentOldReplicaSets returns old replica sets targeting Deployment with given name
@@ -17,7 +17,7 @@ func GetDeploymentOldReplicaSets(indexer *client.CacheFactory, cluster api.IClus
 
 	oldReplicaSetList := &replicaset.ReplicaSetList{
 		BaseList:    common.NewBaseList(cluster),
-		ReplicaSets: make([]replicaset.ReplicaSet, 0),
+		ReplicaSets: make([]api.ReplicaSet, 0),
 	}
 
 	deployment, err := indexer.DeploymentLister().Deployments(namespace).Get(deploymentName)

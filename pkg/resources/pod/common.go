@@ -3,19 +3,27 @@ package pod
 import (
 	"k8s.io/api/core/v1"
 
-	"yunion.io/x/yunion-kube/pkg/resources/common"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
-func ToPod(pod *v1.Pod, warnings []common.Event, cluster api.ICluster) Pod {
-	podDetail := Pod{
-		ObjectMeta:   api.NewObjectMetaV2(pod.ObjectMeta, cluster),
-		TypeMeta:     api.NewTypeMeta(api.ResourceKindPod),
-		Warnings:     warnings,
-		PodStatus:    getPodStatus(pod),
-		RestartCount: getRestartCount(pod),
-		NodeName:     pod.Spec.NodeName,
-		PodIP:        pod.Status.PodIP,
+func ToPod(
+	pod *v1.Pod,
+	warnings []api.Event,
+	cfgs []*v1.ConfigMap,
+	secrets []*v1.Secret,
+	cluster api.ICluster,
+) api.Pod {
+	podDetail := api.Pod{
+		ObjectMeta:     api.NewObjectMeta(pod.ObjectMeta, cluster),
+		TypeMeta:       api.NewTypeMeta(pod.TypeMeta),
+		Warnings:       warnings,
+		PodStatus:      getPodStatus(pod),
+		RestartCount:   getRestartCount(pod),
+		NodeName:       pod.Spec.NodeName,
+		PodIP:          pod.Status.PodIP,
+		QOSClass:       string(pod.Status.QOSClass),
+		Containers:     extractContainerInfo(pod.Spec.Containers, pod, cfgs, secrets),
+		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, cfgs, secrets),
 	}
 	return podDetail
 }
@@ -32,12 +40,12 @@ func getRestartCount(pod *v1.Pod) int32 {
 	return restartCount
 }
 
-func getPodStatus(pod *v1.Pod) PodStatus {
+func getPodStatus(pod *v1.Pod) api.PodStatus {
 	var states []v1.ContainerState
 	for _, containerStatus := range pod.Status.ContainerStatuses {
 		states = append(states, containerStatus.State)
 	}
-	return PodStatus{
+	return api.PodStatus{
 		Status:          string(getPodStatusPhase(pod)),
 		PodPhase:        pod.Status.Phase,
 		ContainerStates: states,
@@ -74,10 +82,10 @@ func getPodStatusPhase(pod *v1.Pod) v1.PodPhase {
 	return v1.PodPending
 }
 
-func getPodConditions(pod v1.Pod) []common.Condition {
-	var conditions []common.Condition
+func getPodConditions(pod v1.Pod) []api.Condition {
+	var conditions []api.Condition
 	for _, condition := range pod.Status.Conditions {
-		conditions = append(conditions, common.Condition{
+		conditions = append(conditions, api.Condition{
 			Type:               string(condition.Type),
 			Status:             condition.Status,
 			LastProbeTime:      condition.LastProbeTime,

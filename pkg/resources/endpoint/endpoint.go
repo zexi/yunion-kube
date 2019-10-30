@@ -6,37 +6,20 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
-type Endpoint struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// Hostname, either as a domain name or IP address.
-	Host string `json:"host"`
-
-	// Name of the node the endpoint is located
-	NodeName *string `json:"nodeName"`
-
-	// Status of the endpoint
-	Ready bool `json:"ready"`
-
-	// Array of endpoint ports
-	Ports []v1.EndpointPort `json:"ports"`
-}
-
 // GetServiceEndpoints gets list of endpoints targeted by given label selector in given namespace.
-func GetServiceEndpoints(indexer *client.CacheFactory, namespace, name string) (*EndpointList, error) {
+func GetServiceEndpoints(indexer *client.CacheFactory, cluster api.ICluster, namespace, name string) (*EndpointList, error) {
 	serviceEndpoints, err := GetEndpoints(indexer, namespace, name)
 	if err != nil {
 		return nil, err
 	}
 
-	endpointList := toEndpointList(serviceEndpoints)
+	endpointList := toEndpointList(serviceEndpoints, cluster)
 	log.Infof("Found %d endpoints related to %s service in %s namespace", len(endpointList.Endpoints), name, namespace)
 	return endpointList, nil
 }
@@ -66,9 +49,10 @@ func GetEndpoints(client *client.CacheFactory, namespace, name string) ([]*v1.En
 }
 
 // toEndpoint converts endpoint api Endpoint to Endpoint model object.
-func toEndpoint(address v1.EndpointAddress, ports []v1.EndpointPort, ready bool) *Endpoint {
-	return &Endpoint{
-		TypeMeta: api.NewTypeMeta(api.ResourceKindEndpoint),
+func toEndpoint(ep *v1.Endpoints, address v1.EndpointAddress, ports []v1.EndpointPort, ready bool, cluster api.ICluster) *api.EndpointDetail {
+	return &api.EndpointDetail{
+		ObjectMeta: api.NewObjectMeta(ep.ObjectMeta, cluster),
+		TypeMeta: api.NewTypeMeta(ep.TypeMeta),
 		Host:     address.IP,
 		Ports:    ports,
 		Ready:    ready,
@@ -79,23 +63,23 @@ func toEndpoint(address v1.EndpointAddress, ports []v1.EndpointPort, ready bool)
 type EndpointList struct {
 	*dataselect.ListMeta
 	// List of endpoints
-	Endpoints []Endpoint `json:"endpoints"`
+	Endpoints []api.EndpointDetail `json:"endpoints"`
 }
 
 // toEndpointList converts array of api events to endpoint List structure
-func toEndpointList(endpoints []*v1.Endpoints) *EndpointList {
+func toEndpointList(endpoints []*v1.Endpoints, cluster api.ICluster) *EndpointList {
 	endpointList := EndpointList{
-		Endpoints: make([]Endpoint, 0),
+		Endpoints: make([]api.EndpointDetail, 0),
 		ListMeta:  dataselect.NewListMeta(),
 	}
 
 	for _, endpoint := range endpoints {
 		for _, subSets := range endpoint.Subsets {
 			for _, address := range subSets.Addresses {
-				endpointList.Endpoints = append(endpointList.Endpoints, *toEndpoint(address, subSets.Ports, true))
+				endpointList.Endpoints = append(endpointList.Endpoints, *toEndpoint(endpoint, address, subSets.Ports, true, cluster))
 			}
 			for _, notReadyAddress := range subSets.NotReadyAddresses {
-				endpointList.Endpoints = append(endpointList.Endpoints, *toEndpoint(notReadyAddress, subSets.Ports, false))
+				endpointList.Endpoints = append(endpointList.Endpoints, *toEndpoint(endpoint, notReadyAddress, subSets.Ports, false, cluster))
 			}
 		}
 	}

@@ -6,46 +6,22 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/event"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
-
-type PodStatus struct {
-	Status          string              `json:"status"`
-	PodPhase        v1.PodPhase         `json:"podPhase"`
-	ContainerStates []v1.ContainerState `json:"containerStates"`
-}
-
-// Pod is a presentation layer view of Pod resource. This means it is Pod plus additional augmented data
-// we can get from other sources (like services that target it).
-type Pod struct {
-	api.ObjectMeta
-	api.TypeMeta
-
-	// More info on pod status
-	PodStatus
-
-	PodIP string `json:"podIP"`
-	// Count of containers restarts
-	RestartCount int32 `json:"restartCount"`
-
-	// Pod warning events
-	Warnings []common.Event `json:"warnings"`
-
-	// Name of the Node this pod runs on
-	NodeName string `json:"nodeName"`
-}
 
 type PodList struct {
 	*common.BaseList
-	Pods   []Pod
-	Events []*v1.Event
+	Pods       []api.Pod
+	Events     []*v1.Event
+	ConfigMaps []*v1.ConfigMap
+	Secrets    []*v1.Secret
 }
 
-func (l PodList) GetPods() []Pod {
+func (l PodList) GetPods() []api.Pod {
 	return l.Pods
 }
 
@@ -74,19 +50,21 @@ func (man *SPodManager) GetPodList(
 ) (*PodList, error) {
 	log.Infof("Getting list of all pods in the cluster")
 	channels := &common.ResourceChannels{
-		PodList:   common.GetPodListChannelWithOptions(indexer, nsQuery, labels.Everything()),
-		EventList: common.GetEventListChannel(indexer, nsQuery),
+		PodList:       common.GetPodListChannelWithOptions(indexer, nsQuery, labels.Everything()),
+		ConfigMapList: common.GetConfigMapListChannel(indexer, nsQuery),
+		SecretList:    common.GetSecretListChannel(indexer, nsQuery),
+		EventList:     common.GetEventListChannel(indexer, nsQuery),
 	}
-	return GetPodListFromChannels(channels, dsQuery, cluster)
+	return GetPodListFromChannels(indexer, channels, dsQuery, cluster)
 }
 
 func (l *PodList) Append(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	warnings := event.GetPodsEventWarnings(l.Events, []*v1.Pod{pod})
-	l.Pods = append(l.Pods, ToPod(pod, warnings, l.GetCluster()))
+	l.Pods = append(l.Pods, ToPod(pod, warnings, l.ConfigMaps, l.Secrets, l.GetCluster()))
 }
 
-func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
+func GetPodListFromChannels(indexer *client.CacheFactory, channels *common.ResourceChannels, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
 	pods := <-channels.PodList.List
 	err := <-channels.PodList.Error
 	if err != nil {
@@ -99,15 +77,71 @@ func GetPodListFromChannels(channels *common.ResourceChannels, dsQuery *datasele
 		return nil, err
 	}
 
-	podList, err := ToPodList(pods, eventList, dsQuery, cluster)
+	cfgs := <-channels.ConfigMapList.List
+	err = <-channels.ConfigMapList.Error
+	if err != nil {
+		return nil, err
+	}
+
+	secrets := <-channels.SecretList.List
+	if err != nil {
+		return nil, err
+	}
+
+	podList, err := ToPodList(pods, eventList, secrets, cfgs, dsQuery, cluster)
 	return podList, err
 }
 
-func ToPodList(pods []*v1.Pod, events []*v1.Event, dsQuery *dataselect.DataSelectQuery, cluster api.ICluster) (*PodList, error) {
+func ToPodListByIndexer(
+	indexer *client.CacheFactory,
+	namespace string,
+	dsQuery *dataselect.DataSelectQuery,
+	selector labels.Selector,
+	cluster api.ICluster,
+) (*PodList, error) {
+	pods, err := indexer.PodLister().Pods(namespace).List(selector)
+	if err != nil {
+		return nil, err
+	}
+	return ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, selector, cluster)
+}
+
+func ToPodListByIndexerV2(
+	indexer *client.CacheFactory,
+	pods []*v1.Pod,
+	namespace string,
+	dsQuery *dataselect.DataSelectQuery,
+	selector labels.Selector,
+	cluster api.ICluster,
+) (*PodList, error) {
+	events, err := event.GetPodsEvents(indexer, namespace, pods)
+	if err != nil {
+		return nil, err
+	}
+	secrets, err := indexer.SecretLister().Secrets(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	cfgs, err := indexer.ConfigMapLister().ConfigMaps(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	return ToPodList(pods, events, secrets, cfgs, dsQuery, cluster)
+}
+
+func ToPodList(
+	pods []*v1.Pod,
+	events []*v1.Event,
+	secrets []*v1.Secret,
+	cfgs []*v1.ConfigMap,
+	dsQuery *dataselect.DataSelectQuery,
+	cluster api.ICluster) (*PodList, error) {
 	podList := &PodList{
-		BaseList: common.NewBaseList(cluster),
-		Pods:     make([]Pod, 0),
-		Events:   events,
+		BaseList:   common.NewBaseList(cluster),
+		Pods:       make([]api.Pod, 0),
+		Events:     events,
+		ConfigMaps: cfgs,
+		Secrets:    secrets,
 	}
 	err := dataselect.ToResourceList(
 		podList,

@@ -5,8 +5,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/resources/service"
 )
 
 const (
@@ -37,7 +37,7 @@ type AppDeploymentSpec struct {
 
 	// Port mappings for the service that is created. The service is created if there is at least
 	// one port mapping.
-	PortMappings []service.PortMapping `json:"portMappings"`
+	PortMappings []apis.PortMapping `json:"portMappings"`
 
 	// List of user-defined environment variables.
 	Variables []EnvironmentVariable `json:"variables"`

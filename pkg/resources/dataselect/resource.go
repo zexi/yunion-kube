@@ -8,6 +8,7 @@ import (
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/helm/pkg/proto/hapi/release"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/helm/data"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
@@ -73,7 +74,7 @@ func getObjectMeta(obj interface{}) (metaV1.ObjectMeta, error) {
 	}
 	meta, ok := f.Interface().(metaV1.ObjectMeta)
 	if !ok {
-		apiMeta := f.Interface().(api.ObjectMeta)
+		apiMeta := f.Interface().(apis.ObjectMeta)
 		meta = metaV1.ObjectMeta{
 			Name:              apiMeta.Name,
 			Namespace:         apiMeta.Namespace,

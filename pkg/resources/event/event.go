@@ -3,10 +3,10 @@ package event
 import (
 	"strings"
 
-	api "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"yunion.io/x/yunion-kube/pkg/resources/common"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // FailedReasonPartials  is an array of partial strings to correctly filter warning events.
@@ -19,12 +19,12 @@ var FailedReasonPartials = []string{"failed", "err", "exceeded", "invalid", "unh
 	"mismatch", "insufficient", "conflict", "outof", "nil", "backoff"}
 
 // GetPodsEventWarnings returns warning pod events by filtering out events targeting only given pods
-func GetPodsEventWarnings(events []*api.Event, pods []*api.Pod) []common.Event {
-	result := make([]common.Event, 0)
+func GetPodsEventWarnings(events []*v1.Event, pods []*v1.Pod) []api.Event {
+	result := make([]api.Event, 0)
 
 	// Filter out only warning events
 	events = getWarningEvents(events)
-	failedPods := make([]*api.Pod, 0)
+	failedPods := make([]*v1.Pod, 0)
 
 	// Filter out ready and successful pods
 	for _, pod := range pods {
@@ -38,7 +38,7 @@ func GetPodsEventWarnings(events []*api.Event, pods []*api.Pod) []common.Event {
 	events = removeDuplicates(events)
 
 	for _, event := range events {
-		result = append(result, common.Event{
+		result = append(result, api.Event{
 			Message: event.Message,
 			Reason:  event.Reason,
 			Type:    event.Type,
@@ -50,8 +50,8 @@ func GetPodsEventWarnings(events []*api.Event, pods []*api.Pod) []common.Event {
 
 // Returns filtered list of event objects. Events list is filtered to get only events targeting
 // pods on the list.
-func filterEventsByPodsUID(events []*api.Event, pods []*api.Pod) []*api.Event {
-	result := make([]*api.Event, 0)
+func filterEventsByPodsUID(events []*v1.Event, pods []*v1.Pod) []*v1.Event {
+	result := make([]*v1.Event, 0)
 	podEventMap := make(map[types.UID]bool, 0)
 
 	if len(pods) == 0 || len(events) == 0 {
@@ -71,8 +71,8 @@ func filterEventsByPodsUID(events []*api.Event, pods []*api.Pod) []*api.Event {
 	return result
 }
 
-func FilterEventsByUID(events []*api.Event, uid types.UID) []*api.Event {
-	result := make([]*api.Event, 0)
+func FilterEventsByUID(events []*v1.Event, uid types.UID) []*v1.Event {
+	result := make([]*v1.Event, 0)
 	for _, e := range events {
 		if e.InvolvedObject.UID == uid {
 			result = append(result, e)
@@ -83,18 +83,18 @@ func FilterEventsByUID(events []*api.Event, uid types.UID) []*api.Event {
 
 // Returns filtered list of event objects.
 // Event list object is filtered to get only warning events.
-func getWarningEvents(events []*api.Event) []*api.Event {
-	return filterEventsByType(FillEventsType(events), api.EventTypeWarning)
+func getWarningEvents(events []*v1.Event) []*v1.Event {
+	return filterEventsByType(FillEventsType(events), v1.EventTypeWarning)
 }
 
 // Filters kubernetes API event objects based on event type.
 // Empty string will return all events.
-func filterEventsByType(events []*api.Event, eventType string) []*api.Event {
+func filterEventsByType(events []*v1.Event, eventType string) []*v1.Event {
 	if len(eventType) == 0 || len(events) == 0 {
 		return events
 	}
 
-	result := make([]*api.Event, 0)
+	result := make([]*v1.Event, 0)
 	for _, event := range events {
 		if event.Type == eventType {
 			result = append(result, event)
@@ -117,9 +117,9 @@ func isFailedReason(reason string, partials ...string) bool {
 }
 
 // Removes duplicate strings from the slice
-func removeDuplicates(slice []*api.Event) []*api.Event {
+func removeDuplicates(slice []*v1.Event) []*v1.Event {
 	visited := make(map[string]bool, 0)
-	result := make([]*api.Event, 0)
+	result := make([]*v1.Event, 0)
 
 	for _, elem := range slice {
 		if !visited[elem.Reason] {
@@ -132,14 +132,14 @@ func removeDuplicates(slice []*api.Event) []*api.Event {
 }
 
 // Returns true if given pod is in state ready or succeeded, false otherwise
-func isReadyOrSucceeded(pod *api.Pod) bool {
-	if pod.Status.Phase == api.PodSucceeded {
+func isReadyOrSucceeded(pod *v1.Pod) bool {
+	if pod.Status.Phase == v1.PodSucceeded {
 		return true
 	}
-	if pod.Status.Phase == api.PodRunning {
+	if pod.Status.Phase == v1.PodRunning {
 		for _, c := range pod.Status.Conditions {
-			if c.Type == api.PodReady {
-				if c.Status == api.ConditionFalse {
+			if c.Type == v1.PodReady {
+				if c.Status == v1.ConditionFalse {
 					return false
 				}
 			}

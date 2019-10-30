@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 // RbacRoleList contains a list of Roles and ClusterRoles in the cluster.
@@ -63,9 +63,9 @@ func GetRbacRoleListFromChannels(channels *common.ResourceChannels, dsQuery *dat
 	return toRbacRoleLists(roles, clusterRoles, dsQuery, cluster)
 }
 
-func toRbacRole(meta v1.ObjectMeta, kind api.ResourceKind, cluster api.ICluster) RbacRole {
+func toRbacRole(meta v1.ObjectMeta, kind v1.TypeMeta, cluster api.ICluster) RbacRole {
 	return RbacRole{
-		ObjectMeta: api.NewObjectMetaV2(meta, cluster),
+		ObjectMeta: api.NewObjectMeta(meta, cluster),
 		TypeMeta:   api.NewTypeMeta(kind),
 	}
 }
@@ -98,9 +98,9 @@ func toRbacRoleLists(roles []*rbac.Role, clusterRoles []*rbac.ClusterRole, dsQue
 
 func (l *RbacRoleList) Append(obj interface{}) {
 	if item, ok := obj.(rbac.Role); ok {
-		l.Items = append(l.Items, toRbacRole(item.ObjectMeta, api.ResourceKindRbacRole, l.GetCluster()))
+		l.Items = append(l.Items, toRbacRole(item.ObjectMeta, item.TypeMeta, l.GetCluster()))
 	} else if item, ok := obj.(rbac.ClusterRole); ok {
-		l.Items = append(l.Items, toRbacRole(item.ObjectMeta, api.ResourceKindRbacClusterRole, l.GetCluster()))
+		l.Items = append(l.Items, toRbacRole(item.ObjectMeta, item.TypeMeta, l.GetCluster()))
 	} else {
 		log.Errorf("Invalid object for RBAC role: %v", obj)
 	}
