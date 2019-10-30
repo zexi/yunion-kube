@@ -6,7 +6,7 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
-// swagger:route PUT /statefulsets statefulsetUpdateInput
+// swagger:route PUT /statefulsets statefulset statefulsetUpdateInput
 // Update statefulset spec
 // responses:
 // 200: statefulsetUpdateOutput

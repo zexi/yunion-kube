@@ -4,7 +4,7 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
-// swagger:route POST /registrysecrets registrySecretCreateInput
+// swagger:route POST /registrysecrets registrysecret registrySecretCreateInput
 // Create docker registry auth secret
 // responses:
 //   200: registrySecretCreateOutput

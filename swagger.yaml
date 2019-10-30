@@ -353,6 +353,230 @@ definitions:
   ConditionStatus:
     type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ConfigMap:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        description: |-
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: http://kubernetes.io/docs/user-guide/annotations
+          +optional
+        type: object
+        x-go-name: Annotations
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+          +optional
+        type: string
+        x-go-name: APIVersion
+      binaryData:
+        additionalProperties:
+          items:
+            format: uint8
+            type: integer
+          type: array
+        description: |-
+          BinaryData contains the binary data.
+          Each key must consist of alphanumeric characters, '-', '_' or '.'.
+          BinaryData can contain byte sequences that are not in the UTF-8 range.
+          The keys stored in BinaryData must not overlap with the ones in
+          the Data field, this is enforced during validation process.
+          Using this field will require 1.10+ apiserver and
+          kubelet.
+          +optional
+        type: object
+        x-go-name: BinaryData
+      clusterName:
+        description: |-
+          The name of the cluster which the object belongs to.
+          This is used to distinguish resources with same name and namespace in different clusters.
+          This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+          +optional
+        type: string
+        x-go-name: ClusterName
+      creationTimestamp:
+        $ref: '#/definitions/Time'
+      data:
+        additionalProperties:
+          type: string
+        description: |-
+          Data contains the configuration data.
+          Each key must consist of alphanumeric characters, '-', '_' or '.'.
+          Values with non-UTF-8 byte sequences must use the BinaryData field.
+          The keys stored in Data must not overlap with the keys in
+          the BinaryData field, this is enforced during validation process.
+          +optional
+        type: object
+        x-go-name: Data
+      deletionGracePeriodSeconds:
+        description: |-
+          Number of seconds allowed for this object to gracefully terminate before
+          it will be removed from the system. Only set when deletionTimestamp is also set.
+          May only be shortened.
+          Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: DeletionGracePeriodSeconds
+      deletionTimestamp:
+        $ref: '#/definitions/Time'
+      finalizers:
+        description: |-
+          Must be empty before the object is deleted from the registry. Each entry
+          is an identifier for the responsible component that will remove the entry
+          from the list. If the deletionTimestamp of the object is non-nil, entries
+          in this list can only be removed.
+          +optional
+          +patchStrategy=merge
+        items:
+          type: string
+        type: array
+        x-go-name: Finalizers
+      generateName:
+        description: |-
+          GenerateName is an optional prefix, used by the server, to generate a unique
+          name ONLY IF the Name field has not been provided.
+          If this field is used, the name returned to the client will be different
+          than the name passed. This value will also be combined with a unique suffix.
+          The provided value has the same validation rules as the Name field,
+          and may be truncated by the length of the suffix required to make the value
+          unique on the server.
+
+          If this field is specified and the generated name exists, the server will
+          NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+          ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+          should retry (optionally after the time indicated in the Retry-After header).
+
+          Applied only if Name is not specified.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#idempotency
+          +optional
+        type: string
+        x-go-name: GenerateName
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: Generation
+      initializers:
+        $ref: '#/definitions/Initializers'
+      kind:
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+          +optional
+        type: string
+        x-go-name: Kind
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: http://kubernetes.io/docs/user-guide/labels
+          +optional
+        type: object
+        x-go-name: Labels
+      name:
+        description: |-
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/identifiers#names
+          +optional
+        type: string
+        x-go-name: Name
+      namespace:
+        description: |-
+          Namespace defines the space within each name must be unique. An empty namespace is
+          equivalent to the "default" namespace, but "default" is the canonical representation.
+          Not all objects are required to be scoped to a namespace - the value of this field for
+          those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/namespaces
+          +optional
+        type: string
+        x-go-name: Namespace
+      ownerReferences:
+        description: |-
+          List of objects depended by this object. If ALL objects in the list have
+          been deleted, this object will be garbage collected. If this object is managed by a controller,
+          then an entry in this list will point to this controller, with the controller field set to true.
+          There cannot be more than one managing controller.
+          +optional
+          +patchMergeKey=uid
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/OwnerReference'
+        type: array
+        x-go-name: OwnerReferences
+      resourceVersion:
+        description: |-
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
+          +optional
+        type: string
+        x-go-name: ResourceVersion
+      selfLink:
+        description: |-
+          SelfLink is a URL representing this object.
+          Populated by the system.
+          Read-only.
+          +optional
+        type: string
+        x-go-name: SelfLink
+      uid:
+        $ref: '#/definitions/UID'
+    title: ConfigMap holds configuration data for pods to consume.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ConfigMapCreateInput:
+    properties:
+      cluster:
+        type: string
+        x-go-name: Cluster
+      data:
+        additionalProperties:
+          type: string
+        type: object
+        x-go-name: Data
+      name:
+        type: string
+        x-go-name: Name
+      namespace:
+        type: string
+        x-go-name: Namespace
+    required:
+    - cluster
+    - name
+    - namespace
+    - data
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   ConfigMapDetail:
     properties:
       annotations:
@@ -1770,6 +1994,43 @@ definitions:
     title: Represents a Glusterfs mount that lasts the lifetime of a pod.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  HTTPIngressPath:
+    description: |-
+      HTTPIngressPath associates a path regex with a backend. Incoming urls matching
+      the path are forwarded to the backend.
+    properties:
+      backend:
+        $ref: '#/definitions/IngressBackend'
+      path:
+        description: |-
+          Path is an extended POSIX regex as defined by IEEE Std 1003.1,
+          (i.e this follows the egrep/unix syntax, not the perl syntax)
+          matched against the path of an incoming request. Currently it can
+          contain characters disallowed from the conventional "path"
+          part of a URL as defined by RFC 3986. Paths must begin with
+          a '/'. If unspecified, the path defaults to a catch all sending
+          traffic to the backend.
+          +optional
+        type: string
+        x-go-name: Path
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
+  HTTPIngressRuleValue:
+    description: |-
+      In the example: http://<host>/<path>?<searchpart> -> backend where
+      where parts of the url correspond to RFC 3986, this resource will be used
+      to match against everything after the last '/' and before the first '?'
+      or '#'.
+    properties:
+      paths:
+        description: A collection of paths that map requests to backends.
+        items:
+          $ref: '#/definitions/HTTPIngressPath'
+        type: array
+        x-go-name: Paths
+    title: HTTPIngressRuleValue is a list of http selectors pointing to backends.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
   HostAlias:
     description: |-
       HostAlias holds the mapping between IP and hostnames that will be injected as an entry in the
@@ -1884,6 +2145,285 @@ definitions:
     title: Represents an ISCSI disk.
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  Ingress:
+    description: |-
+      Ingress is a collection of rules that allow inbound connections to reach the
+      endpoints defined by a backend. An Ingress can be configured to give services
+      externally-reachable urls, load balance traffic, terminate SSL, offer name
+      based virtual hosting etc.
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        description: |-
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: http://kubernetes.io/docs/user-guide/annotations
+          +optional
+        type: object
+        x-go-name: Annotations
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
+          +optional
+        type: string
+        x-go-name: APIVersion
+      clusterName:
+        description: |-
+          The name of the cluster which the object belongs to.
+          This is used to distinguish resources with same name and namespace in different clusters.
+          This field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.
+          +optional
+        type: string
+        x-go-name: ClusterName
+      creationTimestamp:
+        $ref: '#/definitions/Time'
+      deletionGracePeriodSeconds:
+        description: |-
+          Number of seconds allowed for this object to gracefully terminate before
+          it will be removed from the system. Only set when deletionTimestamp is also set.
+          May only be shortened.
+          Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: DeletionGracePeriodSeconds
+      deletionTimestamp:
+        $ref: '#/definitions/Time'
+      finalizers:
+        description: |-
+          Must be empty before the object is deleted from the registry. Each entry
+          is an identifier for the responsible component that will remove the entry
+          from the list. If the deletionTimestamp of the object is non-nil, entries
+          in this list can only be removed.
+          +optional
+          +patchStrategy=merge
+        items:
+          type: string
+        type: array
+        x-go-name: Finalizers
+      generateName:
+        description: |-
+          GenerateName is an optional prefix, used by the server, to generate a unique
+          name ONLY IF the Name field has not been provided.
+          If this field is used, the name returned to the client will be different
+          than the name passed. This value will also be combined with a unique suffix.
+          The provided value has the same validation rules as the Name field,
+          and may be truncated by the length of the suffix required to make the value
+          unique on the server.
+
+          If this field is specified and the generated name exists, the server will
+          NOT return a 409 - instead, it will either return 201 Created or 500 with Reason
+          ServerTimeout indicating a unique name could not be found in the time allotted, and the client
+          should retry (optionally after the time indicated in the Retry-After header).
+
+          Applied only if Name is not specified.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#idempotency
+          +optional
+        type: string
+        x-go-name: GenerateName
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        format: int64
+        type: integer
+        x-go-name: Generation
+      initializers:
+        $ref: '#/definitions/Initializers'
+      kind:
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
+          +optional
+        type: string
+        x-go-name: Kind
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: http://kubernetes.io/docs/user-guide/labels
+          +optional
+        type: object
+        x-go-name: Labels
+      name:
+        description: |-
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/identifiers#names
+          +optional
+        type: string
+        x-go-name: Name
+      namespace:
+        description: |-
+          Namespace defines the space within each name must be unique. An empty namespace is
+          equivalent to the "default" namespace, but "default" is the canonical representation.
+          Not all objects are required to be scoped to a namespace - the value of this field for
+          those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: http://kubernetes.io/docs/user-guide/namespaces
+          +optional
+        type: string
+        x-go-name: Namespace
+      ownerReferences:
+        description: |-
+          List of objects depended by this object. If ALL objects in the list have
+          been deleted, this object will be garbage collected. If this object is managed by a controller,
+          then an entry in this list will point to this controller, with the controller field set to true.
+          There cannot be more than one managing controller.
+          +optional
+          +patchMergeKey=uid
+          +patchStrategy=merge
+        items:
+          $ref: '#/definitions/OwnerReference'
+        type: array
+        x-go-name: OwnerReferences
+      resourceVersion:
+        description: |-
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency
+          +optional
+        type: string
+        x-go-name: ResourceVersion
+      selfLink:
+        description: |-
+          SelfLink is a URL representing this object.
+          Populated by the system.
+          Read-only.
+          +optional
+        type: string
+        x-go-name: SelfLink
+      spec:
+        $ref: '#/definitions/IngressSpec'
+      status:
+        $ref: '#/definitions/IngressStatus'
+      uid:
+        $ref: '#/definitions/UID'
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
+  IngressBackend:
+    properties:
+      serviceName:
+        description: Specifies the name of the referenced service.
+        type: string
+        x-go-name: ServiceName
+      servicePort:
+        $ref: '#/definitions/IntOrString'
+    title: IngressBackend describes all endpoints for a given service and port.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
+  IngressRule:
+    description: |-
+      IngressRule represents the rules mapping the paths under a specified host to
+      the related backend services. Incoming requests are first evaluated for a host
+      match, then routed to the backend associated with the matching IngressRuleValue.
+    properties:
+      host:
+        description: |-
+          Host is the fully qualified domain name of a network host, as defined
+          by RFC 3986. Note the following deviations from the "host" part of the
+          URI as defined in the RFC:
+          1. IPs are not allowed. Currently an IngressRuleValue can only apply to the
+          IP in the Spec of the parent Ingress.
+          2. The `:` delimiter is not respected because ports are not allowed.
+          Currently the port of an Ingress is implicitly :80 for http and
+          :443 for https.
+          Both these may change in the future.
+          Incoming requests are matched against the host before the IngressRuleValue.
+          If the host is unspecified, the Ingress routes all traffic based on the
+          specified IngressRuleValue.
+          +optional
+        type: string
+        x-go-name: Host
+      http:
+        $ref: '#/definitions/HTTPIngressRuleValue'
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
+  IngressSpec:
+    properties:
+      backend:
+        $ref: '#/definitions/IngressBackend'
+      rules:
+        description: |-
+          A list of host rules used to configure the Ingress. If unspecified, or
+          no rule matches, all traffic is sent to the default backend.
+          +optional
+        items:
+          $ref: '#/definitions/IngressRule'
+        type: array
+        x-go-name: Rules
+      tls:
+        description: |-
+          TLS configuration. Currently the Ingress only supports a single TLS
+          port, 443. If multiple members of this list specify different hosts, they
+          will be multiplexed on the same port according to the hostname specified
+          through the SNI TLS extension, if the ingress controller fulfilling the
+          ingress supports SNI.
+          +optional
+        items:
+          $ref: '#/definitions/IngressTLS'
+        type: array
+        x-go-name: TLS
+    title: IngressSpec describes the Ingress the user wishes to exist.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
+  IngressStatus:
+    properties:
+      loadBalancer:
+        $ref: '#/definitions/LoadBalancerStatus'
+    title: IngressStatus describe the current state of the Ingress.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
+  IngressTLS:
+    properties:
+      hosts:
+        description: |-
+          Hosts are a list of hosts included in the TLS certificate. The values in
+          this list must match the name/s used in the tlsSecret. Defaults to the
+          wildcard host setting for the loadbalancer controller fulfilling this
+          Ingress, if left unspecified.
+          +optional
+        items:
+          type: string
+        type: array
+        x-go-name: Hosts
+      secretName:
+        description: |-
+          SecretName is the name of the secret used to terminate SSL traffic on 443.
+          Field is left optional to allow SSL routing based on SNI hostname alone.
+          If the SNI host in a listener conflicts with the "Host" header field used
+          by an IngressRule, the SNI host is used for termination and value of the
+          Host header is used for routing.
+          +optional
+        type: string
+        x-go-name: SecretName
+    title: IngressTLS describes the transport layer security associated with an Ingress.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/extensions/v1beta1
   Initializer:
     properties:
       name:
@@ -2039,6 +2579,40 @@ definitions:
         x-go-name: Values
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/apimachinery/pkg/apis/meta/v1
+  LoadBalancerIngress:
+    description: traffic intended for the service should be sent to an ingress point.
+    properties:
+      hostname:
+        description: |-
+          Hostname is set for load-balancer ingress points that are DNS based
+          (typically AWS load-balancers)
+          +optional
+        type: string
+        x-go-name: Hostname
+      ip:
+        description: |-
+          IP is set for load-balancer ingress points that are IP based
+          (typically GCE or OpenStack load-balancers)
+          +optional
+        type: string
+        x-go-name: IP
+    title: 'LoadBalancerIngress represents the status of a load-balancer ingress point:'
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  LoadBalancerStatus:
+    properties:
+      ingress:
+        description: |-
+          Ingress is a list containing ingress points for the load-balancer.
+          Traffic intended for the service should be sent to these ingress points.
+          +optional
+        items:
+          $ref: '#/definitions/LoadBalancerIngress'
+        type: array
+        x-go-name: Ingress
+    title: LoadBalancerStatus represents the status of a load-balancer.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   LocalObjectReference:
     description: |-
       LocalObjectReference contains enough information to let you locate the
@@ -4486,6 +5060,20 @@ info:
   description: swagger define
   version: "1.0"
 paths:
+  /configmaps:
+    post:
+      description: Create configmap
+      operationId: configMapCreateInput
+      parameters:
+      - in: body
+        name: Body
+        schema:
+          $ref: '#/definitions/ConfigMapCreateInput'
+      responses:
+        "200":
+          $ref: '#/responses/configMapCreateOutput'
+      tags:
+      - configmap
   /configmaps/{name}:
     get:
       description: Get configmap details
@@ -4510,6 +5098,8 @@ paths:
       responses:
         "200":
           $ref: '#/responses/configMapShowOutput'
+      tags:
+      - configmap
   /deployments:
     put:
       description: Update deployment spec
@@ -4522,6 +5112,59 @@ paths:
       responses:
         "200":
           $ref: '#/responses/deploymentUpdateOutput'
+      tags:
+      - deployment
+  /ingresses:
+    post:
+      description: Create ingress
+      operationId: ingressCreateInput
+      parameters:
+      - in: body
+        name: Body
+        schema:
+          properties:
+            backend:
+              $ref: '#/definitions/IngressBackend'
+            cluster:
+              type: string
+              x-go-name: Cluster
+            name:
+              type: string
+              x-go-name: Name
+            namespace:
+              type: string
+              x-go-name: Namespace
+            rules:
+              description: |-
+                A list of host rules used to configure the Ingress. If unspecified, or
+                no rule matches, all traffic is sent to the default backend.
+                +optional
+              items:
+                $ref: '#/definitions/IngressRule'
+              type: array
+              x-go-name: Rules
+            tls:
+              description: |-
+                TLS configuration. Currently the Ingress only supports a single TLS
+                port, 443. If multiple members of this list specify different hosts, they
+                will be multiplexed on the same port according to the hostname specified
+                through the SNI TLS extension, if the ingress controller fulfilling the
+                ingress supports SNI.
+                +optional
+              items:
+                $ref: '#/definitions/IngressTLS'
+              type: array
+              x-go-name: TLS
+          required:
+          - cluster
+          - name
+          - namespace
+          type: object
+      responses:
+        "200":
+          $ref: '#/responses/ingressCreateOutput'
+      tags:
+      - ingress
   /kubeclusters:
     post:
       description: Create kubernetes cluster
@@ -4534,6 +5177,8 @@ paths:
       responses:
         "200":
           $ref: '#/responses/clusterCreateOutput'
+      tags:
+      - kubecluster
   /registrysecrets:
     post:
       description: Create docker registry auth secret
@@ -4546,6 +5191,8 @@ paths:
       responses:
         "200":
           $ref: '#/responses/registrySecretCreateOutput'
+      tags:
+      - registrysecret
   /statefulsets:
     put:
       description: Update statefulset spec
@@ -4558,6 +5205,8 @@ paths:
       responses:
         "200":
           $ref: '#/responses/statefulsetUpdateOutput'
+      tags:
+      - statefulset
 produces:
 - application/json
 responses:
@@ -4566,6 +5215,12 @@ responses:
       properties:
         kubecluster:
           $ref: '#/definitions/ClusterCreateOutput'
+      type: object
+  configMapCreateOutput:
+    schema:
+      properties:
+        configmap:
+          $ref: '#/definitions/ConfigMap'
       type: object
   configMapShowOutput:
     schema:
@@ -4578,6 +5233,12 @@ responses:
       properties:
         deployment:
           $ref: '#/definitions/Deployment'
+      type: object
+  ingressCreateOutput:
+    schema:
+      properties:
+        Output:
+          $ref: '#/definitions/Ingress'
       type: object
   registrySecretCreateOutput:
     schema:

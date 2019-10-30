@@ -24,6 +24,16 @@ func JsonDecode(data jsonutils.JSONObject, obj interface{}) error {
 	return err
 }
 
+func GetK8sObjectCreateMetaByRequest(req *Request) (*metav1.ObjectMeta, error) {
+	objMeta, err := GetK8sObjectCreateMeta(req.Data)
+	if err != nil {
+		return nil, err
+	}
+	ns := req.GetDefaultNamespace()
+	objMeta.Namespace = ns
+	return objMeta, nil
+}
+
 func GetK8sObjectCreateMeta(data jsonutils.JSONObject) (*metav1.ObjectMeta, error) {
 	name, err := data.GetString("name")
 	if err != nil {

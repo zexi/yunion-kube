@@ -2,7 +2,7 @@ package docs
 
 import api "yunion.io/x/yunion-kube/pkg/apis"
 
-// swagger:route POST /kubeclusters clusterCreateInput
+// swagger:route POST /kubeclusters kubecluster clusterCreateInput
 // Create kubernetes cluster
 // responses:
 //   200: clusterCreateOutput

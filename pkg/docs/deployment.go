@@ -6,7 +6,7 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
-// swagger:route PUT /deployments deploymentUpdateInput
+// swagger:route PUT /deployments deployment deploymentUpdateInput
 // Update deployment spec
 // responses:
 // 200: deploymentUpdateOutput
