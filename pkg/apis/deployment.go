@@ -115,3 +115,13 @@ type DeploymentDetail struct {
 	// List of Horizontal Pod AutoScalers targeting this Deployment
 	//HorizontalPodAutoscalerList hpa.HorizontalPodAutoscalerList `json:"horizontalPodAutoscalerList"`
 }
+
+type DeploymentCreateInput struct {
+	K8sNamespaceResourceCreateInput
+
+	apps.DeploymentSpec
+
+	// Port mappings for the service that is created. The service is created if there is at least
+	// one port mapping.
+	PortMappings []PortMapping `json:"portMappings"`
+}

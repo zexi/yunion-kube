@@ -2,12 +2,10 @@ package common
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -53,13 +51,7 @@ func GetK8sObjectCreateMeta(data jsonutils.JSONObject) (*metav1.ObjectMeta, erro
 }
 
 func GenerateName(base string) string {
-	maxNameLength := 63
-	randomLength := 5
-	maxGeneratedNameLength := maxNameLength - randomLength
-	if len(base) > maxGeneratedNameLength {
-		base = base[:maxGeneratedNameLength]
-	}
-	return fmt.Sprintf("%s%s", base, rand.String(randomLength))
+	return api.GenerateName(base)
 }
 
 func ToConfigMap(configMap *v1.ConfigMap, cluster api.ICluster) api.ConfigMap {

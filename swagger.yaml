@@ -3861,6 +3861,23 @@ definitions:
         $ref: '#/definitions/UID'
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  PortMapping:
+    properties:
+      port:
+        description: Port that will be exposed on the service.
+        format: int32
+        type: integer
+        x-go-name: Port
+      protocol:
+        $ref: '#/definitions/Protocol'
+      targetPort:
+        description: Docker image path for the application.
+        format: int32
+        type: integer
+        x-go-name: TargetPort
+    title: PortMapping is a specification of port mapping for an application deployment.
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   PortworxVolumeSource:
     properties:
       fsType:
@@ -3920,6 +3937,11 @@ definitions:
         type: array
         x-go-name: Sources
     type: object
+    x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  Protocol:
+    title: Protocol defines network protocols supported for things like container
+      ports.
+    type: string
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
   Quantity:
     description: |-
@@ -4602,6 +4624,42 @@ definitions:
         x-go-name: Path
     type: object
     x-go-package: yunion.io/x/yunion-kube/vendor/k8s.io/api/core/v1
+  ServiceCreateInput:
+    properties:
+      cluster:
+        type: string
+        x-go-name: Cluster
+      isExternal:
+        type: boolean
+        x-go-name: IsExternal
+      loadBalancerNetwork:
+        type: string
+        x-go-name: LoadBalancerNetwork
+      name:
+        type: string
+        x-go-name: Name
+      namespace:
+        type: string
+        x-go-name: Namespace
+      portMappings:
+        items:
+          $ref: '#/definitions/PortMapping'
+        type: array
+        x-go-name: PortMappings
+      selector:
+        additionalProperties:
+          type: string
+        type: object
+        x-go-name: Selector
+      type:
+        type: string
+        x-go-name: Type
+    required:
+    - cluster
+    - name
+    - namespace
+    type: object
+    x-go-package: yunion.io/x/yunion-kube/pkg/apis
   StatefulsetUpdateInput:
     properties:
       cluster:
@@ -5193,6 +5251,20 @@ paths:
           $ref: '#/responses/registrySecretCreateOutput'
       tags:
       - registrysecret
+  /services:
+    post:
+      description: Create kubernetes service
+      operationId: serviceCreateInput
+      parameters:
+      - in: body
+        name: Body
+        schema:
+          $ref: '#/definitions/ServiceCreateInput'
+      responses:
+        "200":
+          $ref: '#/responses/serviceCreateInput'
+      tags:
+      - service
   /statefulsets:
     put:
       description: Update statefulset spec
@@ -5245,6 +5317,12 @@ responses:
       properties:
         registrysecret:
           $ref: '#/definitions/SecretDetail'
+      type: object
+  serviceCreateOutput:
+    schema:
+      properties:
+        service:
+          $ref: '#/definitions/ServiceCreateInput'
       type: object
   statefulsetUpdateOutput:
     schema:
