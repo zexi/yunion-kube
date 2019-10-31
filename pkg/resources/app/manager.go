@@ -60,19 +60,6 @@ func ValidateCreateData(req *common.Request) error {
 	return nil
 }
 
-func Create(req *common.Request, createFunc CreateResourceFunc) (interface{}, error) {
-	appSpec, err := NewAppCreateData(req.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	spec, err := DeployApp(appSpec, req.GetK8sClient(), createFunc)
-	if err != nil {
-		return nil, err
-	}
-	return spec, nil
-}
-
 func (man *SAppFromFileManager) ValidateCreateData(req *common.Request) error {
 	return nil
 }

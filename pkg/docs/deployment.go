@@ -24,3 +24,21 @@ type deploymentUpdateOutput struct {
 		Output apps.Deployment `json:"deployment"`
 	}
 }
+
+// swagger:route POST /deployments deployment deploymentCreateInput
+// Create deployment
+// responses:
+// 200: deploymentCreateOutput
+
+// swagger:parameters deploymentCreateInput
+type deploymentCreateInput struct {
+	api.DeploymentCreateInput
+}
+
+// swagger:response deploymentCreateOutput
+type deploymentCreateOutput struct {
+	// in:body
+	Body struct {
+		Output apps.Deployment `json:"deployment"`
+	}
+}
