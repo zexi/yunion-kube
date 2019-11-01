@@ -59,7 +59,7 @@ func GetJobPods(
 		return nil, err
 	}
 
-	return pod.ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, labels.Everything(), cluster)
+	return pod.ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, cluster)
 }
 
 // Returns array of api pods targeting job with given name.

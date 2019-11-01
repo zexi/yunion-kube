@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"k8s.io/api/core/v1"
@@ -149,6 +150,10 @@ func (r *Request) GetDefaultNamespace() string {
 		return ns
 	}
 	return v1.NamespaceDefault
+}
+
+func (r *Request) DataUnmarshal(input interface{}) error {
+	return json.Unmarshal([]byte(r.Data.String()), input)
 }
 
 func NewDataSelectQuery(query jsonutils.JSONObject) *dataselect.DataSelectQuery {

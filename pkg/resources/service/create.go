@@ -3,7 +3,6 @@ package service
 import (
 	api "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/utils"
@@ -43,7 +42,7 @@ func (man *SServiceManager) Create(req *common.Request) (interface{}, error) {
 		ObjectMeta:          *objMeta,
 		ServiceCreateOption: *opt,
 	}
-	return CreateService(req.GetK8sClient(), option)
+	return CreateService(req, option)
 }
 
 type CreateOption struct {
@@ -52,31 +51,10 @@ type CreateOption struct {
 }
 
 func (o CreateOption) ToService() *api.Service {
-	svc := &api.Service{
-		ObjectMeta: o.ObjectMeta,
-		Spec: api.ServiceSpec{
-			Selector: o.Selector,
-			Type:     api.ServiceType(o.Type),
-		},
-	}
-	if o.LoadBalancerNetwork != "" {
-		svc.Annotations = map[string]string{
-			common.YUNION_LB_NETWORK_ANNOTATION: o.LoadBalancerNetwork,
-		}
-	}
-	svc.Spec.Ports = GetServicePorts(o.PortMappings)
-	return svc
+	return common.GetServiceFromOption(&o.ObjectMeta, &o.ServiceCreateOption)
 }
 
-func CreateService(cli client.Interface, opt CreateOption) (*api.Service, error) {
+func CreateService(req *common.Request, opt CreateOption) (*api.Service, error) {
 	svc := opt.ToService()
-	return cli.CoreV1().Services(opt.ObjectMeta.GetNamespace()).Create(svc)
-}
-
-func GetServicePorts(ps []apis.PortMapping) []api.ServicePort {
-	ports := []api.ServicePort{}
-	for _, p := range ps {
-		ports = append(ports, p.ToServicePort())
-	}
-	return ports
+	return common.CreateService(req, svc)
 }

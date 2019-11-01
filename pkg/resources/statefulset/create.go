@@ -2,12 +2,11 @@ package statefulset
 
 import (
 	apps "k8s.io/api/apps/v1beta2"
-	api "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
+	"k8s.io/api/core/v1"
 
 	"yunion.io/x/jsonutils"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -19,32 +18,38 @@ func (man *SStatefuleSetManager) ValidateCreateData(req *common.Request) error {
 }
 
 func (man *SStatefuleSetManager) Create(req *common.Request) (interface{}, error) {
-	return app.Create(req, createStatefulSetApp)
+	return createStatefulSetApp(req)
 }
 
-func createStatefulSetApp(
-	cli client.Interface,
-	objectMeta metaV1.ObjectMeta,
-	labels map[string]string,
-	podTemplate api.PodTemplateSpec,
-	spec *app.AppDeploymentSpec,
-) error {
-	pvcs, err := spec.GetTemplatePVCs()
+func createStatefulSetApp(req *common.Request) (*apps.StatefulSet, error) {
+	objMeta, selector, err := common.GetK8sObjectCreateMetaWithLabel(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	input := &api.StatefulsetCreateInput{}
+	if err := req.DataUnmarshal(input); err != nil {
+		return nil, err
+	}
+	input.Template.ObjectMeta = *objMeta
+	input.Selector = selector
+	input.ServiceName = objMeta.GetName()
+
+	for i, p := range input.VolumeClaimTemplates {
+		temp := p.DeepCopy()
+		temp.SetNamespace(objMeta.GetNamespace())
+		if len(temp.Spec.AccessModes) == 0 {
+			temp.Spec.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
+		}
+		input.VolumeClaimTemplates[i] = *temp
+	}
+
+	if _, err := common.CreateServiceByOption(req, objMeta, input.Service); err != nil {
+		return nil, err
+	}
+
 	ss := &apps.StatefulSet{
-		ObjectMeta: objectMeta,
-		Spec: apps.StatefulSetSpec{
-			Replicas:    &spec.Replicas,
-			Template:    podTemplate,
-			ServiceName: objectMeta.Name,
-			Selector: &metaV1.LabelSelector{
-				MatchLabels: labels,
-			},
-			VolumeClaimTemplates: pvcs,
-		},
+		ObjectMeta: *objMeta,
+		Spec:       input.StatefulSetSpec,
 	}
-	_, err = cli.AppsV1beta2().StatefulSets(spec.Namespace).Create(ss)
-	return err
+	return req.GetK8sClient().AppsV1beta2().StatefulSets(ss.Namespace).Create(ss)
 }

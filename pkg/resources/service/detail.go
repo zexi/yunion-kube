@@ -79,7 +79,7 @@ func GetServicePods(
 		return nil, err
 	}
 
-	return pod.ToPodListByIndexerV2(indexer, apiPodList, namespace, dsQuery, labelSelector, cluster)
+	return pod.ToPodListByIndexerV2(indexer, apiPodList, namespace, dsQuery, cluster)
 }
 
 // GetServiceEvents returns model events for a service with the given name in the given namespace.
