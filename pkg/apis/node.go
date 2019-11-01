@@ -89,10 +89,10 @@ type NodeDetail struct {
 	ContainerImages []string `json:"containerImages"`
 
 	// PodList contains information about pods belonging to this node.
-	PodList []Pod `json:"podList"`
+	PodList []Pod `json:"pods"`
 
 	// Events is list of events associated to the node.
-	EventList []Event `json:"eventList"`
+	EventList []Event `json:"events"`
 
 	// Metrics collected for this resource
 	//Metrics []metricapi.Metric `json:"metrics"`

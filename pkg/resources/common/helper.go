@@ -113,10 +113,14 @@ func GetConfigMapsForPod(pod *v1.Pod, cfgs []*v1.ConfigMap) []*v1.ConfigMap {
 		return nil
 	}
 	ret := make([]*v1.ConfigMap, 0)
+	uniqM := make(map[string]bool, 0)
 	for _, cfg := range cfgs {
 		for _, vol := range GetPodConfigMapVolumes(pod) {
 			if vol.ConfigMap.Name == cfg.GetName() {
-				ret = append(ret, cfg)
+				if _, ok := uniqM[cfg.GetName()]; !ok {
+					uniqM[cfg.GetName()] = true
+					ret = append(ret, cfg)
+				}
 			}
 		}
 	}
@@ -128,10 +132,14 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 		return nil
 	}
 	ret := make([]*v1.Secret, 0)
+	uniqM := make(map[string]bool, 0)
 	for _, s := range ss {
 		for _, vol := range GetPodSecretVolumes(pod) {
 			if vol.Secret.SecretName == s.GetName() {
-				ret = append(ret, s)
+				if _, ok := uniqM[s.GetName()]; !ok {
+					uniqM[s.GetName()] = true
+					ret = append(ret, s)
+				}
 			}
 		}
 	}
@@ -149,9 +157,78 @@ func GetPodTemplate(req *Request, wrapperKey string) (*v1.PodTemplateSpec, error
 	return ret, nil
 }
 
+func AddObjectMetaDefaultLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
+	return AddObjectMetaRunLabel(meta)
+}
+
 func AddObjectMetaRunLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
 	if len(meta.Labels) == 0 {
 		meta.Labels["run"] = meta.GetName()
 	}
 	return meta
+}
+
+func GetSelectorByObjectMeta(meta *metav1.ObjectMeta) *metav1.LabelSelector {
+	return &metav1.LabelSelector{
+		MatchLabels: meta.GetLabels(),
+	}
+}
+
+func GetK8sObjectCreateMetaWithLabel(req *Request) (*metav1.ObjectMeta, *metav1.LabelSelector, error) {
+	objMeta, err := GetK8sObjectCreateMetaByRequest(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	return AddObjectMetaDefaultLabel(objMeta), GetSelectorByObjectMeta(objMeta), nil
+}
+
+func GetServicePortsByMapping(ps []api.PortMapping) []v1.ServicePort {
+	ports := []v1.ServicePort{}
+	for _, p := range ps {
+		ports = append(ports, p.ToServicePort())
+	}
+	return ports
+}
+
+func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) *v1.Service {
+	if opt == nil {
+		return nil
+	}
+	svcType := opt.Type
+	if svcType == "" {
+		svcType = string(v1.ServiceTypeClusterIP)
+	}
+	if opt.IsExternal {
+		svcType = string(v1.ServiceTypeLoadBalancer)
+	}
+	selector := opt.Selector
+	if len(selector) == 0 {
+		selector = GetSelectorByObjectMeta(objMeta).MatchLabels
+	}
+	svc := &v1.Service{
+		ObjectMeta: *objMeta,
+		Spec: v1.ServiceSpec{
+			Selector: selector,
+			Type:     v1.ServiceType(opt.Type),
+			Ports:    GetServicePortsByMapping(opt.PortMappings),
+		},
+	}
+	if opt.LoadBalancerNetwork != "" {
+		svc.Annotations = map[string]string{
+			YUNION_LB_NETWORK_ANNOTATION: opt.LoadBalancerNetwork,
+		}
+	}
+	return svc
+}
+
+func CreateService(req *Request, svc *v1.Service) (*v1.Service, error) {
+	return req.GetK8sClient().CoreV1().Services(svc.GetNamespace()).Create(svc)
+}
+
+func CreateServiceByOption(req *Request, objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) (*v1.Service, error) {
+	svc := GetServiceFromOption(objMeta, opt)
+	if svc == nil {
+		return nil, nil
+	}
+	return CreateService(req, svc)
 }

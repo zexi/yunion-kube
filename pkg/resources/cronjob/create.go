@@ -1,14 +1,11 @@
 package cronjob
 
 import (
-	batchv1 "k8s.io/api/batch/v1"
 	v1beta1 "k8s.io/api/batch/v1beta1"
-	api "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "k8s.io/client-go/kubernetes"
-
+	v1 "k8s.io/api/core/v1"
 	"yunion.io/x/jsonutils"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -20,43 +17,26 @@ func (man *SCronJobManager) ValidateCreateData(req *common.Request) error {
 }
 
 func (man *SCronJobManager) Create(req *common.Request) (interface{}, error) {
-	return app.Create(req, createJobAppFactory(req))
+	return createCronJob(req)
 }
 
-func createJobAppFactory(req *common.Request) app.CreateResourceFunc {
-	return func(
-		cli client.Interface,
-		objectMeta metaV1.ObjectMeta,
-		labels map[string]string,
-		podTemplate api.PodTemplateSpec,
-		spec *app.AppDeploymentSpec,
-	) error {
-		parallelismInt64, _ := req.Data.Int("parallelism")
-		var parallelism int32 = 1
-		if parallelismInt64 != 0 {
-			parallelism = int32(parallelismInt64)
-		}
-		schedule, err := req.Data.GetString("schedule")
-		if err != nil {
-			return err
-		}
-		job := &v1beta1.CronJob{
-			ObjectMeta: objectMeta,
-			Spec: v1beta1.CronJobSpec{
-				Schedule: schedule,
-				JobTemplate: v1beta1.JobTemplateSpec{
-					ObjectMeta: objectMeta,
-					Spec: batchv1.JobSpec{
-						Template:    podTemplate,
-						Parallelism: &parallelism,
-						//Selector: &metaV1.LabelSelector{
-						//MatchLabels: labels,
-						//},
-					},
-				},
-			},
-		}
-		_, err = cli.BatchV1beta1().CronJobs(spec.Namespace).Create(job)
-		return err
+func createCronJob(req *common.Request) (*v1beta1.CronJob, error) {
+	objMeta, _, err := common.GetK8sObjectCreateMetaWithLabel(req)
+	if err != nil {
+		return nil, err
 	}
+	input := &api.CronJobCreateInput{}
+	if err := req.DataUnmarshal(input); err != nil {
+		return nil, err
+	}
+	if len(input.JobTemplate.Spec.Template.Spec.RestartPolicy) == 0 {
+		input.JobTemplate.Spec.Template.Spec.RestartPolicy = v1.RestartPolicyOnFailure
+	}
+	input.JobTemplate.Spec.Template.ObjectMeta = *objMeta
+
+	job := &v1beta1.CronJob{
+		ObjectMeta: *objMeta,
+		Spec:       input.CronJobSpec,
+	}
+	return req.GetK8sClient().BatchV1beta1().CronJobs(job.GetNamespace()).Create(job)
 }

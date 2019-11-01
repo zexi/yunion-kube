@@ -189,7 +189,7 @@ func GetNodePods(
 		return &podList, err
 	}
 
-	return pod.ToPodListByIndexerV2(indexer, pods, "", dsQuery, labels.Everything(), cluster)
+	return pod.ToPodListByIndexerV2(indexer, pods, "", dsQuery, cluster)
 }
 
 func getNodePods(client *client.CacheFactory, node *v1.Node) ([]*v1.Pod, error) {

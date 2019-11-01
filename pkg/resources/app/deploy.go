@@ -22,9 +22,7 @@ import (
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/sets"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -66,82 +64,6 @@ func NewAppCreateData(data jsonutils.JSONObject) (*AppDeploymentSpec, error) {
 }
 
 type CreateResourceFunc func(client.Interface, metaV1.ObjectMeta, map[string]string, v1.PodTemplateSpec, *AppDeploymentSpec) error
-
-// DeployApp deploys an app based on the given configuration. The app is deployed using the given
-// client. App deployment consists of a deployment and an optional service. Both of them
-// share common labels.
-func DeployApp(spec *AppDeploymentSpec, cli client.Interface, createFunc CreateResourceFunc) (*AppDeploymentSpec, error) {
-	controllerType := spec.ControllerType
-	log.Infof("Deploying %q application into %q namespace, type %q", spec.Name, spec.Namespace, controllerType)
-
-	// parse annotations
-	annotations := make(map[string]string)
-	if spec.NetworkConfig != nil {
-		annotations = spec.NetworkConfig.ToPodAnnotation()
-	}
-	if spec.Description != nil {
-		annotations[DescriptionAnnotationKey] = *spec.Description
-	}
-
-	// parse labels
-	labels := getLabelsMap(spec.Labels)
-	objectMeta := metaV1.ObjectMeta{
-		Annotations: annotations,
-		Name:        spec.Name,
-		Labels:      labels,
-		Namespace:   spec.Namespace,
-	}
-
-	// get podTemplate
-	podTemplate := v1.PodTemplateSpec{
-		ObjectMeta: objectMeta,
-		Spec:       getPodSpec(spec),
-	}
-
-	var err error
-
-	if len(spec.PortMappings) > 0 {
-		// create service
-		err = createAppService(cli, objectMeta, labels, spec)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = createFunc(cli, objectMeta, labels, podTemplate, spec)
-	if err != nil {
-		// TODO: Roll back created resources in case of error.
-		return nil, err
-	}
-
-	return spec, err
-}
-
-func createAppService(
-	cli client.Interface,
-	objectMeta metaV1.ObjectMeta,
-	selector map[string]string,
-	spec *AppDeploymentSpec,
-) error {
-	opt := service.CreateOption{
-		ObjectMeta: objectMeta,
-		ServiceCreateOption: api.ServiceCreateOption{
-			Selector: selector,
-		},
-	}
-	if spec.IsExternal {
-		opt.Type = string(v1.ServiceTypeLoadBalancer)
-		if spec.LoadBalancerNetworkId != "" {
-			opt.LoadBalancerNetwork = spec.LoadBalancerNetworkId
-		}
-	} else {
-		opt.Type = string(v1.ServiceTypeClusterIP)
-	}
-	opt.PortMappings = spec.PortMappings
-
-	_, err := service.CreateService(cli, opt)
-	return err
-}
 
 func getPodSpec(spec *AppDeploymentSpec) v1.PodSpec {
 	// parse container spec
