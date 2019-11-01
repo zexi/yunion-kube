@@ -121,7 +121,5 @@ type DeploymentCreateInput struct {
 
 	apps.DeploymentSpec
 
-	// Port mappings for the service that is created. The service is created if there is at least
-	// one port mapping.
-	PortMappings []PortMapping `json:"portMappings"`
+	Service *ServiceCreateOption `json:"service"`
 }

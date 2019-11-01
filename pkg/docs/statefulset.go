@@ -24,3 +24,20 @@ type statefulsetUpdateOutput struct {
 		Output apps.Deployment `json:"statefulset"`
 	}
 }
+
+// swagger:route POST /statefulsets statefulset statefulsetCreateInput
+// Create statefulset
+// responses:
+// 200: statefulsetCreateOutput
+
+// swagger:parameters statefulsetCreateInput
+type statefulsetCreateInput struct {
+}
+
+// swagger:response statefulsetCreateOutput
+type statefulsetCreateOutput struct {
+	// in:body
+	Body struct {
+		Output apps.StatefulSet `json:"statefulset"`
+	}
+}

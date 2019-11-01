@@ -38,7 +38,7 @@ func GetConfigMapDetail(indexer *client.CacheFactory, cluster api.ICluster, name
 
 func getConfigMapDetail(indexer *client.CacheFactory, rawConfigMap *v1.ConfigMap, pods []*v1.Pod, cluster api.ICluster) (*apis.ConfigMapDetail, error) {
 	pods = getMountPods(rawConfigMap.GetName(), pods)
-	mountPods, err := pod.ToPodListByIndexer(indexer, rawConfigMap.Namespace, dataselect.DefaultDataSelect(), labels.Everything(), cluster)
+	mountPods, err := pod.ToPodListByIndexerV2(indexer, pods, rawConfigMap.Namespace, dataselect.DefaultDataSelect(), cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -51,11 +51,15 @@ func getConfigMapDetail(indexer *client.CacheFactory, rawConfigMap *v1.ConfigMap
 
 func getMountPods(cfgName string, pods []*v1.Pod) []*v1.Pod {
 	ret := []*v1.Pod{}
+	markMap := make(map[string]bool, 0)
 	for _, pod := range pods {
 		cfgs := common.GetPodConfigMapVolumes(pod)
 		for _, cfg := range cfgs {
 			if cfg.ConfigMap.Name == cfgName {
-				ret = append(ret, pod)
+				if _, ok := markMap[pod.GetName()]; !ok {
+					ret = append(ret, pod)
+					markMap[pod.GetName()] = true
+				}
 			}
 		}
 	}

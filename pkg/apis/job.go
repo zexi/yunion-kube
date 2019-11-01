@@ -2,6 +2,7 @@ package apis
 
 import (
 	batch "k8s.io/api/batch/v1"
+	"k8s.io/api/batch/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -85,4 +86,9 @@ type CronJobDetail struct {
 type JobCreateInput struct {
 	K8sNamespaceResourceCreateInput
 	batch.JobSpec
+}
+
+type CronJobCreateInput struct {
+	K8sNamespaceResourceCreateInput
+	v1beta1.CronJobSpec
 }

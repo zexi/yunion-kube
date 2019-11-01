@@ -2,7 +2,6 @@ package deployment
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -32,6 +31,6 @@ func GetDeploymentPods(indexer *client.CacheFactory, cluster api.ICluster, dsQue
 		return nil, err
 	}
 
-	podList, err := pod.ToPodListByIndexerV2(indexer, rawPods, namespace, dsQuery, labels.Everything(), cluster)
+	podList, err := pod.ToPodListByIndexerV2(indexer, rawPods, namespace, dsQuery, cluster)
 	return podList, err
 }
