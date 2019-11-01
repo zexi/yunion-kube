@@ -113,10 +113,14 @@ func GetConfigMapsForPod(pod *v1.Pod, cfgs []*v1.ConfigMap) []*v1.ConfigMap {
 		return nil
 	}
 	ret := make([]*v1.ConfigMap, 0)
+	uniqM := make(map[string]bool, 0)
 	for _, cfg := range cfgs {
 		for _, vol := range GetPodConfigMapVolumes(pod) {
 			if vol.ConfigMap.Name == cfg.GetName() {
-				ret = append(ret, cfg)
+				if _, ok := uniqM[cfg.GetName()]; !ok {
+					uniqM[cfg.GetName()] = true
+					ret = append(ret, cfg)
+				}
 			}
 		}
 	}
@@ -128,10 +132,14 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 		return nil
 	}
 	ret := make([]*v1.Secret, 0)
+	uniqM := make(map[string]bool, 0)
 	for _, s := range ss {
 		for _, vol := range GetPodSecretVolumes(pod) {
 			if vol.Secret.SecretName == s.GetName() {
-				ret = append(ret, s)
+				if _, ok := uniqM[s.GetName()]; !ok {
+					uniqM[s.GetName()] = true
+					ret = append(ret, s)
+				}
 			}
 		}
 	}

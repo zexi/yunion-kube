@@ -103,7 +103,7 @@ func ToPodListByIndexer(
 	if err != nil {
 		return nil, err
 	}
-	return ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, selector, cluster)
+	return ToPodListByIndexerV2(indexer, pods, namespace, dsQuery, cluster)
 }
 
 func ToPodListByIndexerV2(
@@ -111,7 +111,6 @@ func ToPodListByIndexerV2(
 	pods []*v1.Pod,
 	namespace string,
 	dsQuery *dataselect.DataSelectQuery,
-	selector labels.Selector,
 	cluster api.ICluster,
 ) (*PodList, error) {
 	events, err := event.GetPodsEvents(indexer, namespace, pods)
