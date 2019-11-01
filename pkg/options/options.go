@@ -16,13 +16,9 @@ type KubeServerOptions struct {
 	TlsPrivateKeyFile string `help:"Tls private key"`
 	HttpsPort         int    `help:"The https port that the service runs on" default:"8443"`
 
-	YkeUseSshDialer bool `help:"YKE cluster use ssh dialer" default:"false"`
-
 	HelmDataDir         string `help:"Helm data directory" default:"/opt/cloud/workspace/helm"`
 	YunionChartRepo     string `help:"Yunion helm charts repo" default:"https://charts.yunion.cn"`
 	RepoRefreshDuration int    `help:"Helm repo auto refresh duration, default 5 mins" default:"5"`
-
-	LxcfsRequireAnnotation bool `help:"Only mount lxcfs volume when pod set 'initializer.kubernetes.io/lxcfs' annotation" default:"false"`
 
 	EnableDefaultLimitRange bool `help:"Enable default namespace limit range" default:"false"`
 
