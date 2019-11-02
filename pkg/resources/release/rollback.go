@@ -1,10 +1,10 @@
 package release
 
 import (
-	"k8s.io/helm/pkg/helm"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	//"k8s.io/helm/pkg/helm"
+	//"k8s.io/helm/pkg/proto/hapi/release"
 
-	"yunion.io/x/yunion-kube/pkg/helm/client"
+	//"yunion.io/x/yunion-kube/pkg/helm/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 

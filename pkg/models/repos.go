@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"k8s.io/helm/pkg/repo"
+	//"k8s.io/helm/pkg/repo"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -14,7 +14,7 @@ import (
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/sqlchemy"
 
-	repobackend "yunion.io/x/yunion-kube/pkg/helm/data"
+	//repobackend "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/options"
 	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )

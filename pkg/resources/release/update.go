@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/helm/pkg/helm"
-	rls "k8s.io/helm/pkg/proto/hapi/services"
+	//"k8s.io/helm/pkg/helm"
+	//rls "k8s.io/helm/pkg/proto/hapi/services"
 
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/helm/client"
-	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
+	//"yunion.io/x/yunion-kube/pkg/helm/client"
+	//helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 

@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/log"
 
 	"yunion.io/x/yunion-kube/pkg/app"
+	_ "yunion.io/x/yunion-kube/pkg/helm"
 )
 
 func main() {

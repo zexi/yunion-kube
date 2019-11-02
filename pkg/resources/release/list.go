@@ -1,17 +1,17 @@
 package release
 
 import (
-	"k8s.io/helm/pkg/helm"
-	"k8s.io/helm/pkg/proto/hapi/release"
-	rls "k8s.io/helm/pkg/proto/hapi/services"
+	//"k8s.io/helm/pkg/helm"
+	//"k8s.io/helm/pkg/proto/hapi/release"
+	//rls "k8s.io/helm/pkg/proto/hapi/services"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/helm/client"
+	//"yunion.io/x/yunion-kube/pkg/helm/client"
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type Release struct {

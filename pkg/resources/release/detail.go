@@ -3,15 +3,15 @@ package release
 import (
 	"fmt"
 
-	"k8s.io/helm/pkg/chartutil"
+	//"k8s.io/helm/pkg/chartutil"
 
 	"yunion.io/x/log"
 
 	yclient "yunion.io/x/yunion-kube/pkg/client"
-	"yunion.io/x/yunion-kube/pkg/helm/client"
+	//"yunion.io/x/yunion-kube/pkg/helm/client"
+	"yunion.io/x/yunion-kube/pkg/apis"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type ReleaseDetail struct {

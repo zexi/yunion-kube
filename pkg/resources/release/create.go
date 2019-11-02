@@ -9,16 +9,16 @@ import (
 
 	"github.com/Masterminds/sprig"
 	"github.com/ghodss/yaml"
-	"k8s.io/helm/pkg/helm"
+	//"k8s.io/helm/pkg/helm"
 	rls "k8s.io/helm/pkg/proto/hapi/services"
-	"k8s.io/helm/pkg/strvals"
+	//"k8s.io/helm/pkg/strvals"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/helm/client"
-	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
+	//"yunion.io/x/yunion-kube/pkg/helm/client"
+	//helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )

@@ -3,7 +3,7 @@ package chart
 import (
 	"yunion.io/x/log"
 
-	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
+	//helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"

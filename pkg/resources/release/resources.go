@@ -6,10 +6,11 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	//"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -22,7 +23,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 func GetReleaseResources(

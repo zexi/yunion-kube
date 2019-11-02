@@ -17,7 +17,7 @@ import (
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
 	yclient "yunion.io/x/yunion-kube/pkg/client"
-	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
+	//helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"

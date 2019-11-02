@@ -7,7 +7,6 @@ import (
 
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/helm/data"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/types/helm"

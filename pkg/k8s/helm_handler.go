@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 
-	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
+	//helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/chart"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
