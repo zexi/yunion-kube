@@ -15,7 +15,9 @@ type K8sClusterResourceCreateInput struct {
 	// required: true
 	Cluster string `json:"cluster"`
 	// required: true
-	Name string `json:"name"`
+	Name        string            `json:"name"`
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
 }
 
 type K8sNamespaceResourceCreateInput struct {
