@@ -55,3 +55,32 @@ func NewTypeMeta(typeMeta metav1.TypeMeta) TypeMeta {
 // code that does things based on the kind. For example, there may be a generic "deleter"
 // that based on resource kind, name and namespace deletes it.
 type ResourceKind string
+
+type KindName = string
+
+const (
+	KindNameConfigMap               KindName = "ConfigMap"
+	KindNameDaemonSet               KindName = "DaemonSet"
+	KindNameDeployment              KindName = "Deployment"
+	KindNameEvent                   KindName = "Event"
+	KindNameHorizontalPodAutoscaler KindName = "HorizontalPodAutoscaler"
+	KindNameIngress                 KindName = "Ingress"
+	KindNameJob                     KindName = "Job"
+	KindNameCronJob                 KindName = "CronJob"
+	KindNameNamespace               KindName = "Namespace"
+	KindNameNode                    KindName = "Node"
+	KindNamePersistentVolumeClaim   KindName = "PersistentVolumeClaim"
+	KindNamePersistentVolume        KindName = "PersistentVolume"
+	KindNamePod                     KindName = "Pod"
+	KindNameReplicaSet              KindName = "ReplicaSet"
+	KindNameSecret                  KindName = "Secret"
+	KindNameService                 KindName = "Service"
+	KindNameStatefulSet             KindName = "StatefulSet"
+	KindNameEndpoint                KindName = "Endpoints"
+	KindNameStorageClass            KindName = "StorageClass"
+	KindNameRole                    KindName = "Role"
+	KindNameRoleBinding             KindName = "RoleBinding"
+	KindNameClusterRole             KindName = "ClusterRole"
+	KindNameClusterRoleBinding      KindName = "ClusterRoleBinding"
+	KindNameServiceAccount          KindName = "ServiceAccount"
+)

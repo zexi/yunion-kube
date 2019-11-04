@@ -28,6 +28,6 @@ func (man *SIngressManager) Create(req *common.Request) (interface{}, error) {
 		ObjectMeta: *objMeta,
 		Spec:       spec,
 	}
-	ing, err := cli.Extensions().Ingresses(namespace).Create(obj)
+	ing, err := cli.ExtensionsV1beta1().Ingresses(namespace).Create(obj)
 	return ing, err
 }

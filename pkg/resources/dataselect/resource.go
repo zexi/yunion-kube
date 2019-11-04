@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"reflect"
 
+	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/helm/pkg/proto/hapi/release"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	//"yunion.io/x/yunion-kube/pkg/helm/data"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
@@ -204,11 +203,11 @@ func (cell HelmReleaseDataCell) GetProperty(name PropertyName) ComparableValue {
 }
 
 type ChartDataCell struct {
-	Chart *data.ChartResult
+	Chart *apis.ChartResult
 }
 
 func NewChartDataCell(obj interface{}) (DataCell, error) {
-	chart, ok := obj.(*data.ChartResult)
+	chart, ok := obj.(*apis.ChartResult)
 	if !ok {
 		return nil, fmt.Errorf("Object %#v not *data.ChartResult", obj)
 	}
@@ -222,7 +221,7 @@ func (cell ChartDataCell) GetObject() interface{} {
 func (cell ChartDataCell) GetProperty(name PropertyName) ComparableValue {
 	switch name {
 	case NameProperty:
-		return StdComparableString(cell.Chart.Chart.Name)
+		return StdComparableString(cell.Chart.ChartVersion.Name)
 	default:
 		return nil
 	}

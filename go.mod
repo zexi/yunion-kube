@@ -4,10 +4,12 @@ go 1.13
 
 require (
 	github.com/Masterminds/semver v1.4.2 // indirect
+	github.com/Masterminds/semver/v3 v3.0.1
 	github.com/Masterminds/sprig v2.16.0+incompatible
 	github.com/docker/docker v1.4.2-0.20181221150755-2cb26cfe9cbf
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-sql-driver/mysql v1.4.1
+	github.com/gofrs/flock v0.7.1
 	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.0
 	github.com/gorilla/websocket v1.4.0
@@ -20,7 +22,7 @@ require (
 	google.golang.org/grpc v1.24.0
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gopkg.in/yaml.v2 v2.2.4
-	helm.sh/helm/v3 v3.0.0-rc.1
+	helm.sh/helm/v3 v3.0.0-rc.3
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/apiserver v0.0.0
@@ -43,7 +45,7 @@ replace (
 	github.com/docker/docker => github.com/docker/docker v0.0.0-20190731150326-928381b2215c
 	github.com/renstrom/dedent => github.com/lithammer/dedent v1.1.0
 	github.com/ugorji/go => github.com/ugorji/go v1.1.2
-	helm.sh/helm/v3 => helm.sh/helm/v3 v3.0.0-rc.1
+	helm.sh/helm/v3 => helm.sh/helm/v3 v3.0.0-rc.3
 
 	k8s.io/api => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
 

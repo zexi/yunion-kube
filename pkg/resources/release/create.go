@@ -2,25 +2,21 @@ package release
 
 import (
 	"bytes"
-	"fmt"
-	"io/ioutil"
 	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig"
-	"github.com/ghodss/yaml"
 	//"k8s.io/helm/pkg/helm"
-	rls "k8s.io/helm/pkg/proto/hapi/services"
-	//"k8s.io/helm/pkg/strvals"
+	"helm.sh/helm/v3/pkg/release"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	//"yunion.io/x/yunion-kube/pkg/helm/client"
-	//helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
+	api "yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
+	//helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
 func generateName(nameTemplate string) (string, error) {
@@ -40,7 +36,7 @@ func GenerateName(nameTemplate string) (string, error) {
 	return generateName(nameTemplate)
 }
 
-type CreateUpdateReleaseRequest struct {
+/*type CreateUpdateReleaseRequest struct {
 	ChartName   string   `json:"chart_name"`
 	Namespace   string   `json:"namespace"`
 	ReleaseName string   `json:"release_name"`
@@ -173,40 +169,48 @@ func MergeValuesF(valueFiles valueFiles, values, stringValues []string) ([]byte,
 	}
 
 	return yaml.Marshal(base)
-}
+}*/
 
 func (man *SReleaseManager) ValidateCreateData(req *common.Request) error {
-	data := req.Data
-	ns, _ := data.GetString("namespace")
-	if ns == "" {
-		data.Set("namespace", jsonutils.NewString(req.GetDefaultNamespace()))
+	input := &api.ReleaseCreateInput{}
+	if err := req.DataUnmarshal(input); err != nil {
+		return err
 	}
-	name, _ := data.GetString("release_name")
-	if name == "" {
+	if input.Namespace == "" {
+		input.Namespace = req.GetDefaultNamespace()
+	}
+	if input.ReleaseName == "" {
 		name, err := generateName("")
 		if err != nil {
 			return err
 		}
-		data.Set("release_name", jsonutils.NewString(name))
+		input.ReleaseName = name
 	}
+	segs := strings.Split(input.ChartName, "/")
+	if len(segs) != 2 {
+		return httperrors.NewInputParameterError("Illegal chart name: %q", input.ChartName)
+	}
+	input.Repo = segs[0]
+	input.ChartName = segs[1]
+	req.Data.Update(jsonutils.Marshal(input))
 	return nil
 }
 
 func (man *SReleaseManager) Create(req *common.Request) (interface{}, error) {
-	createOpt, err := NewCreateUpdateReleaseReq(req.Data)
+	input := &api.ReleaseCreateInput{}
+	if err := req.DataUnmarshal(input); err != nil {
+		return nil, err
+	}
+	log.Infof("=========Create input: %#v", input)
+	cli, err := req.GetHelmClient(input.Namespace)
 	if err != nil {
 		return nil, err
 	}
-	cli, err := req.GetHelmClient()
-	if err != nil {
-		return nil, err
-	}
-	defer cli.Close()
-	return ReleaseCreate(cli, createOpt)
+	return ReleaseCreate(cli.Release(), input)
 }
 
-func validateInfraCreate(cli *client.HelmTunnelClient, chartPkg *helmtypes.ChartPackage) error {
-	releases, err := ListReleases(cli, ReleaseListQuery{All: true})
+/*func validateInfraCreate(cli *helm.Client, chartPkg *helmtypes.ChartPackage) error {
+	releases, err := ListReleases(cli.Release(), api.ReleaseListQuery{All: true})
 	if err != nil {
 		return err
 	}
@@ -219,42 +223,10 @@ func validateInfraCreate(cli *client.HelmTunnelClient, chartPkg *helmtypes.Chart
 		}
 	}
 	return nil
-}
+}*/
 
-func ReleaseCreate(helmclient *client.HelmTunnelClient, opt *CreateUpdateReleaseRequest) (*rls.InstallReleaseResponse, error) {
+func ReleaseCreate(cli helm.IRelease, opt *api.ReleaseCreateInput) (*release.Release, error) {
 	log.Infof("Deploying chart=%q, release name=%q", opt.ChartName, opt.ReleaseName)
-	segs := strings.Split(opt.ChartName, "/")
-	if len(segs) != 2 {
-		return nil, fmt.Errorf("Illegal chart name: %q", opt.ChartName)
-	}
-	repoName, chartName := segs[0], segs[1]
-	pkg, err := helmdata.ChartFromRepo(repoName, chartName, opt.Version)
-	if err != nil {
-		return nil, err
-	}
-	if repoName == helmtypes.YUNION_REPO_NAME {
-		err = validateInfraCreate(helmclient, pkg)
-		if err != nil {
-			return nil, err
-		}
-	}
-	chartRequest := pkg.Chart
-	vals, err := opt.Vals()
-	if err != nil {
-		return nil, err
-	}
-	installRes, err := helmclient.InstallReleaseFromChart(
-		chartRequest,
-		opt.Namespace,
-		helm.ValueOverrides(vals),
-		helm.ReleaseName(opt.ReleaseName),
-		helm.InstallDryRun(opt.DryRun),
-		helm.InstallReuseName(true),
-		helm.InstallDisableHooks(true),
-		helm.InstallTimeout(opt.Timeout),
-		helm.InstallWait(false))
-	if err != nil {
-		return nil, fmt.Errorf("Error deploying chart: %v", err)
-	}
-	return installRes, nil
+
+	return cli.Create(opt)
 }

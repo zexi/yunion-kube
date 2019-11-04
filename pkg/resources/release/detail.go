@@ -1,46 +1,32 @@
 package release
 
 import (
-	"fmt"
-
-	//"k8s.io/helm/pkg/chartutil"
+	"github.com/pkg/errors"
 
 	"yunion.io/x/log"
 
-	yclient "yunion.io/x/yunion-kube/pkg/client"
-	//"yunion.io/x/yunion-kube/pkg/helm/client"
 	"yunion.io/x/yunion-kube/pkg/apis"
-	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
+	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
-type ReleaseDetail struct {
-	*Release
-	Resources    map[string]interface{} `json:"resources"`
-	ConfigValues chartutil.Values       `json:"config_values"`
-}
-
 func (man *SReleaseManager) Get(req *common.Request, id string) (interface{}, error) {
-	detail, err := GetReleaseDetailFromRequest(req, id)
-	if err != nil {
-		return nil, err
-	}
-	return detail, nil
+	return GetReleaseDetailFromRequest(req, id)
 }
 
-func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail, error) {
+func GetReleaseDetailFromRequest(req *common.Request, id string) (*apis.ReleaseDetail, error) {
 	namespace := req.GetDefaultNamespace()
-	cli, err := req.GetHelmClient()
+	cli, err := req.GetHelmClient(namespace)
 	if err != nil {
 		return nil, err
 	}
-	defer cli.Close()
-	genericCli, err := req.GetGenericClient()
-	if err != nil {
-		return nil, err
-	}
+	//genericCli, err := req.GetGenericClient()
+	//if err != nil {
+	//return nil, err
+	//}
 
-	detail, err := GetReleaseDetail(cli, req.GetCluster(), genericCli, req.GetIndexer(), namespace, id)
+	detail, err := GetReleaseDetail(cli, req.GetCluster(), req.GetIndexer(), namespace, id)
 	if err != nil {
 		return nil, err
 	}
@@ -48,43 +34,35 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*ReleaseDetail
 }
 
 func GetReleaseDetail(
-	helmclient *client.HelmTunnelClient,
+	helmclient *helm.Client,
 	cluster apis.ICluster,
-	genericClient *k8sclient.GenericClient,
-	indexer *yclient.CacheFactory,
+	indexer *client.CacheFactory,
 	namespace, releaseName string,
-) (*ReleaseDetail, error) {
+) (*apis.ReleaseDetail, error) {
 	log.Infof("Get helm release: %q", releaseName)
 
 	// TODO: find a way to retrieve all the information in a single call
 
 	// 1. We get the information about the release
-	rls, err := helmclient.ReleaseContent(releaseName)
+	rls, err := helmclient.Release().ReleaseContent(releaseName, -1)
 	if err != nil {
 		return nil, err
 	}
-
-	// 2. Now we populate the resources string
-	status, err := helmclient.ReleaseStatus(releaseName)
-	if err != nil {
-		return nil, err
-	}
-	rls.Release.Info = status.Info
 
 	//cfg, err := chartutil.CoalesceValues(rls.Release.Chart, rls.Release.Config)
-	cfg, err := chartutil.ReadValues([]byte(rls.Release.Config.Raw))
+	//cfg, err := chartutil.ReadValues([]byte(rls.Config.Raw))
+	//if err != nil {
+	//return nil, fmt.Errorf("CoalesceValues: %v", err)
+	//}
+
+	res, err := GetReleaseResources(helmclient, rls, indexer, cluster)
 	if err != nil {
-		return nil, fmt.Errorf("CoalesceValues: %v", err)
+		return nil, errors.Wrapf(err, "Get release resources: %v", releaseName)
 	}
 
-	res, err := GetReleaseResources(genericClient, indexer, cluster, rls.Release)
-	if err != nil {
-		return nil, fmt.Errorf("Get release resources: %v", err)
-	}
-
-	return &ReleaseDetail{
-		Release:      ToRelease(rls.Release, cluster),
-		ConfigValues: cfg,
+	return &apis.ReleaseDetail{
+		Release:      *ToRelease(rls, cluster),
+		ConfigValues: rls.Config,
 		Resources:    res,
 	}, nil
 }

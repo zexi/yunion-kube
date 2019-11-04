@@ -1,6 +1,6 @@
 package client
 
-import (
+/*import (
 	"fmt"
 	"io"
 	"strings"
@@ -210,4 +210,4 @@ func isFoundPod(podItem []v1.Pod, pod v1.Pod) bool {
 		}
 	}
 	return false
-}
+}*/

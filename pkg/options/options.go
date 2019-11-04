@@ -17,7 +17,7 @@ type KubeServerOptions struct {
 	HttpsPort         int    `help:"The https port that the service runs on" default:"8443"`
 
 	HelmDataDir         string `help:"Helm data directory" default:"/opt/cloud/workspace/helm"`
-	YunionChartRepo     string `help:"Yunion helm charts repo" default:"https://charts.yunion.cn"`
+	StableChartRepo     string `help:"Yunion helm charts repo" default:"http://mirror.azure.cn/kubernetes/charts/"`
 	RepoRefreshDuration int    `help:"Helm repo auto refresh duration, default 5 mins" default:"5"`
 
 	EnableDefaultLimitRange bool `help:"Enable default namespace limit range" default:"false"`

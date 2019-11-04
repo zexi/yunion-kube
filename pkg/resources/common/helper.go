@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"strings"
 
 	"k8s.io/api/core/v1"
@@ -231,4 +232,15 @@ func CreateServiceByOption(req *Request, objMeta *metav1.ObjectMeta, opt *api.Se
 		return nil, nil
 	}
 	return CreateService(req, svc)
+}
+
+func CreateServiceIfNotExist(req *Request, objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) (*v1.Service, error) {
+	svc, err := req.GetIndexer().ServiceLister().Services(objMeta.GetNamespace()).Get(objMeta.GetName())
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return CreateServiceByOption(req, objMeta, opt)
+		}
+		return nil, err
+	}
+	return svc, nil
 }

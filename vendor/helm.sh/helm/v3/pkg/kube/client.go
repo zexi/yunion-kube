@@ -167,7 +167,7 @@ func (c *Client) Update(original, target ResourceList, force bool) (*Result, err
 			}
 
 			kind := info.Mapping.GroupVersionKind.Kind
-			c.Log("Created a new %s called %q\n", kind, info.Name)
+			c.Log("Created a new %s called %q in %s\n", kind, info.Name, info.Namespace)
 			return nil
 		}
 
@@ -401,7 +401,7 @@ func updateResource(c *Client, target *resource.Info, currentObj runtime.Object,
 		// send patch to server
 		obj, err = helper.Patch(target.Namespace, target.Name, patchType, patch, nil)
 		if err != nil {
-			log.Printf("Cannot patch %s: %q (%v)", kind, target.Name, err)
+			return errors.Wrapf(err, "cannot patch %q with kind %s", target.Name, kind)
 		}
 	}
 

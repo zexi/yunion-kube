@@ -26,9 +26,9 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
-	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
-	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
-	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
+	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
+	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
+	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
 	"yunion.io/x/yunion-kube/pkg/resources/secret"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
@@ -102,9 +102,9 @@ func InitHandlers(app *appsrv.Application) {
 	helmAppPrefix := fmt.Sprintf("%s/releaseapps", apiPrefix)
 
 	for _, man := range []k8s.IK8sResourceManager{
-		meter.MeterAppManager,
-		servicetree.ServicetreeAppManager,
-		notify.NotifyAppManager,
+		//meter.MeterAppManager,
+		//servicetree.ServicetreeAppManager,
+		//notify.NotifyAppManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddResourceDispatcher(helmAppPrefix, app, handler)

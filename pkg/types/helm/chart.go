@@ -30,11 +30,3 @@ type ChartDetail struct {
 	Readme  string             `json:"readme"`
 	Options []SpotguideOptions `json:"options"`
 }
-
-type ChartQuery struct {
-	Name       string `json:"name"`
-	Repo       string `json:"repo"`
-	RepoUrl    string `json:"repo_url"`
-	AllVersion bool   `json:"all_version"`
-	Keyword    string `json:"keyword"`
-}
