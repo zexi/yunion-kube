@@ -4,8 +4,6 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources"
-
-	"yunion.io/x/log"
 )
 
 var (
@@ -34,6 +32,5 @@ func init() {
 }
 
 func (m *SSecretManager) GetDetails(cli *client.CacheFactory, cluster api.ICluster, namespace, name string) (interface{}, error) {
-	log.Infof("=======Get secret details, %s/%s", namespace, name)
 	return GetSecretDetail(cli, cluster, namespace, name)
 }

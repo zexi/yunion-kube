@@ -4,6 +4,7 @@ import (
 	apps "k8s.io/api/apps/v1beta2"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -23,6 +24,11 @@ func init() {
 	StatefulSetManager = &SStatefuleSetManager{
 		SNamespaceResourceManager: resources.NewNamespaceResourceManager("statefulset", "statefulsets"),
 	}
+	resources.KindManagerMap.Register(apis.KindNameStatefulSet, StatefulSetManager)
+}
+
+func (m *SStatefuleSetManager) GetDetails(cli *client.CacheFactory, cluster apis.ICluster, namespace, name string) (interface{}, error) {
+	return GetStatefulSetDetail(cli, cluster, namespace, name)
 }
 
 func (m *SStatefuleSetManager) get(req *common.Request, id string) (*apps.StatefulSet, error) {

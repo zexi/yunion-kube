@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -20,6 +21,11 @@ func init() {
 	ConfigMapManager = &SConfigMapManager{
 		SNamespaceResourceManager: resources.NewNamespaceResourceManager("configmap", "configmaps"),
 	}
+	resources.KindManagerMap.Register(api.KindNameConfigMap, ConfigMapManager)
+}
+
+func (m *SConfigMapManager) GetDetails(cli *client.CacheFactory, cluster api.ICluster, namespace, name string) (interface{}, error) {
+	return GetConfigMapDetail(cli, cluster, namespace, name)
 }
 
 func (man *SConfigMapManager) ValidateCreateData(req *common.Request) error {

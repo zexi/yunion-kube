@@ -87,6 +87,8 @@ func InitHandlers(app *appsrv.Application) {
 		persistentvolume.PersistentVolumeManager,
 		persistentvolumeclaim.PersistentVolumeClaimManager,
 		rbacroles.RbacRoleManager,
+		rbacroles.RbacRoleBindingManager,
+		rbacroles.ServiceAccountManager,
 		release.ReleaseManager,
 		secret.SecretManager,
 		secret.RegistrySecretManager,

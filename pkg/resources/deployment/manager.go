@@ -3,7 +3,8 @@ package deployment
 import (
 	apps "k8s.io/api/apps/v1beta2"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -25,6 +26,11 @@ func init() {
 	DeploymentManager = &SDeploymentManager{
 		SNamespaceResourceManager: resources.NewNamespaceResourceManager("deployment", "deployments"),
 	}
+	resources.KindManagerMap.Register(api.KindNameDeployment, DeploymentManager)
+}
+
+func (m *SDeploymentManager) GetDetails(cli *client.CacheFactory, cluster api.ICluster, namespace, name string) (interface{}, error) {
+	return GetDeploymentDetail(cli, cluster, namespace, name)
 }
 
 func (m *SDeploymentManager) get(req *common.Request, id string) (*apps.Deployment, error) {
@@ -43,7 +49,7 @@ func (m *SDeploymentManager) Update(req *common.Request, id string) (interface{}
 	if err != nil {
 		return nil, err
 	}
-	input := &apis.DeploymentUpdateInput{}
+	input := &api.DeploymentUpdateInput{}
 	if err := req.Data.Unmarshal(input); err != nil {
 		return nil, err
 	}

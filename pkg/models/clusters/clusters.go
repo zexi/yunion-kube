@@ -554,9 +554,9 @@ func (c *SCluster) GenerateCertificates(ctx context.Context, userCred mcclient.T
 		return errors.Wrapf(err, "Generate %s certificate", apis.FrontProxyCA)
 	}
 	infof(fpCAKeyPair)
-	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, apis.ServiceAccount)
+	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, apis.ServiceAccountCA)
 	if err != nil {
-		return errors.Wrapf(err, "Generate ServiceAccount key %s", apis.ServiceAccount)
+		return errors.Wrapf(err, "Generate ServiceAccount key %s", apis.ServiceAccountCA)
 	}
 	infof(saKeyPair)
 	return nil
@@ -736,7 +736,7 @@ func (c *SCluster) GetFrontProxyCAKeyPair() (*SX509KeyPair, error) {
 }
 
 func (c *SCluster) GetSAKeyPair() (*SX509KeyPair, error) {
-	return c.getKeyPairByUser(apis.ServiceAccount)
+	return c.getKeyPairByUser(apis.ServiceAccountCA)
 }
 
 func (c *SCluster) GetKubeconfig() (string, error) {

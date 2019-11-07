@@ -144,3 +144,7 @@ func (c *CacheFactory) RoleBindingLister() rbac.RoleBindingLister {
 func (c *CacheFactory) ClusterRoleBindingLister() rbac.ClusterRoleBindingLister {
 	return c.sharedInformerFactory.Rbac().V1().ClusterRoleBindings().Lister()
 }
+
+func (c *CacheFactory) ServiceAccountLister() v1.ServiceAccountLister {
+	return c.sharedInformerFactory.Core().V1().ServiceAccounts().Lister()
+}
