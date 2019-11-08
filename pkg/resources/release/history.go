@@ -2,23 +2,14 @@ package release
 
 import (
 	"fmt"
-	"k8s.io/helm/pkg/timeconv"
 
-	"k8s.io/helm/pkg/helm"
-	"k8s.io/helm/pkg/proto/hapi/chart"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/release"
 
-	"yunion.io/x/yunion-kube/pkg/helm/client"
+	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
-
-type ReleaseHistoryInfo struct {
-	Revision    int32  `json:"revision"`
-	Updated     string `json:"updated"`
-	Status      string `json:"status"`
-	Chart       string `json:"chart"`
-	Description string `json:"description"`
-}
 
 func (man *SReleaseManager) AllowGetDetailsHistory(req *common.Request, id string) bool {
 	return man.AllowGetItem(req, id)
@@ -29,39 +20,38 @@ func (man *SReleaseManager) GetDetailsHistory(req *common.Request, id string) (i
 	if max == 0 {
 		max = 256
 	}
-	cli, err := req.GetHelmClient()
+	cli, err := req.GetHelmClient(req.GetDefaultNamespace())
 	if err != nil {
 		return nil, err
 	}
-	defer cli.Close()
-	return GetReleaseHistory(cli, id, int32(max))
+	return GetReleaseHistory(cli.Release(), id, int32(max))
 }
 
-func GetReleaseHistory(helmclient *client.HelmTunnelClient, name string, max int32) ([]ReleaseHistoryInfo, error) {
-	r, err := helmclient.ReleaseHistory(name, helm.WithMaxHistory(max))
+func GetReleaseHistory(helmclient helm.IRelease, name string, max int32) ([]apis.ReleaseHistoryInfo, error) {
+	r, err := helmclient.History().Run(name)
 	if err != nil {
 		return nil, err
 	}
-	if len(r.Releases) == 0 {
+	if len(r) == 0 {
 		return nil, nil
 	}
-	return getReleaseHistory(r.GetReleases()), nil
+	return getReleaseHistory(r), nil
 }
 
-func getReleaseHistory(rls []*release.Release) []ReleaseHistoryInfo {
-	ret := make([]ReleaseHistoryInfo, 0)
+func getReleaseHistory(rls []*release.Release) []apis.ReleaseHistoryInfo {
+	ret := make([]apis.ReleaseHistoryInfo, 0)
 	for i := len(rls) - 1; i >= 0; i-- {
 		r := rls[i]
 		c := formatChartname(r.Chart)
-		t := timeconv.String(r.Info.LastDeployed)
-		s := r.Info.Status.Code.String()
+		t := r.Info.LastDeployed
+		s := r.Info.Status
 		v := r.Version
 		d := r.Info.Description
 
-		rInfo := ReleaseHistoryInfo{
+		rInfo := apis.ReleaseHistoryInfo{
 			Revision:    v,
 			Updated:     t,
-			Status:      s,
+			Status:      string(s),
 			Chart:       c,
 			Description: d,
 		}

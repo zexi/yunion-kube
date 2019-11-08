@@ -4,16 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/http"
-	"time"
-	"yunion.io/x/onecloud/pkg/util/rbacutils"
-
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"net/http"
+	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -22,7 +20,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/k8s"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/utils"
@@ -556,9 +554,9 @@ func (c *SCluster) GenerateCertificates(ctx context.Context, userCred mcclient.T
 		return errors.Wrapf(err, "Generate %s certificate", apis.FrontProxyCA)
 	}
 	infof(fpCAKeyPair)
-	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, apis.ServiceAccount)
+	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, apis.ServiceAccountCA)
 	if err != nil {
-		return errors.Wrapf(err, "Generate ServiceAccount key %s", apis.ServiceAccount)
+		return errors.Wrapf(err, "Generate ServiceAccount key %s", apis.ServiceAccountCA)
 	}
 	infof(saKeyPair)
 	return nil
@@ -738,7 +736,7 @@ func (c *SCluster) GetFrontProxyCAKeyPair() (*SX509KeyPair, error) {
 }
 
 func (c *SCluster) GetSAKeyPair() (*SX509KeyPair, error) {
-	return c.getKeyPairByUser(apis.ServiceAccount)
+	return c.getKeyPairByUser(apis.ServiceAccountCA)
 }
 
 func (c *SCluster) GetKubeconfig() (string, error) {
@@ -828,12 +826,35 @@ func setK8sConfigField(c *rest.Config, tr func(rt http.RoundTripper) http.RoundT
 	return c
 }
 
+func (c *SCluster) GetK8sClientConfig(kubeConfig []byte) (*rest.Config, error) {
+	var config *rest.Config
+	var err error
+	if kubeConfig != nil {
+		apiconfig, err := clientcmd.Load(kubeConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		clientConfig := clientcmd.NewDefaultClientConfig(*apiconfig, &clientcmd.ConfigOverrides{})
+		config, err = clientConfig.ClientConfig()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, errors.Errorf("kubeconfig value is nil")
+	}
+	if err != nil {
+		return nil, errors.Errorf("create kubernetes config failed: %v", err)
+	}
+	return config, nil
+}
+
 func (c *SCluster) GetK8sRestConfig() (*rest.Config, error) {
 	kubeconfig, err := c.GetAdminKubeconfig()
 	if err != nil {
 		return nil, err
 	}
-	config, err := k8s.GetK8sClientConfig([]byte(kubeconfig))
+	config, err := c.GetK8sClientConfig([]byte(kubeconfig))
 	if err != nil {
 		return nil, err
 	}

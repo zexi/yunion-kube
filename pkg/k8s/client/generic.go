@@ -1,6 +1,6 @@
 package client
 
-import (
+/*import (
 	"fmt"
 	"io"
 	"strings"
@@ -16,9 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/cli-runtime/pkg/genericclioptions/resource"
+	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/helm/pkg/kube"
+	//"k8s.io/helm/pkg/kube"
 
 	"yunion.io/x/log"
 	"yunion.io/x/yunion-kube/pkg/types/apis"
@@ -210,4 +210,4 @@ func isFoundPod(podItem []v1.Pod, pod v1.Pod) bool {
 		}
 	}
 	return false
-}
+}*/

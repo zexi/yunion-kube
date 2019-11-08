@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/pkg/util/runtime"
 
 	"yunion.io/x/yunion-kube/pkg/controllers"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/initial"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
@@ -30,6 +31,7 @@ func prepareEnv() {
 
 	common_options.ParseOptions(&options.Options, os.Args, "kube-server.conf", "k8s")
 	runtime.ReallyCrash = false
+	helm.InitEnv(options.Options.HelmDataDir)
 }
 
 func Run(ctx context.Context) error {

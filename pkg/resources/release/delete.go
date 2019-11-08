@@ -1,11 +1,7 @@
 package release
 
 import (
-	"k8s.io/helm/pkg/helm"
-
-	"yunion.io/x/log"
-
-	"yunion.io/x/yunion-kube/pkg/helm/client"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
@@ -14,37 +10,18 @@ func (man *SReleaseManager) IsRawResource() bool {
 }
 
 func (man *SReleaseManager) AllowDeleteItem(req *common.Request, id string) bool {
-	if man.SNamespaceResourceManager.AllowDeleteItem(req, id) {
-		return true
-	}
-
-	release, err := GetReleaseDetailFromRequest(req, id)
-	if err != nil {
-		log.Errorf("Get release detail error: %v", err)
-		return false
-	}
-	namespace := release.Namespace
-	return req.UserCred.GetProjectName() == namespace
+	return man.SNamespaceResourceManager.AllowDeleteItem(req, id)
 }
 
 func (man *SReleaseManager) Delete(req *common.Request, id string) error {
-	cli, err := req.GetHelmClient()
+	cli, err := req.GetHelmClient(req.GetDefaultNamespace())
 	if err != nil {
 		return err
 	}
-	defer cli.Close()
-
-	return ReleaseDelete(cli, id)
+	return ReleaseDelete(cli.Release(), id)
 }
 
-func ReleaseDelete(helmclient *client.HelmTunnelClient, releaseName string) error {
-	// TODO: sophisticate command options
-	opts := []helm.DeleteOption{
-		helm.DeletePurge(true),
-	}
-	_, err := helmclient.DeleteRelease(releaseName, opts...)
-	if err != nil {
-		return err
-	}
-	return nil
+func ReleaseDelete(helmclient helm.IRelease, releaseName string) error {
+	_, err := helmclient.UnInstall().Run(releaseName)
+	return err
 }

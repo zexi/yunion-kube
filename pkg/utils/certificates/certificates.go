@@ -44,7 +44,7 @@ const (
 	clusterCA      = apis.ClusterCA
 	etcdCA         = apis.EtcdCA
 	frontProxyCA   = apis.FrontProxyCA
-	serviceAccount = apis.ServiceAccount
+	serviceAccount = apis.ServiceAccountCA
 )
 
 // NewPrivateKey creates an rSA private key

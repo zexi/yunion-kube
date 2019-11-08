@@ -90,7 +90,7 @@ func (m *SX509KeyPairManager) ValidateCreateData(ctx context.Context, userCred m
 		return nil, httperrors.NewInputParameterError("Unmarshal create input: %v", err)
 	}
 	cert := []byte(input.Certificate)
-	if input.User != apis.ServiceAccount {
+	if input.User != apis.ServiceAccountCA {
 		if _, err := certificates.DecodeCertPEM(cert); err != nil {
 			return nil, httperrors.NewInputParameterError("Invalid Certificate: %v", err)
 		}

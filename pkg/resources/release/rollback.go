@@ -1,10 +1,9 @@
 package release
 
 import (
-	"k8s.io/helm/pkg/helm"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	"helm.sh/helm/v3/pkg/action"
 
-	"yunion.io/x/yunion-kube/pkg/helm/client"
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
@@ -17,33 +16,30 @@ func (man *SReleaseManager) AllowPerformRollback(req *common.Request, id string)
 }
 
 func (man *SReleaseManager) PerformRollback(req *common.Request, id string) (interface{}, error) {
-	cli, err := req.GetHelmClient()
+	cli, err := req.GetHelmClient(req.GetDefaultNamespace())
 	if err != nil {
 		return nil, err
 	}
-	defer cli.Close()
-	revision, _ := req.Data.Int("revision")
-	desc, _ := req.Data.GetString("description")
-	return doReleaseRollback(cli, id, int32(revision), desc)
+	input := new(apis.ReleaseRollbackInput)
+	if err := req.DataUnmarshal(input); err != nil {
+		return nil, err
+	}
+	if err := man.DoReleaseRollback(cli.Release().Rollback(), id, input); err != nil {
+		return nil, err
+	}
+	return GetReleaseDetailFromRequest(req, id)
 }
 
-func doReleaseRollback(
-	cli *client.HelmTunnelClient,
+func (man *SReleaseManager) DoReleaseRollback(
+	cli *action.Rollback,
 	name string,
-	revision int32,
-	description string,
-) (*release.Release, error) {
-	ret, err := cli.RollbackRelease(
-		name,
-		helm.RollbackRecreate(false),
-		helm.RollbackForce(false),
-		helm.RollbackDisableHooks(true),
-		helm.RollbackVersion(revision),
-		helm.RollbackWait(false),
-		helm.RollbackDescription(description),
-	)
-	if err != nil {
-		return nil, err
+	input *apis.ReleaseRollbackInput,
+) error {
+	cli.Version = input.Revision
+	cli.Recreate = input.Recreate
+	cli.Force = input.Force
+	if err := cli.Run(name); err != nil {
+		return err
 	}
-	return ret.GetRelease(), nil
+	return nil
 }

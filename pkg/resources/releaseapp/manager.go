@@ -13,6 +13,7 @@ import (
 
 const (
 	INFLUXDB_DB_CONF_KEY = "global.influxdb.database"
+	YUNION_REPO_NAME = "default"
 )
 
 type IReleaseAppHooker interface {
@@ -88,5 +89,5 @@ func GetYunionInfluxdbGlobalConfigSets() ConfigSets {
 }
 
 func NewYunionRepoChartName(chartName string) string {
-	return fmt.Sprintf("%s/%s", models.YUNION_REPO_NAME, chartName)
+	return fmt.Sprintf("%s/%s", YUNION_REPO_NAME, chartName)
 }

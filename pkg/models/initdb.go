@@ -12,7 +12,7 @@ func InitDB() error {
 	} {
 		err := manager.InitializeData()
 		if err != nil {
-			return fmt.Errorf("Manager %s InitializeData error: %v", err)
+			return fmt.Errorf("Manager %s InitializeData error: %v", manager.Keyword(), err)
 		}
 	}
 	return nil
