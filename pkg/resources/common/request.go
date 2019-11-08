@@ -17,7 +17,7 @@ import (
 	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
 	yclient "yunion.io/x/yunion-kube/pkg/client"
-	helmclient "yunion.io/x/yunion-kube/pkg/helm/client"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
@@ -115,16 +115,14 @@ func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
 		cli.StorageV1().RESTClient()), nil
 }
 
-func (r *Request) GetHelmClient() (*helmclient.HelmTunnelClient, error) {
-	k8scli := r.GetK8sAdminClient()
-	k8sconfig := r.GetK8sAdminRestConfig()
-	return helmclient.NewHelmTunnelClient(k8scli, k8sconfig)
+func (r *Request) GetHelmClient(namespace string) (*helm.Client, error) {
+	return helm.NewClient(r.ClusterManager.KubeConfigPath, namespace, true)
 }
 
-func (r *Request) GetGenericClient() (*k8sclient.GenericClient, error) {
+/*func (r *Request) GetGenericClient() (*k8sclient.GenericClient, error) {
 	return k8sclient.NewGeneric(r.KubeAdminConfig)
 }
-
+*/
 func (r *Request) GetNamespaceByQuery() (string, error) {
 	if r.Query == nil {
 		return "", fmt.Errorf("query is nil")

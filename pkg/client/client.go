@@ -1,6 +1,10 @@
 package client
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +45,8 @@ type ClusterManager struct {
 	KubeClient ResourceHandler
 	APIServer  string
 	KubeConfig string
+	// KubeConfigPath used for kubectl or helm client
+	KubeConfigPath string
 }
 
 func (c ClusterManager) GetIndexer() *CacheFactory {
@@ -48,6 +54,7 @@ func (c ClusterManager) GetIndexer() *CacheFactory {
 }
 
 func (c ClusterManager) Close() {
+	os.RemoveAll(c.KubeConfigPath)
 	c.KubeClient.Close()
 }
 
@@ -81,6 +88,11 @@ func BuildApiserverClient() {
 				log.Warningf("build cluster (%s) client error: %v", cluster.GetName(), err)
 				continue
 			}
+			kubeconfigPath, err := BuildKubeConfigPath(cluster, kubeconfig)
+			if err != nil {
+				log.Warningf("build cluster %s kubeconfig path: %v", cluster.GetName(), err)
+				continue
+			}
 			cacheFactory, err := buildCacheController(clientSet)
 			if err != nil {
 				log.Warningf("build cluster (%s) cache controller error: %v", cluster.GetName(), err)
@@ -93,6 +105,7 @@ func BuildApiserverClient() {
 				KubeClient: NewResourceHandler(clientSet, cacheFactory),
 				APIServer:  apiServer,
 				KubeConfig: kubeconfig,
+				KubeConfigPath: kubeconfigPath,
 			}
 			managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
 			if ok {
@@ -220,4 +233,16 @@ func BuildClient(master string, kubeconfig string) (*kubernetes.Clientset, *rest
 	}
 
 	return clientSet, clientConfig, nil
+}
+
+func ClusterKubeConfigPath(c manager.ICluster) string {
+	return path.Join("/tmp", strings.Join([]string{"kubecluster", c.GetName(), c.GetId(), ".kubeconfig"}, "-"))
+}
+
+func BuildKubeConfigPath(c manager.ICluster, kubeconfig string) (string, error) {
+	configPath := ClusterKubeConfigPath(c)
+	if err := ioutil.WriteFile(configPath, []byte(kubeconfig), 0666); err != nil {
+		return "", errors.Wrapf(err, "write %s", configPath)
+	}
+	return configPath, nil
 }

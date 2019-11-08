@@ -43,7 +43,7 @@ func createStatefulSetApp(req *common.Request) (*apps.StatefulSet, error) {
 		input.VolumeClaimTemplates[i] = *temp
 	}
 
-	if _, err := common.CreateServiceByOption(req, objMeta, input.Service); err != nil {
+	if _, err := common.CreateServiceIfNotExist(req, objMeta, input.Service); err != nil {
 		return nil, err
 	}
 
