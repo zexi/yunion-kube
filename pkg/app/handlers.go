@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
 	"yunion.io/x/yunion-kube/pkg/resources/cronjob"
+	"yunion.io/x/yunion-kube/pkg/resources/daemonset"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
 	"yunion.io/x/yunion-kube/pkg/resources/job"
@@ -79,6 +80,7 @@ func InitHandlers(app *appsrv.Application) {
 		cronjob.CronJobManager,
 		k8sapp.AppFromFileManager,
 		deployment.DeploymentManager,
+		daemonset.DaemonSetManager,
 		ingress.IngressManager,
 		job.JobManager,
 		pod.PodManager,

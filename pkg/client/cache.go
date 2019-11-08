@@ -61,8 +61,8 @@ func (c *CacheFactory) DeploymentLister() apps.DeploymentLister {
 	return c.sharedInformerFactory.Apps().V1beta2().Deployments().Lister()
 }
 
-func (c *CacheFactory) DaemonSetLister() apps.DaemonSetLister {
-	return c.sharedInformerFactory.Apps().V1beta2().DaemonSets().Lister()
+func (c *CacheFactory) DaemonSetLister() extensions.DaemonSetLister {
+	return c.sharedInformerFactory.Extensions().V1beta1().DaemonSets().Lister()
 }
 
 func (c *CacheFactory) StatefulSetLister() apps.StatefulSetLister {
