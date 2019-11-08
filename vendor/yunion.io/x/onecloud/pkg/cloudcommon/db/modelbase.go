@@ -58,7 +58,7 @@ func NewModelBaseManager(model interface{}, tableName string, keyword string, ke
 func (manager *SModelBaseManager) GetIModelManager() IModelManager {
 	virt := manager.GetVirtualObject()
 	if virt == nil {
-		panic(fmt.Sprintf("%s Forgot to call SetVirtualObject?", manager.KeywordPlural()))
+		panic(fmt.Sprintf("Forgot to call SetVirtualObject?"))
 	}
 	r, ok := virt.(IModelManager)
 	if !ok {

@@ -1,10 +1,10 @@
 package apis
 
 const (
-	ClusterCA      = "cluster-ca"
-	EtcdCA         = "etcd-ca"
-	FrontProxyCA   = "front-proxy-ca"
-	ServiceAccount = "service-account"
+	ClusterCA        = "cluster-ca"
+	EtcdCA           = "etcd-ca"
+	FrontProxyCA     = "front-proxy-ca"
+	ServiceAccountCA = "service-account"
 )
 
 // KeyPair is how operators can supply custom keypairs for kubeadm to use

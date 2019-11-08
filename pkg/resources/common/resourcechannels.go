@@ -350,13 +350,14 @@ func GetReplicaSetListChannelWithOptions(indexer *client.CacheFactory, nsQuery *
 }
 
 type DaemonSetListChannel struct {
-	List  chan []*apps.DaemonSet
+	//List  chan []*apps.DaemonSet
+	List  chan []*extensions.DaemonSet
 	Error chan error
 }
 
 func GetDaemonSetListChannel(indexer *client.CacheFactory, nsQuery *NamespaceQuery) DaemonSetListChannel {
 	channel := DaemonSetListChannel{
-		List:  make(chan []*apps.DaemonSet),
+		List:  make(chan []*extensions.DaemonSet),
 		Error: make(chan error),
 	}
 

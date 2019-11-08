@@ -61,8 +61,8 @@ func (c *CacheFactory) DeploymentLister() apps.DeploymentLister {
 	return c.sharedInformerFactory.Apps().V1beta2().Deployments().Lister()
 }
 
-func (c *CacheFactory) DaemonSetLister() apps.DaemonSetLister {
-	return c.sharedInformerFactory.Apps().V1beta2().DaemonSets().Lister()
+func (c *CacheFactory) DaemonSetLister() extensions.DaemonSetLister {
+	return c.sharedInformerFactory.Extensions().V1beta1().DaemonSets().Lister()
 }
 
 func (c *CacheFactory) StatefulSetLister() apps.StatefulSetLister {
@@ -143,4 +143,8 @@ func (c *CacheFactory) RoleBindingLister() rbac.RoleBindingLister {
 
 func (c *CacheFactory) ClusterRoleBindingLister() rbac.ClusterRoleBindingLister {
 	return c.sharedInformerFactory.Rbac().V1().ClusterRoleBindings().Lister()
+}
+
+func (c *CacheFactory) ServiceAccountLister() v1.ServiceAccountLister {
+	return c.sharedInformerFactory.Core().V1().ServiceAccounts().Lister()
 }

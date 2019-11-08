@@ -10,6 +10,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type ResourceName = string
@@ -42,33 +44,6 @@ const (
 	ResourceNameServiceAccount          ResourceName = "serviceaccounts"
 )
 
-const (
-	KindNameConfigMap               KindName = "ConfigMap"
-	KindNameDaemonSet               KindName = "DaemonSet"
-	KindNameDeployment              KindName = "Deployment"
-	KindNameEvent                   KindName = "Event"
-	KindNameHorizontalPodAutoscaler KindName = "HorizontalPodAutoscaler"
-	KindNameIngress                 KindName = "Ingress"
-	KindNameJob                     KindName = "Job"
-	KindNameCronJob                 KindName = "CronJob"
-	KindNameNamespace               KindName = "Namespace"
-	KindNameNode                    KindName = "Node"
-	KindNamePersistentVolumeClaim   KindName = "PersistentVolumeClaim"
-	KindNamePersistentVolume        KindName = "PersistentVolume"
-	KindNamePod                     KindName = "Pod"
-	KindNameReplicaSet              KindName = "ReplicaSet"
-	KindNameSecret                  KindName = "Secret"
-	KindNameService                 KindName = "Service"
-	KindNameStatefulSet             KindName = "StatefulSet"
-	KindNameEndpoint                KindName = "Endpoints"
-	KindNameStorageClass            KindName = "StorageClass"
-	KindNameRole                    KindName = "Role"
-	KindNameRoleBinding             KindName = "RoleBinding"
-	KindNameClusterRole             KindName = "ClusterRole"
-	KindNameClusterRoleBinding      KindName = "ClusterRoleBinding"
-	KindNameServiceAccount          KindName = "ServiceAccount"
-)
-
 type ResourceMap struct {
 	GroupVersionResourceKind GroupVersionResourceKind
 	Namespaced               bool
@@ -87,7 +62,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameConfigMap,
 			},
-			Kind: KindNameConfigMap,
+			Kind: api.KindNameConfigMap,
 		},
 		Namespaced: true,
 	},
@@ -98,7 +73,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  extensionsv1beta1.SchemeGroupVersion.Version,
 				Resource: ResourceNameDaemonSet,
 			},
-			Kind: KindNameDaemonSet,
+			Kind: api.KindNameDaemonSet,
 		},
 		Namespaced: true,
 	},
@@ -109,7 +84,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  apps.SchemeGroupVersion.Version,
 				Resource: ResourceNameDeployment,
 			},
-			Kind: KindNameDeployment,
+			Kind: api.KindNameDeployment,
 		},
 		Namespaced: true,
 	},
@@ -120,7 +95,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameEvent,
 			},
-			Kind: KindNameEvent,
+			Kind: api.KindNameEvent,
 		},
 		Namespaced: true,
 	},
@@ -132,7 +107,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  autoscalingv1.SchemeGroupVersion.Version,
 				Resource: ResourceNameHorizontalPodAutoscaler,
 			},
-			Kind: KindNameHorizontalPodAutoscaler,
+			Kind: api.KindNameHorizontalPodAutoscaler,
 		},
 		Namespaced: true,
 	},
@@ -143,7 +118,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  extensionsv1beta1.SchemeGroupVersion.Version,
 				Resource: ResourceNameIngress,
 			},
-			Kind: KindNameIngress,
+			Kind: api.KindNameIngress,
 		},
 		Namespaced: true,
 	},
@@ -154,7 +129,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  batchv1.SchemeGroupVersion.Version,
 				Resource: ResourceNameJob,
 			},
-			Kind: KindNameJob,
+			Kind: api.KindNameJob,
 		},
 		Namespaced: true,
 	},
@@ -165,7 +140,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  batchv1beta1.SchemeGroupVersion.Version,
 				Resource: ResourceNameCronJob,
 			},
-			Kind: KindNameCronJob,
+			Kind: api.KindNameCronJob,
 		},
 		Namespaced: true,
 	},
@@ -176,7 +151,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameNamespace,
 			},
-			Kind: KindNameNamespace,
+			Kind: api.KindNameNamespace,
 		},
 		Namespaced: false,
 	},
@@ -187,7 +162,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameNode,
 			},
-			Kind: KindNameNode,
+			Kind: api.KindNameNode,
 		},
 		Namespaced: false,
 	},
@@ -198,7 +173,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNamePersistentVolumeClaim,
 			},
-			Kind: KindNamePersistentVolumeClaim,
+			Kind: api.KindNamePersistentVolumeClaim,
 		},
 		Namespaced: true,
 	},
@@ -209,7 +184,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNamePersistentVolume,
 			},
-			Kind: KindNamePersistentVolume,
+			Kind: api.KindNamePersistentVolume,
 		},
 		Namespaced: false,
 	},
@@ -220,7 +195,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNamePod,
 			},
-			Kind: KindNamePod,
+			Kind: api.KindNamePod,
 		},
 		Namespaced: true,
 	},
@@ -231,7 +206,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  apps.SchemeGroupVersion.Version,
 				Resource: ResourceNameReplicaSet,
 			},
-			Kind: KindNameReplicaSet,
+			Kind: api.KindNameReplicaSet,
 		},
 		Namespaced: true,
 	},
@@ -242,7 +217,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameSecret,
 			},
-			Kind: KindNameSecret,
+			Kind: api.KindNameSecret,
 		},
 		Namespaced: true,
 	},
@@ -253,7 +228,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameService,
 			},
-			Kind: KindNameService,
+			Kind: api.KindNameService,
 		},
 		Namespaced: true,
 	},
@@ -264,7 +239,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  apps.SchemeGroupVersion.Version,
 				Resource: ResourceNameStatefulSet,
 			},
-			Kind: KindNameStatefulSet,
+			Kind: api.KindNameStatefulSet,
 		},
 		Namespaced: true,
 	},
@@ -275,7 +250,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameEndpoint,
 			},
-			Kind: KindNameEndpoint,
+			Kind: api.KindNameEndpoint,
 		},
 		Namespaced: true,
 	},
@@ -286,7 +261,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  storagev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameStorageClass,
 			},
-			Kind: KindNameStorageClass,
+			Kind: api.KindNameStorageClass,
 		},
 		Namespaced: false,
 	},
@@ -298,7 +273,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  rbacv1.SchemeGroupVersion.Version,
 				Resource: ResourceNameRole,
 			},
-			Kind: KindNameRole,
+			Kind: api.KindNameRole,
 		},
 		Namespaced: true,
 	},
@@ -309,7 +284,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  rbacv1.SchemeGroupVersion.Version,
 				Resource: ResourceNameRoleBinding,
 			},
-			Kind: KindNameRoleBinding,
+			Kind: api.KindNameRoleBinding,
 		},
 		Namespaced: true,
 	},
@@ -320,7 +295,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  rbacv1.SchemeGroupVersion.Version,
 				Resource: ResourceNameClusterRole,
 			},
-			Kind: KindNameClusterRole,
+			Kind: api.KindNameClusterRole,
 		},
 		Namespaced: false,
 	},
@@ -331,7 +306,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  rbacv1.SchemeGroupVersion.Version,
 				Resource: ResourceNameClusterRoleBinding,
 			},
-			Kind: KindNameClusterRoleBinding,
+			Kind: api.KindNameClusterRoleBinding,
 		},
 		Namespaced: false,
 	},
@@ -342,7 +317,7 @@ var KindToResourceMap = map[string]ResourceMap{
 				Version:  corev1.SchemeGroupVersion.Version,
 				Resource: ResourceNameServiceAccount,
 			},
-			Kind: KindNameServiceAccount,
+			Kind: api.KindNameServiceAccount,
 		},
 		Namespaced: true,
 	},

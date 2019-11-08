@@ -3,17 +3,16 @@ package helm
 import (
 	"time"
 
-	"k8s.io/helm/pkg/repo"
+	"helm.sh/helm/v3/pkg/repo"
 
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/helm/data"
+	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
-	"yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
-var OfficialRepos = []helm.Repo{
+/*var OfficialRepos = []helm.Repo{
 	{
 		Name:   "stable",
 		Url:    "https://kubernetes-charts.storage.googleapis.com",
@@ -24,7 +23,7 @@ var OfficialRepos = []helm.Repo{
 		Url:    "https://kubernetes-charts-incubator.storage.googleapis.com",
 		Source: "https://github.com/kubernetes/charts/tree/master/incubator",
 	},
-}
+}*/
 
 func Start() {
 	var err error
@@ -36,14 +35,14 @@ func Start() {
 	for _, obj := range repos {
 		entries = append(entries, obj.ToEntry())
 	}
-	err = data.SetupRepoBackendManager(entries)
+	err = helm.SetupRepoBackendManager(entries)
 	if err != nil {
 		log.Fatalf("Setup RepoController error: %v", err)
 	}
-	startRepoRefresh(data.RepoBackendManager)
+	startRepoRefresh(helm.RepoBackendManager)
 }
 
-func startRepoRefresh(man *data.RepoCacheBackend) {
+func startRepoRefresh(man *helm.RepoCacheBackend) {
 	tick := time.Tick(time.Duration(options.Options.RepoRefreshDuration) * time.Minute)
 	for {
 		select {
@@ -53,19 +52,18 @@ func startRepoRefresh(man *data.RepoCacheBackend) {
 	}
 }
 
-func doRepoRefresh(man *data.RepoCacheBackend) {
+func doRepoRefresh(man *helm.RepoCacheBackend) {
 	repos, err := models.RepoManager.ListRepos()
 	if err != nil {
 		log.Errorf("List all repos error: %v", err)
 		return
 	}
-	names := []string{}
+	rs := []*repo.Entry{}
 	for _, r := range repos {
-		names = append(names, r.Name)
+		rs = append(rs, r.ToEntry())
 	}
-	err = man.ReposUpdate(names)
-	if err != nil {
+	if err := man.Update(rs...); err != nil {
 		log.Errorf("Update all repos error: %v", err)
 	}
-	log.Debugf("Finish refresh repos %v", names)
+	log.Debugf("Finish refresh all repos")
 }

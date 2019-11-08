@@ -16,6 +16,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
 	"yunion.io/x/yunion-kube/pkg/resources/cronjob"
+	"yunion.io/x/yunion-kube/pkg/resources/daemonset"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
 	"yunion.io/x/yunion-kube/pkg/resources/job"
@@ -26,9 +27,9 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
-	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
-	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
-	"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
+	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
+	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
+	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
 	"yunion.io/x/yunion-kube/pkg/resources/secret"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
@@ -79,6 +80,7 @@ func InitHandlers(app *appsrv.Application) {
 		cronjob.CronJobManager,
 		k8sapp.AppFromFileManager,
 		deployment.DeploymentManager,
+		daemonset.DaemonSetManager,
 		ingress.IngressManager,
 		job.JobManager,
 		pod.PodManager,
@@ -87,6 +89,8 @@ func InitHandlers(app *appsrv.Application) {
 		persistentvolume.PersistentVolumeManager,
 		persistentvolumeclaim.PersistentVolumeClaimManager,
 		rbacroles.RbacRoleManager,
+		rbacroles.RbacRoleBindingManager,
+		rbacroles.ServiceAccountManager,
 		release.ReleaseManager,
 		secret.SecretManager,
 		secret.RegistrySecretManager,
@@ -102,9 +106,9 @@ func InitHandlers(app *appsrv.Application) {
 	helmAppPrefix := fmt.Sprintf("%s/releaseapps", apiPrefix)
 
 	for _, man := range []k8s.IK8sResourceManager{
-		meter.MeterAppManager,
-		servicetree.ServicetreeAppManager,
-		notify.NotifyAppManager,
+		//meter.MeterAppManager,
+		//servicetree.ServicetreeAppManager,
+		//notify.NotifyAppManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddResourceDispatcher(helmAppPrefix, app, handler)

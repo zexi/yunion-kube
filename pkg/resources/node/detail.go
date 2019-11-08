@@ -66,7 +66,7 @@ func getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (api.NodeAllocated
 		}
 		for podReqName, podReqValue := range podReqs {
 			if value, ok := reqs[podReqName]; !ok {
-				reqs[podReqName] = *podReqValue.Copy()
+				reqs[podReqName] = podReqValue.DeepCopy()
 			} else {
 				value.Add(podReqValue)
 				reqs[podReqName] = value
@@ -74,7 +74,7 @@ func getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (api.NodeAllocated
 		}
 		for podLimitName, podLimitValue := range podLimits {
 			if value, ok := limits[podLimitName]; !ok {
-				limits[podLimitName] = *podLimitValue.Copy()
+				limits[podLimitName] = podLimitValue.DeepCopy()
 			} else {
 				value.Add(podLimitValue)
 				limits[podLimitName] = value
@@ -127,7 +127,7 @@ func PodRequestsAndLimits(pod *v1.Pod) (reqs map[v1.ResourceName]resource.Quanti
 	for _, container := range pod.Spec.Containers {
 		for name, quantity := range container.Resources.Requests {
 			if value, ok := reqs[name]; !ok {
-				reqs[name] = *quantity.Copy()
+				reqs[name] = quantity.DeepCopy()
 			} else {
 				value.Add(quantity)
 				reqs[name] = value
@@ -135,7 +135,7 @@ func PodRequestsAndLimits(pod *v1.Pod) (reqs map[v1.ResourceName]resource.Quanti
 		}
 		for name, quantity := range container.Resources.Limits {
 			if value, ok := limits[name]; !ok {
-				limits[name] = *quantity.Copy()
+				limits[name] = quantity.DeepCopy()
 			} else {
 				value.Add(quantity)
 				limits[name] = value
@@ -147,21 +147,21 @@ func PodRequestsAndLimits(pod *v1.Pod) (reqs map[v1.ResourceName]resource.Quanti
 		for name, quantity := range container.Resources.Requests {
 			value, ok := reqs[name]
 			if !ok {
-				reqs[name] = *quantity.Copy()
+				reqs[name] = quantity.DeepCopy()
 				continue
 			}
 			if quantity.Cmp(value) > 0 {
-				reqs[name] = *quantity.Copy()
+				reqs[name] = quantity.DeepCopy()
 			}
 		}
 		for name, quantity := range container.Resources.Limits {
 			value, ok := limits[name]
 			if !ok {
-				limits[name] = *quantity.Copy()
+				limits[name] = quantity.DeepCopy()
 				continue
 			}
 			if quantity.Cmp(value) > 0 {
-				limits[name] = *quantity.Copy()
+				limits[name] = quantity.DeepCopy()
 			}
 		}
 	}

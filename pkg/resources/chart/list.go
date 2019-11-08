@@ -1,19 +1,18 @@
 package chart
 
 import (
-	"yunion.io/x/log"
-
-	helmdata "yunion.io/x/yunion-kube/pkg/helm/data"
+	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/helm"
+	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
-	helmtypes "yunion.io/x/yunion-kube/pkg/types/helm"
 )
 
 type Chart struct {
-	*helmdata.ChartResult
+	*apis.ChartResult
 }
 
-func ToChart(ret *helmdata.ChartResult) Chart {
+func ToChart(ret *apis.ChartResult) Chart {
 	return Chart{ret}
 }
 
@@ -27,15 +26,15 @@ func (l *ChartList) GetResponseData() interface{} {
 }
 
 func (l *ChartList) Append(obj interface{}) {
-	l.Charts = append(l.Charts, ToChart(obj.(*helmdata.ChartResult)))
+	l.Charts = append(l.Charts, ToChart(obj.(*apis.ChartResult)))
 }
 
-func (man *SChartManager) List(query *helmtypes.ChartQuery, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
-	list, err := helmdata.ChartsList(query)
+func (man *SChartManager) List(query *apis.ChartListInput, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+	cli := helm.NewChartClient(options.Options.HelmDataDir)
+	list, err := cli.SearchRepo(*query, "") //, query.RepoUrl, query.Keyword)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Get list: %#v", list)
 	chartList := &ChartList{
 		ListMeta: dataselect.NewListMeta(),
 		Charts:   make([]Chart, 0),

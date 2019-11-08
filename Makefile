@@ -19,6 +19,8 @@ LDFLAGS := "-w \
 	-X $(VERSION_PKG_PREFIX).gitTreeState=$(GIT_TREE_STATE) \
 	-X $(VERSION_PKG_PREFIX).buildDate=$(BUILD_DATE)"
 
+export GO111MODULE:=on
+
 GO_BUILD := go build -ldflags $(LDFLAGS)
 
 CMDS := $(shell find ./cmd -mindepth 1 -maxdepth 1 -type d)
