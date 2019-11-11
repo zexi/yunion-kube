@@ -35,4 +35,5 @@ type ChartDetail struct {
 	Repo         string             `json:"repo"`
 	Readme       string             `json:"readme"`
 	Options      []SpotguideOptions `json:"options"`
+	Files        []*chart.File      `json:"files"`
 }
