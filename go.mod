@@ -1,6 +1,6 @@
 module yunion.io/x/yunion-kube
 
-go 1.13
+go 1.12
 
 require (
 	github.com/Masterminds/semver v1.4.2 // indirect
