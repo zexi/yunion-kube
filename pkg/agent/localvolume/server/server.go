@@ -105,7 +105,7 @@ func (s *Server) MountVolume(ctx context.Context, in *pb.MountVolumeRequest) (*p
 		options = append(options, "ro")
 	}
 
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOsExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOSExec()}
 	if err := diskMounter.FormatAndMount(devPath, targetPath, fsType, options); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to format and mount: %v", err)
 	}
