@@ -21,7 +21,7 @@ LDFLAGS := "-w \
 
 export GO111MODULE:=on
 
-GO_BUILD := go build -ldflags $(LDFLAGS)
+GO_BUILD := go build -mod vendor -ldflags $(LDFLAGS)
 
 CMDS := $(shell find ./cmd -mindepth 1 -maxdepth 1 -type d)
 
