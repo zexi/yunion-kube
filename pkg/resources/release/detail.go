@@ -61,8 +61,7 @@ func GetReleaseDetail(
 	}
 
 	return &apis.ReleaseDetail{
-		Release:      *ToRelease(rls, cluster),
-		ConfigValues: rls.Config,
-		Resources:    res,
+		Release:   *ToRelease(rls, cluster),
+		Resources: res,
 	}, nil
 }

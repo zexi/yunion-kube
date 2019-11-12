@@ -48,8 +48,7 @@ type Release struct {
 
 type ReleaseDetail struct {
 	Release
-	Resources    map[string][]interface{} `json:"resources"`
-	ConfigValues map[string]interface{}      `json:"config_values"`
+	Resources map[string][]interface{} `json:"resources"`
 }
 
 type ReleaseHistoryInfo struct {
