@@ -18,5 +18,5 @@ func (man *SDeploymentManager) Delete(req *common.Request, id string) error {
 		return err
 	}
 
-	return app.DeleteResource(req, man.Keyword(), namespace, id)
+	return app.DeleteResource(req, man.KeywordPlural(), namespace, id)
 }

@@ -17,6 +17,12 @@ func (h *resourceHandler) getClientByGroupVersion(groupVersion schema.GroupVersi
 	case corev1.GroupName:
 		return h.client.CoreV1().RESTClient()
 	case appsv1beta1.GroupName:
+		if groupVersion.Version == "v1beta2" {
+			return h.client.AppsV1beta2().RESTClient()
+		}
+		if groupVersion.Version == "v1" {
+			return h.client.AppsV1().RESTClient()
+		}
 		return h.client.AppsV1beta1().RESTClient()
 	case autoscalingv1.GroupName:
 		return h.client.AutoscalingV1().RESTClient()

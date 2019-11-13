@@ -7,7 +7,6 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type SResourceBaseManager struct {
@@ -113,6 +112,10 @@ func (m *SClusterResourceManager) AllowCreateItem(req *common.Request) bool {
 	return db.IsAdminAllowCreate(req.UserCred, m) || req.IsClusterOwner()
 }
 
+func (m *SClusterResourceManager) ValidateCreateData(req *common.Request) error {
+	return common.ValidateK8sResourceCreateData(req, m.KeywordPlural(), false)
+}
+
 func (m *SClusterResourceManager) AllowUpdateItem(req *common.Request, id string) bool {
 	return db.IsAdminAllowUpdate(req.UserCred, m) || req.IsClusterOwner()
 }
@@ -151,7 +154,7 @@ func (m *SNamespaceResourceManager) AllowCreateItem(req *common.Request) bool {
 }
 
 func (m *SNamespaceResourceManager) ValidateCreateData(req *common.Request) error {
-	return common.ValidateK8sResourceCreateData(req, apis.TrimKindPlural(m.KeywordPlural()), true)
+	return common.ValidateK8sResourceCreateData(req, m.KeywordPlural(), true)
 }
 
 func (m *SNamespaceResourceManager) AllowGetItem(req *common.Request, id string) bool {

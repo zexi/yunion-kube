@@ -237,8 +237,6 @@ func (r releaseClient) Create(input *apis.ReleaseCreateInput) (*release.Release,
 	client.Namespace = input.Namespace
 	client.ReleaseName = input.ReleaseName
 
-	log.Infof("++++++++++++release client: %#v", client)
-
 	return client.Run(cp, vals)
 }
 
@@ -276,5 +274,6 @@ func (r releaseClient) Update(input *apis.ReleaseUpdateInput) (*release.Release,
 
 	cli := r.Upgrade()
 	cli.Version = input.Version
+	cli.Namespace = input.Namespace
 	return cli.Run(input.ReleaseName, cp, vals)
 }

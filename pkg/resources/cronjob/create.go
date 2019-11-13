@@ -3,17 +3,14 @@ package cronjob
 import (
 	v1beta1 "k8s.io/api/batch/v1beta1"
 	v1 "k8s.io/api/core/v1"
-	"yunion.io/x/jsonutils"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 func (man *SCronJobManager) ValidateCreateData(req *common.Request) error {
-	req.Data.Set("controllerType", jsonutils.NewString(apis.ResourceKindCronJob))
-	return app.ValidateCreateData(req)
+	return app.ValidateCreateData(req, man)
 }
 
 func (man *SCronJobManager) Create(req *common.Request) (interface{}, error) {

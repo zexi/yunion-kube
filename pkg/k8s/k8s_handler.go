@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -22,6 +23,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	//"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/client"
+	clientapi "yunion.io/x/yunion-kube/pkg/client/api"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/errors"
 )
@@ -375,32 +377,16 @@ func (h *K8sResourceHandler) Delete(ctx context.Context, id string, query, data 
 	return nil
 }
 
-func ResourceManagerToApiKind(man IK8sResourceManager) string {
-	switch kw := man.Keyword(); kw {
-	case "k8s_service":
-		return "service"
-	case "k8s_node":
-		return "node"
-	case "k8s_endpoint":
-		return "endpoint"
-	default:
-		return kw
-	}
-}
-
 func doRawDelete(man IK8sResourceManager, req *common.Request, id string) error {
-	verber, err := req.GetVerberClient()
-	if err != nil {
-		return err
-	}
+	verber := req.GetVerberClient()
 
-	kind := ResourceManagerToApiKind(man)
+	kindPlural := clientapi.TranslateKindPlural(man.KeywordPlural())
 	namespace := ""
 	inNamespace := man.InNamespace()
 	if inNamespace {
 		namespace = req.GetDefaultNamespace()
 	}
-	if err := verber.Delete(kind, inNamespace, namespace, id); err != nil {
+	if err := verber.Delete(kindPlural, namespace, id, &metav1.DeleteOptions{}); err != nil {
 		return err
 	}
 	return nil

@@ -48,6 +48,15 @@ func (self StdComparableString) Contains(otherV ComparableValue) bool {
 	return strings.Contains(string(self), string(other))
 }
 
+type StdComparableEqualString struct {
+	StdComparableString
+}
+
+func (self StdComparableEqualString) Contains(otherV ComparableValue) bool {
+	other := otherV.(StdComparableString)
+	return string(self.StdComparableString) == string(other)
+}
+
 // StdComparableRFC3339Timestamp takes RFC3339 Timestamp strings and compares them as TIMES. In case of time parsing error compares values as strings.
 type StdComparableRFC3339Timestamp string
 

@@ -138,7 +138,7 @@ type NamespaceDataCell struct {
 func (cell NamespaceDataCell) GetProperty(name PropertyName) ComparableValue {
 	switch name {
 	case NamespaceProperty:
-		return StdComparableString(cell.ObjectMeta.Namespace)
+		return StdComparableEqualString{StdComparableString(cell.ObjectMeta.Namespace)}
 	default:
 		return cell.ResourceDataCell.GetProperty(name)
 	}

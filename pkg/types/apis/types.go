@@ -1,8 +1,6 @@
 package apis
 
 import (
-	"strings"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -159,22 +157,4 @@ func GetResourceKinds() sets.String {
 		kinds.Insert(kind)
 	}
 	return kinds
-}
-
-func TrimKindPlural(plural string) string {
-	if GetResourceKinds().Has(plural) {
-		return plural
-	}
-	switch plural {
-	case "ingresses":
-		return ResourceKindIngress
-	case "k8s_services":
-		return ResourceKindService
-	case "k8s_nodes":
-		return ResourceKindNode
-	case "k8s_endpoints":
-		return ResourceKindEndpoint
-	default:
-		return strings.TrimRight(plural, "s")
-	}
 }
