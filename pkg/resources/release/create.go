@@ -201,7 +201,6 @@ func (man *SReleaseManager) Create(req *common.Request) (interface{}, error) {
 	if err := req.DataUnmarshal(input); err != nil {
 		return nil, err
 	}
-	log.Infof("=========Create input: %#v", input)
 	cli, err := req.GetHelmClient(input.Namespace)
 	if err != nil {
 		return nil, err

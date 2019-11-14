@@ -276,7 +276,6 @@ func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred m
 }
 
 func (m *SClusterManager) AllowPerformCheckSystemReady(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	log.Errorf("========AllowPerformCheckSystemReady")
 	return true
 }
 
@@ -351,9 +350,13 @@ func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id 
 }*/
 
 func (m *SClusterManager) GetRunningClusters() ([]manager.ICluster, error) {
+	return m.GetClustersByStatus(types.ClusterStatusRunning)
+}
+
+func (m *SClusterManager) GetClustersByStatus(status ...string) ([]manager.ICluster, error) {
 	clusters := m.Query().SubQuery()
 	q := clusters.Query()
-	q = q.Filter(sqlchemy.Equals(clusters.Field("status"), types.ClusterStatusRunning))
+	q = q.Filter(sqlchemy.In(clusters.Field("status"), status))
 	objs := make([]SCluster, 0)
 	err := db.FetchModelObjects(m, q, &objs)
 	if err != nil {
@@ -385,6 +388,29 @@ func (m *SClusterManager) GetCluster(id string) (*SCluster, error) {
 	return obj.(*SCluster), nil
 }
 
+func (m *SClusterManager) ClusterHealthCheckTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	clusters, err := m.GetClustersByStatus(
+		types.ClusterStatusRunning,
+		types.ClusterStatusLost,
+		//types.ClusterStatusUnknown,
+	)
+	if err != nil {
+		log.Errorf("ClusterHealthCheckTask get clusters: %v", err)
+		return
+	}
+	for _, obj := range clusters {
+		c := obj.(*SCluster)
+		if err := c.IsHealthy(); err == nil {
+			if c.Status != types.ClusterStatusRunning {
+				c.SetStatus(userCred, types.ClusterStatusRunning, "by health check cronjob")
+			}
+			continue
+		} else {
+			c.SetStatus(userCred, types.ClusterStatusLost, err.Error())
+		}
+	}
+}
+
 func (c *SCluster) GetDriver() IClusterDriver {
 	return GetDriver(
 		types.ModeType(c.Mode),
@@ -403,6 +429,17 @@ func (c *SCluster) GetMachinesCount() (int, error) {
 func (c *SCluster) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := c.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
 	return c.moreExtraInfo(extra)
+}
+
+func (c *SCluster) IsHealthy() error {
+	cli, err := c.GetK8sClient()
+	if err != nil {
+		return err
+	}
+	if _, err := cli.Discovery().ServerVersion(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {

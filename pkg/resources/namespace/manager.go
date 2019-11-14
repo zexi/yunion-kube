@@ -1,6 +1,8 @@
 package namespace
 
 import (
+	"k8s.io/api/core/v1"
+
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -23,4 +25,19 @@ func (m *SNamespaceManager) AllowListItems(req *common.Request) bool {
 
 func (m *SNamespaceManager) AllowGetItem(req *common.Request, id string) bool {
 	return m.AllowListItems(req)
+}
+
+func (m *SNamespaceManager) ValidateCreateData(req *common.Request) error {
+	return m.SClusterResourceManager.ValidateCreateData(req)
+}
+
+func (m *SNamespaceManager) Create(req *common.Request) (interface{}, error) {
+	objMeta, err := common.GetK8sObjectCreateMeta(req.Data)
+	if err != nil {
+		return nil, err
+	}
+	ns := &v1.Namespace{
+		ObjectMeta: *objMeta,
+	}
+	return req.GetK8sClient().CoreV1().Namespaces().Create(ns)
 }

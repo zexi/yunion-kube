@@ -1,7 +1,7 @@
 package apis
 
 import (
-	//"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/time"
 )
@@ -49,6 +49,7 @@ type Release struct {
 type ReleaseDetail struct {
 	Release
 	Resources map[string][]interface{} `json:"resources"`
+	Files     []*chart.File            `json:"files"`
 }
 
 type ReleaseHistoryInfo struct {

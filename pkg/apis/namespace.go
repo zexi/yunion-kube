@@ -27,3 +27,7 @@ type NamespaceDetail struct {
 	// ResourceLimits is list of limit ranges associated to the namespace
 	ResourceLimits []LimitRangeItem `json:"resourceLimits"`
 }
+
+type NamespaceCreateInput struct {
+	K8sClusterResourceCreateInput
+}

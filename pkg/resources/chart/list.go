@@ -31,7 +31,7 @@ func (l *ChartList) Append(obj interface{}) {
 
 func (man *SChartManager) List(query *apis.ChartListInput, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
 	cli := helm.NewChartClient(options.Options.HelmDataDir)
-	list, err := cli.SearchRepo(*query, "") //, query.RepoUrl, query.Keyword)
+	list, err := cli.SearchRepo(*query, query.Version) //, query.RepoUrl, query.Keyword)
 	if err != nil {
 		return nil, err
 	}
