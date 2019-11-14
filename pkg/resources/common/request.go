@@ -14,11 +14,10 @@ import (
 	"yunion.io/x/onecloud/pkg/appctx"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	clientapi "yunion.io/x/yunion-kube/pkg/k8s/client/api"
 
 	yclient "yunion.io/x/yunion-kube/pkg/client"
+	clientapi "yunion.io/x/yunion-kube/pkg/client/api"
 	"yunion.io/x/yunion-kube/pkg/helm"
-	k8sclient "yunion.io/x/yunion-kube/pkg/k8s/client"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/types"
@@ -103,16 +102,8 @@ func (r *Request) GetCluster() *clusters.SCluster {
 	return r.Cluster
 }
 
-func (r *Request) GetVerberClient() (clientapi.ResourceVerber, error) {
-	cli := r.GetK8sClient()
-	return k8sclient.NewResourceVerber(
-		cli.CoreV1().RESTClient(),
-		cli.ExtensionsV1beta1().RESTClient(),
-		cli.AppsV1beta2().RESTClient(),
-		cli.BatchV1().RESTClient(),
-		cli.BatchV1beta1().RESTClient(),
-		cli.AutoscalingV1().RESTClient(),
-		cli.StorageV1().RESTClient()), nil
+func (r *Request) GetVerberClient() yclient.ResourceHandler {
+	return r.GetK8sManager().KubeClient
 }
 
 func (r *Request) GetHelmClient(namespace string) (*helm.Client, error) {
@@ -198,15 +189,8 @@ func (r *Request) GetParams() map[string]string {
 }
 
 func (r *Request) IsK8sResourceExists(kind string, namespace string, id string) (bool, error) {
-	cli, err := r.GetVerberClient()
-	if err != nil {
-		return false, err
-	}
-	isNamespace := true
-	if namespace == "" {
-		isNamespace = false
-	}
-	_, err = cli.Get(kind, isNamespace, namespace, id)
+	cli := r.GetVerberClient()
+	_, err := cli.Get(kind, namespace, id)
 	if err == nil {
 		return true, nil
 	}
@@ -267,6 +251,7 @@ func (r *Request) getProjectNamespaces() ([]string, error) {
 //}
 
 func ValidateK8sResourceCreateData(req *Request, kind string, inNamespace bool) error {
+	kind = clientapi.TranslateKindPlural(kind)
 	data := req.Data
 	name, _ := data.GetString("name")
 	if name == "" {

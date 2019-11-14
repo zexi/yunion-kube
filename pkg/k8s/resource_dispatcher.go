@@ -126,6 +126,11 @@ func createHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 
 func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, params, query, data := fetchEnv(ctx, w, r)
+	data, err := data.Get(handler.Keyword())
+	if err != nil {
+		httperrors.InvalidInputError(w, fmt.Sprintf("No request key: %s", handler.Keyword()))
+		return
+	}
 	result, err := handler.PerformAction(ctx, params["<resid>"], params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
 		errors.GeneralServerError(w, err)

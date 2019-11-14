@@ -4,17 +4,13 @@ import (
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
 
-	"yunion.io/x/jsonutils"
-
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 func (man *SJobManager) ValidateCreateData(req *common.Request) error {
-	req.Data.Set("controllerType", jsonutils.NewString(apis.ResourceKindJob))
-	return app.ValidateCreateData(req)
+	return app.ValidateCreateData(req, man)
 }
 
 func (man *SJobManager) Create(req *common.Request) (interface{}, error) {

@@ -3,12 +3,12 @@ package secret
 import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"yunion.io/x/yunion-kube/pkg/client"
 
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	api "yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 )

@@ -83,4 +83,6 @@ const (
 	KindNameClusterRole             KindName = "ClusterRole"
 	KindNameClusterRoleBinding      KindName = "ClusterRoleBinding"
 	KindNameServiceAccount          KindName = "ServiceAccount"
+	KindNameLimitRange              KindName = "LimitRange"
+	KindNameResourceQuota           KindName = "ResourceQuota"
 )
