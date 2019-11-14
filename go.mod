@@ -22,7 +22,7 @@ require (
 	google.golang.org/grpc v1.24.0
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gopkg.in/yaml.v2 v2.2.4
-	helm.sh/helm/v3 v3.0.0-rc.3
+	helm.sh/helm/v3 v3.0.0
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/apiserver v0.0.0
@@ -45,7 +45,7 @@ replace (
 	github.com/docker/docker => github.com/docker/docker v0.0.0-20190731150326-928381b2215c
 	github.com/renstrom/dedent => github.com/lithammer/dedent v1.1.0
 	github.com/ugorji/go => github.com/ugorji/go v1.1.2
-	helm.sh/helm/v3 => helm.sh/helm/v3 v3.0.0-rc.3
+	helm.sh/helm/v3 => helm.sh/helm/v3 v3.0.0
 
 	k8s.io/api => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
 

@@ -22,17 +22,17 @@ import (
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/sets"
 
+	"yunion.io/x/yunion-kube/pkg/client/api"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 var (
 	AppControllerTypes = sets.NewString(
-		apis.ResourceKindDeployment,
-		apis.ResourceKindStatefulSet,
-		apis.ResourceKindDaemonSet,
-		apis.ResourceKindCronJob,
-		apis.ResourceKindJob,
+		api.ResourceNameDeployment,
+		api.ResourceNameStatefulSet,
+		api.ResourceNameDaemonSet,
+		api.ResourceNameCronJob,
+		api.ResourceNameJob,
 	)
 )
 

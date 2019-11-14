@@ -15,6 +15,7 @@ type ChartListInput struct {
 	Repo       string `json:"repo"`
 	AllVersion bool   `json:"all_version"`
 	Keyword    string `json:"keyword"`
+	Version    string `json:"version"`
 }
 
 type SpotguideOptions struct {

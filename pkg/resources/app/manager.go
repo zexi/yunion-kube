@@ -8,9 +8,10 @@ import (
 	"yunion.io/x/pkg/util/sets"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
+	clientapi "yunion.io/x/yunion-kube/pkg/client/api"
+	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 var (
@@ -27,9 +28,8 @@ func init() {
 	}
 }
 
-func ValidateCreateData(req *common.Request) error {
-	data := req.Data
-	controllerType, _ := data.GetString("controllerType")
+func ValidateCreateData(req *common.Request, man k8s.IK8sResourceManager) error {
+	controllerType := clientapi.TranslateKindPlural(man.KeywordPlural())
 	if !AppControllerTypes.Has(controllerType) {
 		return httperrors.NewInputParameterError("Invalid app controller type: %s", controllerType)
 	}
@@ -37,6 +37,7 @@ func ValidateCreateData(req *common.Request) error {
 	if err != nil {
 		return err
 	}
+	data := req.Data
 	replica, _ := data.Int("replicas")
 	if replica == 0 {
 		data.Set("replicas", jsonutils.NewInt(1))
@@ -45,7 +46,7 @@ func ValidateCreateData(req *common.Request) error {
 	restartPolicy, _ := data.GetString("restartPolicy")
 	if restartPolicy == "" {
 		policy := v1.RestartPolicyAlways
-		if sets.NewString(apis.ResourceKindCronJob, apis.ResourceKindJob).Has(controllerType) {
+		if sets.NewString(clientapi.ResourceNameCronJob, clientapi.ResourceNameJob).Has(controllerType) {
 			policy = v1.RestartPolicyNever
 		}
 		data.Set("restartPolicy", jsonutils.NewString(string(policy)))

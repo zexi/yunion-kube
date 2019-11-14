@@ -11,6 +11,8 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"yunion.io/x/pkg/util/sets"
+
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
@@ -42,6 +44,8 @@ const (
 	ResourceNameClusterRole             ResourceName = "clusterroles"
 	ResourceNameClusterRoleBinding      ResourceName = "clusterrolebindings"
 	ResourceNameServiceAccount          ResourceName = "serviceaccounts"
+	ResourceNameLimitRange              ResourceName = "limitranges"
+	ResourceNameResourceQuota           ResourceName = "resourcequotas"
 )
 
 type ResourceMap struct {
@@ -321,4 +325,49 @@ var KindToResourceMap = map[string]ResourceMap{
 		},
 		Namespaced: true,
 	},
+	ResourceNameLimitRange: {
+		GroupVersionResourceKind: GroupVersionResourceKind{
+			GroupVersionResource: schema.GroupVersionResource{
+				Group:    corev1.GroupName,
+				Version:  corev1.SchemeGroupVersion.Version,
+				Resource: ResourceNameLimitRange,
+			},
+			Kind: api.KindNameLimitRange,
+		},
+		Namespaced: true,
+	},
+	ResourceNameResourceQuota: {
+		GroupVersionResourceKind: GroupVersionResourceKind{
+			GroupVersionResource: schema.GroupVersionResource{
+				Group:    corev1.GroupName,
+				Version:  corev1.SchemeGroupVersion.Version,
+				Resource: ResourceNameResourceQuota,
+			},
+			Kind: api.KindNameResourceQuota,
+		},
+		Namespaced: true,
+	},
+}
+
+func GetResourceKinds() sets.String {
+	kinds := sets.NewString()
+	for keyPlural := range KindToResourceMap {
+		kinds.Insert(keyPlural)
+	}
+	return kinds
+}
+
+func TranslateKindPlural(plural string) string {
+	if GetResourceKinds().Has(plural) {
+		return plural
+	}
+	switch plural {
+	case "k8s_services":
+		return ResourceNameService
+	case "k8s_nodes":
+		return ResourceNameNode
+	case "k8s_endpoints":
+		return ResourceNameEndpoint
+	}
+	return plural
 }

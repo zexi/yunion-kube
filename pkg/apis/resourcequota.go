@@ -4,6 +4,13 @@ import (
 	"k8s.io/api/core/v1"
 )
 
+type ResourceQuota struct {
+	ObjectMeta
+	TypeMeta
+
+	v1.ResourceQuotaSpec
+}
+
 // ResourceQuotaDetail provides the presentation layer view of Kubernetes Resource Quotas resource.
 type ResourceQuotaDetail struct {
 	ObjectMeta

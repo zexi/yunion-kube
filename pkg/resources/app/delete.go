@@ -41,9 +41,6 @@ func DeleteServices(cli *client.ClusterManager, namespace string, labelSelector 
 }
 
 func DeleteResource(req *common.Request, controllerType, namespace, name string) error {
-	verber, err := req.GetVerberClient()
-	if err != nil {
-		return err
-	}
-	return verber.Delete(controllerType, true, namespace, name)
+	verber := req.GetVerberClient()
+	return verber.Delete(controllerType, namespace, name, &metav1.DeleteOptions{})
 }

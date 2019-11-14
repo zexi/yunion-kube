@@ -5,12 +5,14 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon"
 	app_commmon "yunion.io/x/onecloud/pkg/cloudcommon/app"
+	"yunion.io/x/onecloud/pkg/cloudcommon/cronman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/pkg/util/runtime"
@@ -67,6 +69,11 @@ func Run(ctx context.Context) error {
 	})
 
 	initial.InitClient()
+
+	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
+	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, clusters.ClusterManager.ClusterHealthCheckTask, true)
+	cron.Start()
+	defer cron.Stop()
 
 	if err := server.Start(httpsAddr, app); err != nil {
 		return err
