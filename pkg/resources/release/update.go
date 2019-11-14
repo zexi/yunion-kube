@@ -27,6 +27,6 @@ func (man *SReleaseManager) Update(req *common.Request, id string) (interface{},
 }
 
 func ReleaseUpgrade(helmclient helm.IRelease, opt *api.ReleaseUpdateInput) (*release.Release, error) {
-	log.Infof("Upgrade repo=%q, chart=%q, release name=%q", opt.Repo, opt.ChartName, opt.ReleaseName)
+	log.Infof("Upgrade repo=%q, chart=%q, release='%s/%s'", opt.Repo, opt.ChartName, opt.Namespace, opt.ReleaseName)
 	return helmclient.Update(opt)
 }

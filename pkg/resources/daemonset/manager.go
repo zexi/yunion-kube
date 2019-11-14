@@ -1,11 +1,9 @@
 package daemonset
 
 import (
+	"k8s.io/api/core/v1"
 	//apps "k8s.io/api/apps/v1beta2"
 	extensions "k8s.io/api/extensions/v1beta1"
-	"k8s.io/api/core/v1"
-	"yunion.io/x/log"
-
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources"
@@ -94,7 +92,6 @@ func GetDaemonSetListFromChannels(channels *common.ResourceChannels, dsQuery *da
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("========daemonsets %#v", ds)
 	pods := <-channels.PodList.List
 	err = <-channels.PodList.Error
 	if err != nil {

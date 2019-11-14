@@ -1,5 +1,9 @@
 package apis
 
+import (
+	"k8s.io/api/core/v1"
+)
+
 // LimitRange provides resource limit range values
 type LimitRangeItem struct {
 	// ResourceName usage constraints on this kind by resource name
@@ -16,4 +20,10 @@ type LimitRangeItem struct {
 	DefaultRequest string `json:"defaultRequest,omitempty"`
 	// MaxLimitRequestRatio represents the max burst value for the named resource
 	MaxLimitRequestRatio string `json:"maxLimitRequestRatio,omitempty"`
+}
+
+type LimitRange struct {
+	ObjectMeta
+	TypeMeta
+	v1.LimitRangeSpec
 }

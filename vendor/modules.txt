@@ -446,7 +446,7 @@ gopkg.in/urfave/cli.v1
 gopkg.in/urfave/cli.v1/altsrc
 # gopkg.in/yaml.v2 v2.2.4
 gopkg.in/yaml.v2
-# helm.sh/helm/v3 v3.0.0-rc.3 => helm.sh/helm/v3 v3.0.0-rc.3
+# helm.sh/helm/v3 v3.0.0 => helm.sh/helm/v3 v3.0.0
 helm.sh/helm/v3/cmd/helm/search
 helm.sh/helm/v3/internal/experimental/registry
 helm.sh/helm/v3/internal/ignore
@@ -956,6 +956,7 @@ yunion.io/x/onecloud/pkg/appsrv/dispatcher
 yunion.io/x/onecloud/pkg/cloudcommon
 yunion.io/x/onecloud/pkg/cloudcommon/app
 yunion.io/x/onecloud/pkg/cloudcommon/consts
+yunion.io/x/onecloud/pkg/cloudcommon/cronman
 yunion.io/x/onecloud/pkg/cloudcommon/db
 yunion.io/x/onecloud/pkg/cloudcommon/db/lockman
 yunion.io/x/onecloud/pkg/cloudcommon/db/quotas

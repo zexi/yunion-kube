@@ -103,6 +103,7 @@ const (
 	ClusterStatusCreatingMachine   = "creating_machine"
 	ClusterStatusCreateMachineFail = "create_machine_fail"
 	ClusterStatusRunning           = "running"
+	ClusterStatusLost              = "lost"
 	ClusterStatusUnknown           = "unknown"
 	ClusterStatusError             = "error"
 	ClusterStatusDeleting          = "deleting"

@@ -20,6 +20,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
 	"yunion.io/x/yunion-kube/pkg/resources/job"
+	"yunion.io/x/yunion-kube/pkg/resources/limitrange"
 	"yunion.io/x/yunion-kube/pkg/resources/namespace"
 	"yunion.io/x/yunion-kube/pkg/resources/node"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
@@ -27,6 +28,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
+	"yunion.io/x/yunion-kube/pkg/resources/resourcequota"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
@@ -85,6 +87,8 @@ func InitHandlers(app *appsrv.Application) {
 		job.JobManager,
 		pod.PodManager,
 		namespace.NamespaceManager,
+		limitrange.LimitRangeManager,
+		resourcequota.ResourceQuotaManager,
 		node.NodeManager,
 		persistentvolume.PersistentVolumeManager,
 		persistentvolumeclaim.PersistentVolumeClaimManager,
