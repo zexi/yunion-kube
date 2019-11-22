@@ -41,14 +41,16 @@ type Request struct {
 
 func (r *Request) AllowListItems() bool {
 	allNamespace := jsonutils.QueryBoolean(r.Query, "all_namespace", false)
-	if allNamespace && !r.UserCred.HasSystemAdminPrivilege() {
+	if allNamespace && !r.IsClusterOwner() {
 		return false
 	}
 	return true
 }
 
 func (r *Request) IsClusterOwner() bool {
-	return r.UserCred.HasSystemAdminPrivilege() || r.GetCluster().IsSharable(r.UserCred)
+	cluster := r.GetCluster()
+	isOwner := cluster.GetOwnerId().GetTenantId() == r.UserCred.GetTenantId()
+	return r.UserCred.HasSystemAdminPrivilege() || cluster.IsSharable(r.UserCred) || isOwner
 }
 
 func (r *Request) ShowAllNamespace() bool {
