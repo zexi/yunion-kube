@@ -143,7 +143,7 @@ func (m *SNamespaceResourceManager) IsOwner(req *common.Request) bool {
 }
 
 func (m *SNamespaceResourceManager) AllowListItems(req *common.Request) bool {
-	if req.ShowAllNamespace() && !db.IsAdminAllowList(req.UserCred, m) {
+	if req.ShowAllNamespace() && !db.IsProjectAllowList(req.UserCred, m) {
 		return false
 	}
 	return db.IsAdminAllowList(req.UserCred, m) || m.IsOwner(req)
