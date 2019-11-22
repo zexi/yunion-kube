@@ -368,6 +368,14 @@ func TranslateKindPlural(plural string) string {
 		return ResourceNameNode
 	case "k8s_endpoints":
 		return ResourceNameEndpoint
+	case "rbacroles":
+		return ResourceNameRole
+	case "rbacclusterroles":
+		return ResourceNameClusterRole
+	case "rbacrolebindings":
+		return ResourceNameRoleBinding
+	case "rbacclusterrolebindings":
+		return ResourceNameClusterRoleBinding
 	}
 	return plural
 }

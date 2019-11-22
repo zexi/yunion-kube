@@ -31,6 +31,7 @@ func (l *RbacRoleList) GetResponseData() interface{} {
 }
 
 func (l *RbacRoleBindingList) GetResponseData() interface{} {
+	log.Infof("---get rolebinding count: %d", len(l.Items))
 	return l.Items
 }
 
@@ -127,21 +128,22 @@ func toRbacRoleLists(roles []*rbac.Role, clusterRoles []*rbac.ClusterRole, dsQue
 		BaseList: common.NewBaseList(cluster),
 		Items:    make([]*api.RbacRole, 0),
 	}
+	aggList := make([]interface{}, 0)
+	for _, r := range roles {
+		aggList = append(aggList, r)
+	}
+	for _, r := range clusterRoles {
+		aggList = append(aggList, r)
+	}
 	err := dataselect.ToResourceList(
 		result,
-		roles,
+		aggList,
 		dataselect.NewNamespaceDataCell,
 		dsQuery)
 
 	if err != nil {
 		return nil, err
 	}
-
-	err = dataselect.ToResourceList(
-		result,
-		clusterRoles,
-		dataselect.NewNamespaceDataCell,
-		dsQuery)
 
 	return result, err
 }
@@ -161,21 +163,22 @@ func toRbacRoleBindingLists(rbs []*rbac.RoleBinding, crbs []*rbac.ClusterRoleBin
 		BaseList: common.NewBaseList(cluster),
 		Items:    make([]*api.RbacRoleBinding, 0),
 	}
+	aggList := make([]interface{}, 0)
+	for _, r := range rbs {
+		aggList = append(aggList, r)
+	}
+	for _, r := range crbs {
+		aggList = append(aggList, r)
+	}
 	err := dataselect.ToResourceList(
 		result,
-		rbs,
+		aggList,
 		dataselect.NewNamespaceDataCell,
 		dsQuery)
 
 	if err != nil {
 		return nil, err
 	}
-
-	err = dataselect.ToResourceList(
-		result,
-		crbs,
-		dataselect.NewNamespaceDataCell,
-		dsQuery)
 
 	return result, err
 }
