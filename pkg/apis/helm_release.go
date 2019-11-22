@@ -44,6 +44,7 @@ type ReleaseListQuery struct {
 type Release struct {
 	*release.Release
 	*ClusterMeta
+	Status string `json:"status"`
 }
 
 type ReleaseDetail struct {

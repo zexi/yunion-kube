@@ -25,6 +25,7 @@ func ToRelease(release *release.Release, cluster api.ICluster) *api.Release {
 	return &api.Release{
 		Release:     release,
 		ClusterMeta: api.NewClusterMeta(cluster),
+		Status:      release.Info.Status.String(),
 	}
 }
 
