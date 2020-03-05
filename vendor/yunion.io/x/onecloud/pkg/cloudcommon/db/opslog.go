@@ -65,6 +65,9 @@ const (
 	ACT_BACKUP_START        = "backup_start"
 	ACT_BACKUP_START_FAILED = "backup_start_fail"
 
+	ACT_RESTARING    = "restarting"
+	ACT_RESTART_FAIL = "restart_fail"
+
 	ACT_STOPPING  = "stopping"
 	ACT_STOP      = "stop"
 	ACT_STOP_FAIL = "stop_fail"
@@ -80,11 +83,12 @@ const (
 	ACT_SPLIT = "net_split"
 	ACT_MERGE = "net_merge"
 
-	ACT_SAVING     = "saving"
-	ACT_SAVE       = "save"
-	ACT_SAVE_FAIL  = "save_fail"
-	ACT_PROBE      = "probe"
-	ACT_PROBE_FAIL = "probe_fail"
+	ACT_SAVING            = "saving"
+	ACT_SAVE              = "save"
+	ACT_SAVE_FAIL         = "save_fail"
+	ACT_PROBE             = "probe"
+	ACT_PROBE_FAIL        = "probe_fail"
+	ACT_IMAGE_DELETE_FAIL = "delete_fail"
 
 	ACT_SWITCHED      = "switched"
 	ACT_SWITCH_FAILED = "switch_failed"
@@ -216,6 +220,8 @@ const (
 	ACT_GUEST_ATTACH_ISOLATED_DEVICE_FAIL = "guest_attach_isolated_deivce_fail"
 	ACT_GUEST_DETACH_ISOLATED_DEVICE      = "guest_detach_isolated_deivce"
 	ACT_GUEST_DETACH_ISOLATED_DEVICE_FAIL = "guest_detach_isolated_deivce_fail"
+	ACT_GUEST_SAVE_GUEST_IMAGE            = "guest_save_guest_image"
+	ACT_GUEST_SAVE_GUEST_IMAGE_FAIL       = "guest_save_guest_image_fail"
 
 	ACT_CHANGE_BANDWIDTH = "eip_change_bandwidth"
 
@@ -236,6 +242,19 @@ const (
 	ACT_UPLOAD_OBJECT = "upload_obj"
 	ACT_DELETE_OBJECT = "delete_obj"
 	ACT_MKDIR         = "mkdir"
+
+	ACT_GRANT_PRIVILEGE  = "grant_privilege"
+	ACT_REVOKE_PRIVILEGE = "revoke_privilege"
+	ACT_SET_PRIVILEGES   = "set_privileges"
+	ACT_REBOOT           = "reboot"
+	ACT_RESTORE          = "restore"
+	ACT_CHANGE_CONFIG    = "change_config"
+	ACT_RESET_PASSWORD   = "reset_password"
+
+	ACT_SUBIMAGE_UPDATE_FAIL = "guest_image_subimages_update_fail"
+
+	ACT_FLUSH_INSTANCE      = "flush_instance"
+	ACT_FLUSH_INSTANCE_FAIL = "flush_instance_fail"
 )
 
 type SOpsLogManager struct {

@@ -1,12 +1,28 @@
+// Copyright 2019 Yunion
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package compute
 
 import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"yunion.io/x/onecloud/pkg/apis"
+
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/secrules"
+
+	"yunion.io/x/onecloud/pkg/apis"
 )
 
 type SSecgroupRuleCreateInput struct {
@@ -21,6 +37,7 @@ type SSecgroupRuleCreateInput struct {
 	CIDR        string
 	Action      string
 	Description string
+	Secgroup    string
 	SecgroupId  string
 }
 
@@ -50,14 +67,6 @@ func (input *SSecgroupRuleCreateInput) Check() error {
 		input.CIDR = "0.0.0.0/0"
 	}
 
-	if rule.PortStart > 0 && rule.PortEnd > 0 {
-		if rule.PortStart != rule.PortEnd {
-			input.Ports = fmt.Sprintf("%d-%d", rule.PortStart, rule.PortEnd)
-		} else {
-			input.Ports = fmt.Sprintf("%d", input.PortStart)
-		}
-	}
-
 	return rule.ValidateRule()
 }
 
@@ -65,6 +74,7 @@ type SSecgroupCreateInput struct {
 	apis.Meta
 
 	Name        string
+	Status      string
 	Description string
 	Rules       []SSecgroupRuleCreateInput
 }

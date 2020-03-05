@@ -14,6 +14,10 @@
 
 package compute
 
+import (
+	"time"
+)
+
 const (
 	// # DEFAULT_BANDWIDTH = options.default_bandwidth
 	MAX_BANDWIDTH = 100000
@@ -40,6 +44,8 @@ const (
 	NETWORK_STATUS_DELETING      = "deleting"
 	NETWORK_STATUS_DELETED       = "deleted"
 	NETWORK_STATUS_DELETE_FAILED = "delete_failed"
+	NETWORK_STATUS_START_SYNC    = "start_sync"
+	NETWORK_STATUS_SYNCING       = "sync"
 )
 
 var (
@@ -56,3 +62,24 @@ var (
 		CLOUD_PROVIDER_UCLOUD,
 	}
 )
+
+type IPAllocationDirection string
+
+const (
+	IPAllocationStepdown IPAllocationDirection = "stepdown"
+	IPAllocationStepup   IPAllocationDirection = "stepup"
+	IPAllocationRadnom   IPAllocationDirection = "random"
+	IPAllocationNone     IPAllocationDirection = "none"
+	IPAllocationDefault                        = ""
+)
+
+type SNetworkAddress struct {
+	IpAddr        string
+	MacAddr       string
+	Owner         string
+	OwnerId       string
+	OwnerType     string
+	AssociateId   string
+	AssociateType string
+	CreatedAt     time.Time
+}

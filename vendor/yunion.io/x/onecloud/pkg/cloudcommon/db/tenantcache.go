@@ -21,10 +21,9 @@ import (
 	"runtime/debug"
 	"time"
 
-	"yunion.io/x/jsonutils"
-
 	"github.com/pkg/errors"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/sqlchemy"
 
@@ -299,9 +298,9 @@ func (manager *STenantCacheManager) Save(ctx context.Context, idStr string, name
 		obj.Domain = domain
 		obj.DomainId = domainId
 		obj.LastCheck = now
-		err = manager.TableSpec().Insert(obj)
+		err = manager.TableSpec().InsertOrUpdate(obj)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "InsertOrUpdate")
 		} else {
 			return obj, nil
 		}
