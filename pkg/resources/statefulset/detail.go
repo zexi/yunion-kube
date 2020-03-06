@@ -3,7 +3,7 @@ package statefulset
 import (
 	"reflect"
 
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"yunion.io/x/yunion-kube/pkg/client"
 

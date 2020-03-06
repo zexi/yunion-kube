@@ -50,7 +50,7 @@ func GetNamespaceDetail(indexer *client.CacheFactory, cluster api.ICluster, name
 func toNamespaceDetail(namespace *v1.Namespace, events *common.EventList, resourceQuotaList *rq.ResourceQuotaDetailList, resourceLimits []api.LimitRangeItem, cluster api.ICluster) api.NamespaceDetail {
 
 	return api.NamespaceDetail{
-		Namespace: toNamespace(namespace, cluster),
+		Namespace:         toNamespace(namespace, cluster),
 		EventList:         events.Events,
 		ResourceQuotaList: resourceQuotaList.Items,
 		ResourceLimits:    resourceLimits,
@@ -61,7 +61,7 @@ func getResourceQuotas(indexer *client.CacheFactory, cluster api.ICluster, names
 	list, err := indexer.ResourceQuotaLister().ResourceQuotas(namespace.Name).List(labels.Everything())
 
 	result := &rq.ResourceQuotaDetailList{
-		Items:    make([]api.ResourceQuotaDetail, 0),
+		Items: make([]api.ResourceQuotaDetail, 0),
 	}
 
 	for _, item := range list {

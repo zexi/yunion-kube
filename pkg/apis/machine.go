@@ -5,7 +5,9 @@ import (
 )
 
 type MachineCreateConfig struct {
-	Vm *MachineCreateVMConfig `json:"vm,omitempty"`
+	ImageRepository *ImageRepository       `json:"image_repository"`
+	DockerConfig    *DockerConfig          `json:"docker_config"`
+	Vm              *MachineCreateVMConfig `json:"vm,omitempty"`
 }
 
 type MachineCreateVMConfig struct {

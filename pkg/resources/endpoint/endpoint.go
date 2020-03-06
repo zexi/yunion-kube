@@ -52,11 +52,11 @@ func GetEndpoints(client *client.CacheFactory, namespace, name string) ([]*v1.En
 func toEndpoint(ep *v1.Endpoints, address v1.EndpointAddress, ports []v1.EndpointPort, ready bool, cluster api.ICluster) *api.EndpointDetail {
 	return &api.EndpointDetail{
 		ObjectMeta: api.NewObjectMeta(ep.ObjectMeta, cluster),
-		TypeMeta: api.NewTypeMeta(ep.TypeMeta),
-		Host:     address.IP,
-		Ports:    ports,
-		Ready:    ready,
-		NodeName: address.NodeName,
+		TypeMeta:   api.NewTypeMeta(ep.TypeMeta),
+		Host:       address.IP,
+		Ports:      ports,
+		Ready:      ready,
+		NodeName:   address.NodeName,
 	}
 }
 

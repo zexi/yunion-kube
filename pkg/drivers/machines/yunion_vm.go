@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	api "yunion.io/x/onecloud/pkg/apis/compute"
@@ -20,11 +19,9 @@ import (
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
-	"yunion.io/x/yunion-kube/pkg/utils/registry"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
 )
 
@@ -43,25 +40,34 @@ func init() {
 	machines.RegisterMachineDriver(driver)
 }
 
-func (d *SYunionVMDriver) GetProvider() types.ProviderType {
-	return types.ProviderTypeOnecloud
+func (d *SYunionVMDriver) GetProvider() apis.ProviderType {
+	return apis.ProviderTypeOnecloud
 }
 
-func (d *SYunionVMDriver) GetResourceType() types.MachineResourceType {
-	return types.MachineResourceTypeVm
+func (d *SYunionVMDriver) GetResourceType() apis.MachineResourceType {
+	return apis.MachineResourceTypeVm
 }
 
-func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	resType, _ := data.GetString("resource_type")
-	if resType != types.MachineResourceTypeVm {
-		return httperrors.NewInputParameterError("Invalid resource type: %q", resType)
+func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, input *apis.CreateMachineData) error {
+	if input.ResourceType != apis.MachineResourceTypeVm {
+		return httperrors.NewInputParameterError("Invalid resource type: %q", input.ResourceType)
 	}
-	resId := jsonutils.GetAnyString(data, []string{"instance", "resource_id"})
-	if len(resId) != 0 {
+	if len(input.ResourceId) != 0 {
 		return httperrors.NewInputParameterError("Resource id must not provide")
 	}
 
-	return d.sClusterAPIBaseDriver.ValidateCreateData(session, userCred, ownerId, query, data)
+	return d.validateConfig(session, input.Config.Vm)
+}
+
+func (d *SYunionVMDriver) validateConfig(s *mcclient.ClientSession, config *apis.MachineCreateVMConfig) error {
+	validateData := jsonutils.NewDict()
+	validateData.Add(jsonutils.Marshal(config), cloudmod.Servers.GetKeyword())
+	ret, err := cloudmod.Servers.PerformClassAction(s, "check-create-data", validateData)
+	log.Infof("check server create data: %s, ret: %s err: %v", validateData, ret, err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *SYunionVMDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
@@ -94,26 +100,36 @@ func (d *SYunionVMDriver) getServerCreateInput(machine *machines.SMachine, prepa
 	return input, nil
 }
 
-func GetDefaultDockerConfig() *apis.DockerConfig {
+func GetDefaultDockerConfig(input *apis.DockerConfig) *apis.DockerConfig {
 	o := options.Options
-	return &apis.DockerConfig{
-		Graph: apis.DefaultDockerGraphDir,
-		RegistryMirrors: []string{
+	if input.Graph == "" {
+		input.Graph = apis.DefaultDockerGraphDir
+	}
+	if len(input.RegistryMirrors) == 0 {
+		input.RegistryMirrors = []string{
 			apis.DefaultDockerRegistryMirror1,
 			apis.DefaultDockerRegistryMirror2,
 			apis.DefaultDockerRegistryMirror3,
-		},
-		InsecureRegistries: []string{},
-		Bip:                o.DockerdBip,
-		LiveRestore:        true,
-		//ExecOpts:           []string{"native.cgroupdriver=systemd"},
-		ExecOpts:  []string{"native.cgroupdriver=cgroupfs"},
-		LogDriver: "json-file",
-		LogOpts: apis.DockerConfigLogOpts{
-			MaxSize: "100m",
-		},
-		StorageDriver: "overlay2",
+		}
 	}
+	if len(input.Bip) == 0 {
+		input.Bip = o.DockerdBip
+	}
+	input.LiveRestore = true
+	if len(input.ExecOpts) == 0 {
+		//ExecOpts:           []string{"native.cgroupdriver=systemd"},
+		input.ExecOpts = []string{"native.cgroupdriver=cgroupfs"}
+	}
+	if input.LogDriver == "" {
+		input.LogDriver = "json-file"
+		input.LogOpts = apis.DockerConfigLogOpts{
+			MaxSize: "100m",
+		}
+	}
+	if input.StorageDriver == "" {
+		input.StorageDriver = "overlay2"
+	}
+	return input
 }
 
 func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data *apis.MachinePrepareInput, ip string) (string, error) {
@@ -130,16 +146,17 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data 
 		return "", err
 	}
 
+	imageRepo := data.Config.ImageRepository
 	kubeletExtraArgs := map[string]string{
 		"cgroup-driver":             "cgroupfs",
 		"read-only-port":            "10255",
-		"pod-infra-container-image": "registry.cn-beijing.aliyuncs.com/yunionio/pause-amd64:3.1",
+		"pod-infra-container-image": fmt.Sprintf("%s/pause-amd64:3.1", imageRepo.Url),
 		"feature-gates":             "CSIPersistentVolume=true,KubeletPluginsWatcher=true,VolumeScheduling=true",
 		"eviction-hard":             "memory.available<100Mi,nodefs.available<2Gi,nodefs.inodesFree<5%",
 	}
-	dockerConfig := GetDefaultDockerConfig()
+	dockerConfig := GetDefaultDockerConfig(data.Config.DockerConfig)
 	switch data.Role {
-	case types.RoleTypeControlplane:
+	case apis.RoleTypeControlplane:
 		if data.BootstrapToken != "" {
 			log.Infof("Allowing a machine to join the control plane")
 			apiServerEndpoint, err := cluster.GetAPIServerEndpoint()
@@ -185,7 +202,7 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data 
 			clusterConfiguration.Scheduler.ExtraArgs = map[string]string{
 				"feature-gates": "CSIPersistentVolume=true",
 			}
-			clusterConfiguration.ImageRepository = registry.DefaultRegistryMirror
+			clusterConfiguration.ImageRepository = imageRepo.Url
 
 			initConfiguration := kubeadm.SetInitConfigurationOverrides(&kubeadmv1beta1.InitConfiguration{
 				NodeRegistration: kubeadmv1beta1.NodeRegistrationOptions{
@@ -214,7 +231,7 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data 
 				return "", err
 			}
 		}
-	case types.RoleTypeNode:
+	case apis.RoleTypeNode:
 		apiServerEndpoint, err := cluster.GetAPIServerEndpoint()
 		if err != nil {
 			return "", err

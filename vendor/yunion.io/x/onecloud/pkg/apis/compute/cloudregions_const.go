@@ -35,6 +35,7 @@ const (
 	CITY_TAIPEI        = "Taipei"      //台北市
 	CITY_KAOHSIUNG     = "Kaohsiung"   //高雄市
 	CITY_CHENG_DU      = "Chengdu"     //成都
+	CITY_HE_YUAN       = "HeYuan"      //河源
 	CITY_CHONG_QING    = "Chongqing"   //重庆
 
 	// 日本
@@ -48,6 +49,20 @@ const (
 	CITY_SYDNEY     = "Sydney"     //悉尼
 	CITY_YARRALUMLA = "Yarralumla" //亚拉伦拉
 	CITY_MELBOURNE  = "Melbourne"  //墨尔本
+
+	//芬兰
+	CITY_FINLAND = "Finland"
+
+	//比利时
+	CITY_BELGIUM = "Belgium" //比利时
+
+	//瑞士
+	CITY_ZURICH = "Zurich" //苏黎世
+	CITY_GENEVA = "Geneva" //日内瓦
+
+	// 挪威
+	CITY_STAVANGER = "Stavanger" //斯塔万格
+	CITY_OSLO      = "Oslo"      // 奥斯陆
 
 	// 马来西亚
 	CITY_KUALA_LUMPUR = "Kuala Lumpur" //吉隆坡
@@ -85,7 +100,8 @@ const (
 	CITY_DUBAI = "Dubai" //迪拜
 
 	// 德国
-	CITY_FRANKFURT = "Frankfurt" //法兰克福
+	CITY_FRANKFURT   = "Frankfurt"   // 法兰克福
+	CITY_DELMENHORST = "Delmenhorst" // 代尔门霍斯特
 
 	// 韩国
 	CITY_SEOUL = "Seoul" //首尔
@@ -115,8 +131,9 @@ const (
 	CITY_HOLLAND = "Holland" //荷兰
 
 	// 南非
-	CITY_PRETORIA  = "Pretoria"  //比勒陀利亚
-	CITY_CAPE_TOWN = "Cape Town" //开普敦
+	CITY_PRETORIA     = "Pretoria"     //比勒陀利亚
+	CITY_CAPE_TOWN    = "Cape Town"    //开普敦
+	CITY_JOHANNESBURG = "Johannesburg" //约翰内斯堡
 
 	// 泰国
 	CITY_BANGKOK = "Bangkok" //曼谷
@@ -153,4 +170,6 @@ const (
 	COUNTRY_CODE_RU = "RU" //俄罗斯
 	COUNTRY_CODE_NG = "NG" //尼日利亚
 	COUNTRY_CODE_VN = "VN" //越南
+	COUNTRY_CODE_CH = "CH" //瑞士
+	COUNTRY_CODE_NO = "NO" //挪威
 )
