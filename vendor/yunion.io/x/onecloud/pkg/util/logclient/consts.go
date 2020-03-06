@@ -126,6 +126,13 @@ const (
 	ACT_VM_IO_THROTTLE               = "虚拟机磁盘限速"
 	ACT_VM_RESET                     = "虚拟机回滚快照"
 	ACT_VM_SNAPSHOT_AND_CLONE        = "虚拟机快照并克隆"
+	ACT_VM_BLOCK_STREAM              = "同步数据"
+
+	ACT_REBOOT        = "重启"
+	ACT_CHANGE_CONFIG = "调整配置"
+
+	ACT_OPEN_PUBLIC_CONNECTION  = "打开外网地址"
+	ACT_CLOSE_PUBLIC_CONNECTION = "关闭外网地址"
 
 	ACT_IMAGE_SAVE  = "上传镜像"
 	ACT_IMAGE_PROBE = "镜像检测"
@@ -147,4 +154,28 @@ const (
 	ACT_MKDIR         = "创建目录"
 	ACT_DELETE_OBJECT = "删除对象"
 	ACT_UPLOAD_OBJECT = "上传对象"
+
+	ACT_NAT_CREATE_SNAT = "创建SNAT规则"
+	ACT_NAT_CREATE_DNAT = "创建DNAT规则"
+	ACT_NAT_DELETE_SNAT = "删除SNAT规则"
+	ACT_NAT_DELETE_DNAT = "删除DNAT规则"
+
+	ACT_GRANT_PRIVILEGE  = "赋予权限"
+	ACT_REVOKE_PRIVILEGE = "解除权限"
+	ACT_SET_PRIVILEGES   = "设置权限"
+	ACT_RESTORE          = "备份恢复"
+	ACT_RESET_PASSWORD   = "重置密码"
+
+	ACT_VM_ASSOCIATE            = "绑定虚拟机"
+	ACT_VM_DISSOCIATE           = "解绑虚拟机"
+	ACT_NATGATEWAY_DISSOCIATE   = "解绑NAT网关"
+	ACT_LOADBALANCER_DISSOCIATE = "解绑负载均衡"
+
+	ACT_PREPARE = "同步硬件配置"
+	ACT_PROBE   = "检测配置"
+
+	ACT_INSTANCE_GROUP_BIND   = "绑定主机组"
+	ACT_INSTANCE_GROUP_UNBIND = "解绑主机组"
+
+	ACT_FLUSH_INSTANCE = "清空数据"
 )

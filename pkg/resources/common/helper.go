@@ -210,7 +210,7 @@ func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOpti
 		ObjectMeta: *objMeta,
 		Spec: v1.ServiceSpec{
 			Selector: selector,
-			Type:     v1.ServiceType(opt.Type),
+			Type:     v1.ServiceType(svcType),
 			Ports:    GetServicePortsByMapping(opt.PortMappings),
 		},
 	}

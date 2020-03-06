@@ -49,6 +49,7 @@ const (
 	// STORAGE_CLOUD_SSD ="cloud_ssd"
 	STORAGE_LOCAL_BASIC   = "local_basic"
 	STORAGE_LOCAL_SSD     = "local_ssd"
+	STORAGE_LOCAL_PRO     = "local_pro"
 	STORAGE_CLOUD_BASIC   = "cloud_basic"
 	STORAGE_CLOUD_PREMIUM = "cloud_premium"
 
@@ -59,6 +60,7 @@ const (
 
 	// openstack
 	STORAGE_OPENSTACK_ISCSI = "iscsi"
+	STORAGE_OPENSTACK_NOVA  = "nova"
 
 	// Ucloud storage type
 	STORAGE_UCLOUD_CLOUD_NORMAL         = "CLOUD_NORMAL"         // 普通云盘
@@ -116,6 +118,7 @@ var (
 	STORAGE_LIMITED_TYPES = []string{STORAGE_LOCAL, STORAGE_BAREMETAL, STORAGE_NAS, STORAGE_RBD, STORAGE_NFS, STORAGE_GPFS}
 
 	SHARED_FILE_STORAGE = []string{STORAGE_NFS, STORAGE_GPFS}
+	FIEL_STORAGE        = []string{STORAGE_LOCAL, STORAGE_NFS, STORAGE_GPFS}
 
 	// 目前来说只支持这些
 	SHARED_STORAGE = []string{STORAGE_NFS, STORAGE_GPFS, STORAGE_RBD}

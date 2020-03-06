@@ -11,12 +11,13 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type IMachineDriver interface {
-	GetProvider() types.ProviderType
-	GetResourceType() types.MachineResourceType
+	clusters.IMachineDriver
+
+	GetProvider() apis.ProviderType
+	GetResourceType() apis.MachineResourceType
 	GetPrivateIP(session *mcclient.ClientSession, resourceId string) (string, error)
 	UseClusterAPI() bool
 
@@ -44,7 +45,7 @@ func RegisterMachineDriver(driver IMachineDriver) {
 	}
 }
 
-func GetDriver(provider types.ProviderType, resType types.MachineResourceType) IMachineDriver {
+func GetDriver(provider apis.ProviderType, resType apis.MachineResourceType) IMachineDriver {
 	drv, err := machineDrivers.Get(string(provider), string(resType))
 	if err != nil {
 		log.Fatalf("Get machine driver provider: %s, resource type: %s error: %v", provider, resType, err)

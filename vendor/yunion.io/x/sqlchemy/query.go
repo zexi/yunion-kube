@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/reflectutils"
 )
 
@@ -103,6 +104,8 @@ type SQuery struct {
 	offset   int
 
 	fieldCache map[string]IQueryField
+
+	snapshot string
 }
 
 type SSubQuery struct {
@@ -172,7 +175,7 @@ func (sq *SSubQuery) findField(id string) IQueryField {
 	for i := range queryFields {
 		if queryFields[i].Name() == id {
 			sq.referedFields[id] = sq.query.Field(queryFields[i].Name())
-			return queryFields[i]
+			return sq.referedFields[id]
 		}
 	}
 	return nil
@@ -628,7 +631,7 @@ func (q *SQuery) First(dest interface{}) error {
 	}
 	destPtrValue := reflect.ValueOf(dest)
 	if destPtrValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("input must be a pointer")
+		return errors.Wrap(ErrNeedsPointer, "input must be a pointer")
 	}
 	destValue := destPtrValue.Elem()
 	err = mapString2Struct(mapResult, destValue)
@@ -643,7 +646,7 @@ func (q *SQuery) All(dest interface{}) error {
 	arrayType := reflect.TypeOf(dest).Elem()
 
 	if arrayType.Kind() != reflect.Array && arrayType.Kind() != reflect.Slice {
-		return fmt.Errorf("dest is not an array or slice")
+		return errors.Wrap(ErrNeedsArray, "dest is not an array or slice")
 	}
 	elemType := arrayType.Elem()
 
@@ -674,7 +677,7 @@ func (q *SQuery) Row2Map(row IRowScanner) (map[string]string, error) {
 func (q *SQuery) RowMap2Struct(result map[string]string, dest interface{}) error {
 	destPtrValue := reflect.ValueOf(dest)
 	if destPtrValue.Kind() != reflect.Ptr {
-		return fmt.Errorf("input must be a pointer")
+		return errors.Wrap(ErrNeedsPointer, "input must be a pointer")
 	}
 
 	destValue := destPtrValue.Elem()
@@ -692,4 +695,16 @@ func (q *SQuery) Row2Struct(row IRowScanner, dest interface{}) error {
 		return err
 	}
 	return q.RowMap2Struct(result, dest)
+}
+
+func (q *SQuery) Snapshot() *SQuery {
+	q.snapshot = q.String()
+	return q
+}
+
+func (q *SQuery) IsAltered() bool {
+	if len(q.snapshot) == 0 {
+		panic(fmt.Sprintf("Query %s has never been snapshot when IsAltered called", q.String()))
+	}
+	return q.String() != q.snapshot
 }

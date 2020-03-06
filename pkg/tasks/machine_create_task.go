@@ -8,8 +8,9 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
-	"yunion.io/x/yunion-kube/pkg/models/types"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 func init() {
@@ -41,6 +42,7 @@ func (t *MachineCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 func (t *MachineCreateTask) OnMachinePrepared(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	//machine := obj.(*machines.SMachine)
 	t.SetStageComplete(ctx, nil)
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionMachineCreate, nil, t.UserCred, true)
 }
 
 func (t *MachineCreateTask) OnMachinePreparedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -49,6 +51,7 @@ func (t *MachineCreateTask) OnMachinePreparedFailed(ctx context.Context, obj db.
 }
 
 func (t *MachineCreateTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {
-	machine.SetStatus(t.UserCred, types.MachineStatusCreateFail, err.Error())
+	machine.SetStatus(t.UserCred, apis.MachineStatusCreateFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
+	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachineCreate, err.Error(), t.UserCred, false)
 }

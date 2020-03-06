@@ -16,7 +16,12 @@ package modules
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strings"
+
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
@@ -26,17 +31,31 @@ type SkusManager struct {
 	modulebase.ResourceManager
 }
 
+type OfflineCloudmetaManager struct {
+	modulebase.ResourceManager
+}
+
 type ServerSkusManager struct {
 	modulebase.ResourceManager
 }
 
+type ElasticcacheSkusManager struct {
+	modulebase.ResourceManager
+}
+
 var (
-	CloudmetaSkus SkusManager
-	ServerSkus    ServerSkusManager
+	CloudmetaSkus    SkusManager             // meta.yunion.io
+	OfflineCloudmeta OfflineCloudmetaManager // aliyun offine sku&rate data
+	ServerSkus       ServerSkusManager       // region service: server sku manager
+	ElasticcacheSkus ElasticcacheSkusManager // region service: elasitc cache sku manager
 )
 
 func init() {
 	CloudmetaSkus = SkusManager{NewCloudmetaManager("sku", "skus",
+		[]string{},
+		[]string{})}
+
+	OfflineCloudmeta = OfflineCloudmetaManager{NewOfflineCloudmetaManager("", "",
 		[]string{},
 		[]string{})}
 
@@ -49,8 +68,13 @@ func init() {
 			"Provider", "Postpaid_status", "Prepaid_status", "Region", "Region_ext_id", "Zone", "Zone_ext_id"},
 		[]string{"Total_guest_count"})}
 
+	ElasticcacheSkus = ElasticcacheSkusManager{NewComputeManager("elasticcachesku", "elasticcacheskus",
+		[]string{},
+		[]string{})}
+
 	register(&CloudmetaSkus)
 	registerCompute(&ServerSkus)
+	registerCompute(&ElasticcacheSkus)
 }
 
 func (self *SkusManager) GetSkus(s *mcclient.ClientSession, providerId, regionId, zoneId string, limit, offset int) (*modulebase.ListResult, error) {
@@ -64,4 +88,30 @@ func (self *SkusManager) GetSkus(s *mcclient.ClientSession, providerId, regionId
 	}
 
 	return ret, nil
+}
+
+func (self *OfflineCloudmetaManager) GetSkuSourcesMeta(s *mcclient.ClientSession) (jsonutils.JSONObject, error) {
+	baseUrl, err := s.GetServiceVersionURL(self.ServiceType(), self.EndpointType(), self.GetApiVersion())
+	if err != nil {
+		return nil, err
+	}
+	baseUrl = strings.TrimLeft(baseUrl, "/")
+	metaUrl := strings.Join([]string{baseUrl, "sku.meta"}, "/")
+	resp, err := http.Get(metaUrl)
+	if err != nil {
+		return nil, errors.Wrap(err, "OfflineCloudmetaManager.GetSkuSourcesMeta.Get")
+	}
+
+	defer resp.Body.Close()
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "OfflineCloudmetaManager.GetSkuSourcesMeta.ReadAll")
+	}
+
+	meta, err := jsonutils.Parse(content)
+	if err != nil {
+		return nil, errors.Wrap(err, "OfflineCloudmetaManager.GetSkuSourcesMeta.Parse")
+	}
+
+	return meta, nil
 }

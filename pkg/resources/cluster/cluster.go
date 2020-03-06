@@ -5,6 +5,7 @@ import (
 
 	"yunion.io/x/log"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
@@ -13,7 +14,6 @@ import (
 	pv "yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 var ClusterManager *SClusterManager
