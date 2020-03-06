@@ -16,9 +16,9 @@ import (
 
 	"yunion.io/x/log"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 const (
@@ -100,11 +100,11 @@ func BuildApiserverClient() {
 			}
 
 			clusterManager := &ClusterManager{
-				Cluster:    cluster,
-				Config:     config,
-				KubeClient: NewResourceHandler(clientSet, cacheFactory),
-				APIServer:  apiServer,
-				KubeConfig: kubeconfig,
+				Cluster:        cluster,
+				Config:         config,
+				KubeClient:     NewResourceHandler(clientSet, cacheFactory),
+				APIServer:      apiServer,
+				KubeConfig:     kubeconfig,
 				KubeConfigPath: kubeconfigPath,
 			}
 			managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
@@ -201,7 +201,7 @@ func GetManager(cluster string) (*ClusterManager, error) {
 	}
 	man := manInterface.(*ClusterManager)
 	status := man.Cluster.GetStatus()
-	if status != types.ClusterStatusRunning {
+	if status != apis.ClusterStatusRunning {
 		return nil, errors.Wrapf(ErrStatus, "cluster %s status %s", cluster, status)
 	}
 	return man, nil

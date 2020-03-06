@@ -10,9 +10,9 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type SDefaultImportDriver struct {
@@ -21,24 +21,12 @@ type SDefaultImportDriver struct {
 
 func NewDefaultImportDriver() *SDefaultImportDriver {
 	return &SDefaultImportDriver{
-		SBaseDriver: newBaseDriver(),
+		SBaseDriver: newBaseDriver(apis.ModeTypeImport, apis.ProviderTypeExternal, apis.ClusterResourceTypeUnknown),
 	}
 }
 
 func init() {
 	clusters.RegisterClusterDriver(NewDefaultImportDriver())
-}
-
-func (d *SDefaultImportDriver) GetMode() types.ModeType {
-	return types.ModeTypeImport
-}
-
-func (d *SDefaultImportDriver) GetProvider() types.ProviderType {
-	return types.ProviderTypeExternal
-}
-
-func (d *SDefaultImportDriver) GetResourceType() types.ClusterResourceType {
-	return types.ClusterResourceTypeUnknown
 }
 
 func (d *SDefaultImportDriver) GetK8sVersions() []string {
@@ -47,7 +35,7 @@ func (d *SDefaultImportDriver) GetK8sVersions() []string {
 
 func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	// test kubeconfig is work
-	createData := types.CreateClusterData{}
+	createData := apis.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
@@ -81,6 +69,11 @@ func (d *SDefaultImportDriver) GetKubeconfig(cluster *clusters.SCluster) (string
 	return cluster.Kubeconfig, nil
 }
 
-func (d *SDefaultImportDriver) ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, c *clusters.SCluster, data []*types.CreateMachineData) error {
+func (d *SDefaultImportDriver) ValidateCreateMachines(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	c *clusters.SCluster,
+	imageRepo *apis.ImageRepository,
+	data []*apis.CreateMachineData) error {
 	return httperrors.NewBadRequestError("Not support add machines")
 }

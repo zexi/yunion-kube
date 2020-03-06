@@ -2,13 +2,13 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/apis"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/models/machines"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 func init() {
@@ -43,6 +43,6 @@ func (t *MachineTerminateTask) OnInit(ctx context.Context, obj db.IStandaloneMod
 }
 
 func (t *MachineTerminateTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {
-	machine.SetStatus(t.UserCred, types.MachineStatusTerminateFail, err.Error())
+	machine.SetStatus(t.UserCred, apis.MachineStatusTerminateFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 }

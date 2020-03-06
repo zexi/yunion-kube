@@ -3,13 +3,14 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type ClusterCreateMachinesTask struct {
@@ -20,10 +21,10 @@ func init() {
 	taskman.RegisterTask(ClusterCreateMachinesTask{})
 }
 
-func (t *ClusterCreateMachinesTask) getMachines(cluster *clusters.SCluster) ([]*types.CreateMachineData, error) {
+func (t *ClusterCreateMachinesTask) getMachines(cluster *clusters.SCluster) ([]*apis.CreateMachineData, error) {
 	params := t.GetParams()
-	ret := []*types.CreateMachineData{}
-	ms := []types.CreateMachineData{}
+	ret := []*apis.CreateMachineData{}
+	ms := []apis.CreateMachineData{}
 	if err := params.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
 	}
@@ -49,11 +50,12 @@ func (t *ClusterCreateMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 	}
 }
 
-func (t *ClusterCreateMachinesTask) createMachines(ctx context.Context, cluster *clusters.SCluster, ms []*types.CreateMachineData) error {
+func (t *ClusterCreateMachinesTask) createMachines(ctx context.Context, cluster *clusters.SCluster, ms []*apis.CreateMachineData) error {
 	return cluster.CreateMachines(ctx, t.GetUserCred(), ms, t)
 }
 
 func (t *ClusterCreateMachinesTask) OnMachinesCreated(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -62,5 +64,6 @@ func (t *ClusterCreateMachinesTask) OnMachinesCreatedFailed(ctx context.Context,
 }
 
 func (t *ClusterCreateMachinesTask) onError(ctx context.Context, cluster *clusters.SCluster, err error) {
-	SetObjectTaskFailed(ctx, t, cluster, types.ClusterStatusCreateMachineFail, err.Error())
+	SetObjectTaskFailed(ctx, t, cluster, apis.ClusterStatusCreateMachineFail, err.Error())
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, err.Error(), t.UserCred, false)
 }

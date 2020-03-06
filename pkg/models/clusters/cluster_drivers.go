@@ -8,20 +8,20 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type IClusterDriver interface {
-	GetMode() types.ModeType
-	GetProvider() types.ProviderType
-	GetResourceType() types.ClusterResourceType
+	GetMode() apis.ModeType
+	GetProvider() apis.ProviderType
+	GetResourceType() apis.ClusterResourceType
 
 	// GetK8sVersions return current cluster k8s versions supported
 	GetK8sVersions() []string
 	// GetUsableInstances return usable instances for cluster
-	GetUsableInstances(session *mcclient.ClientSession) ([]types.UsableInstance, error)
+	GetUsableInstances(session *mcclient.ClientSession) ([]apis.UsableInstance, error)
 	// GetKubeconfig get current cluster kubeconfig
 	GetKubeconfig(cluster *SCluster) (string, error)
 
@@ -31,10 +31,10 @@ type IClusterDriver interface {
 	RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
 
 	// CreateClusterResource create cluster resource to global k8s cluster
-	CreateClusterResource(man *SClusterManager, data *types.CreateClusterData) error
-	ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) error
+	CreateClusterResource(man *SClusterManager, data *apis.ClusterCreateInput) error
+	ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, imageRepo *apis.ImageRepository, data []*apis.CreateMachineData) error
 	// CreateMachines create machines record in db
-	CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error)
+	CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error)
 	// RequestDeployMachines deploy machines after machines created
 	RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
 	// GetAddonsManifest return addons yaml manifest to be applied to cluster
@@ -46,6 +46,12 @@ type IClusterDriver interface {
 	NeedGenerateCertificate() bool
 	// NeedCreateMachines make this driver create machines models
 	NeedCreateMachines() bool
+
+	GetMachineDriver(resourceType apis.MachineResourceType) IMachineDriver
+}
+
+type IMachineDriver interface {
+	ValidateCreateData(s *mcclient.ClientSession, input *apis.CreateMachineData) error
 }
 
 var clusterDrivers *drivers.DriverManager
@@ -68,9 +74,9 @@ func RegisterClusterDriver(driver IClusterDriver) {
 }
 
 func GetDriverWithError(
-	mode types.ModeType,
-	provider types.ProviderType,
-	resType types.ClusterResourceType,
+	mode apis.ModeType,
+	provider apis.ProviderType,
+	resType apis.ClusterResourceType,
 ) (IClusterDriver, error) {
 	drv, err := clusterDrivers.Get(string(mode), string(provider), string(resType))
 	if err != nil {
@@ -79,7 +85,7 @@ func GetDriverWithError(
 	return drv.(IClusterDriver), nil
 }
 
-func GetDriver(mode types.ModeType, provider types.ProviderType, resType types.ClusterResourceType) IClusterDriver {
+func GetDriver(mode apis.ModeType, provider apis.ProviderType, resType apis.ClusterResourceType) IClusterDriver {
 	drv, err := GetDriverWithError(mode, provider, resType)
 	if err != nil {
 		log.Fatalf("Get driver cluster provider: %s, resource type: %s error: %v", provider, resType, err)

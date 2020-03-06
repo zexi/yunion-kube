@@ -4,11 +4,11 @@ import (
 	apps "k8s.io/api/apps/v1beta2"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/resources/replicaset"
-	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
 //GetDeploymentOldReplicaSets returns old replica sets targeting Deployment with given name
