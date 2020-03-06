@@ -30,7 +30,7 @@ func GetIngressDetail(indexer *client.CacheFactory, cluster api.ICluster, namesp
 func getIngressDetail(rawIngress *extensions.Ingress, cluster api.ICluster) *api.IngressDetail {
 	return &api.IngressDetail{
 		Ingress: ToIngress(rawIngress, cluster),
-		Spec:       rawIngress.Spec,
-		Status:     rawIngress.Status,
+		Spec:    rawIngress.Spec,
+		Status:  rawIngress.Status,
 	}
 }

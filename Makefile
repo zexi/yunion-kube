@@ -20,6 +20,13 @@ LDFLAGS := "-w \
 	-X $(VERSION_PKG_PREFIX).buildDate=$(BUILD_DATE)"
 
 export GO111MODULE:=on
+export GOPROXY:=direct
+RELEASE_BRANCH:=release/2.12
+mod:
+	go get yunion.io/x/onecloud@$(RELEASE_BRANCH)
+	go get $(patsubst %,%@master,$(shell GO111MODULE=on go mod edit -print | sed -n -e 's|.*\(yunion.io/x/[a-z].*\) v.*|\1|p' | grep -v '/onecloud$$'))
+	go mod tidy
+	go mod vendor -v
 
 GO_BUILD := go build -mod vendor -ldflags $(LDFLAGS)
 

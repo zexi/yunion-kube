@@ -1,7 +1,7 @@
 package statefulset
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -61,5 +61,5 @@ func (m *SStatefuleSetManager) Update(req *common.Request, id string) (interface
 	}
 	newObj.Spec.Template = *template
 	cli := req.GetK8sClient()
-	return cli.AppsV1beta2().StatefulSets(newObj.GetNamespace()).Update(newObj)
+	return cli.AppsV1().StatefulSets(newObj.GetNamespace()).Update(newObj)
 }

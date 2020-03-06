@@ -18,7 +18,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
 )
@@ -38,24 +37,19 @@ func init() {
 	machines.RegisterMachineDriver(driver)
 }
 
-func (d *SYunionHostDriver) GetProvider() types.ProviderType {
-	return types.ProviderTypeOnecloud
+func (d *SYunionHostDriver) GetProvider() apis.ProviderType {
+	return apis.ProviderTypeOnecloud
 }
 
-func (d *SYunionHostDriver) GetResourceType() types.MachineResourceType {
-	return types.MachineResourceTypeBaremetal
+func (d *SYunionHostDriver) GetResourceType() apis.MachineResourceType {
+	return apis.MachineResourceTypeBaremetal
 }
 
-func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	if !userCred.HasSystemAdminPrivilege() {
-		return httperrors.NewForbiddenError("Only system admin can use host resource")
-	}
-	resType, _ := data.GetString("resource_type")
-	if err := yunion_host.ValidateResourceType(resType); err != nil {
+func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, input *apis.CreateMachineData) error {
+	if err := yunion_host.ValidateResourceType(input.ResourceType); err != nil {
 		return err
 	}
-	resId := jsonutils.GetAnyString(data, []string{"instance", "resource_id"})
-	if len(resId) == 0 {
+	if len(input.ResourceId) == 0 {
 		return httperrors.NewInputParameterError("Resource id must provide")
 	}
 
@@ -79,19 +73,19 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 	if err != nil {
 		return err
 	}
-	ret, err := yunion_host.ValidateHostId(session, privateKey, resId)
+	ret, err := yunion_host.ValidateHostId(session, privateKey, input.ResourceId)
 	if err != nil {
 		return err
 	}
-	resId, err = ret.GetString("id")
+	resId, err := ret.GetString("id")
 	if err != nil {
 		return err
 	}
 
-	data.Set("resource_id", jsonutils.NewString(resId))
-	name, _ := ret.Get("name")
-	data.Set("name", name)
-	return d.sBaseDriver.ValidateCreateData(session, userCred, ownerId, query, data)
+	input.ResourceId = resId
+	name, _ := ret.GetString("name")
+	input.Name = name
+	return d.sBaseDriver.ValidateCreateData(input.Name)
 }
 
 func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
@@ -100,7 +94,7 @@ func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.To
 
 func createContainerSchedtag(s *mcclient.ClientSession) error {
 	params := jsonutils.NewDict()
-	params.Add(jsonutils.NewString(types.ContainerSchedtag), "name")
+	params.Add(jsonutils.NewString(apis.ContainerSchedtag), "name")
 	params.Add(jsonutils.NewString("Allow run container"), "description")
 	_, err := cloudmod.Schedtags.Create(s, params)
 	if err != nil {
@@ -117,7 +111,7 @@ func addMachineToContainerSchedtag(s *mcclient.ClientSession, machine *machines.
 	if err != nil {
 		return err
 	}
-	_, err = cloudmod.Schedtaghosts.Attach(s, types.ContainerSchedtag, machine.ResourceId, nil)
+	_, err = cloudmod.Schedtaghosts.Attach(s, apis.ContainerSchedtag, machine.ResourceId, nil)
 	if err != nil {
 		log.Errorf("Add node %s to container schedtag error: %v", machine.Name, err)
 	}
@@ -146,7 +140,7 @@ func removeCloudContainers(s *mcclient.ClientSession, machine *machines.SMachine
 }
 
 func removeMachineFromContainerSchedtag(s *mcclient.ClientSession, machine *machines.SMachine) error {
-	_, err := cloudmod.Schedtaghosts.Detach(s, types.ContainerSchedtag, machine.ResourceId, nil)
+	_, err := cloudmod.Schedtaghosts.Detach(s, apis.ContainerSchedtag, machine.ResourceId, nil)
 	return err
 }
 

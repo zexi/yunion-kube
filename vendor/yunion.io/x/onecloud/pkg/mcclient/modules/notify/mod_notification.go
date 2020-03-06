@@ -15,10 +15,12 @@
 package notify
 
 import (
+	"fmt"
+
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
 
@@ -42,7 +44,12 @@ type NotificationManager struct {
 }
 
 func (manager *NotificationManager) Send(s *mcclient.ClientSession, msg SNotifyMessage) error {
-	_, err := manager.Create(s, jsonutils.Marshal(&msg))
+	params := jsonutils.Marshal(&msg)
+	body := jsonutils.NewDict()
+	body.Add(params, manager.Keyword)
+
+	path := fmt.Sprintf("/%s?uname=true", manager.ContextPath(nil))
+	_, err := modulebase.Post(manager.ResourceManager, s, path, body, manager.KeywordPlural)
 	return err
 }
 

@@ -3,13 +3,14 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 func init() {
@@ -20,13 +21,13 @@ type ClusterCreateTask struct {
 	taskman.STask
 }
 
-func (t *ClusterCreateTask) getMachines(cluster *clusters.SCluster) ([]*types.CreateMachineData, error) {
+func (t *ClusterCreateTask) getMachines(cluster *clusters.SCluster) ([]*apis.CreateMachineData, error) {
 	if !cluster.GetDriver().NeedCreateMachines() {
 		return nil, nil
 	}
 	params := t.GetParams()
-	ret := []*types.CreateMachineData{}
-	ms := []types.CreateMachineData{}
+	ret := []*apis.CreateMachineData{}
+	ms := []apis.CreateMachineData{}
 	if err := params.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func (t *ClusterCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.OnApplyAddonsComplete(ctx, obj, data)
 		return
 	}
-	res := types.CreateClusterData{}
+	res := apis.ClusterCreateInput{}
 	if err := t.GetParams().Unmarshal(&res); err != nil {
 		t.onError(ctx, obj, fmt.Errorf("Unmarshal: %v", err))
 		return
@@ -75,6 +76,7 @@ func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *cluster
 func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
 	t.SetStage("OnApplyAddonsComplete", nil)
 	cluster.StartApplyAddonsTask(ctx, t.GetUserCred(), t.GetParams(), t.GetTaskId())
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterAddMachine, nil, t.UserCred, true)
 }
 
 func (t *ClusterCreateTask) OnMachinesCreatedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -85,6 +87,7 @@ func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IS
 	cluster := obj.(*clusters.SCluster)
 	t.SetStage("OnSyncStatus", nil)
 	cluster.StartSyncStatus(ctx, t.UserCred, t.GetTaskId())
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, nil, t.UserCred, true)
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsCompleteFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -93,6 +96,7 @@ func (t *ClusterCreateTask) OnApplyAddonsCompleteFailed(ctx context.Context, obj
 
 func (t *ClusterCreateTask) OnSyncStatus(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterSyncStatus, nil, t.UserCred, true)
 }
 
 func (t *ClusterCreateTask) OnSyncStatusFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -105,6 +109,7 @@ func (t *ClusterCreateTask) onError(ctx context.Context, cluster db.IStandaloneM
 
 func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*clusters.SCluster)
-	cluster.SetStatus(t.UserCred, types.ClusterStatusCreateFail, reason)
+	cluster.SetStatus(t.UserCred, apis.ClusterStatusCreateFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterCreate, reason, t.UserCred, false)
 }

@@ -51,6 +51,7 @@ const (
 	BAREMETAL_RUNNING        = "running"
 	BAREMETAL_MAINTAINING    = "maintaining"
 	BAREMETAL_START_MAINTAIN = "start_maintain"
+	BAREMETAL_MAINTAIN_FAIL  = "maintain_fail"
 	BAREMETAL_DELETING       = "deleting"
 	BAREMETAL_DELETE         = "delete"
 	BAREMETAL_DELETE_FAIL    = "delete_fail"
@@ -63,13 +64,26 @@ const (
 	BAREMETAL_START_FAIL     = "start_fail"
 	BAREMETAL_STOP_FAIL      = "stop_fail"
 
+	BAREMETAL_START_PROBE = "start_probe"
+	BAREMETAL_PROBING     = "probing"
+	BAREMETAL_PROBE_FAIL  = "probe_fail"
+
+	BAREMETAL_START_INSERT_ISO = "start_insert"
+	BAREMETAL_INSERTING_ISO    = "inserting_iso"
+	BAREMETAL_INSERT_FAIL      = "insert_fail"
+
+	BAREMETAL_START_EJECT_ISO = "start_eject"
+	BAREMETAL_EJECTING_ISO    = "ejecting_iso"
+	BAREMETAL_EJECT_FAIL      = "eject_fail"
+
 	HOST_STATUS_RUNNING = BAREMETAL_RUNNING
 	HOST_STATUS_READY   = BAREMETAL_READY
 	HOST_STATUS_UNKNOWN = BAREMETAL_UNKNOWN
+)
 
-	HOST_START_MAINTAIN = "start_maintain"
-	HOST_MAINTAINING    = "maintaining"
-	HOST_MAINTAIN_FAILE = "maintain_fail"
+const (
+	BAREMETAL_CDROM_ACTION_INSERT = "insert"
+	BAREMETAL_CDROM_ACTION_EJECT  = "eject"
 )
 
 const (
@@ -96,3 +110,12 @@ var HOST_TYPES = []string{
 }
 
 var NIC_TYPES = []string{NIC_TYPE_IPMI, NIC_TYPE_ADMIN}
+
+const (
+	ACCESS_MAC_ANY = "00:00:00:00:00:00"
+)
+
+const (
+	BOOT_MODE_PXE = "pxe"
+	BOOT_MODE_ISO = "iso"
+)

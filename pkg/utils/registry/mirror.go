@@ -4,11 +4,7 @@ import (
 	"fmt"
 )
 
-const (
-	DefaultRegistryMirror = "registry.cn-beijing.aliyuncs.com/yunionio"
-)
-
-func MirrorImage(name string, tag string, prefix string) string {
+func MirrorImage(imageRepo, name string, tag string, prefix string) string {
 	if tag == "" {
 		tag = "latest"
 	}
@@ -16,5 +12,5 @@ func MirrorImage(name string, tag string, prefix string) string {
 	if prefix != "" {
 		name = fmt.Sprintf("%s-%s", prefix, name)
 	}
-	return fmt.Sprintf("%s/%s", DefaultRegistryMirror, name)
+	return fmt.Sprintf("%s/%s", imageRepo, name)
 }

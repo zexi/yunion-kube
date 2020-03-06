@@ -1,7 +1,7 @@
 package deployment
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -63,5 +63,5 @@ func (m *SDeploymentManager) Update(req *common.Request, id string) (interface{}
 	}
 	newDeploy.Spec.Template = *template
 	cli := req.GetK8sClient()
-	return cli.AppsV1beta2().Deployments(newDeploy.GetNamespace()).Update(newDeploy)
+	return cli.AppsV1().Deployments(newDeploy.GetNamespace()).Update(newDeploy)
 }

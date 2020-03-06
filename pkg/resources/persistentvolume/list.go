@@ -61,7 +61,7 @@ func toPersistentVolumeList(persistentVolumes []*v1.PersistentVolume, dsQuery *d
 
 func (l *PersistentVolumeList) Append(obj interface{}) {
 	item := obj.(*v1.PersistentVolume)
-	l.Items = append(l.Items,ToPeristentVolume(item, l.GetCluster()))
+	l.Items = append(l.Items, ToPeristentVolume(item, l.GetCluster()))
 }
 
 func ToPeristentVolume(pv *v1.PersistentVolume, cluster api.ICluster) api.PersistentVolume {

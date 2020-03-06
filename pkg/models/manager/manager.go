@@ -6,7 +6,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/models/types"
+	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type ICluster interface {
@@ -23,7 +23,7 @@ type ICluster interface {
 type IClusterManager interface {
 	IsClusterExists(userCred mcclient.TokenCredential, id string) (ICluster, bool, error)
 	FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (ICluster, error)
-	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data types.CreateClusterData) (ICluster, error)
+	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data apis.ClusterCreateInput) (ICluster, error)
 	//GetNonSystemClusters() ([]ICluster, error)
 }
 
@@ -46,7 +46,7 @@ type IMachineManager interface {
 	FetchMachineByIdOrName(userCred mcclient.TokenCredential, id string) (IMachine, error)
 	GetMachines(clusterId string) ([]IMachine, error)
 	IsMachineExists(userCred mcclient.TokenCredential, id string) (IMachine, bool, error)
-	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (IMachine, error)
+	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *apis.CreateMachineData) (IMachine, error)
 }
 
 var (

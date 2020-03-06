@@ -16,7 +16,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/zexi/golosetup v0.0.0-20181117053200-8c308e8bbf44
-	go.etcd.io/etcd v3.3.12+incompatible
+	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
 	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	google.golang.org/grpc v1.24.0
@@ -33,12 +33,11 @@ require (
 	k8s.io/kube-proxy v0.0.0
 	k8s.io/kubernetes v1.16.0
 	sigs.k8s.io/controller-runtime v0.1.10
-	yunion.io/x/jsonutils v0.0.0-20191005115334-bb1c187fc0e7
+	yunion.io/x/jsonutils v0.0.0-20200303051356-aa609aba0cda
 	yunion.io/x/log v0.0.0-20190629062853-9f6483a7103d
-	yunion.io/x/onecloud v0.0.0-20191015082323-3d9b48567b60
-	yunion.io/x/pkg v0.0.0-20191002154235-995be969f32c
-	yunion.io/x/sqlchemy v0.0.0-20191008135637-33eb2e4f6cc7
-	yunion.io/x/yke v0.0.0-20190223082954-99f789382375
+	yunion.io/x/onecloud v0.0.0-20200302181946-fe2eeaf97c2f
+	yunion.io/x/pkg v0.0.0-20200304112442-9dae9351325e
+	yunion.io/x/sqlchemy v0.0.0-20200303101347-d1e82c81b4e1
 )
 
 replace (

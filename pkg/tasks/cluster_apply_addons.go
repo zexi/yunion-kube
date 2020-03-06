@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -47,6 +48,7 @@ func ApplyAddons(cluster *clusters.SCluster) error {
 	return cli.Apply(manifest)
 }
 
-func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, machine *clusters.SCluster, err error) {
+func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *clusters.SCluster, err error) {
 	t.SetStageFailed(ctx, err.Error())
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err.Error(), t.UserCred, false)
 }

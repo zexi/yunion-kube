@@ -13,7 +13,7 @@ import (
 
 const (
 	INFLUXDB_DB_CONF_KEY = "global.influxdb.database"
-	YUNION_REPO_NAME = "default"
+	YUNION_REPO_NAME     = "default"
 )
 
 type IReleaseAppHooker interface {

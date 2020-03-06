@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/util/reflectutils"
 )
@@ -91,7 +92,7 @@ func (t *STableSpec) insertSqlPrep(dataFields reflectutils.SStructFieldValueSet,
 		}
 
 		_, isTextCol := c.(*STextColumn)
-		if c.IsSupportDefault() && (len(c.Default()) > 0 || isTextCol) && !gotypes.IsNil(ov) && c.IsZero(ov) { // empty text value
+		if c.IsSupportDefault() && (len(c.Default()) > 0 || isTextCol) && !gotypes.IsNil(ov) && c.IsZero(ov) && !c.AllowZero() { // empty text value
 			val := c.ConvertFromString(c.Default())
 			values = append(values, val)
 			names = append(names, fmt.Sprintf("`%s`", k))
@@ -128,7 +129,7 @@ func (t *STableSpec) insertSqlPrep(dataFields reflectutils.SStructFieldValueSet,
 				names = append(names, fmt.Sprintf("`%s`", k))
 				format = append(format, "?")
 			} else {
-				return "", nil, fmt.Errorf("cannot insert for null primary key %q", k)
+				return "", nil, errors.Wrapf(ErrEmptyPrimaryKey, "cannot insert for null primary key %q", k)
 			}
 
 			continue
@@ -179,7 +180,7 @@ func (t *STableSpec) insert(data interface{}, update bool, debug bool) error {
 		targetCnt = 2
 	}
 	if affectCnt < 1 || affectCnt > targetCnt {
-		return fmt.Errorf("Insert affected cnt %d != (1, %d)", affectCnt, targetCnt)
+		return errors.Wrapf(ErrUnexpectRowCount, "Insert affected cnt %d != (1, %d)", affectCnt, targetCnt)
 	}
 
 	/*
@@ -203,8 +204,7 @@ func (t *STableSpec) insert(data interface{}, update bool, debug bool) error {
 			if ok && nc.IsAutoIncrement {
 				lastId, err := results.LastInsertId()
 				if err != nil {
-					err := fmt.Errorf("fetching lastInsertId failed: %v", err)
-					return err
+					return errors.Wrap(err, "fetching lastInsertId failed")
 				} else {
 					q = q.Equals(c.Name(), lastId)
 				}
@@ -218,8 +218,7 @@ func (t *STableSpec) insert(data interface{}, update bool, debug bool) error {
 	}
 	err = q.First(data)
 	if err != nil {
-		err := fmt.Errorf("query after insert failed: %v", err)
-		return err
+		return errors.Wrap(err, "query after insert failed")
 	}
 
 	return nil

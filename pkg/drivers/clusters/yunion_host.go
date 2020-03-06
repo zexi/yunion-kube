@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"yunion.io/x/yunion-kube/pkg/apis"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
@@ -24,7 +25,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/utils/etcd"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/registry"
@@ -35,26 +35,14 @@ type SYunionHostDriver struct {
 	*sClusterAPIDriver
 }
 
-func NewYunionHostDriver() *SYunionHostDriver {
+func NewYunionHostDriver() clusters.IClusterDriver {
 	return &SYunionHostDriver{
-		sClusterAPIDriver: newClusterAPIDriver(),
+		sClusterAPIDriver: newClusterAPIDriver(apis.ModeTypeSelfBuild, apis.ProviderTypeOnecloud, apis.ClusterResourceTypeHost),
 	}
 }
 
 func init() {
 	clusters.RegisterClusterDriver(NewYunionHostDriver())
-}
-
-func (d *SYunionHostDriver) GetMode() types.ModeType {
-	return types.ModeTypeSelfBuild
-}
-
-func (d *SYunionHostDriver) GetProvider() types.ProviderType {
-	return types.ProviderTypeOnecloud
-}
-
-func (d *SYunionHostDriver) GetResourceType() types.ClusterResourceType {
-	return types.ClusterResourceTypeHost
 }
 
 func (d *SYunionHostDriver) GetK8sVersions() []string {
@@ -70,7 +58,7 @@ func (d *SYunionHostDriver) ValidateCreateData(ctx context.Context, userCred mcc
 	return yunion_host.ValidateClusterCreateData(data)
 }
 
-func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
+func GetUsableCloudHosts(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
 	params := jsonutils.NewDict()
 	filter := jsonutils.NewArray()
 	filter.Add(jsonutils.NewString(fmt.Sprintf("host_type.in(%s, %s)", "hypervisor", "kubelet")))
@@ -81,7 +69,7 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, err
 	if err != nil {
 		return nil, err
 	}
-	ret := []types.UsableInstance{}
+	ret := []apis.UsableInstance{}
 	for _, host := range result.Data {
 		id, _ := host.GetString("id")
 		if len(id) == 0 {
@@ -95,16 +83,16 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]types.UsableInstance, err
 		if machine != nil {
 			continue
 		}
-		ret = append(ret, types.UsableInstance{
+		ret = append(ret, apis.UsableInstance{
 			Id:   id,
 			Name: name,
-			Type: types.MachineResourceTypeBaremetal,
+			Type: apis.MachineResourceTypeBaremetal,
 		})
 	}
 	return ret, nil
 }
 
-func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
+func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
 	return GetUsableCloudHosts(s)
 }
 
@@ -129,14 +117,19 @@ func (d *SYunionHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, e
 	return out, err
 }
 
-func (d *SYunionHostDriver) ValidateCreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) error {
+func (d *SYunionHostDriver) ValidateCreateMachines(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	cluster *clusters.SCluster,
+	repo *apis.ImageRepository,
+	data []*apis.CreateMachineData) error {
 	if _, _, err := d.sClusterAPIDriver.ValidateCreateMachines(ctx, userCred, cluster, data); err != nil {
 		return err
 	}
 	return yunion_host.ValidateCreateMachines(data)
 }
 
-func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 
@@ -149,11 +142,15 @@ func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (strin
 	if err != nil {
 		return "", err
 	}
+	reg, err := cluster.GetImageRepository()
+	if err != nil {
+		return "", err
+	}
 	pluginConf := &addons.YunionHostPluginsConfig{
 		YunionCommonPluginsConfig: commonConf,
 		CNIYunionConfig: &addons.CNIYunionConfig{
 			YunionAuthConfig: commonConf.CloudProviderYunionConfig.YunionAuthConfig,
-			CNIImage:         registry.MirrorImage("cni", "v2.7.0", ""),
+			CNIImage:         registry.MirrorImage(reg.Url, "cni", "v2.7.0", ""),
 			ClusterCIDR:      cluster.GetServiceCidr(),
 		},
 	}
