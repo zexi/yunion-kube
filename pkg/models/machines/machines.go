@@ -25,7 +25,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 var MachineManager *SMachineManager
@@ -123,7 +122,7 @@ func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, i
 	return obj.(*SMachine), true, nil
 }
 
-func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *apis.CreateMachineData) (manager.IMachine, error) {
 	input := jsonutils.Marshal(data)
 	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred)
 	if err != nil {
@@ -134,8 +133,8 @@ func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mc
 	return m, err
 }
 
-func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*types.CreateMachineData, error) {
-	input := new(types.CreateMachineData)
+func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*apis.CreateMachineData, error) {
+	input := new(apis.CreateMachineData)
 	ret := m.GetMetadataJson(apis.MachineMetadataCreateParams, userCred)
 	if ret == nil {
 		return nil, errors.Errorf("Not found %s in metadata", apis.MachineMetadataCreateParams)
@@ -144,7 +143,7 @@ func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*types.Cre
 	return input, err
 }
 
-func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *types.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *apis.CreateMachineData) (manager.IMachine, error) {
 	obj, err := man.CreateMachineNoHook(ctx, userCred, data)
 	if err != nil {
 		return nil, err
@@ -166,7 +165,7 @@ func (man *SMachineManager) GetClusterControlplaneMachines(clusterId string) ([]
 	}
 	ret := make([]*SMachine, 0)
 	for _, m := range machines {
-		if m.Role == string(types.RoleTypeControlplane) {
+		if m.Role == string(apis.RoleTypeControlplane) {
 			ret = append(ret, m)
 		}
 	}
@@ -229,8 +228,8 @@ func (man *SMachineManager) FetchMachineByIdOrName(userCred mcclient.TokenCreden
 
 func ValidateRole(role string) error {
 	if !utils.IsInStringArray(role, []string{
-		string(types.RoleTypeControlplane),
-		string(types.RoleTypeNode),
+		string(apis.RoleTypeControlplane),
+		string(apis.RoleTypeNode),
 	}) {
 		return httperrors.NewInputParameterError("Invalid role: %q", role)
 	}
@@ -239,8 +238,8 @@ func ValidateRole(role string) error {
 
 func ValidateResourceType(resType string) error {
 	if !utils.IsInStringArray(resType, []string{
-		string(types.MachineResourceTypeVm),
-		string(types.MachineResourceTypeBaremetal),
+		string(apis.MachineResourceTypeVm),
+		string(apis.MachineResourceTypeBaremetal),
 	}) {
 		return httperrors.NewInputParameterError("Invalid machine resource type: %q", resType)
 	}
@@ -260,7 +259,7 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	data.Set("cluster_id", jsonutils.NewString(clusterId))
 	data.Set("provider", jsonutils.NewString(cluster.Provider))
 
-	resourceType := clusters.SetJSONDataDefault(data, "resource_type", string(types.MachineResourceTypeBaremetal))
+	resourceType := clusters.SetJSONDataDefault(data, "resource_type", string(apis.MachineResourceTypeBaremetal))
 	if err := ValidateResourceType(resourceType); err != nil {
 		return nil, err
 	}
@@ -274,8 +273,8 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	if err != nil {
 		return nil, err
 	}
-	if len(clusterMachines) == 0 && role != string(types.RoleTypeControlplane) {
-		return nil, httperrors.NewInputParameterError("First machine's role must %s", types.RoleTypeControlplane)
+	if len(clusterMachines) == 0 && role != string(apis.RoleTypeControlplane) {
+		return nil, httperrors.NewInputParameterError("First machine's role must %s", apis.RoleTypeControlplane)
 	}
 	firstNode := jsonutils.JSONFalse
 	if len(clusterMachines) == 0 {
@@ -283,9 +282,9 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 	data.Set("first_node", firstNode)
 
-	machine := new(types.CreateMachineData)
+	machine := new(apis.CreateMachineData)
 	data.Unmarshal(machine)
-	ms, err := cluster.ValidateAddMachines(ctx, userCred, []types.CreateMachineData{*machine})
+	ms, err := cluster.ValidateAddMachines(ctx, userCred, []apis.CreateMachineData{*machine})
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +301,7 @@ func (m *SMachine) PostCreate(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (m *SMachine) StartMachineCreateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, types.MachineStatusCreating, ""); err != nil {
+	if err := m.SetStatus(userCred, apis.MachineStatusCreating, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "MachineCreateTask", m, userCred, data, parentTaskId, "", nil)
@@ -344,7 +343,7 @@ func (m *SMachine) AllowPerformRecreate(ctx context.Context, userCred mcclient.T
 }
 
 func (m *SMachine) PerformRecreate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if m.Status != types.MachineStatusCreateFail {
+	if m.Status != apis.MachineStatusCreateFail {
 		return nil, httperrors.NewForbiddenError("Status is %s", m.SetStatus)
 	}
 	if err := m.StartMachineCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
@@ -362,7 +361,7 @@ func (m *SMachine) ValidatePrepareCondition(ctx context.Context, userCred mcclie
 }
 
 func (m *SMachine) StartPrepareTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, types.MachineStatusPrepare, ""); err != nil {
+	if err := m.SetStatus(userCred, apis.MachineStatusPrepare, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "MachinePrepareTask", m, userCred, data, parentTaskId, "", nil)
@@ -377,7 +376,7 @@ func (m *SMachine) PerformPrepare(ctx context.Context, userCred mcclient.TokenCr
 	if err := m.ValidatePrepareCondition(ctx, userCred, query, data); err != nil {
 		return nil, err
 	}
-	if utils.IsInStringArray(m.Status, []string{types.MachineStatusRunning, types.MachineStatusDeleting}) {
+	if utils.IsInStringArray(m.Status, []string{apis.MachineStatusRunning, apis.MachineStatusDeleting}) {
 		return nil, fmt.Errorf("machine status is %s", m.Status)
 	}
 
@@ -426,7 +425,7 @@ func (m *SMachine) PerformTerminate(ctx context.Context, userCred mcclient.Token
 
 // StartTerminateTask invoke by MachineBatchDeleteTask
 func (m *SMachine) StartTerminateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, types.MachineStatusTerminating, ""); err != nil {
+	if err := m.SetStatus(userCred, apis.MachineStatusTerminating, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "MachineTerminateTask", m, userCred, data, parentTaskId, "", nil)
@@ -476,7 +475,7 @@ func (m *SMachine) SetHypervisor(hypervisor string) error {
 }
 
 func (m *SMachine) GetDriver() IMachineDriver {
-	return GetDriver(types.ProviderType(m.Provider), types.MachineResourceType(m.ResourceType))
+	return GetDriver(apis.ProviderType(m.Provider), apis.MachineResourceType(m.ResourceType))
 }
 
 func (m *SMachine) GetRole() string {
@@ -484,11 +483,11 @@ func (m *SMachine) GetRole() string {
 }
 
 func (m *SMachine) IsControlplane() bool {
-	return m.GetRole() == types.RoleTypeControlplane
+	return m.GetRole() == apis.RoleTypeControlplane
 }
 
 func (m *SMachine) IsRunning() bool {
-	return m.Status == types.MachineStatusRunning
+	return m.Status == apis.MachineStatusRunning
 }
 
 func (m *SMachine) IsFirstNode() bool {
@@ -503,10 +502,10 @@ func WaitMachineRunning(machine *SMachine) error {
 		if err != nil {
 			return false, err
 		}
-		if machine.Status == types.MachineStatusRunning {
+		if machine.Status == apis.MachineStatusRunning {
 			return true, nil
 		}
-		if utils.IsInStringArray(machine.Status, []string{types.MachineStatusPrepare, types.MachineStatusCreating}) {
+		if utils.IsInStringArray(machine.Status, []string{apis.MachineStatusPrepare, apis.MachineStatusCreating}) {
 			return false, nil
 		}
 		return false, fmt.Errorf("Machine %s status is %s", machine.GetName(), machine.Status)
@@ -525,7 +524,7 @@ func WaitMachineDelete(machine *SMachine) error {
 			return true, nil
 		}
 		machine := m.(*SMachine)
-		if utils.IsInStringArray(machine.Status, []string{types.MachineStatusDeleting, types.MachineStatusTerminating}) {
+		if utils.IsInStringArray(machine.Status, []string{apis.MachineStatusDeleting, apis.MachineStatusTerminating}) {
 			return false, nil
 		}
 		return false, fmt.Errorf("Machine %s status is %s", machine.GetName(), machine.Status)

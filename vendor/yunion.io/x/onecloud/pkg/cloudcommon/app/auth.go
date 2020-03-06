@@ -16,12 +16,9 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	"yunion.io/x/log"
-	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
@@ -33,23 +30,19 @@ import (
 func InitAuth(options *common_options.CommonOptions, authComplete auth.AuthCompletedCallback) {
 
 	if len(options.AuthURL) == 0 {
-		fmt.Println("Missing AuthURL")
-		os.Exit(1)
+		log.Fatalln("Missing AuthURL")
 	}
 
 	if len(options.AdminUser) == 0 {
-		fmt.Println("Mising AdminUser")
-		os.Exit(1)
+		log.Fatalln("Mising AdminUser")
 	}
 
 	if len(options.AdminPassword) == 0 {
-		fmt.Println("Missing AdminPasswd")
-		os.Exit(1)
+		log.Fatalln("Missing AdminPasswd")
 	}
 
 	if len(options.AdminProject) == 0 {
-		fmt.Println("Missing AdminProject")
-		os.Exit(1)
+		log.Fatalln("Missing AdminProject")
 	}
 
 	a := auth.NewAuthInfo(
@@ -62,14 +55,6 @@ func InitAuth(options *common_options.CommonOptions, authComplete auth.AuthCompl
 	)
 
 	// debug := options.LogLevel == "debug"
-
-	if options.SessionEndpointType != "" {
-		if !utils.IsInStringArray(options.SessionEndpointType,
-			[]string{auth.PublicEndpointType, auth.InternalEndpointType}) {
-			log.Fatalf("Invalid session endpoint type %s", options.SessionEndpointType)
-		}
-		auth.SetEndpointType(options.SessionEndpointType)
-	}
 
 	auth.Init(a, options.DebugClient, true, options.SslCertfile, options.SslKeyfile) // , authComplete)
 

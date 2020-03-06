@@ -10,7 +10,7 @@ type DaemonSet struct {
 	Pods   PodInfo `json:"podsInfo"`
 	Status string  `json:"status"`
 
-	ContainerImages     []ContainerImage `json:"containerImages"`
-	InitContainerImages []ContainerImage `json:"initContainerImages"`
-	Selector *v1.LabelSelector `json:"labelSelector"`
+	ContainerImages     []ContainerImage  `json:"containerImages"`
+	InitContainerImages []ContainerImage  `json:"initContainerImages"`
+	Selector            *v1.LabelSelector `json:"labelSelector"`
 }

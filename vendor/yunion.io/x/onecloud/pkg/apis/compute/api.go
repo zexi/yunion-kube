@@ -93,13 +93,13 @@ type IsolatedDeviceConfig struct {
 type BaremetalDiskConfig struct {
 	//Index int `json:"index"`
 	// disk type
-	Type string `json:"type"` // ssd / rotate
+	Type string `json:"type"`
 	// raid config
-	Conf         string  `json:"conf"`  // raid配置
-	Count        int64   `json:"count"` // 连续几块
-	Range        []int64 `json:"range"` // 指定几块
+	Conf         string  `json:"conf"`
+	Count        int64   `json:"count"`
+	Range        []int64 `json:"range"`
 	Splits       string  `json:"splits"`
-	Size         []int64 `json:"size"` //
+	Size         []int64 `json:"size"`
 	Adapter      *int    `json:"adapter,omitempty"`
 	Driver       string  `json:"driver"`
 	Cachedbadbbu *bool   `json:"cachedbadbbu,omitempty"`
@@ -188,6 +188,7 @@ type ServerCreateInput struct {
 	EipChargeType      string          `json:"eip_charge_type,omitempty"`
 	Eip                string          `json:"eip,omitempty"`
 	InstanceSnapshotId string          `json:"instance_snapshot_id,omitempty"`
+	Secgroups          []string        `json:"secgroups"`
 
 	OsType string `json:"os_type"`
 	// Fill by server
@@ -202,6 +203,9 @@ type ServerCreateInput struct {
 	ParentTaskId string `json:"__parent_task_id,omitempty"`
 	// default stroage type if host is given
 	DefaultStorageType string `json:"default_storage_type,omitempty"`
+
+	// Guest Image ID
+	GuestImageID string
 }
 
 type ServerCloneInput struct {

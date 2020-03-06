@@ -51,7 +51,7 @@ func (m *SDaemonSetManager) GetDaemonSetDetail(cli *client.CacheFactory, cluster
 
 	channels := &common.ResourceChannels{
 		EventList: common.GetEventListChannel(cli, common.NewSameNamespaceQuery(namespace)),
-		PodList: common.GetPodListChannel(cli, common.NewSameNamespaceQuery(namespace)),
+		PodList:   common.GetPodListChannel(cli, common.NewSameNamespaceQuery(namespace)),
 	}
 
 	events := <-channels.EventList.List
@@ -142,6 +142,6 @@ func ToDaemonSet(ds *extensions.DaemonSet, pods []*v1.Pod, events []*v1.Event, c
 		InitContainerImages: common.GetInitContainerImages(&ds.Spec.Template.Spec),
 		Pods:                podInfo,
 		Status:              podInfo.GetStatus(),
-		Selector: ds.Spec.Selector,
+		Selector:            ds.Spec.Selector,
 	}
 }

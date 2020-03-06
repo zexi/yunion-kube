@@ -104,18 +104,6 @@ var (
 				},
 				{
 					Service:  "compute",
-					Resource: "cloudproviders",
-					Action:   PolicyActionList,
-					Result:   rbacutils.Allow,
-				},
-				{
-					Service:  "compute",
-					Resource: "cloudproviders",
-					Action:   PolicyActionGet,
-					Result:   rbacutils.Allow,
-				},
-				{
-					Service:  "compute",
 					Resource: "cachedimages",
 					Action:   PolicyActionList,
 					Result:   rbacutils.Allow,
@@ -128,6 +116,18 @@ var (
 				},
 				{
 					Service:  "compute",
+					Resource: "dbinstance_skus",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "dbinstance_skus",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
 					Resource: "serverskus",
 					Action:   PolicyActionList,
 					Result:   rbacutils.Allow,
@@ -135,6 +135,18 @@ var (
 				{
 					Service:  "compute",
 					Resource: "serverskus",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "elasticcacheskus",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "compute",
+					Resource: "elasticcacheskus",
 					Action:   PolicyActionGet,
 					Result:   rbacutils.Allow,
 				},
@@ -166,6 +178,18 @@ var (
 					Service:  "yunionagent",
 					Resource: "readmarks",
 					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "services",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  identityapi.SERVICE_TYPE,
+					Resource: "services",
+					Action:   PolicyActionList,
 					Result:   rbacutils.Allow,
 				},
 			},
@@ -264,6 +288,24 @@ var (
 					Action:   PolicyActionList,
 					Result:   rbacutils.Allow,
 				},
+				{
+					Service:  "notify",
+					Resource: "contacts",
+					Action:   PolicyActionCreate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "notify",
+					Resource: "contacts",
+					Action:   PolicyActionUpdate,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "notify",
+					Resource: "contacts",
+					Action:   PolicyActionDelete,
+					Result:   rbacutils.Allow,
+				},
 			},
 		},
 		{
@@ -321,6 +363,18 @@ var (
 					Result:   rbacutils.Allow,
 				},
 				{
+					Service:  "image",
+					Resource: "guestimages",
+					Action:   PolicyActionList,
+					Result:   rbacutils.Allow,
+				},
+				{
+					Service:  "image",
+					Resource: "guestimages",
+					Action:   PolicyActionGet,
+					Result:   rbacutils.Allow,
+				},
+				{
 					Service:  "log",
 					Resource: "actions",
 					Action:   PolicyActionList,
@@ -332,23 +386,16 @@ var (
 					Action:   PolicyActionGet,
 					Result:   rbacutils.Allow,
 				},
-			},
-		},
-		{
-			// meta服务 dbinstance_skus列表不需要认证
-			Auth:  false,
-			Scope: rbacutils.ScopeSystem,
-			Rules: []rbacutils.SRbacRule{
 				{
-					Service:  "yunionmeta",
-					Resource: "dbinstance_skus",
-					Action:   PolicyActionGet,
+					Service:  "compute",
+					Resource: "cloudproviders",
+					Action:   PolicyActionList,
 					Result:   rbacutils.Allow,
 				},
 				{
-					Service:  "yunionmeta",
-					Resource: "dbinstance_skus",
-					Action:   PolicyActionList,
+					Service:  "compute",
+					Resource: "cloudproviders",
+					Action:   PolicyActionGet,
 					Result:   rbacutils.Allow,
 				},
 			},

@@ -3,7 +3,7 @@ package deployment
 import (
 	"reflect"
 
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/log"

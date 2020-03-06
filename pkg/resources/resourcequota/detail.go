@@ -10,7 +10,7 @@ import (
 // ResourceQuotaDetailList
 type ResourceQuotaDetailList struct {
 	apis.ListMeta `json:"listMeta"`
-	Items        []api.ResourceQuotaDetail `json:"items"`
+	Items         []api.ResourceQuotaDetail `json:"items"`
 }
 
 func ToResourceQuotaDetail(rawResourceQuota *v1.ResourceQuota, cluster api.ICluster) *api.ResourceQuotaDetail {
