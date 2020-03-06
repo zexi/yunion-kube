@@ -1,7 +1,7 @@
 package deployment
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"

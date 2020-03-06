@@ -1,7 +1,7 @@
 package docs
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )

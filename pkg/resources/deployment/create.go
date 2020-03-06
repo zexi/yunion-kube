@@ -1,7 +1,7 @@
 package deployment
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/app"
@@ -37,5 +37,5 @@ func createDeploymentApp(req *common.Request) (*apps.Deployment, error) {
 		return nil, err
 	}
 
-	return req.GetK8sClient().AppsV1beta2().Deployments(deployment.Namespace).Create(deployment)
+	return req.GetK8sClient().AppsV1().Deployments(deployment.Namespace).Create(deployment)
 }
