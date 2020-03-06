@@ -17,7 +17,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 )
@@ -85,7 +84,7 @@ func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, mac
 
 	// apply userdata values based on the role of the machine
 	switch data.Role {
-	case types.RoleTypeControlplane:
+	case apis.RoleTypeControlplane:
 		if data.BootstrapToken != "" {
 			log.Infof("Allow machine %q to join control plane for cluster %q", machine.Name, cluster.Name)
 			userData, err = userdata.JoinControlPlane(&userdata.ControlPlaneJoinInput{
@@ -134,7 +133,7 @@ func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, mac
 				return "", err
 			}
 		}
-	case types.RoleTypeNode:
+	case apis.RoleTypeNode:
 		userData, err = userdata.NewNode(&userdata.NodeInput{
 			BaseConfigure:  baseConfigure,
 			CACertHash:     caCertHash,

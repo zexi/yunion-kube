@@ -7,10 +7,10 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 type ClusterDeployMachinesTask struct {
@@ -53,6 +53,6 @@ func (t *ClusterDeployMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 }
 
 func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *clusters.SCluster, err error) {
-	cluster.SetStatus(t.UserCred, types.ClusterStatusError, err.Error())
+	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 }

@@ -13,10 +13,10 @@ import (
 	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/pkg/utils"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 )
 
@@ -26,7 +26,7 @@ const (
 )
 
 func ValidateResourceType(resType string) error {
-	if resType != types.MachineResourceTypeBaremetal {
+	if resType != apis.MachineResourceTypeBaremetal {
 		return httperrors.NewInputParameterError("Invalid resource type: %q", resType)
 	}
 	return nil
@@ -54,7 +54,7 @@ func ValidateHostId(s *mcclient.ClientSession, privateKey string, hostId string)
 	return ret, nil
 }
 
-func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *types.CreateMachineData) error {
+func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis.CreateMachineData) error {
 	if err := machines.ValidateRole(m.Role); err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func CheckControlplaneExists(cluster *clusters.SCluster) error {
 	return nil
 }
 
-func ValidateCreateMachines(ms []*types.CreateMachineData) error {
+func ValidateCreateMachines(ms []*apis.CreateMachineData) error {
 	session, err := clusters.ClusterManager.GetSession()
 	if err != nil {
 		return err
@@ -116,13 +116,13 @@ func ValidateCreateMachines(ms []*types.CreateMachineData) error {
 }
 
 func ValidateClusterCreateData(data *jsonutils.JSONDict) error {
-	createData := types.CreateClusterData{}
+	createData := apis.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	ms := createData.Machines
 	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 && createData.Provider != string(types.ProviderTypeSystem) {
+	if len(controls) == 0 && createData.Provider != string(apis.ProviderTypeSystem) {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
 	session, err := clusters.ClusterManager.GetSession()

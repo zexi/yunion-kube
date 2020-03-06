@@ -23,7 +23,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 	"yunion.io/x/yunion-kube/pkg/options"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/rand"
@@ -37,7 +36,7 @@ type SYunionVMDriver struct {
 
 func NewYunionVMDriver() *SYunionVMDriver {
 	return &SYunionVMDriver{
-		sClusterAPIDriver: newClusterAPIDriver(),
+		sClusterAPIDriver: newClusterAPIDriver(apis.ModeTypeSelfBuild, apis.ProviderTypeOnecloud, apis.ClusterResourceTypeGuest),
 	}
 }
 
@@ -45,16 +44,16 @@ func init() {
 	clusters.RegisterClusterDriver(NewYunionVMDriver())
 }
 
-func (d *SYunionVMDriver) GetMode() types.ModeType {
-	return types.ModeTypeSelfBuild
+func (d *SYunionVMDriver) GetMode() apis.ModeType {
+	return apis.ModeTypeSelfBuild
 }
 
-func (d *SYunionVMDriver) GetProvider() types.ProviderType {
-	return types.ProviderTypeOnecloud
+func (d *SYunionVMDriver) GetProvider() apis.ProviderType {
+	return apis.ProviderTypeOnecloud
 }
 
-func (d *SYunionVMDriver) GetResourceType() types.ClusterResourceType {
-	return types.ClusterResourceTypeGuest
+func (d *SYunionVMDriver) GetResourceType() apis.ClusterResourceType {
+	return apis.ClusterResourceTypeGuest
 }
 
 func (d *SYunionVMDriver) GetK8sVersions() []string {
@@ -141,7 +140,8 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *clusters.SCluster,
-	data []*types.CreateMachineData,
+	imageRepo *apis.ImageRepository,
+	data []*apis.CreateMachineData,
 ) error {
 	controls, nodes, err := d.sClusterAPIDriver.ValidateCreateMachines(ctx, userCred, cluster, data)
 	if err != nil {
@@ -155,8 +155,13 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 			return errors.New("VmNamePrefix not in context")
 		}
 		namePrefix = ret.(string)
+		imageRepo = clusters.ClusterManager.GetImageRepository(imageRepo)
 	} else {
 		namePrefix = cluster.GetName()
+		imageRepo, err = cluster.GetImageRepository()
+		if err != nil {
+			return errors.Wrap(err, "get cluster image repo")
+		}
 	}
 
 	session, err := clusters.ClusterManager.GetSession()
@@ -168,7 +173,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 		return httperrors.NewInputParameterError("Invalid kubernetes image: %v", err)
 	}
 	randStr := rand.String(4)
-	controlIdxs, err := getClusterMachineIndexs(cluster, types.RoleTypeControlplane, len(controls))
+	controlIdxs, err := getClusterMachineIndexs(cluster, apis.RoleTypeControlplane, len(controls))
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Generate controlplane machines name: %v", err)
 	}
@@ -180,7 +185,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 			return httperrors.NewInputParameterError("Apply controlplane vm config: %v", err)
 		}
 	}
-	nodeIdxs, err := getClusterMachineIndexs(cluster, types.RoleTypeNode, len(nodes))
+	nodeIdxs, err := getClusterMachineIndexs(cluster, apis.RoleTypeNode, len(nodes))
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Generate node machines name: %v", err)
 	}
@@ -216,18 +221,19 @@ func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mccli
 	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
-	createData := types.CreateClusterData{}
+	createData := apis.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	ms := createData.Machines
 	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 && createData.Provider != string(types.ProviderTypeOnecloud) {
+	if len(controls) == 0 && createData.Provider != string(apis.ProviderTypeOnecloud) {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
 
 	ctx = context.WithValue(ctx, "VmNamePrefix", createData.Name)
-	if err := d.ValidateCreateMachines(ctx, userCred, nil, ms); err != nil {
+	imageRepo := createData.ImageRepository
+	if err := d.ValidateCreateMachines(ctx, userCred, nil, imageRepo, ms); err != nil {
 		return err
 	}
 
@@ -235,7 +241,7 @@ func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mccli
 	return nil
 }
 
-func (d *SYunionVMDriver) applyMachineCreateConfig(m *types.CreateMachineData, imageId string) error {
+func (d *SYunionVMDriver) applyMachineCreateConfig(m *apis.CreateMachineData, imageId string) error {
 	if m.Config == nil {
 		m.Config = new(apis.MachineCreateConfig)
 	}
@@ -269,20 +275,24 @@ func (d *SYunionVMDriver) applyMachineCreateConfig(m *types.CreateMachineData, i
 	return nil
 }
 
-func (d *SYunionVMDriver) validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *types.CreateMachineData) error {
+func (d *SYunionVMDriver) validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis.CreateMachineData) error {
 	if err := machines.ValidateRole(m.Role); err != nil {
 		return err
 	}
-	if m.ResourceType != types.MachineResourceTypeVm {
+	if m.ResourceType != apis.MachineResourceTypeVm {
 		return httperrors.NewInputParameterError("Invalid resource type: %q", m.ResourceType)
 	}
 	if len(m.ResourceId) != 0 {
 		return httperrors.NewInputParameterError("ResourceId can't be specify")
 	}
+	mDrv := d.GetMachineDriver(apis.MachineResourceType(m.ResourceType))
+	if err := mDrv.ValidateCreateData(s, m); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (d *SYunionVMDriver) GetUsableInstances(s *mcclient.ClientSession) ([]types.UsableInstance, error) {
+func (d *SYunionVMDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
 	return nil, httperrors.NewInputParameterError("Can't get UsableInstances")
 }
 
@@ -315,11 +325,11 @@ func (d *SYunionVMDriver) GetKubeconfig(cluster *clusters.SCluster) (string, err
 	return out, err
 }
 
-func (d *SYunionVMDriver) CreateClusterResource(man *clusters.SClusterManager, data *types.CreateClusterData) error {
+func (d *SYunionVMDriver) CreateClusterResource(man *clusters.SClusterManager, data *apis.ClusterCreateInput) error {
 	return d.sClusterAPIDriver.CreateClusterResource(man, data)
 }
 
-func (d *SYunionVMDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*types.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SYunionVMDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 
@@ -333,12 +343,17 @@ func (d *SYunionVMDriver) GetAddonsManifest(cluster *clusters.SCluster) (string,
 		return "", err
 	}
 
+	reg, err := cluster.GetImageRepository()
+	if err != nil {
+		return "", err
+	}
+
 	pluginConf := &addons.YunionVMPluginsConfig{
 		YunionCommonPluginsConfig: commonConf,
 		CNICalicoConfig: &addons.CNICalicoConfig{
-			ControllerImage: registry.MirrorImage("kube-controllers", "v3.7.2", "calico"),
-			NodeImage:       registry.MirrorImage("node", "v3.7.2", "calico"),
-			CNIImage:        registry.MirrorImage("cni", "v3.7.2", "calico"),
+			ControllerImage: registry.MirrorImage(reg.Url, "kube-controllers", "v3.7.2", "calico"),
+			NodeImage:       registry.MirrorImage(reg.Url, "node", "v3.7.2", "calico"),
+			CNIImage:        registry.MirrorImage(reg.Url, "cni", "v3.7.2", "calico"),
 			ClusterCIDR:     cluster.GetPodCidr(),
 		},
 	}

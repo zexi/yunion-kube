@@ -62,7 +62,7 @@ type SVirtualResourceBase struct {
 	IsSystem bool `nullable:"true" default:"false" list:"admin" create:"optional"`
 
 	PendingDeletedAt time.Time ``
-	PendingDeleted   bool      `nullable:"false" default:"false" index:"true" get:"admin"`
+	PendingDeleted   bool      `nullable:"false" default:"false" index:"true" get:"user"`
 }
 
 func (model *SVirtualResourceBase) IsOwner(userCred mcclient.TokenCredential) bool {
@@ -109,6 +109,15 @@ func (manager *SVirtualResourceBaseManager) FilterByHiddenSystemAttributes(q *sq
 		q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
 	}
 	return q
+}
+
+func (model *SVirtualResourceBase) SetProjectInfo(ctx context.Context, userCred mcclient.TokenCredential, projectId, domainId string) error {
+	_, err := Update(model, func() error {
+		model.ProjectId = projectId
+		model.DomainId = domainId
+		return nil
+	})
+	return err
 }
 
 func (manager *SVirtualResourceBaseManager) FilterBySystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {

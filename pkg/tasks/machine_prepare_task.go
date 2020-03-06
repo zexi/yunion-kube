@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"github.com/pkg/errors"
 
@@ -12,7 +13,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 func init() {
@@ -66,7 +66,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 		t.OnError(ctx, machine, errors.Wrapf(err, "Set machine private ip %s", ip))
 		return
 	}
-	machine.SetStatus(t.UserCred, types.MachineStatusRunning, "")
+	machine.SetStatus(t.UserCred, apis.MachineStatusRunning, "")
 
 	log.Infof("Prepare machine complete")
 	//cluster, err := machine.GetCluster()
@@ -76,9 +76,11 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	//}
 	//cluster.StartSyncStatus(ctx, t.UserCred, "")
 	t.SetStageComplete(ctx, nil)
+	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, nil, t.UserCred, true)
 }
 
 func (t *MachinePrepareTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {
-	machine.SetStatus(t.UserCred, types.MachineStatusPrepareFail, err.Error())
+	machine.SetStatus(t.UserCred, apis.MachineStatusPrepareFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
+	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, err.Error(), t.UserCred, false)
 }

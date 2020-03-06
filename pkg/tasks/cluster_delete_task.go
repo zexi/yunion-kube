@@ -3,13 +3,14 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/types"
 )
 
 func init() {
@@ -48,6 +49,7 @@ func (t *ClusterDeleteTask) OnMachinesDeleted(ctx context.Context, cluster *clus
 		return
 	}
 	t.SetStageComplete(ctx, nil)
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDelete, nil, t.UserCred, true)
 }
 
 func (t *ClusterDeleteTask) OnMachinesDeletedFailed(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
@@ -60,6 +62,7 @@ func (t *ClusterDeleteTask) onError(ctx context.Context, cluster db.IStandaloneM
 
 func (t *ClusterDeleteTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*clusters.SCluster)
-	cluster.SetStatus(t.UserCred, types.ClusterStatusDeleteFail, "")
+	cluster.SetStatus(t.UserCred, apis.ClusterStatusDeleteFail, "")
 	t.STask.SetStageFailed(ctx, reason)
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterDelete, reason, t.UserCred, false)
 }

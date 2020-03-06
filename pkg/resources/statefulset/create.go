@@ -1,7 +1,7 @@
 package statefulset
 
 import (
-	apps "k8s.io/api/apps/v1beta2"
+	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
@@ -47,5 +47,5 @@ func createStatefulSetApp(req *common.Request) (*apps.StatefulSet, error) {
 		ObjectMeta: *objMeta,
 		Spec:       input.StatefulSetSpec,
 	}
-	return req.GetK8sClient().AppsV1beta2().StatefulSets(ss.Namespace).Create(ss)
+	return req.GetK8sClient().AppsV1().StatefulSets(ss.Namespace).Create(ss)
 }

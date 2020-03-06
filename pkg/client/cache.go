@@ -3,7 +3,7 @@ package client
 import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	apps "k8s.io/client-go/listers/apps/v1beta2"
+	apps "k8s.io/client-go/listers/apps/v1"
 	autoscalingv1 "k8s.io/client-go/listers/autoscaling/v1"
 	batch "k8s.io/client-go/listers/batch/v1"
 	batch2 "k8s.io/client-go/listers/batch/v1beta1"
@@ -58,7 +58,7 @@ func (c *CacheFactory) SecretLister() v1.SecretLister {
 }
 
 func (c *CacheFactory) DeploymentLister() apps.DeploymentLister {
-	return c.sharedInformerFactory.Apps().V1beta2().Deployments().Lister()
+	return c.sharedInformerFactory.Apps().V1().Deployments().Lister()
 }
 
 func (c *CacheFactory) DaemonSetLister() extensions.DaemonSetLister {
@@ -66,7 +66,7 @@ func (c *CacheFactory) DaemonSetLister() extensions.DaemonSetLister {
 }
 
 func (c *CacheFactory) StatefulSetLister() apps.StatefulSetLister {
-	return c.sharedInformerFactory.Apps().V1beta2().StatefulSets().Lister()
+	return c.sharedInformerFactory.Apps().V1().StatefulSets().Lister()
 }
 
 func (c *CacheFactory) NodeLister() v1.NodeLister {
@@ -102,7 +102,7 @@ func (c *CacheFactory) ReplicationControllerLister() v1.ReplicationControllerLis
 }
 
 func (c *CacheFactory) ReplicaSetLister() apps.ReplicaSetLister {
-	return c.sharedInformerFactory.Apps().V1beta2().ReplicaSets().Lister()
+	return c.sharedInformerFactory.Apps().V1().ReplicaSets().Lister()
 }
 
 func (c *CacheFactory) JobLister() batch.JobLister {
