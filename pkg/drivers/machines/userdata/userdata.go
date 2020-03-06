@@ -78,8 +78,9 @@ EOF
     size 10M
 }
 EOF
-	 systemctl enable docker
-	 systemctl restart docker
+	 systemctl enable docker ntpd
+	 systemctl restart docker ntpd
+     hwclock --utc --hctosys
 }
 configure_docker`
 

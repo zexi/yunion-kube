@@ -28,8 +28,9 @@ cat >/etc/docker/daemon.json <<EOF
 {{.DockerConfigJSON}}
 EOF
 
-systemctl enable docker
-systemctl restart docker
+systemctl enable docker ntpd
+systemctl restart docker ntpd
+hwclock --utc --hctosys
 
 {{ if or .InitConfiguration .ControlJoinConfiguration }}
 mkdir -p /etc/kubernetes/pki/etcd
