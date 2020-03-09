@@ -41,13 +41,18 @@ type SX509KeyPair struct {
 	PrivateKey  string `nullable:"false" create:"required"`
 }
 
-func (m *SX509KeyPairManager) generateName(cluster *SCluster, user string) string {
-	return fmt.Sprintf("%s-%s", cluster.GetName(), user)
+func (m *SX509KeyPairManager) generateName(cluster *SCluster, ownerId mcclient.IIdentityProvider, user string) (string, error) {
+	hint := fmt.Sprintf("%s-%s", cluster.GetName(), user)
+	return db.GenerateName(X509KeyPairManager, ownerId, hint)
 }
 
 func (m *SX509KeyPairManager) createKeyPair(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, kp apis.KeyPair, user string) (*SX509KeyPair, error) {
+	name, err := m.generateName(cluster, userCred, user)
+	if err != nil {
+		return nil, err
+	}
 	input := &apis.X509KeyPairCreateInput{
-		Name:        m.generateName(cluster, user),
+		Name:        name,
 		User:        user,
 		Certificate: string(kp.Cert),
 		PrivateKey:  string(kp.Key),
