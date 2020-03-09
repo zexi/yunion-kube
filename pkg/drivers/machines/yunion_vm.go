@@ -249,7 +249,10 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data 
 	return initScript, nil
 }
 
-func (d *SYunionVMDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
+func (d *SYunionVMDriver) PrepareResource(
+	session *mcclient.ClientSession,
+	machine *machines.SMachine,
+	data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	// 1. create vm
 	// 2. wait vm running
 	// 3. ssh run init script
@@ -287,7 +290,10 @@ func (d *SYunionVMDriver) PrepareResource(session *mcclient.ClientSession, machi
 		return nil, errors.Wrapf(err, "get machine %s init script", machine.GetName())
 	}
 	log.Debugf("Generate script: %s", script)
-	_, err = d.RemoteRunScript(session, id, script)
+	output, err := d.RemoteRunScript(session, id, script)
+	if err != nil {
+		return nil, errors.Wrapf(err, "output: %s", output)
+	}
 	return nil, err
 }
 
