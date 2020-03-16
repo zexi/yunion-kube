@@ -38,6 +38,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
 
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
+	_ "yunion.io/x/yunion-kube/pkg/resources/storageclass/drivers"
+	_ "yunion.io/x/yunion-kube/pkg/resources/secret/drivers"
 )
 
 func InitHandlers(app *appsrv.Application) {

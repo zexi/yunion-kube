@@ -4,9 +4,18 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-type RegistrySecretCreateInput struct {
-	K8sNamespaceResourceCreateInput
+const (
+	SecretTypeCephCSI v1.SecretType = "yunion.io/ceph-csi"
+)
 
+type SecretCreateInput struct {
+	K8sNamespaceResourceCreateInput
+	Type             v1.SecretType                      `json:"type"`
+	DockerConfigJson *DockerConfigJsonSecretCreateInput `json:"dockerConfigJson"`
+	CephCSI *CephCSISecretCreateInput `json:"cephCSI"`
+}
+
+type DockerConfigJsonSecretCreateInput struct {
 	// required: true
 	User string `json:"user"`
 	// required: true
@@ -14,6 +23,20 @@ type RegistrySecretCreateInput struct {
 	// required: true
 	Server string `json:"server"`
 	Email  string `json:"email"`
+}
+
+type RegistrySecretCreateInput struct {
+	K8sNamespaceResourceCreateInput
+	DockerConfigJsonSecretCreateInput
+}
+
+type CephCSISecretCreateInput struct {
+	// required: true
+	UserId string `json:"userId"`
+	// required: true
+	UserKey string `json:"userKey"`
+
+	EncryptionPassphrase string `json:"encryptionPassphrase"`
 }
 
 // Secret is a single secret returned to the frontend.
