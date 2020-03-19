@@ -80,6 +80,6 @@ func ToStorageClass(storageClass *storage.StorageClass, cluster api.ICluster) ap
 		TypeMeta:    api.NewTypeMeta(storageClass.TypeMeta),
 		Provisioner: storageClass.Provisioner,
 		Parameters:  storageClass.Parameters,
-		IsDefault: isDefault,
+		IsDefault:   isDefault,
 	}
 }

@@ -4,10 +4,8 @@ import (
 	v1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"yunion.io/x/pkg/errors"
 	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/log"
-
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/resources"
@@ -29,12 +27,12 @@ type SStorageClassManager struct {
 func init() {
 	StorageClassManager = &SStorageClassManager{
 		SClusterResourceManager: resources.NewClusterResourceManager("storageclass", "storageclasses"),
-		driverManager: drivers.NewDriverManager(""),
+		driverManager:           drivers.NewDriverManager(""),
 	}
 }
 
 type IStorageClassDriver interface {
-	ConnectionTest(input *apis.StorageClassCreateInput) (interface{}, error)
+	ConnectionTest(req *common.Request, input *apis.StorageClassCreateInput) (*apis.StorageClassTestResult, error)
 	ValidateCreateData(req *common.Request, input *apis.StorageClassCreateInput) error
 	ToStorageClassParams(input *apis.StorageClassCreateInput) (map[string]string, error)
 }
@@ -61,7 +59,6 @@ func (man *SStorageClassManager) AllowPerformSetDefault(req *common.Request, id 
 }
 
 func (man *SStorageClassManager) PerformSetDefault(req *common.Request, id string) (*v1.StorageClass, error) {
-	log.Errorf("======set storageclass %s default", id)
 	lister := req.GetIndexer().StorageClassLister()
 	scList, err := lister.List(labels.Everything())
 	if err != nil {

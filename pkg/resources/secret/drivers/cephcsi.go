@@ -13,7 +13,7 @@ func init() {
 	)
 }
 
-type cephCSI struct {}
+type cephCSI struct{}
 
 func (c cephCSI) ValidateCreateData(input *apis.SecretCreateInput) error {
 	conf := input.CephCSI
@@ -32,7 +32,7 @@ func (c cephCSI) ValidateCreateData(input *apis.SecretCreateInput) error {
 func (c cephCSI) ToData(input *apis.SecretCreateInput) (map[string]string, error) {
 	conf := input.CephCSI
 	ret := map[string]string{
-		"userID": conf.UserId,
+		"userID":  conf.UserId,
 		"userKey": conf.UserKey,
 	}
 	if conf.EncryptionPassphrase != "" {

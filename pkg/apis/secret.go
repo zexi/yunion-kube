@@ -12,7 +12,7 @@ type SecretCreateInput struct {
 	K8sNamespaceResourceCreateInput
 	Type             v1.SecretType                      `json:"type"`
 	DockerConfigJson *DockerConfigJsonSecretCreateInput `json:"dockerConfigJson"`
-	CephCSI *CephCSISecretCreateInput `json:"cephCSI"`
+	CephCSI          *CephCSISecretCreateInput          `json:"cephCSI"`
 }
 
 type DockerConfigJsonSecretCreateInput struct {

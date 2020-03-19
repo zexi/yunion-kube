@@ -39,6 +39,9 @@ func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sR
 	// create resources
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s", clusterPrefix, plural), handler.Filter(createHandler), metadata, "create", tags)
 
+	// perform action on resource manager
+	app.AddHandler2("POST", fmt.Sprintf("%s/%s/<action>", clusterPrefix, plural), handler.Filter(performClassActionHandler), metadata, "perform_class_action", tags)
+
 	// perform action on resource instance
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s/<resid>/<action>", clusterPrefix, plural), handler.Filter(performActionHandler), metadata, "perform_action", tags)
 
@@ -122,6 +125,26 @@ func getSpecHandler(ctx context.Context, w http.ResponseWriter, r *http.Request)
 func createHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, _, query, body := fetchEnv(ctx, w, r)
 	handleCreate(ctx, w, handler, query, body)
+}
+
+func performClassActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, body := fetchEnv(ctx, w, r)
+	var data jsonutils.JSONObject
+	if body != nil {
+		if body.Contains(handler.KeywordPlural()) {
+			data, _ = body.Get(handler.KeywordPlural())
+		} else {
+			data = body
+		}
+	} else {
+		data = jsonutils.NewDict()
+	}
+	result, err := handler.PerformClassAction(ctx, params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
+	if err != nil {
+		errors.GeneralServerError(w, err)
+		return
+	}
+	SendJSON(w, wrapBody(result, handler.KeywordPlural()))
 }
 
 func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {

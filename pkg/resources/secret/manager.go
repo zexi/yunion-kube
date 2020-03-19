@@ -8,8 +8,8 @@ import (
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
-	"yunion.io/x/yunion-kube/pkg/resources"
 	"yunion.io/x/yunion-kube/pkg/drivers"
+	"yunion.io/x/yunion-kube/pkg/resources"
 )
 
 var (
@@ -33,7 +33,7 @@ type SCephCSISecretManager struct {
 func init() {
 	SecretManager = &SSecretManager{
 		SNamespaceResourceManager: resources.NewNamespaceResourceManager("secret", "secrets"),
-		driverManager: drivers.NewDriverManager(""),
+		driverManager:             drivers.NewDriverManager(""),
 	}
 	resources.KindManagerMap.Register(api.KindNameSecret, SecretManager)
 	RegistrySecretManager = &SRegistrySecretManager{

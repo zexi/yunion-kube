@@ -80,12 +80,12 @@ const (
 type CephCSIRBDStorageClassCreateInput struct {
 	// String representing a Ceph cluster to provision storage from.
 	ClusterId string `json:"clusterId"`
-	Pool string `json:"pool"`
+	Pool      string `json:"pool"`
 	// RBD image features, CSI creates image with image-format 2
 	// CSI RBD currently supports only `layering` feature.
 	ImageFeatures string `json:"imageFeatures"`
 
-	SecretName string `json:"secretName"`
+	SecretName      string `json:"secretName"`
 	SecretNamespace string `json:"secretNamespace"`
 
 	// The secrets have to contain Ceph credentials with required access to the `pool`.
@@ -138,4 +138,12 @@ type StorageClass struct {
 type StorageClassDetail struct {
 	StorageClass
 	PersistentVolumeList []PersistentVolume `json:"persistentVolumes"`
+}
+
+type StorageClassTestResult struct {
+	CephCSIRBD *StorageClassTestResultCephCSIRBD `json:"cephCSIRBD"`
+}
+
+type StorageClassTestResultCephCSIRBD struct {
+	Pools []string `json:"pools"`
 }

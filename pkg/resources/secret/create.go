@@ -9,9 +9,9 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 	tapis "yunion.io/x/yunion-kube/pkg/types/apis"
-	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
 func (man *SSecretManager) ValidateCreateData(req *common.Request) error {

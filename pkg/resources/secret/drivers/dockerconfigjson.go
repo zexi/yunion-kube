@@ -19,7 +19,7 @@ func init() {
 		newDockerConfigJson())
 }
 
-type dockerConfigJson struct {}
+type dockerConfigJson struct{}
 
 func newDockerConfigJson() secret.ISecretDriver {
 	return new(dockerConfigJson)
@@ -54,5 +54,3 @@ func (d dockerConfigJson) ToData(input *apis.SecretCreateInput) (map[string]stri
 		v1.DockerConfigJsonKey: authRegistry.String(),
 	}, nil
 }
-
-

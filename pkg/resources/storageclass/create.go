@@ -43,21 +43,29 @@ func (man *SStorageClassManager) Create(req *common.Request) (interface{}, error
 		return nil, err
 	}
 	storageClass := &v1.StorageClass{
-		ObjectMeta: *objMeta,
-		Provisioner: input.Provisioner,
-		ReclaimPolicy: input.ReclaimPolicy,
+		ObjectMeta:           *objMeta,
+		Provisioner:          input.Provisioner,
+		ReclaimPolicy:        input.ReclaimPolicy,
 		AllowVolumeExpansion: input.AllowVolumeExpansion,
-		MountOptions: input.MountOptions,
-		VolumeBindingMode: input.VolumeBindingMode,
-		AllowedTopologies: input.AllowedTopologies,
-		Parameters: params,
+		MountOptions:         input.MountOptions,
+		VolumeBindingMode:    input.VolumeBindingMode,
+		AllowedTopologies:    input.AllowedTopologies,
+		Parameters:           params,
 	}
 	cli := req.GetK8sClient()
 	obj, err := cli.StorageV1().StorageClasses().Create(storageClass)
 	return obj, err
 }
 
-func (man *SStorageClassManager) ConnectionTest(req *common.Request) (interface{}, error) {
+func (man *SStorageClassManager) AllowPerformClassConnectionTest(req *common.Request) bool {
+	return true
+}
+
+func (man *SStorageClassManager) PerformClassConnectionTest(req *common.Request) (interface{}, error) {
+	return man.ConnectionTest(req)
+}
+
+func (man *SStorageClassManager) ConnectionTest(req *common.Request) (*apis.StorageClassTestResult, error) {
 	input := new(apis.StorageClassCreateInput)
 	if err := req.DataUnmarshal(input); err != nil {
 		return nil, err
@@ -66,7 +74,7 @@ func (man *SStorageClassManager) ConnectionTest(req *common.Request) (interface{
 	if err != nil {
 		return nil, err
 	}
-	ret, err := drv.ConnectionTest(input)
+	ret, err := drv.ConnectionTest(req, input)
 	if err != nil {
 		return nil, err
 	}
