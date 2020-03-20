@@ -59,8 +59,8 @@ func toStorageClassList(storageClasses []*storage.StorageClass, dsQuery *datasel
 }
 
 func (l *StorageClassList) Append(obj interface{}) {
-	class := obj.(storage.StorageClass)
-	l.StorageClasses = append(l.StorageClasses, ToStorageClass(&class, l.GetCluster()))
+	class := obj.(*storage.StorageClass)
+	l.StorageClasses = append(l.StorageClasses, ToStorageClass(class, l.GetCluster()))
 }
 
 func (l *StorageClassList) GetResponseData() interface{} {
@@ -68,10 +68,18 @@ func (l *StorageClassList) GetResponseData() interface{} {
 }
 
 func ToStorageClass(storageClass *storage.StorageClass, cluster api.ICluster) api.StorageClass {
+	isDefault := false
+	if _, ok := storageClass.Annotations[IsDefaultStorageClassAnnotation]; ok {
+		isDefault = true
+	}
+	if _, ok := storageClass.Annotations[betaIsDefaultStorageClassAnnotation]; ok {
+		isDefault = true
+	}
 	return api.StorageClass{
 		ObjectMeta:  api.NewObjectMeta(storageClass.ObjectMeta, cluster),
 		TypeMeta:    api.NewTypeMeta(storageClass.TypeMeta),
 		Provisioner: storageClass.Provisioner,
 		Parameters:  storageClass.Parameters,
+		IsDefault:   isDefault,
 	}
 }
