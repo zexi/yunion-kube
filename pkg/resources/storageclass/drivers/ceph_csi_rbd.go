@@ -121,7 +121,7 @@ func (drv *CephCSIRBD) ValidateCreateData(req *common.Request, data *apis.Storag
 	if input.CSIFsType == "" {
 		return httperrors.NewInputParameterError("csiFsType is empty")
 	} else {
-		if utils.IsInStringArray(input.CSIFsType, []string{"ext4", "xfs"}) {
+		if !utils.IsInStringArray(input.CSIFsType, []string{"ext4", "xfs"}) {
 			return httperrors.NewInputParameterError("unsupport fsType %s", input.CSIFsType)
 		}
 	}
