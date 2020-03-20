@@ -8,16 +8,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -31,8 +30,8 @@ const (
 )
 
 var (
-	ErrNotExist = errors.New("cluster not exist.")
-	ErrStatus   = errors.New("cluster invalid status, please try again later.")
+	ErrNotExist = errors.Error("cluster not exist.")
+	ErrStatus   = errors.Error("cluster invalid status, please try again later.")
 )
 
 var (
@@ -59,7 +58,7 @@ func (c ClusterManager) Close() {
 }
 
 func BuildApiserverClient() {
-	newClusters, err := clusters.ClusterManager.GetRunningClusters()
+	newClusters, err := manager.ClusterManager().GetRunningClusters()
 	if err != nil {
 		log.Errorf("build apiserver client get all cluster error.", err)
 		return
@@ -186,7 +185,7 @@ func shouldRemoveClusters(changedClusters []manager.ICluster) {
 	})
 }
 
-func GetManagerByCluster(c *clusters.SCluster) (*ClusterManager, error) {
+func GetManagerByCluster(c manager.ICluster) (*ClusterManager, error) {
 	return GetManager(c.GetId())
 }
 
