@@ -1280,7 +1280,7 @@ func (c *SCluster) GetComponents() ([]*SComponent, error) {
 	return ret, nil
 }
 
-func (c *SCluster) GetComponentByType(cType string) (*SComponent, error) {
+func (c *SCluster) GetComponentByTypeNoError(cType string) (*SComponent, error) {
 	cs, err := c.GetComponents()
 	if err != nil {
 		return nil, err
@@ -1290,14 +1290,25 @@ func (c *SCluster) GetComponentByType(cType string) (*SComponent, error) {
 			return comp, nil
 		}
 	}
-	return nil, httperrors.NewNotFoundError("Not found component by type %s", cType)
+	return nil, nil
+}
+
+func (c *SCluster) GetComponentByType(cType string) (*SComponent, error) {
+	comp, err := c.GetComponentByTypeNoError(cType)
+	if err != nil {
+		return nil, err
+	}
+	if comp == nil {
+		return nil, httperrors.NewNotFoundError("not found component by type %q", cType)
+	}
+	return comp, nil
 }
 
 func (c *SCluster) EnableComponent(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	input *apis.ComponentCreateInput) error {
-	comp, err := c.GetComponentByType(input.Type)
+	comp, err := c.GetComponentByTypeNoError(input.Type)
 	if err != nil {
 		return err
 	}
@@ -1331,7 +1342,7 @@ func (c *SCluster) GetComponentsStatus() (*apis.ComponentsStatus, error) {
 	status := new(apis.ComponentsStatus)
 	drvs := ComponentManager.GetDrivers()
 	for _, drv := range drvs {
-		comp, err := c.GetComponentByType(drv.GetType())
+		comp, err := c.GetComponentByTypeNoError(drv.GetType())
 		if err != nil {
 			return nil, errors.Wrapf(err, "cluster get component by type: %s", drv.GetType())
 		}
