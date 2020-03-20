@@ -25,6 +25,7 @@ type IClusterManager interface {
 	FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (ICluster, error)
 	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data apis.ClusterCreateInput) (ICluster, error)
 	//GetNonSystemClusters() ([]ICluster, error)
+	GetRunningClusters() ([]ICluster, error)
 }
 
 type IMachine interface {

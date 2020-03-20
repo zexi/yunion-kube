@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/Masterminds/semver/v3 v3.0.1
 	github.com/Masterminds/sprig v2.16.0+incompatible
+	github.com/ceph/go-ceph v0.0.0-20181217221554-e32f9f0f2e94
 	github.com/docker/docker v1.4.2-0.20181221150755-2cb26cfe9cbf
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-sql-driver/mysql v1.4.1

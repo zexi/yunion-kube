@@ -38,6 +38,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
 
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
+	_ "yunion.io/x/yunion-kube/pkg/resources/secret/drivers"
+	_ "yunion.io/x/yunion-kube/pkg/resources/storageclass/drivers"
 )
 
 func InitHandlers(app *appsrv.Application) {
@@ -62,6 +64,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.RepoManager,
 		clusters.ClusterManager,
 		clusters.X509KeyPairManager,
+		clusters.ComponentManager,
 		machines.MachineManager,
 	} {
 		db.RegisterModelManager(man)
@@ -71,6 +74,7 @@ func InitHandlers(app *appsrv.Application) {
 
 	for _, man := range []db.IJointModelManager{
 		clusters.ClusterX509KeyPairManager,
+		clusters.ClusterComponentManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewJointModelHandler(man)
