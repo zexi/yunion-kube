@@ -1,7 +1,7 @@
 package client
 
 import (
-	apps"k8s.io/api/apps/v1"
+	apps "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"

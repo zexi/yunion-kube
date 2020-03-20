@@ -39,6 +39,9 @@ func AddResourceDispatcher(prefix string, app *appsrv.Application, handler IK8sR
 	// create resources
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s", clusterPrefix, plural), handler.Filter(createHandler), metadata, "create", tags)
 
+	// perform action on resource manager
+	app.AddHandler2("POST", fmt.Sprintf("%s/%s/<action>", clusterPrefix, plural), handler.Filter(performClassActionHandler), metadata, "perform_class_action", tags)
+
 	// perform action on resource instance
 	app.AddHandler2("POST", fmt.Sprintf("%s/%s/<resid>/<action>", clusterPrefix, plural), handler.Filter(performActionHandler), metadata, "perform_action", tags)
 
@@ -124,12 +127,37 @@ func createHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	handleCreate(ctx, w, handler, query, body)
 }
 
-func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	handler, params, query, data := fetchEnv(ctx, w, r)
-	data, err := data.Get(handler.Keyword())
+func performClassActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, body := fetchEnv(ctx, w, r)
+	var data jsonutils.JSONObject
+	if body != nil {
+		if body.Contains(handler.KeywordPlural()) {
+			data, _ = body.Get(handler.KeywordPlural())
+		} else {
+			data = body
+		}
+	} else {
+		data = jsonutils.NewDict()
+	}
+	result, err := handler.PerformClassAction(ctx, params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		httperrors.InvalidInputError(w, fmt.Sprintf("No request key: %s", handler.Keyword()))
+		errors.GeneralServerError(w, err)
 		return
+	}
+	SendJSON(w, wrapBody(result, handler.KeywordPlural()))
+}
+
+func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, params, query, body := fetchEnv(ctx, w, r)
+	var data jsonutils.JSONObject
+	if body != nil {
+		if body.Contains(handler.Keyword()) {
+			data, _ = body.Get(handler.Keyword())
+		} else {
+			data = body
+		}
+	} else {
+		data = jsonutils.NewDict()
 	}
 	result, err := handler.PerformAction(ctx, params["<resid>"], params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {

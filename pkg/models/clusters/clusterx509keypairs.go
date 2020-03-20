@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
@@ -28,7 +27,6 @@ func init() {
 				X509KeyPairManager,
 			),
 		}
-		log.Errorf("======Call setvirtualObject")
 		ClusterX509KeyPairManager.SetVirtualObject(ClusterX509KeyPairManager)
 		ClusterX509KeyPairManager.TableSpec().AddIndex(true, "keypair_id", "cluster_id")
 	})

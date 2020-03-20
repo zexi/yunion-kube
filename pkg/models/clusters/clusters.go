@@ -18,6 +18,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -723,7 +724,30 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 	if err := X509KeyPairManager.DeleteKeyPairsByCluster(ctx, userCred, c); err != nil {
 		return errors.Wrapf(err, "DeleteKeyPairsByCluster")
 	}
+	if err := c.DeleteAllComponents(ctx, userCred); err != nil {
+		return errors.Wrapf(err, "DeleteClusterComponent")
+	}
 	return c.SVirtualResourceBase.Delete(ctx, userCred)
+}
+
+func (c *SCluster) DeleteAllComponents(ctx context.Context, userCred mcclient.TokenCredential) error {
+	cs, err := c.GetClusterComponents()
+	if err != nil {
+		return err
+	}
+	for _, cp := range cs {
+		comp, err := cp.GetComponent()
+		if err != nil {
+			return err
+		}
+		if err := cp.Detach(ctx, userCred); err != nil {
+			return err
+		}
+		if err := comp.Delete(ctx, userCred); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -742,12 +766,16 @@ func (c *SCluster) StartClusterDeleteTask(ctx context.Context, userCred mcclient
 	return nil
 }
 
-func (c *SCluster) allowPerformAction(userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.IsOwner(userCred)
+func (c *SCluster) allowPerformAction(userCred mcclient.TokenCredential, action string) bool {
+	return db.IsProjectAllowPerform(userCred, c, action)
+}
+
+func (c *SCluster) allowGetSpec(userCred mcclient.TokenCredential, spec string) bool {
+	return db.IsProjectAllowGetSpec(userCred, c, spec)
 }
 
 func (c *SCluster) AllowPerformTerminate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, query, data)
+	return c.allowPerformAction(userCred, "terminate")
 }
 
 func (c *SCluster) PerformTerminate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -758,7 +786,7 @@ func (c *SCluster) PerformTerminate(ctx context.Context, userCred mcclient.Token
 }
 
 func (c *SCluster) AllowGetDetailsKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, query, nil)
+	return c.allowGetSpec(userCred, "kubeconfig")
 }
 
 func (c *SCluster) GetRunningControlplaneMachine() (manager.IMachine, error) {
@@ -981,7 +1009,7 @@ func (c *SCluster) GetK8sClient() (*kubernetes.Clientset, error) {
 }
 
 func (c *SCluster) AllowPerformApplyAddons(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, query, data)
+	return c.allowPerformAction(userCred, "apply-addons")
 }
 
 func (c *SCluster) PerformApplyAddons(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1015,7 +1043,7 @@ func (c *SCluster) StartApplyAddonsTask(ctx context.Context, userCred mcclient.T
 }
 
 func (c *SCluster) AllowPerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, query, data)
+	return c.allowPerformAction(userCred, "syncstatus")
 }
 
 func (c *SCluster) PerformSyncstatus(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1027,7 +1055,7 @@ func (c *SCluster) StartSyncStatus(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (c *SCluster) AllowPerformAddMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, query, data)
+	return c.allowPerformAction(userCred, "add-machines")
 }
 
 func (c *SCluster) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []apis.CreateMachineData) ([]*apis.CreateMachineData, error) {
@@ -1110,7 +1138,7 @@ func (c *SCluster) StartDeployMachinesTask(ctx context.Context, userCred mcclien
 }
 
 func (c *SCluster) AllowPerformDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, query, data)
+	return c.allowPerformAction(userCred, "delete-machines")
 }
 
 func (c *SCluster) PerformDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1222,4 +1250,202 @@ func (c *SCluster) GetServiceDomain() string {
 
 func (c *SCluster) GetVersion() string {
 	return c.Version
+}
+
+func (c *SCluster) GetClusterComponents() ([]SClusterComponent, error) {
+	cs := make([]SClusterComponent, 0)
+	q := ClusterComponentManager.Query().Equals("cluster_id", c.GetId())
+	if err := db.FetchModelObjects(ClusterComponentManager, q, &cs); err != nil {
+		return nil, err
+	}
+	return cs, nil
+}
+
+func (c *SCluster) GetComponents() ([]*SComponent, error) {
+	cs, err := c.GetClusterComponents()
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]*SComponent, 0)
+	for _, cc := range cs {
+		obj, err := cc.GetComponent()
+		if err != nil {
+			if errors.Cause(err) == sql.ErrNoRows {
+				continue
+			}
+			return nil, err
+		}
+		ret = append(ret, obj)
+	}
+	return ret, nil
+}
+
+func (c *SCluster) GetComponentByType(cType string) (*SComponent, error) {
+	cs, err := c.GetComponents()
+	if err != nil {
+		return nil, err
+	}
+	for _, comp := range cs {
+		if comp.Type == cType {
+			return comp, nil
+		}
+	}
+	return nil, httperrors.NewNotFoundError("Not found component by type %s", cType)
+}
+
+func (c *SCluster) EnableComponent(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	input *apis.ComponentCreateInput) error {
+	comp, err := c.GetComponentByType(input.Type)
+	if err != nil {
+		return err
+	}
+	if comp != nil {
+		return comp.DoEnable(c)
+	}
+
+	defer lockman.ReleaseObject(ctx, c)
+	lockman.LockObject(ctx, c)
+
+	comp, err = ComponentManager.CreateByCluster(ctx, userCred, c, input)
+	if err != nil {
+		return err
+	}
+	return comp.DoEnable(c)
+}
+
+func (c *SCluster) AllowGetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return db.IsProjectAllowGetSpec(userCred, c, "components-status")
+}
+
+func (c *SCluster) GetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	cs, err := c.GetComponentsStatus()
+	if err != nil {
+		return nil, err
+	}
+	return cs.JSON(cs), nil
+}
+
+func (c *SCluster) GetComponentsStatus() (*apis.ComponentsStatus, error) {
+	status := new(apis.ComponentsStatus)
+	drvs := ComponentManager.GetDrivers()
+	for _, drv := range drvs {
+		comp, err := c.GetComponentByType(drv.GetType())
+		if err != nil {
+			return nil, errors.Wrapf(err, "cluster get component by type: %s", drv.GetType())
+		}
+		if comp == nil {
+			// not created
+			if err := drv.FetchStatus(c, comp, status); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := drv.FetchStatus(c, comp, status); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return status, nil
+}
+
+func (c *SCluster) AllowGetDetailsComponentSetting(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	return db.IsProjectAllowGetSpec(userCred, c, "component-setting")
+}
+
+func (c *SCluster) GetDetailsComponentSetting(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if !query.Contains("type") {
+		return nil, httperrors.NewInputParameterError("type not provided")
+	}
+	cType, _ := query.GetString("type")
+	cs, err := c.GetComponentByType(cType)
+	if err != nil {
+		return nil, err
+	}
+	return cs.Settings, nil
+}
+
+func (c *SCluster) AllowPerformEnableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return c.allowPerformAction(userCred, "enable-component")
+}
+
+func (c *SCluster) PerformEnableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	input := new(apis.ComponentCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	if err := c.EnableComponent(ctx, userCred, input); err != nil {
+		log.Errorf("enable comp error: %v", err)
+		return nil, err
+	}
+	comp, err := c.GetComponentByType(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	ret, err := comp.GetExtraDetails(ctx, userCred, query)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (c *SCluster) AllowPerformDisableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return c.allowPerformAction(userCred, "disable-component")
+}
+
+func (c *SCluster) PerformDisableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	input := new(apis.ComponentCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	comp, err := c.GetComponentByType(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	return nil, comp.DoDisable(c)
+}
+
+func (c *SCluster) AllowPerformDeleteComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return c.allowPerformAction(userCred, "delete-component")
+}
+
+func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	input := new(apis.ComponentCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	comp, err := c.GetComponentByType(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	if err := comp.DoDisable(c); err != nil {
+		return nil, err
+	}
+	return nil, comp.DeleteWithJoint(ctx, userCred)
+}
+
+func (c *SCluster) AllowPerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return c.allowPerformAction(userCred, "update-component")
+}
+
+func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	input := new(apis.ComponentUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	comp, err := c.GetComponentByType(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	drv, err := comp.GetDriver()
+	if err != nil {
+		return nil, err
+	}
+	if err := drv.ValidateUpdateData(input); err != nil {
+		return nil, err
+	}
+	if err := comp.DoUpdate(c, input); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }

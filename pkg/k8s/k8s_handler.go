@@ -42,6 +42,8 @@ type IK8sResourceHandler interface {
 
 	Create(ctx context.Context, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (interface{}, error)
 
+	PerformClassAction(ctx context.Context, action string, query, data *jsonutils.JSONDict) (interface{}, error)
+
 	PerformAction(ctx context.Context, id, action string, query, data *jsonutils.JSONDict) (interface{}, error)
 
 	Update(ctx context.Context, id string, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (interface{}, error)
@@ -245,6 +247,49 @@ func (h *K8sResourceHandler) GetSpecific(ctx context.Context, id, spec string, q
 		return nil, httperrors.NewSpecNotFoundError("%s", err.Error())
 	}
 
+	outs = funcValue.Call(params)
+	if len(outs) != 2 {
+		return nil, httperrors.NewInternalServerError("Invalid %s return value", funcName)
+	}
+
+	resVal := outs[0].Interface()
+	errVal := outs[1].Interface()
+	if !gotypes.IsNil(errVal) {
+		return nil, errVal.(error)
+	}
+	if gotypes.IsNil(resVal) {
+		return nil, nil
+	}
+	return resVal, nil
+}
+
+func (h *K8sResourceHandler) PerformClassAction(ctx context.Context, action string, query, data *jsonutils.JSONDict) (interface{}, error) {
+	req, err := NewCloudK8sRequest(ctx, query, data)
+	if err != nil {
+		return nil, errors.NewJSONClientError(err)
+	}
+	specCamel := utils.Kebab2Camel(action, "-")
+	funcName := fmt.Sprintf("PerformClass%s", specCamel)
+	funcValue, err := getManagerFuncValue(funcName, h.resourceManager)
+	if err != nil {
+		return nil, httperrors.NewActionNotFoundError("%s", err.Error())
+	}
+	params := []reflect.Value{
+		reflect.ValueOf(req),
+	}
+	allowFuncName := fmt.Sprintf("Allow%s", funcName)
+	allowFuncValue, err := getManagerFuncValue(allowFuncName, h.resourceManager)
+	if err != nil {
+		return nil, httperrors.NewActionNotFoundError("%s", err.Error())
+	}
+	outs := allowFuncValue.Call(params)
+	if len(outs) != 1 {
+		return nil, httperrors.NewInternalServerError("Invalid %s return value", allowFuncName)
+	}
+	isAllow := outs[0].Bool()
+	if !isAllow {
+		return nil, httperrors.NewForbiddenError("%s not allow to perform action %s", h.Keyword(), action)
+	}
 	outs = funcValue.Call(params)
 	if len(outs) != 2 {
 		return nil, httperrors.NewInternalServerError("Invalid %s return value", funcName)

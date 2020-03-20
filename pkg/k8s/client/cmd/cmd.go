@@ -67,7 +67,7 @@ func (c *Client) removeKubeconfigFile() error {
 	return os.Remove(c.kubeconfigFile)
 }
 
-func (c *Client) kubectlManifestCmd(commandName, manifest string) error {
+func (c *Client) kubectlManifestCmd(commandName, manifest string, args ...string) error {
 	cmd := exec.Command("kubectl", c.buildKubectlArgs(commandName)...)
 	cmd.Stdin = strings.NewReader(manifest)
 	output, err := cmd.CombinedOutput()
@@ -77,8 +77,9 @@ func (c *Client) kubectlManifestCmd(commandName, manifest string) error {
 	return nil
 }
 
-func (c *Client) buildKubectlArgs(commandName string) []string {
+func (c *Client) buildKubectlArgs(commandName string, nargs ...string) []string {
 	args := []string{commandName}
+	args = append(args, nargs...)
 	if c.kubeconfigFile != "" {
 		args = append(args, "--kubeconfig", c.kubeconfigFile)
 	}
@@ -98,8 +99,12 @@ func (c *Client) Apply(manifest string) error {
 	return c.waitForKubectlApply(manifest)
 }
 
+func (c *Client) Delete(manifest string) error {
+	return c.waitForKubectlDelete(manifest)
+}
+
 func (c *Client) kubectlDelete(manifest string) error {
-	return c.kubectlManifestCmd("delete", manifest)
+	return c.kubectlManifestCmd("delete", manifest, "--ignore-not-found=true")
 }
 
 func (c *Client) kubectlApply(manifest string) error {
@@ -113,7 +118,7 @@ func (c *Client) waitForKubectlApply(manifest string) error {
 		if err != nil {
 			if strings.Contains(err.Error(), "refused") {
 				// Connection was refused, probably because the API server is not ready yet.
-				log.Infof("aiting for kubectl apply... server not yet available: %v", err)
+				log.Infof("Waiting for kubectl apply... server not yet available: %v", err)
 				return false, nil
 			}
 			if strings.Contains(err.Error(), "unable to recognize") {
@@ -121,6 +126,29 @@ func (c *Client) waitForKubectlApply(manifest string) error {
 				return false, nil
 			}
 			log.Warningf("Waiting for kubectl apply... unknown error %v", err)
+			return false, err
+		}
+
+		return true, nil
+	})
+	return err
+}
+
+func (c *Client) waitForKubectlDelete(manifest string) error {
+	err := wait.PollImmediate(retryIntervalKubectlApply, timeoutKubectlApply, func() (bool, error) {
+		log.Infof("Waiting for kubectl delete...")
+		err := c.kubectlDelete(manifest)
+		if err != nil {
+			if strings.Contains(err.Error(), "refused") {
+				// Connection was refused, probably because the API server is not ready yet.
+				log.Infof("Waiting for kubectl delete... server not yet available: %v", err)
+				return false, nil
+			}
+			if strings.Contains(err.Error(), "unable to recognize") {
+				log.Infof("Waiting for kubectl delete... api not yet available: %v", err)
+				return false, nil
+			}
+			log.Warningf("Waiting for kubectl delete... unknown error %v", err)
 			return false, err
 		}
 
