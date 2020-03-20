@@ -448,7 +448,8 @@ spec:
             capabilities:
               add: ["SYS_ADMIN"]
           # for stable functionality replace canary with latest release version
-          image: registry.cn-beijing.aliyuncs.com/yunionio/cephcsi:v2.0-canary
+          # image: registry.cn-beijing.aliyuncs.com/yunionio/cephcsi:v2.0-canary
+          image: {{.CephCSIImage}}
           args:
             - "--nodeid=$(NODE_ID)"
             - "--type=rbd"
