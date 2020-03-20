@@ -9,16 +9,27 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
+	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
+	tapis "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 func (man *SSecretManager) ValidateCreateData(req *common.Request) error {
-	_, err := req.Data.GetMap("data")
-	if err != nil {
-		return httperrors.NewInputParameterError("Not found data")
+	if err := man.SNamespaceResourceManager.ValidateCreateData(req); err != nil {
+		return err
 	}
-	return man.SNamespaceResourceManager.ValidateCreateData(req)
+	input := new(apis.SecretCreateInput)
+	if err := req.DataUnmarshal(input); err != nil {
+		return err
+	}
+	if input.Type == "" {
+		return httperrors.NewNotEmptyError("type is empty")
+	}
+	drv, err := man.GetDriver(input.Type)
+	if err != nil {
+		return err
+	}
+	return drv.ValidateCreateData(input)
 }
 
 func (man *SRegistrySecretManager) ValidateCreateData(req *common.Request) error {
@@ -32,35 +43,35 @@ func (man *SRegistrySecretManager) ValidateCreateData(req *common.Request) error
 		return httperrors.NewInputParameterError("password is empty")
 	}
 
-	return common.ValidateK8sResourceCreateData(req, apis.ResourceKindSecret, true)
+	return common.ValidateK8sResourceCreateData(req, tapis.ResourceKindSecret, true)
 }
 
 func (man *SSecretManager) Create(req *common.Request) (interface{}, error) {
-	dataMap, _ := req.Data.GetMap("data")
+	input := new(apis.SecretCreateInput)
+	if err := req.DataUnmarshal(input); err != nil {
+		return nil, err
+	}
+	drv, err := man.GetDriver(input.Type)
+	if err != nil {
+		return nil, err
+	}
+	data, err := drv.ToData(input)
+	if err != nil {
+		return nil, err
+	}
+	dataBytes := make(map[string][]byte)
+	for k, v := range data {
+		dataBytes[k] = []byte(v)
+	}
 	objMeta, err := common.GetK8sObjectCreateMeta(req.Data)
 	if err != nil {
 		return nil, err
 	}
 	ns := req.GetDefaultNamespace()
-	var kind v1.SecretType
-	kindStr, _ := req.Data.GetString("secretType")
-	if kindStr == "" {
-		kind = v1.SecretTypeOpaque
-	} else {
-		kind = v1.SecretType(kindStr)
-	}
-	data := make(map[string][]byte)
-	for key, obj := range dataMap {
-		content, err := obj.GetString()
-		if err != nil {
-			return nil, err
-		}
-		data[key] = []byte(content)
-	}
 	secret := &v1.Secret{
 		ObjectMeta: *objMeta,
-		Data:       data,
-		Type:       kind,
+		Data:       dataBytes,
+		Type:       input.Type,
 	}
 	obj, err := req.GetK8sClient().CoreV1().Secrets(ns).Create(secret)
 	if err != nil {

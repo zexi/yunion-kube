@@ -40,6 +40,9 @@ build: clean
 		$(GO_BUILD) -o $(BIN_DIR)/`basename $${PKG}` $$PKG; \
 	done
 
+bundle:
+	./tools/bundle_libraries.sh $(BIN_DIR)/bundles/kube-server $(BIN_DIR)/kube-server
+
 grpc:
 	protoc --proto_path=pkg/agent/localvolume --go_out=plugins=grpc:pkg/agent/localvolume \
 		localvolume.proto
@@ -58,7 +61,7 @@ REGISTRY ?= "registry.cn-beijing.aliyuncs.com/yunionio"
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
 	   	git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 
-image: build
+image: build bundle
 	docker build -f Dockerfile -t $(REGISTRY)/kubeserver:$(VERSION) .
 
 image-push: image

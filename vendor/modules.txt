@@ -44,6 +44,8 @@ github.com/aokoli/goutils
 github.com/asaskevich/govalidator
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
+# github.com/ceph/go-ceph v0.0.0-20181217221554-e32f9f0f2e94
+github.com/ceph/go-ceph/rados
 # github.com/cespare/xxhash/v2 v2.1.0
 github.com/cespare/xxhash/v2
 # github.com/containerd/containerd v1.3.0
