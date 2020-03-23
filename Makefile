@@ -34,7 +34,7 @@ CMDS := $(shell find ./cmd -mindepth 1 -maxdepth 1 -type d)
 
 all: build
 
-build: clean
+build: clean fmt
 	@for PKG in $(CMDS); do \
 		echo build $$PKG; \
 		$(GO_BUILD) -o $(BIN_DIR)/`basename $${PKG}` $$PKG; \

@@ -4,6 +4,7 @@ import (
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 
 	"yunion.io/x/log"
 
@@ -107,7 +108,7 @@ func ToStatefulSet(statefulSet *apps.StatefulSet, podInfo *api.PodInfo, cluster 
 		ContainerImages:     common.GetContainerImages(&statefulSet.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&statefulSet.Spec.Template.Spec),
 		Pods:                *podInfo,
-		Status:              podInfo.GetStatus(),
+		StatefulSetStatus:   *getters.GetStatefulSetStatus(podInfo, *statefulSet),
 		Selector:            statefulSet.Spec.Selector.MatchLabels,
 	}
 }

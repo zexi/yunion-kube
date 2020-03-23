@@ -2,8 +2,9 @@ package daemonset
 
 import (
 	"k8s.io/api/core/v1"
-	//apps "k8s.io/api/apps/v1beta2"
-	extensions "k8s.io/api/extensions/v1beta1"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
+
+	apps "k8s.io/api/apps/v1"
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/resources"
@@ -119,7 +120,7 @@ func GetDaemonSetListFromChannels(channels *common.ResourceChannels, dsQuery *da
 
 func (l *DaemonSetList) Append(obj interface{}) {
 	l.ds = append(l.ds, ToDaemonSet(
-		obj.(*extensions.DaemonSet),
+		obj.(*apps.DaemonSet),
 		l.pods,
 		l.events,
 		l.GetCluster(),
@@ -130,7 +131,7 @@ func (l *DaemonSetList) GetResponseData() interface{} {
 	return l.ds
 }
 
-func ToDaemonSet(ds *extensions.DaemonSet, pods []*v1.Pod, events []*v1.Event, cluster apis.ICluster) *apis.DaemonSet {
+func ToDaemonSet(ds *apps.DaemonSet, pods []*v1.Pod, events []*v1.Event, cluster apis.ICluster) *apis.DaemonSet {
 	matchingPods := common.FilterPodsByControllerRef(ds, pods)
 	podInfo := common.GetPodInfo(ds.Status.CurrentNumberScheduled, &ds.Status.DesiredNumberScheduled, matchingPods)
 	podInfo.Warnings = event.GetPodsEventWarnings(events, matchingPods)
@@ -140,8 +141,8 @@ func ToDaemonSet(ds *extensions.DaemonSet, pods []*v1.Pod, events []*v1.Event, c
 		TypeMeta:            apis.NewTypeMeta(ds.TypeMeta),
 		ContainerImages:     common.GetContainerImages(&ds.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&ds.Spec.Template.Spec),
-		Pods:                podInfo,
-		Status:              podInfo.GetStatus(),
+		PodInfo:             podInfo,
+		DaemonSetStatus:     *getters.GetDaemonsetStatus(&podInfo, *ds),
 		Selector:            ds.Spec.Selector,
 	}
 }

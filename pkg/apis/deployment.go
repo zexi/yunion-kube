@@ -6,6 +6,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+const (
+	DeploymentStatusNewReplicaUpdating    = "NewReplicaUpdating"
+	DeploymentStatusOldReplicaTerminating = "OldReplicaTerminating"
+	DeploymentStatusAvailableWaiting      = "AvailableWaiting"
+	DeploymentStatusRunning               = "Running"
+	DeploymentStatusObservedWaiting       = "ObservedWaiting"
+)
+
 type ContainerUpdateInput struct {
 	// required: true
 	Name  string `json:"name"`
@@ -54,8 +62,22 @@ type Deployment struct {
 	// Init Container images of deployment
 	InitContainerImages []ContainerImage `json:"initContainerImages"`
 
-	Status   string            `json:"status"`
 	Selector map[string]string `json:"selector"`
+
+	DeploymentStatus
+}
+
+type DeploymentStatus struct {
+	Status string `json:"status"`
+
+	// Number of the pod with ready state.
+	ReadyReplicas int64 `json:"readyReplicas"`
+	// Number of desired pods
+	DesiredReplicas int64 `json:"desiredReplicas"`
+	// Total number of non-terminated pods targeted by this deployment that have the desired template spec.
+	UpdatedReplicas int64 `json:"updatedReplicas"`
+	// Total number of available pods (ready for at least minReadySeconds) targeted by this deployment.
+	AvailableReplicas int64 `json:"availableReplicas"`
 }
 
 type StatusInfo struct {

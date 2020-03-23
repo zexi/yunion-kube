@@ -46,7 +46,7 @@ func ValidateCreateData(req *common.Request, man k8s.IK8sResourceManager) error 
 	restartPolicy, _ := data.GetString("restartPolicy")
 	if restartPolicy == "" {
 		policy := v1.RestartPolicyAlways
-		if sets.NewString(clientapi.ResourceNameCronJob, clientapi.ResourceNameJob).Has(controllerType) {
+		if sets.NewString(api.ResourceNameCronJob, api.ResourceNameJob).Has(controllerType) {
 			policy = v1.RestartPolicyNever
 		}
 		data.Set("restartPolicy", jsonutils.NewString(string(policy)))

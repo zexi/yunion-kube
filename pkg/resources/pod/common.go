@@ -2,6 +2,7 @@ package pod
 
 import (
 	"k8s.io/api/core/v1"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
@@ -19,7 +20,6 @@ func ToPod(
 		Warnings:       warnings,
 		PodStatus:      getPodStatus(pod),
 		RestartCount:   getRestartCount(pod),
-		NodeName:       pod.Spec.NodeName,
 		PodIP:          pod.Status.PodIP,
 		QOSClass:       string(pod.Status.QOSClass),
 		Containers:     extractContainerInfo(pod.Spec.Containers, pod, cfgs, secrets),
@@ -46,7 +46,7 @@ func getPodStatus(pod *v1.Pod) api.PodStatus {
 		states = append(states, containerStatus.State)
 	}
 	return api.PodStatus{
-		Status:          string(getPodStatusPhase(pod)),
+		PodStatusV2:     *getters.GetPodStatus(pod),
 		PodPhase:        pod.Status.Phase,
 		ContainerStates: states,
 	}

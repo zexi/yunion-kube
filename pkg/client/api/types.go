@@ -16,37 +16,7 @@ import (
 	api "yunion.io/x/yunion-kube/pkg/apis"
 )
 
-type ResourceName = string
 type KindName = string
-
-const (
-	ResourceNameConfigMap               ResourceName = "configmaps"
-	ResourceNameDaemonSet               ResourceName = "daemonsets"
-	ResourceNameDeployment              ResourceName = "deployments"
-	ResourceNameEvent                   ResourceName = "events"
-	ResourceNameHorizontalPodAutoscaler ResourceName = "horizontalpodautoscalers"
-	ResourceNameIngress                 ResourceName = "ingresses"
-	ResourceNameJob                     ResourceName = "jobs"
-	ResourceNameCronJob                 ResourceName = "cronjobs"
-	ResourceNameNamespace               ResourceName = "namespaces"
-	ResourceNameNode                    ResourceName = "nodes"
-	ResourceNamePersistentVolumeClaim   ResourceName = "persistentvolumeclaims"
-	ResourceNamePersistentVolume        ResourceName = "persistentvolumes"
-	ResourceNamePod                     ResourceName = "pods"
-	ResourceNameReplicaSet              ResourceName = "replicasets"
-	ResourceNameSecret                  ResourceName = "secrets"
-	ResourceNameService                 ResourceName = "services"
-	ResourceNameStatefulSet             ResourceName = "statefulsets"
-	ResourceNameEndpoint                ResourceName = "endpoints"
-	ResourceNameStorageClass            ResourceName = "storageclasses"
-	ResourceNameRole                    ResourceName = "roles"
-	ResourceNameRoleBinding             ResourceName = "rolebindings"
-	ResourceNameClusterRole             ResourceName = "clusterroles"
-	ResourceNameClusterRoleBinding      ResourceName = "clusterrolebindings"
-	ResourceNameServiceAccount          ResourceName = "serviceaccounts"
-	ResourceNameLimitRange              ResourceName = "limitranges"
-	ResourceNameResourceQuota           ResourceName = "resourcequotas"
-)
 
 type ResourceMap struct {
 	GroupVersionResourceKind GroupVersionResourceKind
@@ -59,289 +29,289 @@ type GroupVersionResourceKind struct {
 }
 
 var KindToResourceMap = map[string]ResourceMap{
-	ResourceNameConfigMap: {
+	api.ResourceNameConfigMap: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameConfigMap,
+				Resource: api.ResourceNameConfigMap,
 			},
 			Kind: api.KindNameConfigMap,
 		},
 		Namespaced: true,
 	},
-	ResourceNameDaemonSet: {
+	api.ResourceNameDaemonSet: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
-				Group:    extensionsv1beta1.GroupName,
-				Version:  extensionsv1beta1.SchemeGroupVersion.Version,
-				Resource: ResourceNameDaemonSet,
+				Group:    apps.GroupName,
+				Version:  apps.SchemeGroupVersion.Version,
+				Resource: api.ResourceNameDaemonSet,
 			},
 			Kind: api.KindNameDaemonSet,
 		},
 		Namespaced: true,
 	},
-	ResourceNameDeployment: {
+	api.ResourceNameDeployment: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    apps.GroupName,
 				Version:  apps.SchemeGroupVersion.Version,
-				Resource: ResourceNameDeployment,
+				Resource: api.ResourceNameDeployment,
 			},
 			Kind: api.KindNameDeployment,
 		},
 		Namespaced: true,
 	},
-	ResourceNameEvent: {
+	api.ResourceNameEvent: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameEvent,
+				Resource: api.ResourceNameEvent,
 			},
 			Kind: api.KindNameEvent,
 		},
 		Namespaced: true,
 	},
 
-	ResourceNameHorizontalPodAutoscaler: {
+	api.ResourceNameHorizontalPodAutoscaler: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    autoscalingv1.GroupName,
 				Version:  autoscalingv1.SchemeGroupVersion.Version,
-				Resource: ResourceNameHorizontalPodAutoscaler,
+				Resource: api.ResourceNameHorizontalPodAutoscaler,
 			},
 			Kind: api.KindNameHorizontalPodAutoscaler,
 		},
 		Namespaced: true,
 	},
-	ResourceNameIngress: {
+	api.ResourceNameIngress: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    extensionsv1beta1.GroupName,
 				Version:  extensionsv1beta1.SchemeGroupVersion.Version,
-				Resource: ResourceNameIngress,
+				Resource: api.ResourceNameIngress,
 			},
 			Kind: api.KindNameIngress,
 		},
 		Namespaced: true,
 	},
-	ResourceNameJob: {
+	api.ResourceNameJob: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    batchv1.GroupName,
 				Version:  batchv1.SchemeGroupVersion.Version,
-				Resource: ResourceNameJob,
+				Resource: api.ResourceNameJob,
 			},
 			Kind: api.KindNameJob,
 		},
 		Namespaced: true,
 	},
-	ResourceNameCronJob: {
+	api.ResourceNameCronJob: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    batchv1beta1.GroupName,
 				Version:  batchv1beta1.SchemeGroupVersion.Version,
-				Resource: ResourceNameCronJob,
+				Resource: api.ResourceNameCronJob,
 			},
 			Kind: api.KindNameCronJob,
 		},
 		Namespaced: true,
 	},
-	ResourceNameNamespace: {
+	api.ResourceNameNamespace: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameNamespace,
+				Resource: api.ResourceNameNamespace,
 			},
 			Kind: api.KindNameNamespace,
 		},
 		Namespaced: false,
 	},
-	ResourceNameNode: {
+	api.ResourceNameNode: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameNode,
+				Resource: api.ResourceNameNode,
 			},
 			Kind: api.KindNameNode,
 		},
 		Namespaced: false,
 	},
-	ResourceNamePersistentVolumeClaim: {
+	api.ResourceNamePersistentVolumeClaim: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNamePersistentVolumeClaim,
+				Resource: api.ResourceNamePersistentVolumeClaim,
 			},
 			Kind: api.KindNamePersistentVolumeClaim,
 		},
 		Namespaced: true,
 	},
-	ResourceNamePersistentVolume: {
+	api.ResourceNamePersistentVolume: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNamePersistentVolume,
+				Resource: api.ResourceNamePersistentVolume,
 			},
 			Kind: api.KindNamePersistentVolume,
 		},
 		Namespaced: false,
 	},
-	ResourceNamePod: {
+	api.ResourceNamePod: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNamePod,
+				Resource: api.ResourceNamePod,
 			},
 			Kind: api.KindNamePod,
 		},
 		Namespaced: true,
 	},
-	ResourceNameReplicaSet: {
+	api.ResourceNameReplicaSet: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    apps.GroupName,
 				Version:  apps.SchemeGroupVersion.Version,
-				Resource: ResourceNameReplicaSet,
+				Resource: api.ResourceNameReplicaSet,
 			},
 			Kind: api.KindNameReplicaSet,
 		},
 		Namespaced: true,
 	},
-	ResourceNameSecret: {
+	api.ResourceNameSecret: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameSecret,
+				Resource: api.ResourceNameSecret,
 			},
 			Kind: api.KindNameSecret,
 		},
 		Namespaced: true,
 	},
-	ResourceNameService: {
+	api.ResourceNameService: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameService,
+				Resource: api.ResourceNameService,
 			},
 			Kind: api.KindNameService,
 		},
 		Namespaced: true,
 	},
-	ResourceNameStatefulSet: {
+	api.ResourceNameStatefulSet: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    apps.GroupName,
 				Version:  apps.SchemeGroupVersion.Version,
-				Resource: ResourceNameStatefulSet,
+				Resource: api.ResourceNameStatefulSet,
 			},
 			Kind: api.KindNameStatefulSet,
 		},
 		Namespaced: true,
 	},
-	ResourceNameEndpoint: {
+	api.ResourceNameEndpoint: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameEndpoint,
+				Resource: api.ResourceNameEndpoint,
 			},
 			Kind: api.KindNameEndpoint,
 		},
 		Namespaced: true,
 	},
-	ResourceNameStorageClass: {
+	api.ResourceNameStorageClass: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    storagev1.GroupName,
 				Version:  storagev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameStorageClass,
+				Resource: api.ResourceNameStorageClass,
 			},
 			Kind: api.KindNameStorageClass,
 		},
 		Namespaced: false,
 	},
 
-	ResourceNameRole: {
+	api.ResourceNameRole: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    rbacv1.GroupName,
 				Version:  rbacv1.SchemeGroupVersion.Version,
-				Resource: ResourceNameRole,
+				Resource: api.ResourceNameRole,
 			},
 			Kind: api.KindNameRole,
 		},
 		Namespaced: true,
 	},
-	ResourceNameRoleBinding: {
+	api.ResourceNameRoleBinding: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    rbacv1.GroupName,
 				Version:  rbacv1.SchemeGroupVersion.Version,
-				Resource: ResourceNameRoleBinding,
+				Resource: api.ResourceNameRoleBinding,
 			},
 			Kind: api.KindNameRoleBinding,
 		},
 		Namespaced: true,
 	},
-	ResourceNameClusterRole: {
+	api.ResourceNameClusterRole: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    rbacv1.GroupName,
 				Version:  rbacv1.SchemeGroupVersion.Version,
-				Resource: ResourceNameClusterRole,
+				Resource: api.ResourceNameClusterRole,
 			},
 			Kind: api.KindNameClusterRole,
 		},
 		Namespaced: false,
 	},
-	ResourceNameClusterRoleBinding: {
+	api.ResourceNameClusterRoleBinding: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    rbacv1.GroupName,
 				Version:  rbacv1.SchemeGroupVersion.Version,
-				Resource: ResourceNameClusterRoleBinding,
+				Resource: api.ResourceNameClusterRoleBinding,
 			},
 			Kind: api.KindNameClusterRoleBinding,
 		},
 		Namespaced: false,
 	},
-	ResourceNameServiceAccount: {
+	api.ResourceNameServiceAccount: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameServiceAccount,
+				Resource: api.ResourceNameServiceAccount,
 			},
 			Kind: api.KindNameServiceAccount,
 		},
 		Namespaced: true,
 	},
-	ResourceNameLimitRange: {
+	api.ResourceNameLimitRange: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameLimitRange,
+				Resource: api.ResourceNameLimitRange,
 			},
 			Kind: api.KindNameLimitRange,
 		},
 		Namespaced: true,
 	},
-	ResourceNameResourceQuota: {
+	api.ResourceNameResourceQuota: {
 		GroupVersionResourceKind: GroupVersionResourceKind{
 			GroupVersionResource: schema.GroupVersionResource{
 				Group:    corev1.GroupName,
 				Version:  corev1.SchemeGroupVersion.Version,
-				Resource: ResourceNameResourceQuota,
+				Resource: api.ResourceNameResourceQuota,
 			},
 			Kind: api.KindNameResourceQuota,
 		},
@@ -363,19 +333,19 @@ func TranslateKindPlural(plural string) string {
 	}
 	switch plural {
 	case "k8s_services":
-		return ResourceNameService
+		return api.ResourceNameService
 	case "k8s_nodes":
-		return ResourceNameNode
+		return api.ResourceNameNode
 	case "k8s_endpoints":
-		return ResourceNameEndpoint
+		return api.ResourceNameEndpoint
 	case "rbacroles":
-		return ResourceNameRole
+		return api.ResourceNameRole
 	case "rbacclusterroles":
-		return ResourceNameClusterRole
+		return api.ResourceNameClusterRole
 	case "rbacrolebindings":
-		return ResourceNameRoleBinding
+		return api.ResourceNameRoleBinding
 	case "rbacclusterrolebindings":
-		return ResourceNameClusterRoleBinding
+		return api.ResourceNameClusterRoleBinding
 	}
 	return plural
 }

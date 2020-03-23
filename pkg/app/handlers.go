@@ -16,7 +16,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/cluster"
 	"yunion.io/x/yunion-kube/pkg/resources/configmap"
 	"yunion.io/x/yunion-kube/pkg/resources/cronjob"
-	"yunion.io/x/yunion-kube/pkg/resources/daemonset"
+	//"yunion.io/x/yunion-kube/pkg/resources/daemonset"
 	"yunion.io/x/yunion-kube/pkg/resources/deployment"
 	"yunion.io/x/yunion-kube/pkg/resources/ingress"
 	"yunion.io/x/yunion-kube/pkg/resources/job"
@@ -26,18 +26,22 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
 	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
 	"yunion.io/x/yunion-kube/pkg/resources/pod"
+	//"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/k8smodels"
 	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
 	"yunion.io/x/yunion-kube/pkg/resources/resourcequota"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
+	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
 	"yunion.io/x/yunion-kube/pkg/resources/secret"
 	"yunion.io/x/yunion-kube/pkg/resources/service"
 	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
 	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
 
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	_ "yunion.io/x/yunion-kube/pkg/resources/secret/drivers"
 	_ "yunion.io/x/yunion-kube/pkg/resources/storageclass/drivers"
 )
@@ -86,7 +90,7 @@ func InitHandlers(app *appsrv.Application) {
 		cronjob.CronJobManager,
 		k8sapp.AppFromFileManager,
 		deployment.DeploymentManager,
-		daemonset.DaemonSetManager,
+		//daemonset.DaemonSetManager,
 		ingress.IngressManager,
 		job.JobManager,
 		pod.PodManager,
@@ -126,6 +130,16 @@ func InitHandlers(app *appsrv.Application) {
 	k8s.AddRawResourceDispatcher(apiPrefix, app)
 	k8s.AddMiscDispatcher(apiPrefix, app)
 	addDefaultHandler(apiPrefix, app)
+
+	// v2 dispatcher
+	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
+	for _, man := range []model.IK8SModelManager{
+		// k8smodels.PodManager,
+		k8smodels.DaemonSetManager,
+	} {
+		handler := model.NewK8SModelHandler(man)
+		v2Dispatcher.Add(handler)
+	}
 }
 
 func addDefaultHandler(apiPrefix string, app *appsrv.Application) {

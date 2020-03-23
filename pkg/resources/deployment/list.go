@@ -3,6 +3,7 @@ package deployment
 import (
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 
 	"yunion.io/x/log"
 
@@ -71,7 +72,7 @@ func ToDeployment(deployment *apps.Deployment, rs []*apps.ReplicaSet, pods []*v1
 		ContainerImages:     common.GetContainerImages(&deployment.Spec.Template.Spec),
 		InitContainerImages: common.GetInitContainerImages(&deployment.Spec.Template.Spec),
 		Pods:                podInfo,
-		Status:              podInfo.GetStatus(),
+		DeploymentStatus:    *getters.GetDeploymentStatus(&podInfo, *deployment),
 		Selector:            deployment.Spec.Selector.MatchLabels,
 		Replicas:            deployment.Spec.Replicas,
 	}
