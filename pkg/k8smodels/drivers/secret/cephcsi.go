@@ -1,13 +1,14 @@
-package drivers
+package secret
 
 import (
 	"yunion.io/x/onecloud/pkg/httperrors"
+
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/resources/secret"
+	"yunion.io/x/yunion-kube/pkg/k8smodels"
 )
 
 func init() {
-	secret.SecretManager.RegisterDriver(
+	k8smodels.SecretManager.RegisterDriver(
 		apis.SecretTypeCephCSI,
 		newCephCSI(),
 	)
@@ -41,6 +42,6 @@ func (c cephCSI) ToData(input *apis.SecretCreateInput) (map[string]string, error
 	return ret, nil
 }
 
-func newCephCSI() secret.ISecretDriver {
+func newCephCSI() k8smodels.ISecretDriver {
 	return new(cephCSI)
 }

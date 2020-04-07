@@ -42,7 +42,7 @@ import (
 
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	_ "yunion.io/x/yunion-kube/pkg/resources/secret/drivers"
+	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/secret"
 	_ "yunion.io/x/yunion-kube/pkg/resources/storageclass/drivers"
 )
 
@@ -104,7 +104,6 @@ func InitHandlers(app *appsrv.Application) {
 		rbacroles.RbacRoleBindingManager,
 		rbacroles.ServiceAccountManager,
 		release.ReleaseManager,
-		secret.SecretManager,
 		secret.RegistrySecretManager,
 		service.ServiceManager,
 		cluster.ClusterManager,
@@ -136,6 +135,7 @@ func InitHandlers(app *appsrv.Application) {
 	for _, man := range []model.IK8SModelManager{
 		// k8smodels.PodManager,
 		k8smodels.DaemonSetManager,
+		k8smodels.SecretManager,
 	} {
 		handler := model.NewK8SModelHandler(man)
 		v2Dispatcher.Add(handler)

@@ -1,6 +1,9 @@
 package apis
 
-import v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	apps "k8s.io/api/apps/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	DaemonSetStatusObservedWaiting = "ObservedWaiting"
@@ -31,4 +34,11 @@ type DaemonSetDetails struct {
 	DaemonSet
 
 	Events []*Event `json:"events"`
+}
+
+type DaemonSetCreateInput struct {
+	K8sNamespaceResourceCreateInput
+
+	apps.DaemonSetSpec
+	Service *ServiceCreateOption `json:"service"`
 }

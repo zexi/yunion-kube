@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -207,19 +208,33 @@ func mergeInputOutputData(data *jsonutils.JSONDict, resVal reflect.Value) *jsonu
 	return data
 }
 
-func ValidateCreateData(manager IK8SModelManager, ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	ret, err := call(manager, "ValidateCreateData", ctx, userCred, ownerId, query, data)
+func ValidateCreateData(manager IK8SModelManager, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	ret, err := call(manager, "ValidateCreateData", ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
 	if len(ret) != 2 {
-		return nil, httperrors.NewInternalServerError("Invald ValidateCreateData return value")
+		return nil, httperrors.NewInternalServerError("Invalid ValidateCreateData return value")
 	}
 	resVal := ret[0]
 	if err := ValueToError(ret[1]); err != nil {
 		return nil, err
 	}
 	return mergeInputOutputData(data, resVal), nil
+}
+
+func NewK8SRawObjectForCreate(manager IK8SModelManager, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
+	ret, err := call(manager, "NewK8SRawObjectForCreate", ctx, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	if len(ret) != 2 {
+		return nil, httperrors.NewInternalServerError("Invalid NewK8SRawObjectForCreate return value")
+	}
+	if err := ValueToError(ret[1]); err != nil {
+		return nil, err
+	}
+	return ret[0].Interface().(runtime.Object), nil
 }
 
 func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, query *jsonutils.JSONDict) (IQuery, error) {

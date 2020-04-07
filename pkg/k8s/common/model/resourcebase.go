@@ -2,6 +2,7 @@ package model
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
@@ -50,6 +51,13 @@ func (m *SK8SNamespaceResourceBaseManager) ListItemFilter(ctx *RequestContext, q
 		})*/
 	}
 	return m.SK8SClusterResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SClusterBase)
+}
+
+func (m SK8SNamespaceResourceBaseManager) ValidateCreateData(
+	ctx *RequestContext, _ *jsonutils.JSONDict,
+	input *apis.K8sNamespaceResourceCreateInput) (*apis.K8sNamespaceResourceCreateInput, error) {
+	// TODO: check namespace resource exists
+	return input, nil
 }
 
 func (m SK8SNamespaceResourceBase) GetNamespace() string {

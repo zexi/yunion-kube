@@ -4,6 +4,8 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
@@ -41,6 +43,12 @@ func (m SDaemonSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 		ResourceName: apis.ResourceNameDaemonSet,
 		Object:       &apps.DaemonSet{},
 	}
+}
+
+func (m SDaemonSetManager) NewK8SRawObjectForCreate(
+	ctx *model.RequestContext,
+	input jsonutils.JSONObject) (runtime.Object, error) {
+	return nil, nil
 }
 
 func (obj *SDaemonSet) GetAPIObject() (*apis.DaemonSet, error) {

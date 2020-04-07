@@ -16,6 +16,7 @@ import (
 
 type ResourceHandler interface {
 	Create(kind string, namespace string, object *runtime.Unknown) (*runtime.Unknown, error)
+	CreateV2(kind string, namespace string, object runtime.Object) (runtime.Object, error)
 	Update(kind string, namespace string, name string, object *runtime.Unknown) (*runtime.Unknown, error)
 	Get(kind string, namespace string, name string) (runtime.Object, error)
 	List(kind string, namespace string, labelSelector string) ([]runtime.Object, error)
@@ -61,6 +62,21 @@ func (h *resourceHandler) Create(kind string, namespace string, object *runtime.
 	err := req.Do().Into(&result)
 
 	return &result, err
+}
+
+func (h *resourceHandler) CreateV2(kind string, namespace string, object runtime.Object) (runtime.Object, error) {
+	resource, ok := api.KindToResourceMap[kind]
+	if !ok {
+		return nil, fmt.Errorf("Resource kind (%s) not support yet . ", kind)
+	}
+	kubeClient := h.getClientByGroupVersion(resource.GroupVersionResourceKind.GroupVersionResource)
+	return kubeClient.Post().
+		Resource(kind).
+		Namespace(namespace).
+		VersionedParams(&metav1.CreateOptions{}, metav1.ParameterCodec).
+		Body(object).
+		Do().
+		Get()
 }
 
 func (h *resourceHandler) Update(kind string, namespace string, name string, object *runtime.Unknown) (*runtime.Unknown, error) {

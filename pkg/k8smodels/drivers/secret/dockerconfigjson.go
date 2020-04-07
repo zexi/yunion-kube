@@ -1,4 +1,4 @@
-package drivers
+package secret
 
 import (
 	"encoding/base64"
@@ -10,18 +10,18 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/resources/secret"
+	"yunion.io/x/yunion-kube/pkg/k8smodels"
 )
 
 func init() {
-	secret.SecretManager.RegisterDriver(
+	k8smodels.SecretManager.RegisterDriver(
 		v1.SecretTypeDockerConfigJson,
 		newDockerConfigJson())
 }
 
 type dockerConfigJson struct{}
 
-func newDockerConfigJson() secret.ISecretDriver {
+func newDockerConfigJson() k8smodels.ISecretDriver {
 	return new(dockerConfigJson)
 }
 
