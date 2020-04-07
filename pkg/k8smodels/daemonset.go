@@ -4,8 +4,6 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"yunion.io/x/log"
-
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
@@ -71,7 +69,6 @@ func (obj *SDaemonSet) GetAPIDetailsObject() (*apis.DaemonSetDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("====Get events: %#v", events)
 	return &apis.DaemonSetDetails{
 		DaemonSet: *apiObj,
 		Events:    events,

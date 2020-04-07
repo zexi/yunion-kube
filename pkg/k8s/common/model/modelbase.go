@@ -170,3 +170,7 @@ func (m *SK8SModelBaseManager) ValidateName(name string) error {
 func (m *SK8SModelBaseManager) GetQuery(cluster ICluster) IQuery {
 	return NewK8SResourceQuery(cluster, m.GetIModelManager())
 }
+
+func (m *SK8SModelBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SBase) (IQuery, error) {
+	return q, nil
+}

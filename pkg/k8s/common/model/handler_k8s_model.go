@@ -116,12 +116,11 @@ func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.J
 	offset := baseInput.Offset
 	// paginMarker := baseInput.PagingMarker
 
-	q := man.GetQuery(ctx.Cluster()).Offset(offset).Limit(limit).
-		Namespace(ctx.GetNamespaceByQuery())
-	/*q, err = ListItemFilter(ctx, man, q, query)
+	q := man.GetQuery(ctx.Cluster()).Offset(offset).Limit(limit)
+	q, err = ListItemFilter(ctx, man, q, query)
 	if err != nil {
 		return nil, err
-	}*/
+	}
 	/*filters := jsonutils.GetQueryStringArray(query, "filter")
 	if len(filters) > 0 {
 		q, err = applyListItemsGeneralFilters(ctx, manager, q, filters)

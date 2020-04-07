@@ -19,12 +19,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/gotypes"
-	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -224,8 +222,8 @@ func ValidateCreateData(manager IK8SModelManager, ctx context.Context, userCred 
 	return mergeInputOutputData(data, resVal), nil
 }
 
-func ListItemFilter(manager IK8SModelManager, ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	ret, err := call(manager, "ListItemFilter", ctx, q, userCred, query)
+func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, query *jsonutils.JSONDict) (IQuery, error) {
+	ret, err := call(manager, "ListItemFilter", ctx, q, query)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -235,7 +233,7 @@ func ListItemFilter(manager IK8SModelManager, ctx context.Context, q *sqlchemy.S
 	if err := ValueToError(ret[1]); err != nil {
 		return nil, err
 	}
-	return ret[0].Interface().(*sqlchemy.SQuery), nil
+	return ret[0].Interface().(IQuery), nil
 }
 
 func GetObject(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, error) {

@@ -1,6 +1,7 @@
 package model
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -19,7 +20,7 @@ type IQuery interface {
 	GetOffset() int64
 }
 
-type QueryFilter func(obj runtime.Object) bool
+type QueryFilter func(obj metav1.Object) bool
 
 type sK8SQuery struct {
 	limit        int64
@@ -107,7 +108,7 @@ func (q *sK8SQuery) applyFilters(objs []runtime.Object) []runtime.Object {
 	for _, obj := range objs {
 		filtered := false
 		for _, f := range q.filters {
-			if f(obj) {
+			if f(obj.(metav1.Object)) {
 				filtered = true
 				continue
 			}
