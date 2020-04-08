@@ -3,7 +3,6 @@ package k8smodels
 import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/errors"
@@ -14,11 +13,10 @@ import (
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
-type SDaemonSetManager struct {
-	model.SK8SNamespaceResourceBaseManager
-}
-
-var DaemonSetManager *SDaemonSetManager
+var (
+	DaemonSetManager *SDaemonSetManager
+	_                model.IK8SModel = &SDaemonSet{}
+)
 
 func init() {
 	DaemonSetManager = &SDaemonSetManager{
@@ -30,9 +28,9 @@ func init() {
 	DaemonSetManager.SetVirtualObject(DaemonSetManager)
 }
 
-var (
-	_ model.IK8SModel = &SDaemonSet{}
-)
+type SDaemonSetManager struct {
+	model.SK8SNamespaceResourceBaseManager
+}
 
 type SDaemonSet struct {
 	model.SK8SNamespaceResourceBase
@@ -68,7 +66,7 @@ func (obj *SDaemonSet) GetAPIObject() (*apis.DaemonSet, error) {
 	}, nil
 }
 
-func (obj *SDaemonSet) GetAPIDetailsObject() (*apis.DaemonSetDetails, error) {
+func (obj *SDaemonSet) GetAPIDetailObject() (*apis.DaemonSetDetail, error) {
 	events, err := EventManager.GetEventsByObject(obj)
 	if err != nil {
 		return nil, err
@@ -77,36 +75,18 @@ func (obj *SDaemonSet) GetAPIDetailsObject() (*apis.DaemonSetDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.DaemonSetDetails{
+	return &apis.DaemonSetDetail{
 		DaemonSet: *apiObj,
 		Events:    events,
 	}, nil
 }
 
 func (obj *SDaemonSet) GetRawPods() ([]*v1.Pod, error) {
-	pods, err := PodManager.GetRawPods(obj.GetCluster(), obj.GetNamespace())
-	if err != nil {
-		return nil, err
-	}
-	return common.FilterPodsByControllerRef(obj.GetK8SObject().(metav1.Object), pods), nil
+	return GetRawPodsByController(obj)
 }
 
 func (obj *SDaemonSet) GetRawDaemonSet() *apps.DaemonSet {
 	return obj.GetK8SObject().(*apps.DaemonSet)
-}
-
-func GetPodInfo(obj model.IK8SModel, current int32, desired *int32, pods []*v1.Pod) (*apis.PodInfo, error) {
-	podInfo := common.GetPodInfo(current, desired, pods)
-	warnEvents, err := EventManager.GetWarningEventsByPods(obj.GetCluster(), pods)
-	if err != nil {
-		return nil, err
-	}
-	ws := make([]apis.Event, len(warnEvents))
-	for i := range warnEvents {
-		ws[i] = *warnEvents[i]
-	}
-	podInfo.Warnings = ws
-	return &podInfo, nil
 }
 
 func (obj *SDaemonSet) GetPodInfo() (*apis.PodInfo, error) {

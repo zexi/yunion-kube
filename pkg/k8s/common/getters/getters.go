@@ -168,17 +168,25 @@ func GetDeploymentStatus(podInfo *api.PodInfo, obj apps.Deployment) *api.Deploym
 		cond := deploymentutil.GetDeploymentCondition(obj.Status, apps.DeploymentProgressing)
 		if cond != nil && cond.Reason == deploymentutil.TimedOutReason {
 			status = cond.Reason
+			ret.Status = status
+			return ret
 		}
 		if obj.Spec.Replicas != nil && obj.Status.UpdatedReplicas < *obj.Spec.Replicas {
 			// new replicas have been updated
 			status = api.DeploymentStatusNewReplicaUpdating
+			ret.Status = status
+			return ret
 		}
 		if obj.Status.Replicas > obj.Status.UpdatedReplicas {
 			// old replicas are pending termination
 			status = api.DeploymentStatusOldReplicaTerminating
+			ret.Status = status
+			return ret
 		}
 		if obj.Status.AvailableReplicas < obj.Status.UpdatedReplicas {
 			status = api.DeploymentStatusAvailableWaiting
+			ret.Status = status
+			return ret
 		}
 	}
 	ret.Status = status

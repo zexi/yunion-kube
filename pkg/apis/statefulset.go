@@ -39,9 +39,9 @@ type StatefulSetStatus struct {
 // Set plus additional augmented data we can get from other sources (like services that target the same pods).
 type StatefulSetDetail struct {
 	StatefulSet
-	PodList     []Pod     `json:"pods"`
-	EventList   []Event   `json:"events"`
-	ServiceList []Service `json:"services"`
+	PodList  []*Pod     `json:"pods"`
+	Events   []*Event   `json:"events"`
+	Services []*Service `json:"services"`
 }
 
 type StatefulsetCreateInput struct {

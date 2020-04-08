@@ -4,8 +4,6 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-const ()
-
 // Pod is a presentation layer view of Pod resource. This means it is Pod plus additional augmented data
 // we can get from other sources (like services that target it).
 type Pod struct {
@@ -20,7 +18,7 @@ type Pod struct {
 	RestartCount int32 `json:"restartCount"`
 
 	// Pod warning events
-	Warnings []Event `json:"warnings"`
+	Warnings []*Event `json:"warnings"`
 
 	QOSClass       string      `json:"qosClass"`
 	Containers     []Container `json:"containers"`
@@ -59,11 +57,11 @@ type PodStatusV2 struct {
 
 type PodDetail struct {
 	Pod
-	Conditions                []Condition             `json:"conditions"`
-	Events                    []Event                 `json:"events"`
-	PersistentvolumeclaimList []PersistentVolumeClaim `json:"persistentVolumeClaims"`
-	ConfigMaps                []ConfigMap             `json:"configMaps"`
-	Secrets                   []Secret                `json:"secrets"`
+	Conditions             []*Condition             `json:"conditions"`
+	Events                 []*Event                 `json:"events"`
+	Persistentvolumeclaims []*PersistentVolumeClaim `json:"persistentVolumeClaims"`
+	ConfigMaps             []*ConfigMap             `json:"configMaps"`
+	Secrets                []*Secret                `json:"secrets"`
 }
 
 // Container represents a docker/rkt/etc. container that lives in a pod.

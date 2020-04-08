@@ -104,6 +104,15 @@ func (m SEventManager) GetEventsByObject(obj model.IK8SModel) ([]*apis.Event, er
 	return m.GetAPIEvents(obj.GetCluster(), res), nil
 }
 
+func (m SEventManager) GetNamespaceEvents(cluster model.ICluster, ns string) ([]*apis.Event, error) {
+	events, err := m.GetRawEvents(cluster, ns)
+	if err != nil {
+		return nil, err
+	}
+	events = m.fillEventsType(events)
+	return m.GetAPIEvents(cluster, events), nil
+}
+
 func (m SEventManager) GetRawEventsByUID(cluster model.ICluster, uId types.UID) ([]*v1.Event, error) {
 	events, err := m.GetAllRawEvents(cluster)
 	if err != nil {

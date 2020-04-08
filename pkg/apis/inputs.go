@@ -5,7 +5,13 @@ type ListInputK8SBase struct {
 	Offset       int64  `json:"offset"`
 	PagingMarker string `json:"paging_marker"`
 
-	// Label selectors
+	// TODO: support Label selectors
+
+	// Name of the field to be ordered by
+	OrderBy []string `json:"order_by"`
+	// List order, choices 'desc|asc'
+	Order  string   `json:"order"`
+	Filter []string `json:"filter"`
 }
 
 type ListInputK8SClusterBase struct {

@@ -89,6 +89,10 @@ func (m *SK8SModelBase) GetCluster() ICluster {
 	return m.cluster
 }
 
+func (m *SK8SModelBase) GetNamespace() string {
+	return ""
+}
+
 func (m *SK8SModelBase) GetObjectMeta() apis.ObjectMeta {
 	kObj := m.GetK8SObject()
 	v := reflect.ValueOf(kObj)
@@ -119,7 +123,8 @@ func (m *SK8SModelBase) GetTypeMeta() apis.TypeMeta {
 type SK8SModelBaseManager struct {
 	object.SObject
 
-	factory *SK8SObjectFactory
+	factory     *SK8SObjectFactory
+	orderFields OrderFields
 
 	keyword       string
 	keywordPlural string
@@ -129,6 +134,7 @@ func NewK8SModelBaseManager(model interface{}, keyword, keywordPlural string) SK
 	factory := NewK8SObjectFactory(model)
 	modelMan := SK8SModelBaseManager{
 		factory:       factory,
+		orderFields:   make(map[string]IOrderField),
 		keyword:       keyword,
 		keywordPlural: keywordPlural,
 	}
@@ -169,6 +175,14 @@ func (m *SK8SModelBaseManager) ValidateName(name string) error {
 
 func (m *SK8SModelBaseManager) GetQuery(cluster ICluster) IQuery {
 	return NewK8SResourceQuery(cluster, m.GetIModelManager())
+}
+
+func (m *SK8SModelBaseManager) GetOrderFields() OrderFields {
+	return m.orderFields
+}
+
+func (m *SK8SModelBaseManager) RegisterOrderFields(fields ...IOrderField) {
+	m.orderFields.Set(fields...)
 }
 
 func (m *SK8SModelBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SBase) (IQuery, error) {

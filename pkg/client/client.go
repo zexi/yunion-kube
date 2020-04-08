@@ -50,6 +50,10 @@ type ClusterManager struct {
 	ClientV2       *clientv2.Client
 }
 
+func (c ClusterManager) GetClusterObject() manager.ICluster {
+	return c.Cluster
+}
+
 func (c ClusterManager) GetId() string {
 	return c.Cluster.GetId()
 }
@@ -60,6 +64,10 @@ func (c ClusterManager) GetName() string {
 
 func (c ClusterManager) GetIndexer() *CacheFactory {
 	return c.KubeClient.GetIndexer()
+}
+
+func (c ClusterManager) GetClientset() kubernetes.Interface {
+	return c.KubeClient.GetClientset()
 }
 
 func (c ClusterManager) GetClient() *clientv2.Client {

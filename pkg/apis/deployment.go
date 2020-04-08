@@ -105,9 +105,9 @@ type RollingUpdateStrategy struct {
 type DeploymentDetail struct {
 	Deployment
 	// Detailed information about Pods belonging to this Deployment.
-	PodList []Pod `json:"pods"`
+	Pods []*Pod `json:"pods"`
 
-	ServiceList []Service `json:"services"`
+	Services []*Service `json:"services"`
 
 	// Status information on the deployment
 	StatusInfo `json:"statusInfo"`
@@ -122,17 +122,17 @@ type DeploymentDetail struct {
 	// Rolling update strategy containing maxSurge and maxUnavailable
 	RollingUpdateStrategy *RollingUpdateStrategy `json:"rollingUpdateStrategy,omitempty"`
 
-	// RepliaSetList containing old replica sets from the deployment
-	OldReplicaSetList []ReplicaSet `json:"oldReplicaSetList"`
+	// RepliaSets containing old replica sets from the deployment
+	OldReplicaSets []*ReplicaSet `json:"oldReplicaSets"`
 
 	// New replica set used by this deployment
-	NewReplicaSet ReplicaSet `json:"newReplicaSet"`
+	NewReplicaSet *ReplicaSet `json:"newReplicaSet"`
 
 	// Optional field that specifies the number of old Replica Sets to retain to allow rollback.
 	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit"`
 
 	// List of events related to this Deployment
-	EventList []Event `json:"events"`
+	Events []*Event `json:"events"`
 
 	// List of Horizontal Pod AutoScalers targeting this Deployment
 	//HorizontalPodAutoscalerList hpa.HorizontalPodAutoscalerList `json:"horizontalPodAutoscalerList"`

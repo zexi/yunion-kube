@@ -15,18 +15,17 @@
 package model
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
+
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/gotypes"
-
-	"yunion.io/x/onecloud/pkg/httperrors"
-	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type Caller struct {
@@ -266,7 +265,7 @@ func GetObject(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, error
 }
 
 func GetDetails(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, error) {
-	ret, err := call(model, "GetAPIDetailsObject")
+	ret, err := call(model, "GetAPIDetailObject")
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -313,13 +312,13 @@ func GetDetails(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, erro
 	return retVal, nil
 }*/
 
-func ValidateUpdateData(model IK8SModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	ret, err := call(model, "ValidateUpdateData", ctx, userCred, query, data)
+func ValidateUpdateData(model IK8SModel, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	ret, err := call(model, "ValidateUpdateData", ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
 	if len(ret) != 2 {
-		return nil, httperrors.NewInternalServerError("Invald ValidateUpdateData return value")
+		return nil, httperrors.NewInternalServerError("Invalid ValidateCreateData return value")
 	}
 	resVal := ret[0]
 	if err := ValueToError(ret[1]); err != nil {
@@ -328,8 +327,33 @@ func ValidateUpdateData(model IK8SModel, ctx context.Context, userCred mcclient.
 	return mergeInputOutputData(data, resVal), nil
 }
 
-func CustomizeDelete(model IK8SModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-	ret, err := call(model, "CustomizeDelete", ctx, userCred, query, data)
+func NewK8SRawObjectForUpdate(model IK8SModel, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
+	ret, err := call(model, "NewK8SRawObjectForUpdate", ctx, data)
+	if err != nil {
+		return nil, httperrors.NewGeneralError(err)
+	}
+	if len(ret) != 2 {
+		return nil, httperrors.NewInternalServerError("Invalid NewK8SRawObjectForCreate return value")
+	}
+	if err := ValueToError(ret[1]); err != nil {
+		return nil, err
+	}
+	return ret[0].Interface().(runtime.Object), nil
+}
+
+func ValidateDeleteCondition(model IK8SModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
+	ret, err := call(model, "ValidateDeleteCondition", ctx, query, data)
+	if err != nil {
+		return httperrors.NewGeneralError(err)
+	}
+	if len(ret) != 1 {
+		return httperrors.NewInternalServerError("Invald CustomizeDelete return value")
+	}
+	return ValueToError(ret[0])
+}
+
+func CustomizeDelete(model IK8SModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
+	ret, err := call(model, "CustomizeDelete", ctx, query, data)
 	if err != nil {
 		return httperrors.NewGeneralError(err)
 	}

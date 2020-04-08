@@ -21,6 +21,8 @@ type IK8SModelManager interface {
 	KeywordPlural() string
 	GetK8SResourceInfo() K8SResourceInfo
 	GetQuery(cluster ICluster) IQuery
+	GetOrderFields() OrderFields
+	RegisterOrderFields(fields ...IOrderField)
 }
 
 type IK8SModel interface {
@@ -28,6 +30,7 @@ type IK8SModel interface {
 	object.IObject
 
 	GetName() string
+	GetNamespace() string
 	KeywordPlural() string
 
 	GetModelManager() IK8SModelManager

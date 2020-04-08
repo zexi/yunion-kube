@@ -2,9 +2,11 @@ package k8smodels
 
 import (
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"yunion.io/x/jsonutils"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
@@ -31,6 +33,7 @@ func init() {
 			"secrets"),
 		driverManager: drivers.NewDriverManager(""),
 	}
+	SecretManager.SetVirtualObject(SecretManager)
 }
 
 type ISecretDriver interface {
@@ -104,6 +107,49 @@ func (m SSecretManager) ValidateCreateData(
 	return input, drv.ValidateCreateData(input)
 }
 
+func (m SSecretManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.ListInputSecret) (model.IQuery, error) {
+	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return q, err
+	}
+	if query.Type != "" {
+		q.AddFilter(func(obj metav1.Object) bool {
+			secret := obj.(*v1.Secret)
+			return string(secret.Type) != query.Type
+		})
+	}
+	return q, nil
+}
+
+func (m SSecretManager) GetRawSecrets(cluster model.ICluster, ns string) ([]*v1.Secret, error) {
+	indexer := cluster.GetHandler().GetIndexer()
+	return indexer.SecretLister().Secrets(ns).List(labels.Everything())
+}
+
+func (m SSecretManager) GetAllRawSecrets(cluster model.ICluster) ([]*v1.Secret, error) {
+	return m.GetRawSecrets(cluster, v1.NamespaceAll)
+}
+
+func (m SSecretManager) GetAPISecrets(cluster model.ICluster, ss []*v1.Secret) ([]*apis.Secret, error) {
+	ret := make([]*apis.Secret, len(ss))
+	for idx := range ss {
+		tmp, err := m.GetAPISecret(cluster, ss[idx])
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, tmp)
+	}
+	return ret, nil
+}
+
+func (m *SSecretManager) GetAPISecret(cluster model.ICluster, s *v1.Secret) (*apis.Secret, error) {
+	mObj, err := model.NewK8SModelObject(m, cluster, s)
+	if err != nil {
+		return nil, err
+	}
+	return mObj.(*SSecret).GetAPIObject()
+}
+
 func (obj *SSecret) GetRawSecret() *v1.Secret {
 	return obj.GetK8SObject().(*v1.Secret)
 }
@@ -117,7 +163,7 @@ func (obj *SSecret) GetAPIObject() (*apis.Secret, error) {
 	}, nil
 }
 
-func (obj *SSecret) GetAPIDetailsObject() (*apis.SecretDetail, error) {
+func (obj *SSecret) GetAPIDetailObject() (*apis.SecretDetail, error) {
 	rs := obj.GetRawSecret()
 	secret, err := obj.GetAPIObject()
 	if err != nil {

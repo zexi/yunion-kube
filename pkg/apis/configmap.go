@@ -13,7 +13,7 @@ type ConfigMapDetail struct {
 	Data map[string]string `json:"data,omitempty"`
 
 	// Pods use configmap
-	Pods []Pod `json:"pods,omitempty"`
+	Pods []*Pod `json:"pods,omitempty"`
 }
 
 type ConfigMapCreateInput struct {

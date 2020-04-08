@@ -73,9 +73,6 @@ type NodeDetail struct {
 	// NodePhase is the current lifecycle phase of the node.
 	Phase v1.NodePhase `json:"status"`
 
-	// Resources allocated by node.
-	AllocatedResources NodeAllocatedResources `json:"allocatedResources"`
-
 	// PodCIDR represents the pod IP range assigned to the node.
 	PodCIDR string `json:"podCIDR"`
 
@@ -89,11 +86,15 @@ type NodeDetail struct {
 	ContainerImages []string `json:"containerImages"`
 
 	// PodList contains information about pods belonging to this node.
-	PodList []Pod `json:"pods"`
+	PodList []*Pod `json:"pods"`
 
 	// Events is list of events associated to the node.
-	EventList []Event `json:"events"`
+	EventList []*Event `json:"events"`
 
 	// Metrics collected for this resource
 	//Metrics []metricapi.Metric `json:"metrics"`
+}
+
+type ListInputNode struct {
+	ListInputK8SClusterBase
 }

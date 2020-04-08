@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appctx"
@@ -14,6 +16,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 	"yunion.io/x/pkg/utils"
+
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
@@ -31,6 +34,7 @@ type IK8sModelDispatchHandler interface {
 	Get(ctx *model.RequestContext, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	GetSpecific(ctx *model.RequestContext, id string, spec string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	Create(ctx *model.RequestContext, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	PerformClassAction(ctx *model.RequestContext, action string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	PerformAction(ctx *model.RequestContext, id string, action string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	Update(ctx *model.RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	Delete(ctx *model.RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
@@ -79,7 +83,11 @@ func (d K8sModelDispatcher) Add(handler IK8sModelDispatchHandler) {
 	app.AddHandler2("POST",
 		fmt.Sprintf("%s/%s", clusterPrefix, handler.KeywordPlural()),
 		handler.Filter(d.create), metadata, "create", tags)
-	// perform action
+	// perform action on resource manager
+	app.AddHandler2("POST",
+		fmt.Sprintf("%s/%s/<action>", clusterPrefix, handler.KeywordPlural()),
+		handler.Filter(d.performClassAction), metadata, "perform_class_action", tags)
+	// perform action on resource instance
 	app.AddHandler2("POST",
 		fmt.Sprintf("%s/%s/<resid>/<action>", clusterPrefix, handler.KeywordPlural()),
 		handler.Filter(d.performAction), metadata, "perform_action", tags)
@@ -177,14 +185,18 @@ func (d K8sModelDispatcher) fetchContextParams(
 	w http.ResponseWriter,
 	r *http.Request,
 	excludes ...string,
-) (
-	IK8sModelDispatchHandler,
-	*model.RequestContext,
-	map[string]string,
-	error) {
+) (IK8sModelDispatchHandler, *model.RequestContext, map[string]string, error) {
 	handler, params, query, body := d.fetchEnv(ctx, w, r)
 	if query != nil {
 		query = mergeQueryParams(params, query, excludes...)
+	}
+	if body != nil {
+		tmpBody, err := body.Get(handler.Keyword())
+		if err != nil {
+			// return nil, nil, nil, err
+			tmpBody = body
+		}
+		body = tmpBody.(*jsonutils.JSONDict)
 	}
 	reqCtx, err := d.getContext(ctx, query, body)
 	if err != nil {
@@ -196,12 +208,12 @@ func (d K8sModelDispatcher) fetchContextParams(
 func (d K8sModelDispatcher) list(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, _, err := d.fetchContextParams(ctx, w, r)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.List(reqCtx, reqCtx.GetQuery())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	appsrv.SendJSON(w, modulebase.ListResult2JSONWithKey(result, handler.KeywordPlural()))
@@ -210,12 +222,12 @@ func (d K8sModelDispatcher) list(ctx context.Context, w http.ResponseWriter, r *
 func (d K8sModelDispatcher) get(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>")
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.Get(reqCtx, params["<resid>"], reqCtx.GetQuery())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	// log.Errorf("result string: %s", result.String())
@@ -226,12 +238,12 @@ func (d K8sModelDispatcher) get(ctx context.Context, w http.ResponseWriter, r *h
 func (d K8sModelDispatcher) getSpec(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>", "<spec>")
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.GetSpecific(reqCtx, params["<resid>"], params["<spec>"], reqCtx.GetQuery())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -240,26 +252,40 @@ func (d K8sModelDispatcher) getSpec(ctx context.Context, w http.ResponseWriter, 
 func (d K8sModelDispatcher) create(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, _, err := d.fetchContextParams(ctx, w, r)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.Create(reqCtx, reqCtx.GetQuery(), reqCtx.GetData())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
 }
 
+func (d K8sModelDispatcher) performClassAction(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<action>")
+	if err != nil {
+		k8serrors.GeneralServerError(w, err)
+		return
+	}
+	result, err := handler.PerformClassAction(reqCtx, params["<action>"], reqCtx.GetQuery(), reqCtx.GetData())
+	if err != nil {
+		k8serrors.GeneralServerError(w, err)
+		return
+	}
+	appsrv.SendJSON(w, wrapBody(result, handler.KeywordPlural()))
+}
+
 func (d K8sModelDispatcher) performAction(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>", "<action>")
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.PerformAction(reqCtx, params["<resid>"], params["<action>"], reqCtx.GetQuery(), reqCtx.GetData())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -268,12 +294,12 @@ func (d K8sModelDispatcher) performAction(ctx context.Context, w http.ResponseWr
 func (d K8sModelDispatcher) update(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>")
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.Update(reqCtx, params["<resid>"], reqCtx.GetQuery(), reqCtx.GetData())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -282,12 +308,12 @@ func (d K8sModelDispatcher) update(ctx context.Context, w http.ResponseWriter, r
 func (d K8sModelDispatcher) delete(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>")
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	result, err := handler.Delete(reqCtx, params["<resid>"], reqCtx.GetQuery(), reqCtx.GetData())
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		k8serrors.GeneralServerError(w, err)
 		return
 	}
 	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))

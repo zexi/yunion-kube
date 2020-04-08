@@ -24,6 +24,14 @@ type K8sClusterResourceCreateInput struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+func (input K8sClusterResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:        input.Name,
+		Labels:      input.Labels,
+		Annotations: input.Annotations,
+	}
+}
+
 type K8sNamespaceResourceCreateInput struct {
 	K8sClusterResourceCreateInput
 	// required: true
@@ -31,10 +39,7 @@ type K8sNamespaceResourceCreateInput struct {
 }
 
 func (input K8sNamespaceResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
-	return metav1.ObjectMeta{
-		Name:        input.Name,
-		Namespace:   input.Namespace,
-		Labels:      input.Labels,
-		Annotations: input.Annotations,
-	}
+	objMeta := input.K8sClusterResourceCreateInput.ToObjectMeta()
+	objMeta.Namespace = input.Namespace
+	return objMeta
 }

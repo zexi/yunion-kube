@@ -30,7 +30,7 @@ type DaemonSetStatus struct {
 	Status string `json:"status"`
 }
 
-type DaemonSetDetails struct {
+type DaemonSetDetail struct {
 	DaemonSet
 
 	Events []*Event `json:"events"`
