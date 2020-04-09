@@ -1,10 +1,9 @@
 package model
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sort"
+
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type IQuery interface {
@@ -13,6 +12,7 @@ type IQuery interface {
 	Offset(offset int64) IQuery
 	PagingMarker(marker string) IQuery
 	AddFilter(filters ...QueryFilter) IQuery
+	FilterAny(any bool) IQuery
 	AddOrderFields(ofs ...OrderField) IQuery
 
 	FetchObjects() ([]IK8SModel, error)
@@ -22,7 +22,7 @@ type IQuery interface {
 	GetOffset() int64
 }
 
-type QueryFilter func(obj metav1.Object) bool
+type QueryFilter func(obj IK8SModel) bool
 
 type sK8SQuery struct {
 	limit        int64
@@ -31,6 +31,7 @@ type sK8SQuery struct {
 	pagingMarker string
 	namespace    string
 	filters      []QueryFilter
+	filterAny    bool
 	orderFields  []OrderField
 
 	cluster ICluster
@@ -49,6 +50,11 @@ func NewK8SResourceQuery(cluster ICluster, manager IK8SModelManager) IQuery {
 
 func (q *sK8SQuery) AddFilter(filters ...QueryFilter) IQuery {
 	q.filters = append(q.filters, filters...)
+	return q
+}
+
+func (q *sK8SQuery) FilterAny(any bool) IQuery {
+	q.filterAny = any
 	return q
 }
 
@@ -97,10 +103,6 @@ func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	objs = q.applyFilters(objs)
-	q.total = int64(len(objs))
-	objs = q.applyOffseter(objs)
-	objs = q.applyLimiter(objs)
 	ret := make([]IK8SModel, len(objs))
 	for idx, obj := range objs {
 		model, err := NewK8SModelObject(q.manager, cluster, obj)
@@ -109,21 +111,26 @@ func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
 		}
 		ret[idx] = model
 	}
+	ret = q.applyFilters(ret)
+	ret = q.applyOffseter(ret)
+	ret = q.applyLimiter(ret)
 	ret = q.applySorters(ret)
+	q.total = int64(len(ret))
 	return ret, nil
 }
 
-func (q *sK8SQuery) applyFilters(objs []runtime.Object) []runtime.Object {
-	ret := make([]runtime.Object, 0)
+func (q *sK8SQuery) applyFilters(objs []IK8SModel) []IK8SModel {
+	// TODO: impl filter any
+	ret := make([]IK8SModel, 0)
 	for _, obj := range objs {
-		filtered := false
+		filtered := true
 		for _, f := range q.filters {
-			if f(obj.(metav1.Object)) {
-				filtered = true
-				continue
+			if !f(obj) {
+				filtered = false
+				break
 			}
 		}
-		if !filtered {
+		if filtered {
 			ret = append(ret, obj)
 		}
 	}
@@ -186,7 +193,7 @@ func (q *sK8SQuery) applySorters(objs []IK8SModel) []IK8SModel {
 	return sorter.doSort().Objects()
 }
 
-func (q *sK8SQuery) applyOffseter(objs []runtime.Object) []runtime.Object {
+func (q *sK8SQuery) applyOffseter(objs []IK8SModel) []IK8SModel {
 	ret := objs
 	if q.offset == 0 {
 		return ret
@@ -198,7 +205,7 @@ func (q *sK8SQuery) applyOffseter(objs []runtime.Object) []runtime.Object {
 	return ret
 }
 
-func (q *sK8SQuery) applyLimiter(objs []runtime.Object) []runtime.Object {
+func (q *sK8SQuery) applyLimiter(objs []IK8SModel) []IK8SModel {
 	if q.limit < 0 {
 		// -1 means not do limit query
 		return objs

@@ -10,8 +10,11 @@ type ListInputK8SBase struct {
 	// Name of the field to be ordered by
 	OrderBy []string `json:"order_by"`
 	// List order, choices 'desc|asc'
-	Order  string   `json:"order"`
+	Order string `json:"order"`
+	// general filters
 	Filter []string `json:"filter"`
+	// If true, match if any of the filters matches; otherwise, match if all of the filters match
+	FilterAny bool `json:"filter_any"`
 }
 
 type ListInputK8SClusterBase struct {

@@ -250,7 +250,7 @@ func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, que
 	return ret[0].Interface().(IQuery), nil
 }
 
-func GetObject(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, error) {
+func GetObject(model IK8SModel) (*jsonutils.JSONDict, error) {
 	ret, err := call(model, "GetAPIObject")
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -264,7 +264,7 @@ func GetObject(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, error
 	return ValueToJSONDict(ret[0]), nil
 }
 
-func GetDetails(ctx *RequestContext, model IK8SModel) (*jsonutils.JSONDict, error) {
+func GetDetails(model IK8SModel) (*jsonutils.JSONDict, error) {
 	ret, err := call(model, "GetAPIDetailObject")
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)

@@ -1,7 +1,6 @@
 package model
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/yunion-kube/pkg/apis"
@@ -29,8 +28,8 @@ func NewK8SClusterResourceBaseManager(dt interface{}, keyword, keywordPlural str
 
 func (m *SK8SClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SClusterBase) (IQuery, error) {
 	if query.Name != "" {
-		q.AddFilter(func(obj metav1.Object) bool {
-			return obj.GetName() != query.Name
+		q.AddFilter(func(obj IK8SModel) bool {
+			return obj.GetName() == query.Name
 		})
 	}
 	return m.SK8SModelBaseManager.ListItemFilter(ctx, q, query.ListInputK8SBase)

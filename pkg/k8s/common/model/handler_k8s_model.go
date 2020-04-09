@@ -141,13 +141,6 @@ func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.J
 	if err != nil {
 		return nil, err
 	}
-	/*filters := jsonutils.GetQueryStringArray(query, "filter")
-	if len(filters) > 0 {
-		q, err = applyListItemsGeneralFilters(ctx, manager, q, filters)
-		if err != nil {
-			return nil, err
-		}
-	}*/
 
 	listInput := new(apis.ListInputK8SBase)
 	query.Unmarshal(listInput)
@@ -176,6 +169,16 @@ func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.J
 	}
 	q.AddOrderFields(orderByFields...)
 
+	// process general filters
+	if len(listInput.Filter) > 0 {
+		for _, filter := range listInput.Filter {
+			fc := ParseFilterClause(filter)
+			if fc != nil {
+				q.AddFilter(fc.QueryFilter())
+			}
+		}
+	}
+
 	listResult, err := Query2List(ctx, man, q)
 	if err != nil {
 		return nil, err
@@ -195,7 +198,7 @@ func Query2List(ctx *RequestContext, man IK8SModelManager, q IQuery) ([]jsonutil
 	}
 	results := make([]jsonutils.JSONObject, len(objs))
 	for i := range objs {
-		jsonDict, err := GetObject(ctx, objs[i])
+		jsonDict, err := GetObject(objs[i])
 		if err != nil {
 			return nil, err
 		}
@@ -224,7 +227,7 @@ func (h *K8SModelHandler) Get(ctx *RequestContext, id string, query *jsonutils.J
 func getModelItemDetails(
 	ctx *RequestContext,
 	manager IK8SModelManager, item IK8SModel) (jsonutils.JSONObject, error) {
-	return GetDetails(ctx, item)
+	return GetDetails(item)
 }
 
 func fetchK8SModel(

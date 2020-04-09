@@ -2,7 +2,6 @@ package k8smodels
 
 import (
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -113,9 +112,9 @@ func (m SSecretManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery
 		return q, err
 	}
 	if query.Type != "" {
-		q.AddFilter(func(obj metav1.Object) bool {
-			secret := obj.(*v1.Secret)
-			return string(secret.Type) != query.Type
+		q.AddFilter(func(obj model.IK8SModel) bool {
+			secret := obj.(*SSecret).GetRawSecret()
+			return string(secret.Type) == query.Type
 		})
 	}
 	return q, nil
