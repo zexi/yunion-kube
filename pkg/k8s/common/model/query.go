@@ -2,6 +2,7 @@ package model
 
 import (
 	"sort"
+	"yunion.io/x/log"
 
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -112,10 +113,10 @@ func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
 		ret[idx] = model
 	}
 	ret = q.applyFilters(ret)
-	ret = q.applyOffseter(ret)
-	ret = q.applyLimiter(ret)
 	ret = q.applySorters(ret)
 	q.total = int64(len(ret))
+	ret = q.applyOffseter(ret)
+	ret = q.applyLimiter(ret)
 	return ret, nil
 }
 
@@ -210,6 +211,7 @@ func (q *sK8SQuery) applyLimiter(objs []IK8SModel) []IK8SModel {
 		// -1 means not do limit query
 		return objs
 	}
+	log.Errorf("==========q.total: %v, q.limit: %v", q.total, q.limit)
 	if q.total > q.limit {
 		if q.limit <= int64(len(objs)) {
 			return objs[:q.limit]

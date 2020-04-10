@@ -62,24 +62,10 @@ func (m SConfigMapManager) GetRawConfigMaps(cluster model.ICluster, ns string) (
 	return indexer.ConfigMapLister().ConfigMaps(ns).List(labels.Everything())
 }
 
-func (m SConfigMapManager) GetAPIConfigMaps(cluster model.ICluster, cfgs []*v1.ConfigMap) ([]*apis.ConfigMap, error) {
-	ret := make([]*apis.ConfigMap, len(cfgs))
-	for idx := range cfgs {
-		tmp, err := m.GetAPIConfigMap(cluster, cfgs[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret[idx] = tmp
-	}
-	return ret, nil
-}
-
-func (m *SConfigMapManager) GetAPIConfigMap(cluster model.ICluster, cfg *v1.ConfigMap) (*apis.ConfigMap, error) {
-	mObj, err := model.NewK8SModelObject(m, cluster, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return mObj.(*SConfigMap).GetAPIObject()
+func (m *SConfigMapManager) GetAPIConfigMaps(cluster model.ICluster, cfgs []*v1.ConfigMap) ([]*apis.ConfigMap, error) {
+	ret := make([]*apis.ConfigMap, 0)
+	err := ConvertRawToAPIObjects(m, cluster, cfgs, &ret)
+	return ret, err
 }
 
 func (m SConfigMap) GetRawConfigMap() *v1.ConfigMap {

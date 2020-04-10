@@ -54,7 +54,7 @@ func (m *SResourceQuotaManager) GetResourceQuotaDetails(cluster model.ICluster, 
 		if err != nil {
 			return nil, err
 		}
-		ret = append(ret, rs)
+		ret[idx] = rs
 	}
 	return ret, nil
 }

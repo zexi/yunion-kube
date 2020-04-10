@@ -80,7 +80,7 @@ type NodeDetail struct {
 	ProviderID string `json:"providerID"`
 
 	// Conditions is an array of current node conditions.
-	Conditions []Condition `json:"conditions"`
+	Conditions []*Condition `json:"conditions"`
 
 	// Container images of the node.
 	ContainerImages []string `json:"containerImages"`

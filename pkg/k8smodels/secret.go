@@ -129,24 +129,10 @@ func (m SSecretManager) GetAllRawSecrets(cluster model.ICluster) ([]*v1.Secret, 
 	return m.GetRawSecrets(cluster, v1.NamespaceAll)
 }
 
-func (m SSecretManager) GetAPISecrets(cluster model.ICluster, ss []*v1.Secret) ([]*apis.Secret, error) {
-	ret := make([]*apis.Secret, len(ss))
-	for idx := range ss {
-		tmp, err := m.GetAPISecret(cluster, ss[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, tmp)
-	}
-	return ret, nil
-}
-
-func (m *SSecretManager) GetAPISecret(cluster model.ICluster, s *v1.Secret) (*apis.Secret, error) {
-	mObj, err := model.NewK8SModelObject(m, cluster, s)
-	if err != nil {
-		return nil, err
-	}
-	return mObj.(*SSecret).GetAPIObject()
+func (m *SSecretManager) GetAPISecrets(cluster model.ICluster, ss []*v1.Secret) ([]*apis.Secret, error) {
+	ret := make([]*apis.Secret, 0)
+	err := ConvertRawToAPIObjects(m, cluster, ss, &ret)
+	return ret, err
 }
 
 func (obj *SSecret) GetRawSecret() *v1.Secret {

@@ -45,15 +45,9 @@ func (m SReplicaSetManager) GetRawReplicaSets(cluster model.ICluster, ns string,
 }
 
 func (m *SReplicaSetManager) GetAPIReplicaSets(cluster model.ICluster, rss []*apps.ReplicaSet) ([]*apis.ReplicaSet, error) {
-	ret := make([]*apis.ReplicaSet, len(rss))
-	for idx := range rss {
-		tmp, err := m.GetAPIReplicaSet(cluster, rss[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret[idx] = tmp
-	}
-	return ret, nil
+	ret := make([]*apis.ReplicaSet, 0)
+	err := ConvertRawToAPIObjects(m, cluster, rss, &ret)
+	return ret, err
 }
 
 func (m *SReplicaSetManager) GetAPIReplicaSet(cluster model.ICluster, rs *apps.ReplicaSet) (*apis.ReplicaSet, error) {

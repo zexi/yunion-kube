@@ -28,6 +28,18 @@ import (
 	"yunion.io/x/pkg/gotypes"
 )
 
+const (
+	DMethodValidateCreateData = "ValidateCreateData"
+	DMethodValidateUpdateData = "ValidateUpdateData"
+	DMethodValidateDeleteCondition = "ValidateDeleteCondition"
+	DMethodNewK8SRawObjectForCreate = "NewK8SRawObjectForCreate"
+	DMethodNewK8SRawObjectForUpdate = "NewK8SRawObjectForUpdate"
+	DMethodCustomizeDelete = "CustomizeDelete"
+	DMethodListItemFilter = "ListItemFilter"
+	DMethodGetAPIObject = "GetAPIObject"
+	DMethodGetAPIDetailObject = "GetAPIDetailObject"
+)
+
 type Caller struct {
 	modelVal reflect.Value
 	funcName string
@@ -56,7 +68,7 @@ func call(obj interface{}, fName string, inputs ...interface{}) ([]reflect.Value
 	return callObject(reflect.ValueOf(obj), fName, inputs...)
 }
 
-func findFunc(modelVal reflect.Value, fName string) (reflect.Value, error) {
+func FindFunc(modelVal reflect.Value, fName string) (reflect.Value, error) {
 	funcVal := modelVal.MethodByName(fName)
 	if !funcVal.IsValid() || funcVal.IsNil() {
 		log.Debugf("find method %s for %s", fName, modelVal.Type())
@@ -73,7 +85,7 @@ func findFunc(modelVal reflect.Value, fName string) (reflect.Value, error) {
 			if fieldType.Anonymous {
 				fieldValue := modelVal.Field(i)
 				if fieldValue.Kind() != reflect.Ptr && fieldValue.CanAddr() {
-					newFuncVal, err := findFunc(fieldValue.Addr(), fName)
+					newFuncVal, err := FindFunc(fieldValue.Addr(), fName)
 					if err == nil {
 						if !funcVal.IsValid() || funcVal.IsNil() {
 							funcVal = newFuncVal
@@ -82,7 +94,7 @@ func findFunc(modelVal reflect.Value, fName string) (reflect.Value, error) {
 						}
 					}
 				} else if fieldValue.Kind() == reflect.Ptr {
-					newFuncVal, err := findFunc(fieldValue, fName)
+					newFuncVal, err := FindFunc(fieldValue, fName)
 					if err == nil {
 						if !funcVal.IsValid() || funcVal.IsNil() {
 							funcVal = newFuncVal
@@ -208,7 +220,7 @@ func mergeInputOutputData(data *jsonutils.JSONDict, resVal reflect.Value) *jsonu
 }
 
 func ValidateCreateData(manager IK8SModelManager, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	ret, err := call(manager, "ValidateCreateData", ctx, query, data)
+	ret, err := call(manager, DMethodValidateCreateData, ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -223,7 +235,7 @@ func ValidateCreateData(manager IK8SModelManager, ctx *RequestContext, query *js
 }
 
 func NewK8SRawObjectForCreate(manager IK8SModelManager, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
-	ret, err := call(manager, "NewK8SRawObjectForCreate", ctx, data)
+	ret, err := call(manager, DMethodNewK8SRawObjectForCreate, ctx, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -237,7 +249,7 @@ func NewK8SRawObjectForCreate(manager IK8SModelManager, ctx *RequestContext, dat
 }
 
 func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, query *jsonutils.JSONDict) (IQuery, error) {
-	ret, err := call(manager, "ListItemFilter", ctx, q, query)
+	ret, err := call(manager, DMethodListItemFilter, ctx, q, query)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -251,7 +263,7 @@ func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, que
 }
 
 func GetObject(model IK8SModel) (*jsonutils.JSONDict, error) {
-	ret, err := call(model, "GetAPIObject")
+	ret, err := call(model, DMethodGetAPIObject)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -265,7 +277,7 @@ func GetObject(model IK8SModel) (*jsonutils.JSONDict, error) {
 }
 
 func GetDetails(model IK8SModel) (*jsonutils.JSONDict, error) {
-	ret, err := call(model, "GetAPIDetailObject")
+	ret, err := call(model, DMethodGetAPIDetailObject)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -313,7 +325,7 @@ func GetDetails(model IK8SModel) (*jsonutils.JSONDict, error) {
 }*/
 
 func ValidateUpdateData(model IK8SModel, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	ret, err := call(model, "ValidateUpdateData", ctx, query, data)
+	ret, err := call(model, DMethodValidateUpdateData, ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -328,7 +340,7 @@ func ValidateUpdateData(model IK8SModel, ctx *RequestContext, query *jsonutils.J
 }
 
 func NewK8SRawObjectForUpdate(model IK8SModel, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
-	ret, err := call(model, "NewK8SRawObjectForUpdate", ctx, data)
+	ret, err := call(model, DMethodNewK8SRawObjectForUpdate, ctx, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -342,7 +354,7 @@ func NewK8SRawObjectForUpdate(model IK8SModel, ctx *RequestContext, data *jsonut
 }
 
 func ValidateDeleteCondition(model IK8SModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
-	ret, err := call(model, "ValidateDeleteCondition", ctx, query, data)
+	ret, err := call(model, DMethodValidateDeleteCondition, ctx, query, data)
 	if err != nil {
 		return httperrors.NewGeneralError(err)
 	}
@@ -353,7 +365,7 @@ func ValidateDeleteCondition(model IK8SModel, ctx *RequestContext, query, data *
 }
 
 func CustomizeDelete(model IK8SModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
-	ret, err := call(model, "CustomizeDelete", ctx, query, data)
+	ret, err := call(model, DMethodCustomizeDelete, ctx, query, data)
 	if err != nil {
 		return httperrors.NewGeneralError(err)
 	}

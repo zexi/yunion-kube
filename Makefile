@@ -61,11 +61,14 @@ REGISTRY ?= "registry.cn-beijing.aliyuncs.com/yunionio"
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
 	   	git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 
-image: build bundle
+image:
 	docker build -f Dockerfile -t $(REGISTRY)/kubeserver:$(VERSION) .
 
 image-push: image
 	docker push $(REGISTRY)/kubeserver:$(VERSION)
+
+dev:
+	skaffold dev
 
 prepare_dir: bin_dir
 

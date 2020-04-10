@@ -1,6 +1,7 @@
 package k8smodels
 
 import (
+	"sort"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -101,7 +102,7 @@ func (m SEventManager) GetEventsByObject(obj model.IK8SModel) ([]*apis.Event, er
 	if err != nil {
 		return nil, err
 	}
-	return m.GetAPIEvents(obj.GetCluster(), res), nil
+	return m.GetAPIEvents(obj.GetCluster(), res)
 }
 
 func (m SEventManager) GetNamespaceEvents(cluster model.ICluster, ns string) ([]*apis.Event, error) {
@@ -110,7 +111,7 @@ func (m SEventManager) GetNamespaceEvents(cluster model.ICluster, ns string) ([]
 		return nil, err
 	}
 	events = m.fillEventsType(events)
-	return m.GetAPIEvents(cluster, events), nil
+	return m.GetAPIEvents(cluster, events)
 }
 
 func (m SEventManager) GetRawEventsByUID(cluster model.ICluster, uId types.UID) ([]*v1.Event, error) {
@@ -231,7 +232,7 @@ func (m SEventManager) GetWarningEventsByPods(cluster model.ICluster, pods []*v1
 	if err != nil {
 		return nil, err
 	}
-	return m.GetAPIEvents(cluster, es), nil
+	return m.GetAPIEvents(cluster, es)
 }
 
 func (m SEventManager) GetEventsByUID(cluster model.ICluster, uId types.UID) ([]*apis.Event, error) {
@@ -239,7 +240,7 @@ func (m SEventManager) GetEventsByUID(cluster model.ICluster, uId types.UID) ([]
 	if err != nil {
 		return nil, err
 	}
-	return m.GetAPIEvents(cluster, res), nil
+	return m.GetAPIEvents(cluster, res)
 }
 
 func (m SEventManager) FilterEventsByUID(events []*v1.Event, uid types.UID) []*v1.Event {
@@ -266,18 +267,45 @@ func (m SEventManager) FilterEventsByType(events []*v1.Event, eventType string) 
 	return result
 }
 
-func (m SEventManager) GetAPIEvents(cluster model.ICluster, events []*v1.Event) []*apis.Event {
-	ret := make([]*apis.Event, len(events))
-	for i := range events {
-		ret[i] = m.GetAPIEvent(cluster, events[i])
+func (m *SEventManager) GetAPIEvents(cluster model.ICluster, events []*v1.Event) ([]*apis.Event, error) {
+	ret := make([]*apis.Event, 0)
+	if err := ConvertRawToAPIObjects(m, cluster, events, &ret); err != nil {
+		return nil, err
 	}
-	return ret
+	s := &eventLastTimestampSorter{
+		events: ret,
+	}
+	sort.Sort(s)
+	return s.events, nil
 }
 
-func (m SEventManager) GetAPIEvent(cluster model.ICluster, e *v1.Event) *apis.Event {
+type eventLastTimestampSorter struct {
+	events []*apis.Event
+}
+
+func (s *eventLastTimestampSorter) Less(i, j int) bool {
+	e1 := s.events[i]
+	e2 := s.events[j]
+	return e1.LastSeen.Before(&e2.LastSeen)
+}
+
+func (s *eventLastTimestampSorter) Len() int {
+	return len(s.events)
+}
+
+func (s *eventLastTimestampSorter) Swap(i, j int) {
+	s.events[i], s.events[j] = s.events[j], s.events[i]
+}
+
+func (obj SEvent) GetRawEvent() *v1.Event {
+	return obj.GetK8SObject().(*v1.Event)
+}
+
+func (obj SEvent) GetAPIObject() (*apis.Event, error) {
+	e := obj.GetRawEvent()
 	return &apis.Event{
-		ObjectMeta:          apis.NewObjectMeta(e.ObjectMeta, cluster),
-		TypeMeta:            apis.NewTypeMeta(e.TypeMeta),
+		ObjectMeta:          obj.GetObjectMeta(),
+		TypeMeta:            obj.GetTypeMeta(),
 		Message:             e.Message,
 		SourceComponent:     e.Source.Component,
 		SourceHost:          e.Source.Host,
@@ -294,5 +322,9 @@ func (m SEventManager) GetAPIEvent(cluster model.ICluster, e *v1.Event) *apis.Ev
 		Related:             e.Related,
 		ReportingController: e.ReportingController,
 		ReportingInstance:   e.ReportingInstance,
-	}
+	}, nil
+}
+
+func (obj SEvent) GetAPIDetailObject() (*apis.Event, error) {
+	return obj.GetAPIObject()
 }

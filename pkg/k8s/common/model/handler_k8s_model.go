@@ -164,7 +164,7 @@ func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.J
 		// add default order by creationTimestamp and name
 		orderByFields = append(orderByFields,
 			NewOrderField(OrderFieldCreationTimestamp{}, order),
-			NewOrderField(OrderFieldName(), order),
+			//NewOrderField(OrderFieldName(), order),
 		)
 	}
 	q.AddOrderFields(orderByFields...)

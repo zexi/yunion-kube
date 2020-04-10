@@ -2,12 +2,17 @@ package k8smodels
 
 import (
 	"bytes"
+	"fmt"
+	"reflect"
+	"sort"
+
 	apps "k8s.io/api/apps/v1"
 	batch "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
@@ -390,4 +395,77 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 		}
 	}
 	return ret
+}
+
+// objs is: []*objs, e.g.: []*v1.Pod{}
+// targets is: the pointer of []*v, e.g.: &[]*apis.Pod{}
+func ConvertRawToAPIObjects(
+	man model.IK8SModelManager,
+	cluster model.ICluster,
+	objs interface{},
+	targets interface{}) error {
+	objsVal := reflect.ValueOf(objs)
+	// get targets slice value
+	targetsValue := reflect.Indirect(reflect.ValueOf(targets))
+	for i := 0; i < objsVal.Len(); i++ {
+		objVal := objsVal.Index(i)
+		// get targetType *v, the pointer of targetType
+		targetPtrType := targetsValue.Type().Elem()
+		// get targetType v
+		targetType := targetPtrType.Elem()
+		// target is the *v instance
+		target := reflect.New(targetType).Interface()
+		if err := ConvertRawToAPIObject(man, cluster, objVal.Interface().(runtime.Object), target); err != nil {
+			return err
+		}
+		newTargets := reflect.Append(targetsValue, reflect.ValueOf(target))
+		targetsValue.Set(newTargets)
+	}
+	return nil
+}
+
+func ConvertRawToAPIObject(
+	man model.IK8SModelManager,
+	cluster model.ICluster,
+	obj runtime.Object, target interface{}) error {
+	mObj, err := model.NewK8SModelObject(man, cluster, obj)
+	if err != nil {
+		return err
+	}
+	mv := reflect.ValueOf(mObj)
+	funcVal, err := model.FindFunc(mv, model.DMethodGetAPIObject)
+	if err != nil {
+		return err
+	}
+	ret := funcVal.Call(nil)
+	if len(ret) != 2 {
+		return fmt.Errorf("invalidate %s %s return value number", man.Keyword(), model.DMethodGetAPIObject)
+	}
+	if err := model.ValueToError(ret[1]); err != nil {
+		return err
+	}
+	targetVal := reflect.ValueOf(target)
+	targetVal.Elem().Set(ret[0].Elem())
+	return nil
+}
+
+type condtionSorter []*apis.Condition
+
+func (s condtionSorter) Len() int {
+	return len(s)
+}
+
+func (s condtionSorter) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s condtionSorter) Less(i, j int) bool {
+	c1 := s[i]
+	c2 := s[j]
+	return c1.LastTransitionTime.Before(&c2.LastTransitionTime)
+}
+
+func SortConditions(conds []*apis.Condition) []*apis.Condition {
+	sort.Sort(condtionSorter(conds))
+	return conds
 }

@@ -77,16 +77,10 @@ func (p SPodManager) GetAllRawPods(cluster model.ICluster) ([]*v1.Pod, error) {
 	return p.GetRawPods(cluster, v1.NamespaceAll)
 }
 
-func (p SPodManager) GetAPIPods(cluster model.ICluster, pods []*v1.Pod) ([]*apis.Pod, error) {
-	ret := make([]*apis.Pod, len(pods))
-	for idx := range pods {
-		obj, err := p.GetAPIPod(cluster, pods[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret[idx] = obj
-	}
-	return ret, nil
+func (p *SPodManager) GetAPIPods(cluster model.ICluster, pods []*v1.Pod) ([]*apis.Pod, error) {
+	ret := make([]*apis.Pod, 0)
+	err := ConvertRawToAPIObjects(p, cluster, pods, &ret)
+	return ret, err
 }
 
 func (obj *SPod) GetRawPod() *v1.Pod {
@@ -173,7 +167,7 @@ func (obj *SPod) getConditions() []*apis.Condition {
 			Message:            cond.Message,
 		})
 	}
-	return conds
+	return SortConditions(conds)
 }
 
 func (obj *SPod) GetAPIDetailObject() (*apis.PodDetail, error) {
@@ -205,14 +199,6 @@ func (obj *SPod) GetAPIDetailObject() (*apis.PodDetail, error) {
 		ConfigMaps:             cfgs,
 		Secrets:                secrets,
 	}, nil
-}
-
-func (p *SPodManager) GetAPIPod(cluster model.ICluster, pod *v1.Pod) (*apis.Pod, error) {
-	mObj, err := model.NewK8SModelObject(p, cluster, pod)
-	if err != nil {
-		return nil, err
-	}
-	return mObj.(*SPod).GetAPIObject()
 }
 
 func (p SPodManager) getPodStatus(pod *v1.Pod) apis.PodStatus {
@@ -311,18 +297,18 @@ func evalValueFrom(src *v1.EnvVarSource, container *v1.Container, pod *v1.Pod,
 	case src.FieldRef != nil:
 		gv, err := schema.ParseGroupVersion(src.FieldRef.APIVersion)
 		if err != nil {
-			log.Errorf("%v", err)
+			log.V(2).Warningf("%v", err)
 			return ""
 		}
 		gvk := gv.WithKind("Pod")
 		internalFieldPath, _, err := runtime.NewScheme().ConvertFieldLabel(gvk, src.FieldRef.FieldPath, "")
 		if err != nil {
-			log.Errorf("%v", err)
+			log.V(2).Warningf("%v", err)
 			return ""
 		}
 		valueFrom, err := ExtractFieldPathAsString(pod, internalFieldPath)
 		if err != nil {
-			log.Errorf("%v", err)
+			log.V(2).Warningf("%v", err)
 			return ""
 		}
 		return valueFrom

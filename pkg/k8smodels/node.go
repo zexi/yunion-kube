@@ -79,10 +79,10 @@ func (obj *SNode) getContainerImages(node v1.Node) []string {
 	return containerImages
 }
 
-func (obj *SNode) getNodeConditions(node v1.Node) []apis.Condition {
-	var conditions []apis.Condition
+func (obj *SNode) getNodeConditions(node v1.Node) []*apis.Condition {
+	var conditions []*apis.Condition
 	for _, condition := range node.Status.Conditions {
-		conditions = append(conditions, apis.Condition{
+		conditions = append(conditions, &apis.Condition{
 			Type:               string(condition.Type),
 			Status:             condition.Status,
 			LastProbeTime:      condition.LastHeartbeatTime,
@@ -91,7 +91,7 @@ func (obj *SNode) getNodeConditions(node v1.Node) []apis.Condition {
 			Message:            condition.Message,
 		})
 	}
-	return conditions
+	return SortConditions(conditions)
 }
 
 func (obj *SNode) getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (apis.NodeAllocatedResources, error) {

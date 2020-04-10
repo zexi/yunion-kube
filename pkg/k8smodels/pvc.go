@@ -19,7 +19,7 @@ var (
 func init() {
 	PVCManager = &SPVCManager{
 		SK8SNamespaceResourceBaseManager: model.NewK8SNamespaceResourceBaseManager(
-			new(SPV),
+			new(SPVC),
 			"persistentvolumeclaim",
 			"persistentvolumeclaims"),
 	}
@@ -184,21 +184,10 @@ func (m *SPVCManager) GetPodAPIPVCs(cluster model.ICluster, pod *v1.Pod) ([]*api
 }
 
 func (m *SPVCManager) GetAPIPVCs(cluster model.ICluster, pvcs []*v1.PersistentVolumeClaim) ([]*apis.PersistentVolumeClaim, error) {
-	ret := make([]*apis.PersistentVolumeClaim, len(pvcs))
-	for idx := range pvcs {
-		tmp, err := m.GetAPIPVC(cluster, pvcs[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, tmp)
+	ret := make([]*apis.PersistentVolumeClaim, 0)
+	if err := ConvertRawToAPIObjects(m, cluster, pvcs, &ret); err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
 
-func (m *SPVCManager) GetAPIPVC(cluster model.ICluster, pvc *v1.PersistentVolumeClaim) (*apis.PersistentVolumeClaim, error) {
-	mObj, err := model.NewK8SModelObject(m, cluster, pvc)
-	if err != nil {
-		return nil, err
-	}
-	return mObj.(*SPVC).GetAPIObject()
-}

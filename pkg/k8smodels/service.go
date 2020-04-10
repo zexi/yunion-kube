@@ -66,24 +66,10 @@ func (m SServiceManager) GetRawServicesByMatchLabels(cluster model.ICluster, ns 
 	return ret, nil
 }
 
-func (m SServiceManager) GetAPIServices(cluster model.ICluster, svcs []*v1.Service) ([]*apis.Service, error) {
-	rets := make([]*apis.Service, len(svcs))
-	for idx := range svcs {
-		tmp, err := m.GetAPIService(cluster, svcs[idx])
-		if err != nil {
-			return nil, err
-		}
-		rets[idx] = tmp
-	}
-	return rets, nil
-}
-
-func (m *SServiceManager) GetAPIService(cluster model.ICluster, svc *v1.Service) (*apis.Service, error) {
-	obj, err := model.NewK8SModelObject(m, cluster, svc)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*SService).GetAPIObject()
+func (m *SServiceManager) GetAPIServices(cluster model.ICluster, svcs []*v1.Service) ([]*apis.Service, error) {
+	rets := make([]*apis.Service, 0)
+	err := ConvertRawToAPIObjects(m, cluster, svcs, &rets)
+	return rets, err
 }
 
 func (obj *SService) GetRawService() *v1.Service {

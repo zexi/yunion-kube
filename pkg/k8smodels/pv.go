@@ -39,23 +39,9 @@ func (m *SPVManager) GetRawPVs(cluster model.ICluster) ([]*v1.PersistentVolume, 
 }
 
 func (m *SPVManager) GetAPIPVs(cluster model.ICluster, pvs []*v1.PersistentVolume) ([]*apis.PersistentVolume, error) {
-	ret := make([]*apis.PersistentVolume, len(pvs))
-	for idx := range pvs {
-		tmp, err := m.GetAPIPV(cluster, pvs[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, tmp)
-	}
-	return ret, nil
-}
-
-func (m *SPVManager) GetAPIPV(cluster model.ICluster, pv *v1.PersistentVolume) (*apis.PersistentVolume, error) {
-	mObj, err := model.NewK8SModelObject(m, cluster, pv)
-	if err != nil {
-		return nil, err
-	}
-	return mObj.(*SPV).GetAPIObject()
+	ret := make([]*apis.PersistentVolume, 0)
+	err := ConvertRawToAPIObjects(m, cluster, pvs, &ret)
+	return ret, err
 }
 
 func (obj *SPV) GetRawPV() *v1.PersistentVolume {

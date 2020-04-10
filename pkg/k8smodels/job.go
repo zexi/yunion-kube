@@ -151,21 +151,7 @@ func (m *SJobManager) NewK8SRawObjectForCreate(
 }
 
 func (m *SJobManager) GetAPIJobs(cluster model.ICluster, jobs []*batch.Job) ([]*apis.Job, error) {
-	ret := make([]*apis.Job, len(jobs))
-	for idx := range jobs {
-		obj, err := m.GetAPIJob(cluster, jobs[idx])
-		if err != nil {
-			return nil, err
-		}
-		ret[idx] = obj
-	}
-	return ret, nil
-}
-
-func (m *SJobManager) GetAPIJob(cluster model.ICluster, job *batch.Job) (*apis.Job, error) {
-	obj, err := model.NewK8SModelObject(m, cluster, job)
-	if err != nil {
-		return nil, err
-	}
-	return obj.(*SJob).GetAPIObject()
+	ret := make([]*apis.Job, 0)
+	err := ConvertRawToAPIObjects(m, cluster, jobs, &ret)
+	return ret, err
 }
