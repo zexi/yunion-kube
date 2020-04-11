@@ -286,7 +286,7 @@ func (obj *SNode) SetNodeScheduleToggle(unschedule bool) error {
 	node := obj.GetRawNode()
 	nodeObj := node.DeepCopy()
 	nodeObj.Spec.Unschedulable = unschedule
-	if _, err := cli.UpdateV2(apis.ResourceNameNode, "", nodeObj); err != nil {
+	if _, err := cli.UpdateV2(apis.ResourceNameNode, nodeObj); err != nil {
 		return err
 	}
 	return nil

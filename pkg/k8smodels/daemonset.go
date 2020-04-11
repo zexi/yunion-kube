@@ -34,6 +34,7 @@ type SDaemonSetManager struct {
 
 type SDaemonSet struct {
 	model.SK8SNamespaceResourceBase
+	PodTemplateResourceBase
 }
 
 func (m SDaemonSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
@@ -100,4 +101,17 @@ func (obj *SDaemonSet) GetPodInfo() (*apis.PodInfo, error) {
 		return nil, err
 	}
 	return podInfo, nil
+}
+
+func (obj *SDaemonSet) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.DaemonSetUpdateInput) (*apis.DaemonSetUpdateInput, error) {
+	return input, nil
+}
+
+func (obj *SDaemonSet) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *apis.DaemonSetUpdateInput) (runtime.Object, error) {
+	newObj := obj.GetRawDaemonSet().DeepCopy()
+	template := &newObj.Spec.Template
+	if err := obj.UpdatePodTemplate(template, input.PodTemplateUpdateInput); err != nil {
+		return nil, err
+	}
+	return newObj, nil
 }

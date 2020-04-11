@@ -4,6 +4,7 @@ import (
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
@@ -31,6 +32,8 @@ type SStatefulSetManager struct {
 
 type SStatefulSet struct {
 	model.SK8SNamespaceResourceBase
+	ReplicaResourceBase
+	PodTemplateResourceBase
 }
 
 func (m *SStatefulSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
@@ -151,4 +154,23 @@ func (obj *SStatefulSet) GetAPIDetailObject() (*apis.StatefulSetDetail, error) {
 		Events:      events,
 		Services:    svcs,
 	}, nil
+}
+
+func (obj *SStatefulSet) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.StatefulsetUpdateInput) (*apis.StatefulsetUpdateInput, error) {
+	if err := obj.ReplicaResourceBase.ValidateUpdateData(input.Replicas); err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+
+func (obj *SStatefulSet) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *apis.StatefulsetUpdateInput) (*apps.StatefulSet, error) {
+	newObj := obj.GetRawStatefulSet().DeepCopy()
+	if input.Replicas != nil {
+		newObj.Spec.Replicas = input.Replicas
+	}
+	template := &newObj.Spec.Template
+	if err := obj.UpdatePodTemplate(template, input.PodTemplateUpdateInput); err != nil {
+		return nil, err
+	}
+	return newObj, nil
 }

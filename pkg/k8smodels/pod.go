@@ -134,15 +134,17 @@ func (obj *SPod) GetAPIObject() (*apis.Pod, error) {
 		return nil, err
 	}
 	return &apis.Pod{
-		ObjectMeta:     apis.NewObjectMeta(pod.ObjectMeta, cluster),
-		TypeMeta:       apis.NewTypeMeta(pod.TypeMeta),
-		Warnings:       warnings,
-		PodStatus:      PodManager.getPodStatus(pod),
-		RestartCount:   PodManager.getRestartCount(pod),
-		PodIP:          pod.Status.PodIP,
-		QOSClass:       string(pod.Status.QOSClass),
-		Containers:     extractContainerInfo(pod.Spec.Containers, pod, configmaps, secrets),
-		InitContainers: extractContainerInfo(pod.Spec.InitContainers, pod, configmaps, secrets),
+		ObjectMeta:          apis.NewObjectMeta(pod.ObjectMeta, cluster),
+		TypeMeta:            apis.NewTypeMeta(pod.TypeMeta),
+		Warnings:            warnings,
+		PodStatus:           PodManager.getPodStatus(pod),
+		RestartCount:        PodManager.getRestartCount(pod),
+		PodIP:               pod.Status.PodIP,
+		QOSClass:            string(pod.Status.QOSClass),
+		Containers:          extractContainerInfo(pod.Spec.Containers, pod, configmaps, secrets),
+		InitContainers:      extractContainerInfo(pod.Spec.InitContainers, pod, configmaps, secrets),
+		ContainerImages:     GetContainerImages(&pod.Spec),
+		InitContainerImages: GetInitContainerImages(&pod.Spec),
 	}, nil
 }
 

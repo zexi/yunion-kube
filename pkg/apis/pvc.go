@@ -13,18 +13,23 @@ type PersistentVolumeClaim struct {
 	Capacity     v1.ResourceList                 `json:"capacity"`
 	AccessModes  []v1.PersistentVolumeAccessMode `json:"accessModes"`
 	StorageClass *string                         `json:"storageClass"`
+	// Deprecated
+	MountedBy []string `json:"mountedBy"`
 }
 
 // PersistentVolumeClaimDetail provides the presentation layer view of Kubernetes Persistent Volume Claim resource.
 type PersistentVolumeClaimDetail struct {
 	PersistentVolumeClaim
-	// Deprecated
-	MountedBy []string `json:"mountedBy"`
-	Pods      []*Pod   `json:"pods"`
+	Pods []*Pod `json:"pods"`
 }
 
 type PersistentVolumeClaimCreateInput struct {
 	K8sNamespaceResourceCreateInput
 	Size         string `json:"size"`
 	StorageClass string `json:"storageClass"`
+}
+
+type PersistentVolumeClaimListInput struct {
+	ListInputK8SNamespaceBase
+	Unused *bool `json:"unused"`
 }

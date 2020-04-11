@@ -182,3 +182,28 @@ type Event struct {
 	// +optional
 	ReportingInstance string `json:"reportingInstance"`
 }
+
+type ContainerUpdateInput struct {
+	// required: true
+	Name  string `json:"name"`
+	Image string `json:"image,omitempty"`
+}
+
+// TODO: K8SNamespaceResourceUpdateInput shouldn't contains in body, fix them in url path
+type K8SNamespaceResourceUpdateInput struct {
+	K8sClusterResourceCreateInput
+	// required: true
+	Namespace string `json:"namespace"`
+}
+
+type PodTemplateUpdateInput struct {
+	InitContainers []ContainerUpdateInput `json:"initContainers,omitempty"`
+	Containers     []ContainerUpdateInput `json:"containers,omitempty"`
+	RestartPolicy  v1.RestartPolicy       `json:"restartPolicy,omitempty"`
+	DNSPolicy      v1.DNSPolicy           `json:"dnsPolicy,omitempty"`
+}
+
+type ContainerImage struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
+}

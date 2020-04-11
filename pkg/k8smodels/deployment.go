@@ -5,7 +5,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	"yunion.io/x/jsonutils"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
@@ -34,6 +33,8 @@ type SDeploymentManager struct {
 
 type SDeployment struct {
 	model.SK8SNamespaceResourceBase
+	ReplicaResourceBase
+	PodTemplateResourceBase
 }
 
 func (_ SDeploymentManager) GetK8SResourceInfo() model.K8SResourceInfo {
@@ -199,6 +200,9 @@ func (obj *SDeployment) GetNewReplicaSet() (*apis.ReplicaSet, error) {
 	if err != nil {
 		return nil, err
 	}
+	if rs == nil {
+		return nil, nil
+	}
 	return ReplicaSetManager.GetAPIReplicaSet(obj.GetCluster(), rs)
 }
 
@@ -250,4 +254,23 @@ func (obj *SDeployment) GetAPIDetailObject() (*apis.DeploymentDetail, error) {
 		RevisionHistoryLimit:  deploy.Spec.RevisionHistoryLimit,
 		Events:                events,
 	}, nil
+}
+
+func (obj *SDeployment) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.DeploymentUpdateInput) (*apis.DeploymentUpdateInput, error) {
+	if err := obj.ReplicaResourceBase.ValidateUpdateData(input.Replicas); err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+
+func (obj *SDeployment) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *apis.DeploymentUpdateInput) (runtime.Object, error) {
+	deploy := obj.GetRawDeployment().DeepCopy()
+	if input.Replicas != nil {
+		deploy.Spec.Replicas = input.Replicas
+	}
+	template := &deploy.Spec.Template
+	if err := obj.UpdatePodTemplate(template, input.PodTemplateUpdateInput); err != nil {
+		return nil, err
+	}
+	return deploy, nil
 }

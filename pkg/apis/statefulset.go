@@ -51,3 +51,9 @@ type StatefulsetCreateInput struct {
 
 	Service *ServiceCreateOption `json:"service"`
 }
+
+type StatefulsetUpdateInput struct {
+	K8SNamespaceResourceUpdateInput
+	Replicas *int32 `json:"replicas"`
+	PodTemplateUpdateInput
+}

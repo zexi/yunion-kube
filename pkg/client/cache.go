@@ -22,8 +22,8 @@ type CacheFactory struct {
 
 func buildCacheController(client *kubernetes.Clientset) (*CacheFactory, error) {
 	stop := make(chan struct{})
-	// sharedInformerFactory := informers.NewSharedInformerFactory(client, defaultResyncPeriod)
-	sharedInformerFactory := informers.NewSharedInformerFactory(client, 0)
+	sharedInformerFactory := informers.NewSharedInformerFactory(client, defaultResyncPeriod)
+	// sharedInformerFactory := informers.NewSharedInformerFactory(client, 0)
 
 	// Start all Resources defined in KindToResourceMap
 	for _, value := range api.KindToResourceMap {

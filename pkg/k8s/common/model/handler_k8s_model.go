@@ -2,19 +2,23 @@ package model
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/kubectl/pkg/scheme"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
@@ -76,6 +80,14 @@ func (c *RequestContext) GetNamespaceByQuery() string {
 func (c *RequestContext) GetNamespaceByData() string {
 	namespace, _ := c.data.GetString("namespace")
 	return namespace
+}
+
+func (c *RequestContext) GetNamespace() string {
+	ns := c.GetNamespaceByQuery()
+	if ns == "" {
+		ns = c.GetNamespaceByData()
+	}
+	return ns
 }
 
 func (c *RequestContext) GetQuery() *jsonutils.JSONDict {
@@ -416,7 +428,7 @@ func doCreateItem(
 }
 
 func (h *K8SModelHandler) Update(ctx *RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
-	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespaceByData(), id, query)
+	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespace(), id, query)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +462,7 @@ func doUpdateItem(
 	}
 	cli := ctx.Cluster().GetHandler()
 	resInfo := manager.GetK8SResourceInfo()
-	rawObj, err = cli.UpdateV2(resInfo.ResourceName, ctx.GetNamespaceByData(), rawObj)
+	_, err = cli.UpdateV2(resInfo.ResourceName, rawObj)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +470,7 @@ func doUpdateItem(
 }
 
 func (h *K8SModelHandler) Delete(ctx *RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
-	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespaceByData(), id, query)
+	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespace(), id, query)
 	if err != nil {
 		return nil, err
 	}
@@ -493,4 +505,45 @@ func DoDelete(
 		return err
 	}
 	return nil
+}
+
+func (h *K8SModelHandler) GetRawData(ctx *RequestContext, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+	namespace := ctx.GetNamespaceByQuery()
+	model, err := fetchK8SModel(ctx, h.modelManager, namespace, id, query)
+	if err != nil {
+		return nil, err
+	}
+	return K8SObjectToJSONObject(model.GetK8SObject()), nil
+}
+
+func (h *K8SModelHandler) UpdateRawData(ctx *RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
+	namespace := ctx.GetNamespaceByQuery()
+	model, err := fetchK8SModel(ctx, h.modelManager, namespace, id, query)
+	if err != nil {
+		return nil, err
+	}
+	cli := ctx.Cluster().GetHandler()
+	resInfo := h.modelManager.GetK8SResourceInfo()
+	rawStr, err := data.GetString()
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Get body raw data: %v", err)
+	}
+	decode := scheme.Codecs.UniversalDeserializer().Decode
+	obj, _, err := decode([]byte(rawStr), nil, nil)
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Decode to runtime object error: %v", err)
+	}
+	putSpec := runtime.Unknown{}
+	objStr, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.NewDecoder(strings.NewReader(string(objStr))).Decode(&putSpec); err != nil {
+		return nil, err
+	}
+	_, err = cli.Update(resInfo.ResourceName, model.GetNamespace(), model.GetName(), &putSpec)
+	if err != nil {
+		return nil, err
+	}
+	return K8SObjectToJSONObject(obj), nil
 }

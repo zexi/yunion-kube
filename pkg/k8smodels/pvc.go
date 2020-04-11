@@ -41,6 +41,28 @@ func (m *SPVCManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	}
 }
 
+func (m *SPVCManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.PersistentVolumeClaimListInput) (model.IQuery, error) {
+	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return q, err
+	}
+	if query.Unused != nil {
+		unused := *query.Unused
+		q.AddFilter(func(obj model.IK8SModel) bool {
+			pvc := obj.(*SPVC)
+			mntPods, err := pvc.getMountRawPods()
+			if err != nil {
+				panic(err)
+			}
+			if unused {
+				return len(mntPods) == 0
+			}
+			return len(mntPods) > 0
+		})
+	}
+	return q, nil
+}
+
 func (m *SPVCManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
 	input apis.PersistentVolumeClaimCreateInput) (runtime.Object, error) {
@@ -119,6 +141,10 @@ func (obj *SPVC) GetMountPodNames() ([]string, error) {
 
 func (obj *SPVC) GetAPIObject() (*apis.PersistentVolumeClaim, error) {
 	pvc := obj.GetRawPVC()
+	podNames, err := obj.GetMountPodNames()
+	if err != nil {
+		return nil, err
+	}
 	return &apis.PersistentVolumeClaim{
 		ObjectMeta:   obj.GetObjectMeta(),
 		TypeMeta:     obj.GetTypeMeta(),
@@ -127,15 +153,12 @@ func (obj *SPVC) GetAPIObject() (*apis.PersistentVolumeClaim, error) {
 		Capacity:     pvc.Status.Capacity,
 		AccessModes:  pvc.Spec.AccessModes,
 		StorageClass: pvc.Spec.StorageClassName,
+		MountedBy:    podNames,
 	}, nil
 }
 
 func (obj *SPVC) GetAPIDetailObject() (*apis.PersistentVolumeClaimDetail, error) {
 	apiObj, err := obj.GetAPIObject()
-	if err != nil {
-		return nil, err
-	}
-	podNames, err := obj.GetMountPodNames()
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +168,6 @@ func (obj *SPVC) GetAPIDetailObject() (*apis.PersistentVolumeClaimDetail, error)
 	}
 	return &apis.PersistentVolumeClaimDetail{
 		PersistentVolumeClaim: *apiObj,
-		MountedBy:             podNames,
 		Pods:                  pods,
 	}, nil
 }
@@ -190,4 +212,3 @@ func (m *SPVCManager) GetAPIPVCs(cluster model.ICluster, pvcs []*v1.PersistentVo
 	}
 	return ret, nil
 }
-

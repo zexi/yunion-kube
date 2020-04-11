@@ -29,15 +29,15 @@ import (
 )
 
 const (
-	DMethodValidateCreateData = "ValidateCreateData"
-	DMethodValidateUpdateData = "ValidateUpdateData"
-	DMethodValidateDeleteCondition = "ValidateDeleteCondition"
+	DMethodValidateCreateData       = "ValidateCreateData"
+	DMethodValidateUpdateData       = "ValidateUpdateData"
+	DMethodValidateDeleteCondition  = "ValidateDeleteCondition"
 	DMethodNewK8SRawObjectForCreate = "NewK8SRawObjectForCreate"
 	DMethodNewK8SRawObjectForUpdate = "NewK8SRawObjectForUpdate"
-	DMethodCustomizeDelete = "CustomizeDelete"
-	DMethodListItemFilter = "ListItemFilter"
-	DMethodGetAPIObject = "GetAPIObject"
-	DMethodGetAPIDetailObject = "GetAPIDetailObject"
+	DMethodCustomizeDelete          = "CustomizeDelete"
+	DMethodListItemFilter           = "ListItemFilter"
+	DMethodGetAPIObject             = "GetAPIObject"
+	DMethodGetAPIDetailObject       = "GetAPIDetailObject"
 )
 
 type Caller struct {
@@ -175,6 +175,11 @@ func (p *param) convert() reflect.Value {
 	val := reflect.New(p.pType)
 	obj.Unmarshal(val.Interface())
 	return val.Elem()
+}
+
+func K8SObjectToJSONObject(obj runtime.Object) jsonutils.JSONObject {
+	ov := reflect.ValueOf(obj)
+	return ValueToJSONDict(ov)
 }
 
 func ValueToJSONObject(out reflect.Value) jsonutils.JSONObject {

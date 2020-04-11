@@ -23,6 +23,11 @@ type Pod struct {
 	QOSClass       string      `json:"qosClass"`
 	Containers     []Container `json:"containers"`
 	InitContainers []Container `json:"initContainers"`
+
+	// Container images of the Deployment
+	ContainerImages []ContainerImage `json:"containerImages"`
+	// Init Container images of deployment
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
 }
 
 type PodStatus struct {

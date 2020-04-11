@@ -42,3 +42,8 @@ type DaemonSetCreateInput struct {
 	apps.DaemonSetSpec
 	Service *ServiceCreateOption `json:"service"`
 }
+
+type DaemonSetUpdateInput struct {
+	K8SNamespaceResourceUpdateInput
+	PodTemplateUpdateInput
+}

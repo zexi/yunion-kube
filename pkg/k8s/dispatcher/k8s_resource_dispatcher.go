@@ -38,6 +38,8 @@ type IK8sModelDispatchHandler interface {
 	PerformAction(ctx *model.RequestContext, id string, action string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	Update(ctx *model.RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 	Delete(ctx *model.RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	GetRawData(ctx *model.RequestContext, id string, query *jsonutils.JSONDict) (jsonutils.JSONObject, error)
+	UpdateRawData(ctx *model.RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error)
 }
 
 func getClusterPrefix(prefix string) string {
@@ -101,6 +103,16 @@ func (d K8sModelDispatcher) Add(handler IK8sModelDispatchHandler) {
 	app.AddHandler2("DELETE",
 		fmt.Sprintf("%s/%s/<resid>", clusterPrefix, handler.KeywordPlural()),
 		handler.Filter(d.delete), metadata, "delete", tags)
+
+	// raw data dispatch
+	// get k8s object raw data
+	app.AddHandler2("GET",
+		fmt.Sprintf("%s/%s/<resid>/rawdata", clusterPrefix, handler.KeywordPlural()),
+		handler.Filter(d.getRawData), metadata, "get_raw_data", tags)
+	// update k8s object by raw data
+	app.AddHandler2("PUT",
+		fmt.Sprintf("%s/%s/<resid>/rawdata", clusterPrefix, handler.KeywordPlural()),
+		handler.Filter(d.updateRawData), metadata, "get_raw_data", tags)
 }
 
 func (d K8sModelDispatcher) fetchEnv(
@@ -312,6 +324,34 @@ func (d K8sModelDispatcher) delete(ctx context.Context, w http.ResponseWriter, r
 		return
 	}
 	result, err := handler.Delete(reqCtx, params["<resid>"], reqCtx.GetQuery(), reqCtx.GetData())
+	if err != nil {
+		k8serrors.GeneralServerError(w, err)
+		return
+	}
+	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+}
+
+func (d K8sModelDispatcher) getRawData(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>")
+	if err != nil {
+		k8serrors.GeneralServerError(w, err)
+		return
+	}
+	result, err := handler.GetRawData(reqCtx, params["<resid>"], reqCtx.GetQuery())
+	if err != nil {
+		k8serrors.GeneralServerError(w, err)
+		return
+	}
+	appsrv.SendJSON(w, wrapBody(result, handler.Keyword()))
+}
+
+func (d K8sModelDispatcher) updateRawData(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	handler, reqCtx, params, err := d.fetchContextParams(ctx, w, r, "<resid>")
+	if err != nil {
+		k8serrors.GeneralServerError(w, err)
+		return
+	}
+	result, err := handler.UpdateRawData(reqCtx, params["<resid>"], reqCtx.GetQuery(), reqCtx.GetData())
 	if err != nil {
 		k8serrors.GeneralServerError(w, err)
 		return

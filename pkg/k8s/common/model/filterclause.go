@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"yunion.io/x/log"
 
 	"yunion.io/x/jsonutils"
-
 	"yunion.io/x/pkg/utils"
 )
 
@@ -71,7 +69,6 @@ func (cond qCond) or(op func(val1, val2 string) bool, val string, params ...stri
 func (cond qCond) CONTAINS(field string, params []string) QueryFilter {
 	f := func(val string) (bool, error) {
 		return cond.or(func(v1, v2 string) bool {
-			log.Errorf("======test %s.contains(%s)", v1, v2)
 			return strings.Contains(v1, v2)
 		}, val, params...)
 	}

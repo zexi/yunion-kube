@@ -2,7 +2,6 @@ package apis
 
 import (
 	apps "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -14,34 +13,10 @@ const (
 	DeploymentStatusObservedWaiting       = "ObservedWaiting"
 )
 
-type ContainerUpdateInput struct {
-	// required: true
-	Name  string `json:"name"`
-	Image string `json:"image,omitempty"`
-}
-
-type PodUpdateInput struct {
-	K8sNamespaceResourceCreateInput
-
-	InitContainers []ContainerUpdateInput `json:"initContainers,omitempty"`
-	Containers     []ContainerUpdateInput `json:"containers,omitempty"`
-	RestartPolicy  v1.RestartPolicy       `json:"restartPolicy,omitempty"`
-	DNSPolicy      v1.DNSPolicy           `json:"dnsPolicy,omitempty"`
-}
-
 type DeploymentUpdateInput struct {
+	K8SNamespaceResourceUpdateInput
 	Replicas *int32 `json:"replicas"`
-	PodUpdateInput
-}
-
-type StatefulsetUpdateInput struct {
-	Replicas *int32 `json:"replicas"`
-	PodUpdateInput
-}
-
-type ContainerImage struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
+	PodTemplateUpdateInput
 }
 
 // Deployment is a presentation layer view of kubernetes Deployment resource. This means

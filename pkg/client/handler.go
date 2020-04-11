@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,7 +20,7 @@ type ResourceHandler interface {
 	Create(kind string, namespace string, object *runtime.Unknown) (*runtime.Unknown, error)
 	CreateV2(kind string, namespace string, object runtime.Object) (runtime.Object, error)
 	Update(kind string, namespace string, name string, object *runtime.Unknown) (*runtime.Unknown, error)
-	UpdateV2(kind string, namespace string, object runtime.Object) (runtime.Object, error)
+	UpdateV2(kind string, object runtime.Object) (runtime.Object, error)
 	Get(kind string, namespace string, name string) (runtime.Object, error)
 	List(kind string, namespace string, labelSelector string) ([]runtime.Object, error)
 	Delete(kind string, namespace string, name string, options *metav1.DeleteOptions) error
@@ -107,19 +109,34 @@ func (h *resourceHandler) Update(kind string, namespace string, name string, obj
 	return &result, err
 }
 
-func (h *resourceHandler) UpdateV2(kind string, namespace string, object runtime.Object) (runtime.Object, error) {
-	resource, ok := api.KindToResourceMap[kind]
+func (h *resourceHandler) UpdateV2(kind string, object runtime.Object) (runtime.Object, error) {
+	metaObj, ok := object.(metav1.Object)
 	if !ok {
-		return nil, fmt.Errorf("Resource kind (%s) not support yet . ", kind)
+		return nil, fmt.Errorf("object %#v not metav1.Object", object)
 	}
-	kubeClient := h.getClientByGroupVersion(resource.GroupVersionResourceKind.GroupVersionResource)
-	return kubeClient.Put().
-		Resource(kind).
-		Namespace(namespace).
-		VersionedParams(&metav1.UpdateOptions{}, metav1.ParameterCodec).
-		Body(object).
-		Do().
-		Get()
+	putSpec := runtime.Unknown{}
+	objStr, err := json.Marshal(object)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.NewDecoder(strings.NewReader(string(objStr))).Decode(&putSpec); err != nil {
+		return nil, err
+	}
+
+	// todo: fix convert unknown to runtime.object
+	updateObj, err := h.Update(kind, metaObj.GetNamespace(), metaObj.GetName(), &putSpec)
+	if err != nil {
+		return nil, err
+	}
+	jBytes, err := updateObj.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.NewDecoder(strings.NewReader(string(jBytes))).Decode(object); err != nil {
+		return nil, err
+	}
+	return object, err
 }
 
 func (h *resourceHandler) Delete(kind string, namespace string, name string, options *metav1.DeleteOptions) error {
