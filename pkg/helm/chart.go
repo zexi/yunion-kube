@@ -114,6 +114,7 @@ func (c ChartClient) applyConstraint(version string, allVersion bool, results []
 	for _, chart := range results {
 		res = append(res, &apis.ChartResult{
 			ChartVersion: chart.Chart,
+			Metadata:     chart.Chart.Metadata,
 			Repo:         c.getSearchResultRepo(chart),
 		})
 	}

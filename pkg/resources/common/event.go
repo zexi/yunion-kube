@@ -27,5 +27,7 @@ func (l *EventList) Append(obj interface{}) {
 		LastSeen:        event.LastTimestamp,
 		Reason:          event.Reason,
 		Type:            event.Type,
+		Source:          event.Source,
+		InvolvedObject:  event.InvolvedObject,
 	})
 }

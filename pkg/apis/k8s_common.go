@@ -1,5 +1,9 @@
 package apis
 
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
 type K8sClusterResourceGetInput struct {
 	// required: true
 	Cluster string `json:"cluster"`
@@ -20,8 +24,22 @@ type K8sClusterResourceCreateInput struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+func (input K8sClusterResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:        input.Name,
+		Labels:      input.Labels,
+		Annotations: input.Annotations,
+	}
+}
+
 type K8sNamespaceResourceCreateInput struct {
 	K8sClusterResourceCreateInput
 	// required: true
 	Namespace string `json:"namespace"`
+}
+
+func (input K8sNamespaceResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
+	objMeta := input.K8sClusterResourceCreateInput.ToObjectMeta()
+	objMeta.Namespace = input.Namespace
+	return objMeta
 }

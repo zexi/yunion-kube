@@ -19,13 +19,13 @@ type NamespaceDetail struct {
 	Namespace
 
 	// Events is list of events associated to the namespace.
-	EventList []Event `json:"events"`
+	Events []*Event `json:"events"`
 
 	// ResourceQuotaList is list of resource quotas associated to the namespace
-	ResourceQuotaList []ResourceQuotaDetail `json:"resourceQuotas"`
+	ResourceQuotas []*ResourceQuotaDetail `json:"resourceQuotas"`
 
 	// ResourceLimits is list of limit ranges associated to the namespace
-	ResourceLimits []LimitRangeItem `json:"resourceLimits"`
+	ResourceLimits []*LimitRange `json:"limitRanges"`
 }
 
 type NamespaceCreateInput struct {

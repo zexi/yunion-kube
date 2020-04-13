@@ -137,7 +137,7 @@ type StorageClass struct {
 // It is StorageClassDetail plus PersistentVolumes associated with StorageClass.
 type StorageClassDetail struct {
 	StorageClass
-	PersistentVolumeList []PersistentVolume `json:"persistentVolumes"`
+	PersistentVolumes []*PersistentVolume `json:"persistentVolumes"`
 }
 
 type StorageClassTestResult struct {

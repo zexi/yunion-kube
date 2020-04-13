@@ -18,29 +18,55 @@ type Pod struct {
 	RestartCount int32 `json:"restartCount"`
 
 	// Pod warning events
-	Warnings []Event `json:"warnings"`
-
-	// Name of the Node this pod runs on
-	NodeName string `json:"nodeName"`
+	Warnings []*Event `json:"warnings"`
 
 	QOSClass       string      `json:"qosClass"`
 	Containers     []Container `json:"containers"`
 	InitContainers []Container `json:"initContainers"`
+
+	// Container images of the Deployment
+	ContainerImages []ContainerImage `json:"containerImages"`
+	// Init Container images of deployment
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
 }
 
 type PodStatus struct {
-	Status          string              `json:"status"`
+	PodStatusV2
+
 	PodPhase        v1.PodPhase         `json:"podPhase"`
 	ContainerStates []v1.ContainerState `json:"containerStates"`
 }
 
+type PodStatusV2 struct {
+	// The aggregate readiness state of this pod for accepting traffic.
+	Ready string `json:"ready"`
+	// The aggregate status of the containers in this pod.
+	Status string `json:"status"`
+	// The number of times the containers in this pod have been restarted.
+	Restarts int64 `json:"restarts"`
+	// Name of the Node this pod runs on
+	NodeName string `json:"nodeName"`
+	// NominatedNodeName is set only when this pod preempts other pods on the node,
+	// but it cannot be scheduled right away as preemption victims receive their graceful termination periods.
+	// This field does not guarantee that the pod will be scheduled on this node.
+	// Scheduler may decide to place the pod elsewhere if other nodes become available sooner.
+	// Scheduler may also decide to give the resources on this node to a higher priority pod that is created after preemption.
+	// As a result, this field may be different than PodSpec.nodeName when the pod is scheduled.
+	NominatedNodeName string `json:"nominatedNodeName"`
+	// If specified, all readiness gates will be evaluated for pod readiness.
+	// A pod is ready when all its containers are ready AND all conditions specified
+	// in the readiness gates have status equal to \"True\"
+	// More info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md
+	ReadinessGates string `json:"readinessGates"`
+}
+
 type PodDetail struct {
 	Pod
-	Conditions                []Condition             `json:"conditions"`
-	Events                    []Event                 `json:"events"`
-	PersistentvolumeclaimList []PersistentVolumeClaim `json:"persistentVolumeClaims"`
-	ConfigMaps                []ConfigMap             `json:"configMaps"`
-	Secrets                   []Secret                `json:"secrets"`
+	Conditions             []*Condition             `json:"conditions"`
+	Events                 []*Event                 `json:"events"`
+	Persistentvolumeclaims []*PersistentVolumeClaim `json:"persistentVolumeClaims"`
+	ConfigMaps             []*ConfigMap             `json:"configMaps"`
+	Secrets                []*Secret                `json:"secrets"`
 }
 
 // Container represents a docker/rkt/etc. container that lives in a pod.
