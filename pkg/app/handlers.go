@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -13,33 +14,23 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/machines"
 	k8sapp "yunion.io/x/yunion-kube/pkg/resources/app"
-	"yunion.io/x/yunion-kube/pkg/resources/cluster"
-	"yunion.io/x/yunion-kube/pkg/resources/configmap"
-	"yunion.io/x/yunion-kube/pkg/resources/cronjob"
-	"yunion.io/x/yunion-kube/pkg/resources/daemonset"
-	"yunion.io/x/yunion-kube/pkg/resources/deployment"
-	"yunion.io/x/yunion-kube/pkg/resources/ingress"
-	"yunion.io/x/yunion-kube/pkg/resources/job"
-	"yunion.io/x/yunion-kube/pkg/resources/limitrange"
-	"yunion.io/x/yunion-kube/pkg/resources/namespace"
-	"yunion.io/x/yunion-kube/pkg/resources/node"
-	"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
-	"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
-	"yunion.io/x/yunion-kube/pkg/resources/pod"
-	"yunion.io/x/yunion-kube/pkg/resources/rbacroles"
+
+	//"yunion.io/x/yunion-kube/pkg/resources/job"
+	//"yunion.io/x/yunion-kube/pkg/resources/namespace"
+	//"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
+	//"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
+	//"yunion.io/x/yunion-kube/pkg/resources/pod"
+	"yunion.io/x/yunion-kube/pkg/k8smodels"
 	"yunion.io/x/yunion-kube/pkg/resources/release"
-	"yunion.io/x/yunion-kube/pkg/resources/resourcequota"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
 	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
-	"yunion.io/x/yunion-kube/pkg/resources/secret"
-	"yunion.io/x/yunion-kube/pkg/resources/service"
-	"yunion.io/x/yunion-kube/pkg/resources/statefulset"
-	"yunion.io/x/yunion-kube/pkg/resources/storageclass"
+	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
 
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
-	_ "yunion.io/x/yunion-kube/pkg/resources/secret/drivers"
-	_ "yunion.io/x/yunion-kube/pkg/resources/storageclass/drivers"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
+	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/secret"
+	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/storageclass"
 )
 
 func InitHandlers(app *appsrv.Application) {
@@ -82,33 +73,42 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []k8s.IK8sResourceManager{
-		configmap.ConfigMapManager,
-		cronjob.CronJobManager,
 		k8sapp.AppFromFileManager,
-		deployment.DeploymentManager,
-		daemonset.DaemonSetManager,
-		ingress.IngressManager,
-		job.JobManager,
-		pod.PodManager,
-		namespace.NamespaceManager,
-		limitrange.LimitRangeManager,
-		resourcequota.ResourceQuotaManager,
-		node.NodeManager,
-		persistentvolume.PersistentVolumeManager,
-		persistentvolumeclaim.PersistentVolumeClaimManager,
-		rbacroles.RbacRoleManager,
-		rbacroles.RbacRoleBindingManager,
-		rbacroles.ServiceAccountManager,
 		release.ReleaseManager,
-		secret.SecretManager,
-		secret.RegistrySecretManager,
-		service.ServiceManager,
-		cluster.ClusterManager,
-		statefulset.StatefulSetManager,
-		storageclass.StorageClassManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddResourceDispatcher(apiPrefix, app, handler)
+	}
+
+	// v2 dispatcher
+	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
+	for _, man := range []model.IK8SModelManager{
+		k8smodels.NodeManager,
+		k8smodels.NamespaceManager,
+		k8smodels.LimitRangeManager,
+		k8smodels.ResourceQuotaManager,
+		k8smodels.PodManager,
+		k8smodels.JobManager,
+		k8smodels.CronJobManager,
+		k8smodels.ServiceManager,
+		k8smodels.IngressManager,
+		k8smodels.DeploymentManager,
+		k8smodels.StatefulSetManager,
+		k8smodels.DaemonSetManager,
+		k8smodels.SecretManager,
+		k8smodels.ConfigMapManager,
+		k8smodels.StorageClassManager,
+		k8smodels.PVManager,
+		k8smodels.PVCManager,
+		k8smodels.ClusterRoleManager,
+		k8smodels.ClusterRoleBindingManager,
+		k8smodels.RoleManager,
+		k8smodels.RoleBindingManager,
+		k8smodels.ServiceAccountManager,
+	} {
+		handler := model.NewK8SModelHandler(man)
+		log.Infof("Dispatcher register k8s resource manager %q", man.KeywordPlural())
+		v2Dispatcher.Add(handler)
 	}
 
 	helmAppPrefix := fmt.Sprintf("%s/releaseapps", apiPrefix)

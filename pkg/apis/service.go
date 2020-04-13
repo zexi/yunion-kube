@@ -36,20 +36,13 @@ type ServiceDetail struct {
 	Service
 
 	// List of Endpoint obj. that are endpoints of this Service.
-	EndpointList []EndpointDetail `json:"endpointList"`
-
-	// Type determines how the service will be exposed.  Valid options: ClusterIP, NodePort, LoadBalancer
-	Type v1.ServiceType `json:"type"`
-
-	// ClusterIP is usually assigned by the master. Valid values are None, empty string (""), or
-	// a valid IP address. None can be specified for headless services when proxying is not required
-	ClusterIP string `json:"clusterIP"`
+	Endpoints []*EndpointDetail `json:"endpoints"`
 
 	// List of events related to this Service
-	EventList []Event `json:"events"`
+	Events []*Event `json:"events"`
 
-	// PodList represents list of pods targeted by same label selector as this service.
-	PodList []Pod `json:"pods"`
+	// Pods represents list of pods targeted by same label selector as this service.
+	Pods []*Pod `json:"pods"`
 
 	// Show the value of the SessionAffinity of the Service.
 	SessionAffinity v1.ServiceAffinity `json:"sessionAffinity"`
@@ -105,4 +98,37 @@ type ServiceCreateOption struct {
 type ServiceCreateInput struct {
 	K8sNamespaceResourceCreateInput
 	ServiceCreateOption
+}
+
+const (
+	// k8s annotations for create pod
+	YUNION_CNI_NETWORK_ANNOTATION = "cni.yunion.io/network"
+	YUNION_CNI_IPADDR_ANNOTATION  = "cni.yunion.io/ip"
+
+	YUNION_LB_NETWORK_ANNOTATION = "loadbalancer.yunion.io/network"
+)
+
+type NetworkConfig struct {
+	Network string `json:"network"`
+	Address string `json:"address"`
+}
+
+func (n NetworkConfig) ToPodAnnotation() map[string]string {
+	ret := make(map[string]string)
+	if n.Network != "" {
+		ret[YUNION_CNI_NETWORK_ANNOTATION] = n.Network
+	}
+	if n.Address != "" {
+		ret[YUNION_CNI_IPADDR_ANNOTATION] = n.Address
+	}
+	return ret
+}
+
+// GetServicePorts returns human readable name for the given service ports list.
+func GetServicePorts(apiPorts []v1.ServicePort) []ServicePort {
+	var ports []ServicePort
+	for _, port := range apiPorts {
+		ports = append(ports, ServicePort{port.Port, port.Protocol, port.NodePort})
+	}
+	return ports
 }

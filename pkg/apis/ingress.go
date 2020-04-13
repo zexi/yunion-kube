@@ -24,3 +24,8 @@ type IngressDetail struct {
 	// Status is the current state of the Ingress.
 	Status extensions.IngressStatus `json:"status"`
 }
+
+type IngressCreateInput struct {
+	K8sNamespaceResourceCreateInput
+	extensions.IngressSpec
+}

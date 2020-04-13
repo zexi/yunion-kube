@@ -32,13 +32,14 @@ require (
 	k8s.io/cluster-bootstrap v0.0.0
 	k8s.io/helm v2.12.3+incompatible
 	k8s.io/kube-proxy v0.0.0
+	k8s.io/kubectl v0.0.0
 	k8s.io/kubernetes v1.16.0
 	sigs.k8s.io/controller-runtime v0.1.10
-	yunion.io/x/jsonutils v0.0.0-20200303051356-aa609aba0cda
-	yunion.io/x/log v0.0.0-20190629062853-9f6483a7103d
-	yunion.io/x/onecloud v0.0.0-20200302181946-fe2eeaf97c2f
-	yunion.io/x/pkg v0.0.0-20200304112442-9dae9351325e
-	yunion.io/x/sqlchemy v0.0.0-20200303101347-d1e82c81b4e1
+	yunion.io/x/jsonutils v0.0.0-20200330063846-589d9924bb8b
+	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
+	yunion.io/x/onecloud v0.0.0-20200328014741-799bb494519c
+	yunion.io/x/pkg v0.0.0-20200312093207-f07f4cb157e0
+	yunion.io/x/sqlchemy v0.0.0-20200312002602-1177cd8fbc57
 )
 
 replace (

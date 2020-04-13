@@ -31,7 +31,7 @@ type Job struct {
 	TypeMeta
 
 	// Aggregate information about pods belonging to this Job.
-	Pods PodInfo `json:"podsInfo"`
+	Pods *PodInfo `json:"podsInfo"`
 
 	// Container images of the Job.
 	ContainerImages []ContainerImage `json:"containerImages"`
@@ -57,10 +57,10 @@ type JobDetail struct {
 	Job
 
 	// Detailed information about Pods belonging to this Job.
-	PodList []Pod `json:"pods"`
+	PodList []*Pod `json:"pods"`
 
 	// List of events related to this Job.
-	EventList []Event `json:"events"`
+	EventList []*Event `json:"events"`
 }
 
 // CronJob is a presentation layer view of Kubernetes Cron Job resource.
@@ -76,11 +76,11 @@ type CronJob struct {
 type CronJobDetail struct {
 	CronJob
 
-	ConcurrencyPolicy       string  `json:"concurrencyPolicy"`
-	StartingDeadLineSeconds *int64  `json:"startingDeadlineSeconds"`
-	ActiveJobs              []Job   `json:"activeJobs"`
-	InactiveJobs            []Job   `json:"inactiveJobs"`
-	Events                  []Event `json:"events"`
+	ConcurrencyPolicy       string   `json:"concurrencyPolicy"`
+	StartingDeadLineSeconds *int64   `json:"startingDeadlineSeconds"`
+	ActiveJobs              []*Job   `json:"activeJobs"`
+	InactiveJobs            []*Job   `json:"inactiveJobs"`
+	Events                  []*Event `json:"events"`
 }
 
 type JobCreateInput struct {
