@@ -19,6 +19,7 @@ func init() {
 		SK8SNamespaceResourceBaseManager: model.NewK8SNamespaceResourceBaseManager(
 			new(SIngress), "ingress", "ingresses"),
 	}
+	IngressManager.SetVirtualObject(IngressManager)
 }
 
 type SIngressManager struct {
