@@ -1,9 +1,5 @@
 package apis
 
-import (
-	"k8s.io/api/core/v1"
-)
-
 // LimitRange provides resource limit range values
 type LimitRangeItem struct {
 	// ResourceName usage constraints on this kind by resource name
@@ -25,5 +21,10 @@ type LimitRangeItem struct {
 type LimitRange struct {
 	ObjectMeta
 	TypeMeta
-	v1.LimitRangeSpec
+	// v1.LimitRangeSpec
+	Limits []*LimitRangeItem `json:"limits"`
+}
+
+type LimitRangeDetail struct {
+	LimitRange
 }

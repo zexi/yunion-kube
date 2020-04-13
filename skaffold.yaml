@@ -1,0 +1,13 @@
+apiVersion: skaffold/v2beta1
+kind: Config
+metadata:
+  name: yunion-kube
+build:
+  tagPolicy:
+    sha256: {}
+  artifacts:
+  - image: registry.cn-beijing.aliyuncs.com/yunionio/kubeserver
+deploy:
+  kubectl:
+    manifests:
+    - manifests/k8s-kubeserver.yaml

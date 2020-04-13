@@ -60,8 +60,22 @@ func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, in
 }
 
 func (d *SYunionVMDriver) validateConfig(s *mcclient.ClientSession, config *apis.MachineCreateVMConfig) error {
-	validateData := jsonutils.NewDict()
-	validateData.Add(jsonutils.Marshal(config), cloudmod.Servers.GetKeyword())
+	input := &api.ServerCreateInput{
+		ServerConfigs: &api.ServerConfigs{
+			PreferRegion:     config.PreferRegion,
+			PreferZone:       config.PreferZone,
+			PreferWire:       config.PreferWire,
+			PreferHost:       config.PreferHost,
+			PreferBackupHost: config.PreferBackupHost,
+			Hypervisor:       config.Hypervisor,
+			Disks:            config.Disks,
+			Networks:         config.Networks,
+			IsolatedDevices:  config.IsolatedDevices,
+		},
+		VmemSize:  config.VmemSize,
+		VcpuCount: config.VcpuCount,
+	}
+	validateData := input.JSON(input)
 	ret, err := cloudmod.Servers.PerformClassAction(s, "check-create-data", validateData)
 	log.Infof("check server create data: %s, ret: %s err: %v", validateData, ret, err)
 	if err != nil {

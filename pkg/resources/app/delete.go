@@ -7,8 +7,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
-	capi "yunion.io/x/yunion-kube/pkg/client/api"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
@@ -32,7 +32,7 @@ func DeleteServices(cli *client.ClusterManager, namespace string, labelSelector 
 		return err
 	}
 	for _, svc := range svcList {
-		err = cli.KubeClient.Delete(capi.ResourceNameService, namespace, svc.Name, &metav1.DeleteOptions{})
+		err = cli.KubeClient.Delete(api.ResourceNameService, namespace, svc.Name, &metav1.DeleteOptions{})
 		if err != nil {
 			return err
 		}
