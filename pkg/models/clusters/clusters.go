@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"yunion.io/x/yunion-kube/pkg/clientv2"
 
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
@@ -882,6 +883,14 @@ func (c *SCluster) GetKubeconfig() (string, error) {
 		return "", err
 	}
 	return kubeconfig, c.SetKubeconfig(kubeconfig)
+}
+
+func (c *SCluster) GetClientV2() (*clientv2.Client, error) {
+	kubeconfig, err := c.GetKubeconfig()
+	if err != nil {
+		return nil, err
+	}
+	return clientv2.NewClient(kubeconfig)
 }
 
 func (c *SCluster) GetKubeconfigByCerts() (string, error) {

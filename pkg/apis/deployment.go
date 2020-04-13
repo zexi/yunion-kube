@@ -2,38 +2,21 @@ package apis
 
 import (
 	apps "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-type ContainerUpdateInput struct {
-	// required: true
-	Name  string `json:"name"`
-	Image string `json:"image,omitempty"`
-}
-
-type PodUpdateInput struct {
-	K8sNamespaceResourceCreateInput
-
-	InitContainers []ContainerUpdateInput `json:"initContainers,omitempty"`
-	Containers     []ContainerUpdateInput `json:"containers,omitempty"`
-	RestartPolicy  v1.RestartPolicy       `json:"restartPolicy,omitempty"`
-	DNSPolicy      v1.DNSPolicy           `json:"dnsPolicy,omitempty"`
-}
+const (
+	DeploymentStatusNewReplicaUpdating    = "NewReplicaUpdating"
+	DeploymentStatusOldReplicaTerminating = "OldReplicaTerminating"
+	DeploymentStatusAvailableWaiting      = "AvailableWaiting"
+	DeploymentStatusRunning               = "Running"
+	DeploymentStatusObservedWaiting       = "ObservedWaiting"
+)
 
 type DeploymentUpdateInput struct {
+	K8SNamespaceResourceUpdateInput
 	Replicas *int32 `json:"replicas"`
-	PodUpdateInput
-}
-
-type StatefulsetUpdateInput struct {
-	Replicas *int32 `json:"replicas"`
-	PodUpdateInput
-}
-
-type ContainerImage struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
+	PodTemplateUpdateInput
 }
 
 // Deployment is a presentation layer view of kubernetes Deployment resource. This means
@@ -54,8 +37,22 @@ type Deployment struct {
 	// Init Container images of deployment
 	InitContainerImages []ContainerImage `json:"initContainerImages"`
 
-	Status   string            `json:"status"`
 	Selector map[string]string `json:"selector"`
+
+	DeploymentStatus
+}
+
+type DeploymentStatus struct {
+	Status string `json:"status"`
+
+	// Number of the pod with ready state.
+	ReadyReplicas int64 `json:"readyReplicas"`
+	// Number of desired pods
+	DesiredReplicas int64 `json:"desiredReplicas"`
+	// Total number of non-terminated pods targeted by this deployment that have the desired template spec.
+	UpdatedReplicas int64 `json:"updatedReplicas"`
+	// Total number of available pods (ready for at least minReadySeconds) targeted by this deployment.
+	AvailableReplicas int64 `json:"availableReplicas"`
 }
 
 type StatusInfo struct {
@@ -83,9 +80,9 @@ type RollingUpdateStrategy struct {
 type DeploymentDetail struct {
 	Deployment
 	// Detailed information about Pods belonging to this Deployment.
-	PodList []Pod `json:"pods"`
+	Pods []*Pod `json:"pods"`
 
-	ServiceList []Service `json:"services"`
+	Services []*Service `json:"services"`
 
 	// Status information on the deployment
 	StatusInfo `json:"statusInfo"`
@@ -100,17 +97,17 @@ type DeploymentDetail struct {
 	// Rolling update strategy containing maxSurge and maxUnavailable
 	RollingUpdateStrategy *RollingUpdateStrategy `json:"rollingUpdateStrategy,omitempty"`
 
-	// RepliaSetList containing old replica sets from the deployment
-	OldReplicaSetList []ReplicaSet `json:"oldReplicaSetList"`
+	// RepliaSets containing old replica sets from the deployment
+	OldReplicaSets []*ReplicaSet `json:"oldReplicaSets"`
 
 	// New replica set used by this deployment
-	NewReplicaSet ReplicaSet `json:"newReplicaSet"`
+	NewReplicaSet *ReplicaSet `json:"newReplicaSet"`
 
 	// Optional field that specifies the number of old Replica Sets to retain to allow rollback.
 	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit"`
 
 	// List of events related to this Deployment
-	EventList []Event `json:"events"`
+	Events []*Event `json:"events"`
 
 	// List of Horizontal Pod AutoScalers targeting this Deployment
 	//HorizontalPodAutoscalerList hpa.HorizontalPodAutoscalerList `json:"horizontalPodAutoscalerList"`

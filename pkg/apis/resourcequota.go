@@ -13,11 +13,7 @@ type ResourceQuota struct {
 
 // ResourceQuotaDetail provides the presentation layer view of Kubernetes Resource Quotas resource.
 type ResourceQuotaDetail struct {
-	ObjectMeta
-	TypeMeta
-
-	// Scopes defines quota scopes
-	Scopes []v1.ResourceQuotaScope `json:"scopes,omitempty"`
+	ResourceQuota
 
 	// StatusList is a set of (resource name, Used, Hard) tuple.
 	StatusList map[v1.ResourceName]ResourceStatus `json:"statuses,omitempty"`

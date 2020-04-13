@@ -57,3 +57,8 @@ type SecretDetail struct {
 	// representing the arbitrary (possibly non-string) data value here.
 	Data map[string][]byte `json:"data"`
 }
+
+type ListInputSecret struct {
+	ListInputK8SNamespaceBase
+	Type string `json:"type"`
+}

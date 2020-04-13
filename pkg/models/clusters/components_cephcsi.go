@@ -1,12 +1,12 @@
 package clusters
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"strings"
-	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
@@ -214,7 +214,6 @@ func (m *SCephCSIComponentManager) getK8sResourceManifest(cluster *SCluster, set
 	if err != nil {
 		return "", errors.Wrap(err, "ceph csi get manifest")
 	}
-	log.Errorf("==============manifest: %s", manifest)
 	return manifest, nil
 }
 

@@ -34,7 +34,7 @@ CMDS := $(shell find ./cmd -mindepth 1 -maxdepth 1 -type d)
 
 all: build
 
-build: clean
+build: clean fmt
 	@for PKG in $(CMDS); do \
 		echo build $$PKG; \
 		$(GO_BUILD) -o $(BIN_DIR)/`basename $${PKG}` $$PKG; \
@@ -61,11 +61,14 @@ REGISTRY ?= "registry.cn-beijing.aliyuncs.com/yunionio"
 VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
 	   	git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 
-image: build bundle
+image:
 	docker build -f Dockerfile -t $(REGISTRY)/kubeserver:$(VERSION) .
 
 image-push: image
 	docker push $(REGISTRY)/kubeserver:$(VERSION)
+
+dev:
+	skaffold dev
 
 prepare_dir: bin_dir
 

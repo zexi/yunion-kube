@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"yunion.io/x/yunion-kube/pkg/clientv2"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -46,10 +47,35 @@ type ClusterManager struct {
 	KubeConfig string
 	// KubeConfigPath used for kubectl or helm client
 	KubeConfigPath string
+	ClientV2       *clientv2.Client
+}
+
+func (c ClusterManager) GetClusterObject() manager.ICluster {
+	return c.Cluster
+}
+
+func (c ClusterManager) GetId() string {
+	return c.Cluster.GetId()
+}
+
+func (c ClusterManager) GetName() string {
+	return c.Cluster.GetName()
 }
 
 func (c ClusterManager) GetIndexer() *CacheFactory {
 	return c.KubeClient.GetIndexer()
+}
+
+func (c ClusterManager) GetClientset() kubernetes.Interface {
+	return c.KubeClient.GetClientset()
+}
+
+func (c ClusterManager) GetClient() *clientv2.Client {
+	return c.ClientV2
+}
+
+func (c ClusterManager) GetHandler() ResourceHandler {
+	return c.KubeClient
 }
 
 func (c ClusterManager) Close() {
@@ -98,6 +124,12 @@ func BuildApiserverClient() {
 				continue
 			}
 
+			cliv2, err := clientv2.NewClient(kubeconfig)
+			if err != nil {
+				log.Warningf("build cluster (%s) client v2 error: %v", cluster.GetName())
+				continue
+			}
+
 			clusterManager := &ClusterManager{
 				Cluster:        cluster,
 				Config:         config,
@@ -105,6 +137,7 @@ func BuildApiserverClient() {
 				APIServer:      apiServer,
 				KubeConfig:     kubeconfig,
 				KubeConfigPath: kubeconfigPath,
+				ClientV2:       cliv2,
 			}
 			managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
 			if ok {

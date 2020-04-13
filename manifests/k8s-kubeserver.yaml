@@ -1,0 +1,20 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+  name: default-kubeserver
+  namespace: onecloud
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - command:
+        - /opt/yunion/bin/kube-server
+        - --config
+        - /etc/yunion/kubeserver.conf
+        image: registry.cn-beijing.aliyuncs.com/yunionio/kubeserver:dev
+        imagePullPolicy: Always
+        name: server
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always

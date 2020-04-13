@@ -15,11 +15,12 @@ type PersistentVolume struct {
 	Status        v1.PersistentVolumePhase         `json:"status"`
 	Claim         string                           `json:"claim"`
 	Reason        string                           `json:"reason"`
+	Message       string                           `json:"message"`
 }
 
 // PersistentVolumeDetail provides the presentation layer view of Kubernetes Persistent Volume resource.
 type PersistentVolumeDetail struct {
 	PersistentVolume
-	Message                string                    `json:"message"`
 	PersistentVolumeSource v1.PersistentVolumeSource `json:"persistentVolumeSource"`
+	PersistentVolumeClaim  *PersistentVolumeClaim    `json:"persistentVolumeClaim"`
 }
