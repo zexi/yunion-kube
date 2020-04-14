@@ -10,12 +10,11 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
 var (
 	ConfigMapManager *SConfigMapManager
-	_                model.IK8SModel = &SConfigMap{}
+	_                model.IPodOwnerModel = &SConfigMap{}
 )
 
 func init() {
@@ -38,6 +37,7 @@ func (m SConfigMapManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameConfigMap,
 		Object:       &v1.ConfigMap{},
+		KindName:     apis.KindNameConfigMap,
 	}
 }
 
@@ -79,7 +79,7 @@ func (m SConfigMap) GetAPIObject() (*apis.ConfigMap, error) {
 	}, nil
 }
 
-func (m SConfigMap) GetMountPods() ([]*apis.Pod, error) {
+func (m SConfigMap) getMountRawPods() ([]*v1.Pod, error) {
 	cfgName := m.GetName()
 	ns := m.GetNamespace()
 	rawPods, err := PodManager.GetRawPods(m.GetCluster(), ns)
@@ -89,7 +89,7 @@ func (m SConfigMap) GetMountPods() ([]*apis.Pod, error) {
 	mountPods := make([]*v1.Pod, 0)
 	markMap := make(map[string]bool, 0)
 	for _, pod := range rawPods {
-		cfgs := common.GetPodConfigMapVolumes(pod)
+		cfgs := GetPodConfigMapVolumes(pod)
 		for _, cfg := range cfgs {
 			if cfg.ConfigMap.Name == cfgName {
 				if _, ok := markMap[pod.GetName()]; !ok {
@@ -98,6 +98,18 @@ func (m SConfigMap) GetMountPods() ([]*apis.Pod, error) {
 				}
 			}
 		}
+	}
+	return mountPods, err
+}
+
+func (m SConfigMap) GetRawPods() ([]*v1.Pod, error) {
+	return m.getMountRawPods()
+}
+
+func (m SConfigMap) GetMountPods() ([]*apis.Pod, error) {
+	mountPods, err := m.getMountRawPods()
+	if err != nil {
+		return nil, err
 	}
 	return PodManager.GetAPIPods(m.GetCluster(), mountPods)
 }

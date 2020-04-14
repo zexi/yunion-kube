@@ -40,6 +40,7 @@ func (m SCronJobManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameCronJob,
 		Object:       &batch2.CronJob{},
+		KindName:     apis.KindNameCronJob,
 	}
 }
 

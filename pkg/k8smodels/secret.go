@@ -4,7 +4,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
@@ -16,7 +15,7 @@ import (
 
 var (
 	SecretManager *SSecretManager
-	_             model.IK8SModel = &SSecret{}
+	_             model.IPodOwnerModel = &SSecret{}
 )
 
 type SSecretManager struct {
@@ -48,6 +47,7 @@ func (m SSecretManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameSecret,
 		Object:       &v1.Secret{},
+		KindName:     apis.KindNameSecret,
 	}
 }
 
@@ -112,9 +112,9 @@ func (m SSecretManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery
 		return q, err
 	}
 	if query.Type != "" {
-		q.AddFilter(func(obj model.IK8SModel) bool {
+		q.AddFilter(func(obj model.IK8SModel) (bool, error) {
 			secret := obj.(*SSecret).GetRawSecret()
-			return string(secret.Type) == query.Type
+			return string(secret.Type) == query.Type, nil
 		})
 	}
 	return q, nil
@@ -158,4 +158,27 @@ func (obj *SSecret) GetAPIDetailObject() (*apis.SecretDetail, error) {
 		Secret: *secret,
 		Data:   rs.Data,
 	}, nil
+}
+
+func (obj *SSecret) GetRawPods() ([]*v1.Pod, error) {
+	secName := obj.GetName()
+	ns := obj.GetNamespace()
+	rawPods, err := PodManager.GetRawPods(obj.GetCluster(), ns)
+	if err != nil {
+		return nil, err
+	}
+	mountPods := make([]*v1.Pod, 0)
+	markMap := make(map[string]bool, 0)
+	for _, pod := range rawPods {
+		cfgs := GetPodSecretVolumes(pod)
+		for _, cfg := range cfgs {
+			if cfg.Secret.SecretName == secName {
+				if _, ok := markMap[pod.GetName()]; !ok {
+					mountPods = append(mountPods, pod)
+					markMap[pod.GetName()] = true
+				}
+			}
+		}
+	}
+	return mountPods, err
 }

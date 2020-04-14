@@ -12,7 +12,7 @@ import (
 
 var (
 	ServiceManager *SServiceManager
-	_              model.IK8SModel = &SService{}
+	_              model.IPodOwnerModel = &SService{}
 )
 
 func init() {
@@ -37,6 +37,7 @@ func (m SServiceManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameService,
 		Object:       &v1.Service{},
+		KindName:     apis.KindNameService,
 	}
 }
 
@@ -89,10 +90,14 @@ func (obj *SService) GetAPIObject() (*apis.Service, error) {
 	}, nil
 }
 
-func (obj *SService) GetPods() ([]*apis.Pod, error) {
+func (obj *SService) GetRawPods() ([]*v1.Pod, error) {
 	svc := obj.GetRawService()
 	selector := labels.SelectorFromSet(svc.Spec.Selector)
-	pods, err := PodManager.GetRawPodsBySelector(obj.GetCluster(), obj.GetNamespace(), selector)
+	return PodManager.GetRawPodsBySelector(obj.GetCluster(), obj.GetNamespace(), selector)
+}
+
+func (obj *SService) GetPods() ([]*apis.Pod, error) {
+	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
 	}

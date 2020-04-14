@@ -14,6 +14,7 @@ import (
 
 var (
 	PVCManager *SPVCManager
+	_          model.IPodOwnerModel = new(SPVC)
 )
 
 func init() {
@@ -38,6 +39,7 @@ func (m *SPVCManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNamePersistentVolumeClaim,
 		Object:       &v1.PersistentVolumeClaim{},
+		KindName:     apis.KindNamePersistentVolumeClaim,
 	}
 }
 
@@ -48,16 +50,16 @@ func (m *SPVCManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, 
 	}
 	if query.Unused != nil {
 		unused := *query.Unused
-		q.AddFilter(func(obj model.IK8SModel) bool {
+		q.AddFilter(func(obj model.IK8SModel) (bool, error) {
 			pvc := obj.(*SPVC)
 			mntPods, err := pvc.getMountRawPods()
 			if err != nil {
-				panic(err)
+				return false, err
 			}
 			if unused {
-				return len(mntPods) == 0
+				return len(mntPods) == 0, nil
 			}
-			return len(mntPods) > 0
+			return len(mntPods) > 0, nil
 		})
 	}
 	return q, nil
@@ -211,4 +213,8 @@ func (m *SPVCManager) GetAPIPVCs(cluster model.ICluster, pvcs []*v1.PersistentVo
 		return nil, err
 	}
 	return ret, nil
+}
+
+func (m *SPVC) GetRawPods() ([]*v1.Pod, error) {
+	return m.getMountRawPods()
 }

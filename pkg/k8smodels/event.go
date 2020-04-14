@@ -10,9 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	"yunion.io/x/onecloud/pkg/httperrors"
+
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	"yunion.io/x/yunion-kube/pkg/resources/event"
 )
 
 var (
@@ -29,6 +30,15 @@ func init() {
 	EventManager.SetVirtualObject(EventManager)
 }
 
+// FailedReasonPartials  is an array of partial strings to correctly filter warning events.
+// Have to be lower case for correct case insensitive comparison.
+// Based on k8s official events reason file:
+// https://github.com/kubernetes/kubernetes/blob/886e04f1fffbb04faf8a9f9ee141143b2684ae68/pkg/kubelet/events/event.go
+// Partial strings that are not in event.go file are added in order to support
+// older versions of k8s which contained additional event reason messages.
+var FailedReasonPartials = []string{"failed", "err", "exceeded", "invalid", "unhealthy",
+	"mismatch", "insufficient", "conflict", "outof", "nil", "backoff"}
+
 type SEventManager struct {
 	model.SK8SNamespaceResourceBaseManager
 }
@@ -41,6 +51,7 @@ func (m SEventManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameEvent,
 		Object:       &v1.Event{},
+		KindName:     apis.KindNameEvent,
 	}
 }
 
@@ -69,7 +80,7 @@ func (m SEventManager) fillEventsType(events []*v1.Event) []*v1.Event {
 	for _, e := range events {
 		// Fill in only events with empty type
 		if len(e.Type) == 0 {
-			if m.isFailedReason(e.Reason, event.FailedReasonPartials...) {
+			if m.isFailedReason(e.Reason, FailedReasonPartials...) {
 				e.Type = v1.EventTypeWarning
 			} else {
 				e.Type = v1.EventTypeNormal
@@ -120,6 +131,40 @@ func (m SEventManager) GetRawEventsByUID(cluster model.ICluster, uId types.UID) 
 		return nil, err
 	}
 	return m.FilterEventsByUID(events, uId), nil
+}
+
+func (m SEventManager) GetRawEventsByKindName(cluster model.ICluster, kind, namespace, name string) ([]*v1.Event, error) {
+	events, err := m.GetAllRawEvents(cluster)
+	if err != nil {
+		return nil, err
+	}
+	return m.FilterEventsByKindName(events, kind, namespace, name), nil
+}
+
+func (m SEventManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.EventListInput) (model.IQuery, error) {
+	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return q, err
+	}
+	if query.ListInputOwner.ShouldDo() {
+		q.AddFilter(m.ListOwnerFilter(query.ListInputOwner, query.Namespace))
+	}
+	return q, nil
+}
+
+func (m SEventManager) ListOwnerFilter(input apis.ListInputOwner, namespace string) model.QueryFilter {
+	return func(obj model.IK8SModel) (bool, error) {
+		event := obj.(*SEvent).GetRawEvent()
+		man := model.GetK8SModelManagerByKind(input.OwnerKind)
+		if man == nil {
+			return false, httperrors.NewNotFoundError("Not found owner_kind %s", input.OwnerKind)
+		}
+		ownerModel, err := model.NewK8SModelObjectByName(man, obj.GetCluster(), namespace, input.OwnerName)
+		if err != nil {
+			return false, err
+		}
+		return model.IsEventOwner(ownerModel, event)
+	}
 }
 
 func (m SEventManager) GetRawEventsByPods(cluster model.ICluster, pods []*v1.Pod) ([]*v1.Event, error) {
@@ -247,6 +292,17 @@ func (m SEventManager) FilterEventsByUID(events []*v1.Event, uid types.UID) []*v
 	result := make([]*v1.Event, 0)
 	for _, e := range events {
 		if e.InvolvedObject.UID == uid {
+			result = append(result, e)
+		}
+	}
+	return m.fillEventsType(result)
+}
+
+func (m SEventManager) FilterEventsByKindName(events []*v1.Event, kind, namespace, name string) []*v1.Event {
+	result := make([]*v1.Event, 0)
+	for _, e := range events {
+		iobj := e.InvolvedObject
+		if iobj.Kind == kind && iobj.Namespace == namespace && iobj.Name == name {
 			result = append(result, e)
 		}
 	}

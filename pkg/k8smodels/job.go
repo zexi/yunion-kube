@@ -15,6 +15,7 @@ import (
 
 var (
 	JobManager *SJobManager
+	_          model.IPodOwnerModel = new(SJob)
 )
 
 func init() {
@@ -38,6 +39,7 @@ func (m SJobManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameJob,
 		Object:       &batch.Job{},
+		KindName:     apis.KindNameJob,
 	}
 }
 
