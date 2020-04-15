@@ -38,6 +38,7 @@ func (m SNodeManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameNode,
 		Object:       &v1.Node{},
+		KindName:     apis.KindNameNode,
 	}
 }
 

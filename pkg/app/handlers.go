@@ -105,7 +105,9 @@ func InitHandlers(app *appsrv.Application) {
 		k8smodels.RoleManager,
 		k8smodels.RoleBindingManager,
 		k8smodels.ServiceAccountManager,
+		k8smodels.EventManager,
 	} {
+		model.RegisterModelManager(man)
 		handler := model.NewK8SModelHandler(man)
 		log.Infof("Dispatcher register k8s resource manager %q", man.KeywordPlural())
 		v2Dispatcher.Add(handler)

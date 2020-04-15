@@ -35,6 +35,7 @@ func (_ SRoleManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameRole,
 		Object:       &rbac.Role{},
+		KindName:     apis.KindNameRole,
 	}
 }
 

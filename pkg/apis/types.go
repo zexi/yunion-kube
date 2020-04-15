@@ -119,8 +119,11 @@ type K8SBaseResource struct {
 
 // Event is a single event representation.
 type Event struct {
-	ObjectMeta `json:"objectMeta"`
-	TypeMeta   `json:"typeMeta"`
+	// Deprecated, for compatible, should be delete after v3.2
+	DepObjectMeta ObjectMeta `json:"objectMeta"`
+
+	ObjectMeta
+	TypeMeta
 
 	// A human-readable description of the status of related object.
 	Message string `json:"message"`
@@ -206,4 +209,18 @@ type PodTemplateUpdateInput struct {
 type ContainerImage struct {
 	Name  string `json:"name"`
 	Image string `json:"image"`
+}
+
+type ListInputOwner struct {
+	OwnerKind string `json:"owner_kind"`
+	OwnerName string `json:"owner_name"`
+}
+
+func (input ListInputOwner) ShouldDo() bool {
+	return input.OwnerKind != "" && input.OwnerName != ""
+}
+
+type EventListInput struct {
+	ListInputK8SNamespaceBase
+	ListInputOwner
 }

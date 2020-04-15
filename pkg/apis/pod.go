@@ -144,3 +144,8 @@ func (info PodInfo) GetStatus() string {
 	}
 	return string(v1.PodUnknown)
 }
+
+type PodListInput struct {
+	ListInputK8SNamespaceBase
+	ListInputOwner
+}
