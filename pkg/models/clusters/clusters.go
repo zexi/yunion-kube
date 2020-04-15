@@ -1469,3 +1469,7 @@ func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient
 	}
 	return nil, nil
 }
+
+func (c *SCluster) GetProjectId() string {
+	return c.ProjectId
+}
