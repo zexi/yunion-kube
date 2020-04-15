@@ -57,6 +57,7 @@ func (m *SStorageClassManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameStorageClass,
 		Object:       new(v1.StorageClass),
+		KindName:     apis.KindNameStorageClass,
 	}
 }
 

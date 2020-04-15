@@ -1,15 +1,18 @@
 package model
 
 import (
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"yunion.io/x/yunion-kube/pkg/apis"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/object"
+
+	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type K8SResourceInfo struct {
 	ResourceName string
+	KindName     string
 	Object       runtime.Object
 }
 
@@ -44,4 +47,10 @@ type IK8SModel interface {
 
 	GetObjectMeta() apis.ObjectMeta
 	GetTypeMeta() apis.TypeMeta
+}
+
+type IPodOwnerModel interface {
+	IK8SModel
+
+	GetRawPods() ([]*v1.Pod, error)
 }

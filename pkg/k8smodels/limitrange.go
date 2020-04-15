@@ -35,6 +35,7 @@ func (m *SLimitRangeManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameLimitRange,
 		Object:       &v1.LimitRange{},
+		KindName:     apis.KindNameLimitRange,
 	}
 }
 

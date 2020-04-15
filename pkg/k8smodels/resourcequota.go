@@ -35,6 +35,7 @@ func (m *SResourceQuotaManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameResourceQuota,
 		Object:       &v1.ResourceQuota{},
+		KindName:     apis.KindNameResourceQuota,
 	}
 }
 

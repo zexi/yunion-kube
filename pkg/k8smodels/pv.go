@@ -31,6 +31,7 @@ func (m *SPVManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNamePersistentVolume,
 		Object:       new(v1.PersistentVolume),
+		KindName:     apis.KindNamePersistentVolume,
 	}
 }
 
