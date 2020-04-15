@@ -54,6 +54,10 @@ func (c ClusterManager) GetClusterObject() manager.ICluster {
 	return c.Cluster
 }
 
+func (c ClusterManager) GetProjectId() string {
+	return c.Cluster.GetProjectId()
+}
+
 func (c ClusterManager) GetId() string {
 	return c.Cluster.GetId()
 }
