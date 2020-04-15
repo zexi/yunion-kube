@@ -36,6 +36,7 @@ func (m SReplicaSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameReplicaSet,
 		Object:       &apps.ReplicaSet{},
+		KindName:     apis.KindNameReplicaSet,
 	}
 }
 

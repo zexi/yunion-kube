@@ -51,6 +51,7 @@ func (m SPodManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNamePod,
 		Object:       &v1.Pod{},
+		KindName:     apis.KindNamePod,
 	}
 }
 
@@ -60,8 +61,30 @@ func (p SPodManager) ValidateCreateData(
 	return nil, httperrors.NewUnsupportOperationError("kubernetes pod not support create")
 }
 
-func (p SPodManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.ListInputK8SNamespaceBase) (model.IQuery, error) {
-	return p.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, *query)
+func (p SPodManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.PodListInput) (model.IQuery, error) {
+	q, err := p.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return nil, err
+	}
+	if query.ListInputOwner.ShouldDo() {
+		q.AddFilter(p.ListOwnerFilter(query.ListInputOwner, query.Namespace))
+	}
+	return q, nil
+}
+
+func (p SPodManager) ListOwnerFilter(input apis.ListInputOwner, namespace string) model.QueryFilter {
+	return func(obj model.IK8SModel) (bool, error) {
+		pod := obj.(*SPod).GetRawPod()
+		man := model.GetK8SModelManagerByKind(input.OwnerKind)
+		if man == nil {
+			return false, httperrors.NewNotFoundError("Not found owner_kind %s", input.OwnerKind)
+		}
+		ownerModel, err := model.NewPodOwnerObjectByName(man, obj.GetCluster(), namespace, input.OwnerName)
+		if err != nil {
+			return false, err
+		}
+		return model.IsPodOwner(ownerModel, pod)
+	}
 }
 
 func (p SPodManager) GetRawPods(cluster model.ICluster, ns string) ([]*v1.Pod, error) {

@@ -34,6 +34,7 @@ func (m *SIngressManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameIngress,
 		Object:       new(extensions.Ingress),
+		KindName:     apis.KindNameIngress,
 	}
 }
 

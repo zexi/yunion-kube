@@ -1,10 +1,15 @@
 package model
 
 import (
+	"reflect"
 	"strings"
+
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
+
 	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
@@ -30,8 +35,8 @@ func NewK8SClusterResourceBaseManager(dt interface{}, keyword, keywordPlural str
 
 func (m *SK8SClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SClusterBase) (IQuery, error) {
 	if query.Name != "" {
-		q.AddFilter(func(obj IK8SModel) bool {
-			return obj.GetName() == query.Name || strings.Contains(obj.GetName(), query.Name)
+		q.AddFilter(func(obj IK8SModel) (bool, error) {
+			return obj.GetName() == query.Name || strings.Contains(obj.GetName(), query.Name), nil
 		})
 	}
 	return m.SK8SModelBaseManager.ListItemFilter(ctx, q, query.ListInputK8SBase)
@@ -106,4 +111,28 @@ func (m SK8SNamespaceResourceBaseManager) ValidateCreateData(
 
 func (m SK8SNamespaceResourceBase) GetNamespace() string {
 	return m.GetMetaObject().GetNamespace()
+}
+
+func IsPodOwner(model IPodOwnerModel, pod *v1.Pod) (bool, error) {
+	pods, err := model.GetRawPods()
+	if err != nil {
+		return false, err
+	}
+	return IsObjectContains(pod, pods), nil
+}
+
+func IsObjectContains(obj metav1.Object, objs interface{}) bool {
+	objsV := reflect.ValueOf(objs)
+	for i := 0; i < objsV.Len(); i++ {
+		ov := objsV.Index(i).Interface().(metav1.Object)
+		if obj.GetUID() == ov.GetUID() {
+			return true
+		}
+	}
+	return false
+}
+
+func IsEventOwner(model IK8SModel, event *v1.Event) (bool, error) {
+	metaObj := model.GetObjectMeta()
+	return event.InvolvedObject.UID == metaObj.GetUID(), nil
 }

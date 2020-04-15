@@ -34,7 +34,8 @@ type SRoleBinding struct {
 func (m *SRoleBindingManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameRoleBinding,
-		Object:       new(rbac.RoleBinding),
+		Object:       &rbac.RoleBinding{},
+		KindName:     apis.KindNameRoleBinding,
 	}
 }
 

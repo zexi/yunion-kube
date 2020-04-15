@@ -16,17 +16,17 @@ type SFilterClause struct {
 }
 
 func QWrap(f func(data *jsonutils.JSONDict) (bool, error), format string, hints ...interface{}) QueryFilter {
-	return func(obj IK8SModel) bool {
+	return func(obj IK8SModel) (bool, error) {
 		data, err := GetObject(obj)
 		msg := fmt.Sprintf(format, hints...)
 		if err != nil {
-			panic(fmt.Sprintf("%s: %v", msg, err))
+			return false, fmt.Errorf("%s: %v", msg, err)
 		}
 		ret, err := f(data)
 		if err != nil {
-			panic(fmt.Sprintf("%s: %v", msg, err))
+			return false, fmt.Errorf("%s: %v", msg, err)
 		}
-		return ret
+		return ret, nil
 	}
 }
 

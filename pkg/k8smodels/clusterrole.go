@@ -34,6 +34,7 @@ func (_ SClusterRoleManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameClusterRole,
 		Object:       &rbac.ClusterRole{},
+		KindName:     apis.KindNameClusterRole,
 	}
 }
 

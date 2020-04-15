@@ -9,6 +9,7 @@ import (
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/scheme"
@@ -268,10 +269,40 @@ func fetchK8SModel(
 	return model, nil
 }
 
+func NewK8SModelObjectByName(man IK8SModelManager, cluster ICluster, namespace, name string) (IK8SModel, error) {
+	kind := man.GetK8SResourceInfo().ResourceName
+	obj, err := cluster.GetHandler().Get(kind, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	return NewK8SModelObject(man, cluster, obj)
+}
+
+func NewPodOwnerObjectByName(man IK8SModelManager, cluster ICluster, namespace, name string) (IPodOwnerModel, error) {
+	kind := man.GetK8SResourceInfo().ResourceName
+	obj, err := cluster.GetHandler().Get(kind, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	model, err := NewK8SModelObject(man, cluster, obj)
+	if err != nil {
+		return nil, err
+	}
+	return model.(IPodOwnerModel), nil
+}
+
 func NewK8SModelObject(man IK8SModelManager, cluster ICluster, obj runtime.Object) (IK8SModel, error) {
 	m, ok := reflect.New(man.Factory().DataType()).Interface().(IK8SModel)
 	if !ok {
 		return nil, db.ErrInconsistentDataType
+	}
+	newObj := man.GetK8SResourceInfo().Object.DeepCopyObject()
+	switch obj.(type) {
+	case *unstructured.Unstructured:
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, newObj); err != nil {
+			return nil, err
+		}
+		obj = newObj
 	}
 	m.SetModelManager(man, m).SetCluster(cluster).SetK8SObject(obj)
 	return m, nil
