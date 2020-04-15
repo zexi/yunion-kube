@@ -8,6 +8,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/helm"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/resources/chart"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -23,7 +24,7 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*apis.ReleaseD
 		return nil, err
 	}
 
-	detail, err := GetReleaseDetail(cli, req.GetCluster(), req.GetIndexer(), namespace, id)
+	detail, err := GetReleaseDetail(cli, req.GetCluster(), req.ClusterManager, req.GetIndexer(), namespace, id)
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +34,7 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*apis.ReleaseD
 func GetReleaseDetail(
 	helmclient *helm.Client,
 	cluster apis.ICluster,
+	clusterMan model.ICluster,
 	indexer *client.CacheFactory,
 	namespace, releaseName string,
 ) (*apis.ReleaseDetail, error) {
@@ -43,7 +45,7 @@ func GetReleaseDetail(
 		return nil, err
 	}
 
-	res, err := GetReleaseResources(helmclient, rls, indexer, cluster)
+	res, err := GetReleaseResources(helmclient, rls, indexer, cluster, clusterMan)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Get release resources: %v", releaseName)
 	}

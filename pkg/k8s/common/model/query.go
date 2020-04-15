@@ -22,7 +22,7 @@ type IQuery interface {
 	GetOffset() int64
 }
 
-type QueryFilter func(obj IK8SModel) bool
+type QueryFilter func(obj IK8SModel) (bool, error)
 
 type sK8SQuery struct {
 	limit        int64
@@ -111,7 +111,10 @@ func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
 		}
 		ret[idx] = model
 	}
-	ret = q.applyFilters(ret)
+	ret, err = q.applyFilters(ret)
+	if err != nil {
+		return nil, err
+	}
 	ret = q.applySorters(ret)
 	q.total = int64(len(ret))
 	ret = q.applyOffseter(ret)
@@ -119,13 +122,17 @@ func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
 	return ret, nil
 }
 
-func (q *sK8SQuery) applyFilters(objs []IK8SModel) []IK8SModel {
+func (q *sK8SQuery) applyFilters(objs []IK8SModel) ([]IK8SModel, error) {
 	// TODO: impl filter any
 	ret := make([]IK8SModel, 0)
 	for _, obj := range objs {
 		filtered := true
 		for _, f := range q.filters {
-			if !f(obj) {
+			ok, err := f(obj)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
 				filtered = false
 				break
 			}
@@ -134,7 +141,7 @@ func (q *sK8SQuery) applyFilters(objs []IK8SModel) []IK8SModel {
 			ret = append(ret, obj)
 		}
 	}
-	return ret
+	return ret, nil
 }
 
 var _ sort.Interface = new(k8sModelSorter)

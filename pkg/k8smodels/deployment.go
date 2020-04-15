@@ -14,7 +14,7 @@ import (
 
 var (
 	DeploymentManager *SDeploymentManager
-	_                 model.IK8SModel = &SDeployment{}
+	_                 model.IPodOwnerModel = &SDeployment{}
 )
 
 func init() {
@@ -40,6 +40,7 @@ type SDeployment struct {
 func (_ SDeploymentManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameDeployment,
+		KindName:     apis.KindNameDeployment,
 		Object:       &apps.Deployment{},
 	}
 }

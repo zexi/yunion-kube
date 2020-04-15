@@ -15,7 +15,7 @@ import (
 
 var (
 	DaemonSetManager *SDaemonSetManager
-	_                model.IK8SModel = &SDaemonSet{}
+	_                model.IPodOwnerModel = &SDaemonSet{}
 )
 
 func init() {
@@ -41,6 +41,7 @@ func (m SDaemonSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameDaemonSet,
 		Object:       &apps.DaemonSet{},
+		KindName:     apis.KindNameDaemonSet,
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 
 var (
 	StatefulSetManager *SStatefulSetManager
-	_                  model.IK8SModel = &SStatefulSet{}
+	_                  model.IPodOwnerModel = &SStatefulSet{}
 )
 
 func init() {
@@ -40,6 +40,7 @@ func (m *SStatefulSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameStatefulSet,
 		Object:       &apps.StatefulSet{},
+		KindName:     apis.KindNameStatefulSet,
 	}
 }
 

@@ -16,7 +16,7 @@ var (
 func init() {
 	ClusterRoleBindingManager = &SClusterRoleBindingManager{
 		SK8SClusterResourceBaseManager: model.NewK8SClusterResourceBaseManager(
-			new(SRoleBinding),
+			new(SClusterRoleBinding),
 			"rbacclusterrolebinding",
 			"rbacclusterrolebindings"),
 	}
@@ -34,7 +34,8 @@ type SClusterRoleBinding struct {
 func (m *SClusterRoleBindingManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameClusterRoleBinding,
-		Object:       new(rbac.ClusterRoleBinding),
+		Object:       &rbac.ClusterRoleBinding{},
+		KindName:     apis.KindNameClusterRoleBinding,
 	}
 }
 

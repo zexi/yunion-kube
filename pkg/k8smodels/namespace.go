@@ -38,6 +38,7 @@ func (m SNamespaceManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
 		ResourceName: apis.ResourceNameNamespace,
 		Object:       &v1.Namespace{},
+		KindName:     apis.KindNameNamespace,
 	}
 }
 
