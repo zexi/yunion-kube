@@ -81,6 +81,9 @@ type ClusterMeta struct {
 	// Onecloud cluster data
 	Cluster   string `json:"cluster"`
 	ClusterId string `json:"clusterID"`
+	// Deprecated
+	TenantId  string `json:"tenant_id"`
+	ProjectId string `json:"project_id"`
 }
 
 func (m ObjectMeta) GetName() string {
@@ -91,12 +94,15 @@ func NewClusterMeta(cluster ICluster) *ClusterMeta {
 	return &ClusterMeta{
 		Cluster:   cluster.GetName(),
 		ClusterId: cluster.GetId(),
+		TenantId:  cluster.GetProjectId(),
+		ProjectId: cluster.GetProjectId(),
 	}
 }
 
 type ICluster interface {
 	GetId() string
 	GetName() string
+	GetProjectId() string
 }
 
 // NewObjectMeta returns internal endpoint name for the given service properties, e.g.,

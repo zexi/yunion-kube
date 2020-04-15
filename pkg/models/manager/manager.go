@@ -18,6 +18,7 @@ type ICluster interface {
 	GetAPIServer() (string, error)
 	GetKubeconfig() (string, error)
 	GetStatus() string
+	GetProjectId() string
 }
 
 type IClusterManager interface {
