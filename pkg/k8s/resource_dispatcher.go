@@ -102,6 +102,15 @@ func wrapBody(body interface{}, key string) map[string]interface{} {
 	return ret
 }
 
+func wrapJBody(body jsonutils.JSONObject, key string) jsonutils.JSONObject {
+	if body == nil {
+		return nil
+	}
+	ret := jsonutils.NewDict()
+	ret.Add(body, key)
+	return ret
+}
+
 func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, params, query, _ := fetchEnv(ctx, w, r)
 	result, err := handler.Get(ctx, params["<resid>"], query.(*jsonutils.JSONDict))
@@ -109,7 +118,7 @@ func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		errors.GeneralServerError(w, err)
 		return
 	}
-	SendJSON(w, wrapBody(result, handler.Keyword()))
+	appsrv.SendJSON(w, wrapJBody(jsonutils.Marshal(result), handler.Keyword()))
 }
 
 func getSpecHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {

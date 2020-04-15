@@ -360,6 +360,7 @@ func (obj SEvent) GetRawEvent() *v1.Event {
 func (obj SEvent) GetAPIObject() (*apis.Event, error) {
 	e := obj.GetRawEvent()
 	return &apis.Event{
+		DepObjectMeta:       obj.GetObjectMeta(),
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		Message:             e.Message,
