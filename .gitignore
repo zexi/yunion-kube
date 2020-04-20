@@ -34,3 +34,4 @@ bin
 .ropeproject
 
 management-state/
+static

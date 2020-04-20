@@ -1322,7 +1322,7 @@ func (c *SCluster) EnableComponent(
 		return err
 	}
 	if comp != nil {
-		return comp.DoEnable(c)
+		return comp.DoEnable(ctx, userCred, nil, "")
 	}
 
 	defer lockman.ReleaseObject(ctx, c)
@@ -1332,7 +1332,7 @@ func (c *SCluster) EnableComponent(
 	if err != nil {
 		return err
 	}
-	return comp.DoEnable(c)
+	return comp.DoEnable(ctx, userCred, nil, "")
 }
 
 func (c *SCluster) AllowGetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -1422,7 +1422,7 @@ func (c *SCluster) PerformDisableComponent(ctx context.Context, userCred mcclien
 	if err != nil {
 		return nil, err
 	}
-	return nil, comp.DoDisable(c)
+	return nil, comp.DoDisable(ctx, userCred, data.(*jsonutils.JSONDict), "")
 }
 
 func (c *SCluster) AllowPerformDeleteComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
@@ -1438,7 +1438,7 @@ func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, err
 	}
-	if err := comp.DoDisable(c); err != nil {
+	if err := comp.DoDisable(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		return nil, err
 	}
 	return nil, comp.DeleteWithJoint(ctx, userCred)
@@ -1464,7 +1464,7 @@ func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient
 	if err := drv.ValidateUpdateData(input); err != nil {
 		return nil, err
 	}
-	if err := comp.DoUpdate(c, input); err != nil {
+	if err := comp.DoUpdate(ctx, userCred, input); err != nil {
 		return nil, err
 	}
 	return nil, nil

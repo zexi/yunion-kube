@@ -92,4 +92,9 @@ swagger: swagger-check
 swagger-serve: swagger
 	swagger serve -F=swagger swagger.yaml
 
-.PHONY: all build prepare_dir bin_dir clean rpm
+.PHONY: all build prepare_dir bin_dir clean rpm generate
+
+generate:
+	./tools/embed-helm-pkgs.sh
+	@go generate ./...
+	@echo "[OK] files added to embed box!"

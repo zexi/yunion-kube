@@ -11,7 +11,6 @@ import (
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/k8s/client/cmd"
 	"yunion.io/x/yunion-kube/pkg/templates/components"
 	"yunion.io/x/yunion-kube/pkg/utils/registry"
 )
@@ -32,6 +31,7 @@ func init() {
 
 type SCephCSIComponentManager struct {
 	SComponentManager
+	K8SComponentManager
 }
 
 type SCephCSIComponent struct {
@@ -122,20 +122,19 @@ func (c componentDriverCephCSI) GetUpdateSettings(oldSetting *apis.ComponentSett
 	return oldSetting, nil
 }
 
-func (c componentDriverCephCSI) PostCreate(cluster *SCluster, obj *SComponent) error {
-	setting, err := obj.GetSettings()
-	if err != nil {
-		return err
-	}
-	return c.DoEnable(cluster, setting)
-}
-
 func (c componentDriverCephCSI) DoEnable(cluster *SCluster, setting *apis.ComponentSettings) error {
 	return CephCSIComponentManager.ApplyK8sResource(cluster, setting)
 }
 
 func (c componentDriverCephCSI) DoDisable(cluster *SCluster, setting *apis.ComponentSettings) error {
 	return CephCSIComponentManager.DeleteK8sResource(cluster, setting)
+}
+
+func (c componentDriverCephCSI) DoUpdate(cluster *SCluster, setting *apis.ComponentSettings) error {
+	if err := CephCSIComponentManager.DeleteK8sResource(cluster, setting); err != nil {
+		return errors.Wrap(err, "delete ceph csi resource when update")
+	}
+	return CephCSIComponentManager.ApplyK8sResource(cluster, setting)
 }
 
 func (m componentDriverCephCSI) FetchStatus(cluster *SCluster, component *SComponent, status *apis.ComponentsStatus) error {
@@ -215,40 +214,6 @@ func (m *SCephCSIComponentManager) getK8sResourceManifest(cluster *SCluster, set
 		return "", errors.Wrap(err, "ceph csi get manifest")
 	}
 	return manifest, nil
-}
-
-func (m *SCephCSIComponentManager) NewKubectl(cluster *SCluster) (*cmd.Client, error) {
-	kubeconfig, err := cluster.GetKubeconfig()
-	if err != nil {
-		return nil, errors.Wrap(err, "get kubeconfig")
-	}
-	cli, err := cmd.NewClientFromKubeconfig(kubeconfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "new kubectl client")
-	}
-	return cli, nil
-}
-
-func (m *SCephCSIComponentManager) KubectlApply(cluster *SCluster, manifest string) error {
-	cli, err := m.NewKubectl(cluster)
-	if err != nil {
-		return err
-	}
-	if err := cli.Apply(manifest); err != nil {
-		return errors.Wrap(err, "apply manifest")
-	}
-	return nil
-}
-
-func (m *SCephCSIComponentManager) KubectlDelete(cluster *SCluster, manifest string) error {
-	cli, err := m.NewKubectl(cluster)
-	if err != nil {
-		return err
-	}
-	if err := cli.Delete(manifest); err != nil {
-		return errors.Wrap(err, "delete manifest")
-	}
-	return nil
 }
 
 func (m *SCephCSIComponentManager) ApplyK8sResource(cluster *SCluster, setting *apis.ComponentSettings) error {

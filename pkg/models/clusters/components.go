@@ -3,11 +3,13 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
@@ -15,21 +17,15 @@ import (
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/drivers"
-	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 )
 
 var (
-	ComponentManager *SComponentManager
-)
-
-func init() {
 	ComponentManager = NewComponentManager(
 		SComponent{},
 		"kubecomponent",
 		"kubecomponents")
-}
+)
 
 func NewComponentManager(dt interface{}, keyword, keywordPlural string) *SComponentManager {
 	man := &SComponentManager{
@@ -62,9 +58,9 @@ type IComponentDriver interface {
 	ValidateUpdateData(input *apis.ComponentUpdateInput) error
 	GetCreateSettings(input *apis.ComponentCreateInput) (*apis.ComponentSettings, error)
 	GetUpdateSettings(oldSetting *apis.ComponentSettings, input *apis.ComponentUpdateInput) (*apis.ComponentSettings, error)
-	PostCreate(cluster *SCluster, obj *SComponent) error
 	DoEnable(cluster *SCluster, settings *apis.ComponentSettings) error
 	DoDisable(cluster *SCluster, settings *apis.ComponentSettings) error
+	DoUpdate(cluster *SCluster, settings *apis.ComponentSettings) error
 	FetchStatus(cluster *SCluster, c *SComponent, status *apis.ComponentsStatus) error
 }
 
@@ -79,6 +75,7 @@ func (m baseComponentDriver) InitStatus(comp *SComponent, out *apis.ComponentSta
 	out.Id = comp.GetId()
 	out.Created = true
 	out.Enabled = comp.Enabled.Bool()
+	out.Status = comp.Status
 }
 
 func (m *SComponentManager) RegisterDriver(drv IComponentDriver) {
@@ -214,19 +211,11 @@ func (m *SComponent) PostCreate(
 	query jsonutils.JSONObject,
 	data jsonutils.JSONObject,
 ) {
-	drv, err := m.GetDriver()
-	if err != nil {
-		log.Errorf("Get driver by type: %s", m.Type)
-		return
+	if data == nil {
+		data = jsonutils.NewDict()
 	}
-	cluster, err := m.GetCluster()
-	if err != nil {
-		log.Errorf("Get component %s cluster: %v", m.Type, err)
-		return
-	}
-	if err := drv.PostCreate(cluster, m); err != nil {
+	if err := m.StartComponentDeployTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("Driver do post create: %s", err)
-		return
 	}
 }
 
@@ -253,26 +242,32 @@ func (m *SComponent) PerformEnable(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	cluster, err := m.GetCluster()
-	if err != nil {
-		return nil, err
-	}
-	return nil, m.DoEnable(cluster)
+	return nil, m.DoEnable(ctx, userCred, data.(*jsonutils.JSONDict), "")
 }
 
-func (m *SComponent) DoEnable(cluster *SCluster) error {
+func (m *SComponent) DoEnable(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	if m.Enabled.Bool() {
+		return httperrors.NewBadRequestError("component %s already enabled", m.Type)
+	}
+	if utils.IsInStringArray(m.Status, []string{apis.ComponentStatusDeleting}) {
+		return httperrors.NewNotAcceptableError("component %s is %s", m.Type, m.Status)
+	}
+	return m.StartComponentDeployTask(ctx, userCred, data, parentTaskId)
+}
+
+func (m *SComponent) StartComponentDeployTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	if err := m.SetEnabled(true); err != nil {
 		return err
 	}
-	drv, err := m.GetDriver()
+	if err := m.SetStatus(userCred, apis.ComponentStatusDeploying, ""); err != nil {
+		return err
+	}
+	task, err := taskman.TaskManager.NewTask(ctx, "ComponentDeployTask", m, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
 	}
-	settings, err := m.GetSettings()
-	if err != nil {
-		return err
-	}
-	return drv.DoEnable(cluster, settings)
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (m *SComponent) AllowPerformDisable(
@@ -286,24 +281,7 @@ func (m *SComponent) PerformDisable(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	cluster, err := m.GetCluster()
-	if err != nil {
-		return nil, err
-	}
-	return nil, m.DoDisable(cluster)
-}
-
-func (m *SComponentManager) EnsureNamespace(cluster *SCluster, namespace string) error {
-	k8sMan, err := client.GetManagerByCluster(cluster)
-	if err != nil {
-		return errors.Wrap(err, "get cluster k8s manager")
-	}
-	lister := k8sMan.GetIndexer().NamespaceLister()
-	cli, err := cluster.GetK8sClient()
-	if err != nil {
-		return errors.Wrap(err, "get cluster k8s client")
-	}
-	return k8sutil.EnsureNamespace(lister, cli, namespace)
+	return nil, m.DoDisable(ctx, userCred, data.(*jsonutils.JSONDict), "")
 }
 
 func (m *SComponent) DeleteWithJoint(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -319,19 +297,26 @@ func (m *SComponent) DeleteWithJoint(ctx context.Context, userCred mcclient.Toke
 	return m.Delete(ctx, userCred)
 }
 
-func (m *SComponent) DoDisable(cluster *SCluster) error {
+func (m *SComponent) DoDisable(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	/*if !m.Enabled.Bool() {
+		return httperrors.NewBadRequestError("component %s already disabled", m.Type)
+	}*/
+	return m.StartComponentDeleteTask(ctx, userCred, data, parentTaskId)
+}
+
+func (m *SComponent) StartComponentDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	if err := m.SetEnabled(false); err != nil {
 		return err
 	}
-	drv, err := m.GetDriver()
+	if err := m.SetStatus(userCred, apis.ComponentStatusDeleting, ""); err != nil {
+		return err
+	}
+	task, err := taskman.TaskManager.NewTask(ctx, "ComponentDeleteTask", m, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
 	}
-	settings, err := m.GetSettings()
-	if err != nil {
-		return err
-	}
-	return drv.DoDisable(cluster, settings)
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (m *SComponent) FetchStatus(cluster *SCluster, out *apis.ComponentsStatus) error {
@@ -350,7 +335,10 @@ func (m *SComponent) GetSettings() (*apis.ComponentSettings, error) {
 	return out, nil
 }
 
-func (m *SComponent) DoUpdate(cluster *SCluster, input *apis.ComponentUpdateInput) error {
+func (m *SComponent) DoUpdate(ctx context.Context, userCred mcclient.TokenCredential, input *apis.ComponentUpdateInput) error {
+	if !m.Enabled.Bool() {
+		return httperrors.NewBadRequestError("component %s not enabled", m.Type)
+	}
 	drv, err := m.GetDriver()
 	if err != nil {
 		return err
@@ -369,10 +357,18 @@ func (m *SComponent) DoUpdate(cluster *SCluster, input *apis.ComponentUpdateInpu
 	}); err != nil {
 		return err
 	}
-	if m.Enabled.Bool() {
-		if err := drv.DoDisable(cluster, settings); err != nil {
-			return err
-		}
+
+	return m.StartComponentUpdateTask(ctx, userCred, input.JSON(input), "")
+}
+
+func (m *SComponent) StartComponentUpdateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	if err := m.SetStatus(userCred, apis.ComponentStatusUpdating, ""); err != nil {
+		return err
 	}
-	return drv.DoEnable(cluster, settings)
+	task, err := taskman.TaskManager.NewTask(ctx, "ComponentUpdateTask", m, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
