@@ -2,13 +2,13 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 func init() {
@@ -20,7 +20,7 @@ type ComponentDeleteTask struct {
 }
 
 func (t *ComponentDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	comp := obj.(*clusters.SComponent)
+	comp := obj.(*models.SComponent)
 	cluster, err := comp.GetCluster()
 	if err != nil {
 		t.onError(ctx, comp, err)
@@ -44,7 +44,7 @@ func (t *ComponentDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneMode
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ComponentDeleteTask) onError(ctx context.Context, obj *clusters.SComponent, err error) {
+func (t *ComponentDeleteTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
 	obj.SetStatus(t.UserCred, apis.ComponentStatusDeleteFail, reason)
 	t.STask.SetStageFailed(ctx, reason)

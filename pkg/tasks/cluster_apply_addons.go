@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
@@ -9,7 +10,6 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/k8s/client/cmd"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 func init() {
@@ -21,7 +21,7 @@ type ClusterApplyAddonsTask struct {
 }
 
 func (t *ClusterApplyAddonsTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	if err := ApplyAddons(cluster); err != nil {
 		t.OnError(ctx, cluster, err)
 		return
@@ -29,7 +29,7 @@ func (t *ClusterApplyAddonsTask) OnInit(ctx context.Context, obj db.IStandaloneM
 	t.SetStageComplete(ctx, nil)
 }
 
-func ApplyAddons(cluster *clusters.SCluster) error {
+func ApplyAddons(cluster *models.SCluster) error {
 	kubeconfig, err := cluster.GetKubeconfig()
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func ApplyAddons(cluster *clusters.SCluster) error {
 	return cli.Apply(manifest)
 }
 
-func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *clusters.SCluster, err error) {
+func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *models.SCluster, err error) {
 	t.SetStageFailed(ctx, err.Error())
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err.Error(), t.UserCred, false)
 }

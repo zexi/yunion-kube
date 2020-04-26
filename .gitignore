@@ -35,3 +35,4 @@ bin
 
 management-state/
 static
+pkg/generated

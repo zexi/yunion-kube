@@ -28,6 +28,13 @@ type ComponentCreateInput struct {
 	ComponentSettings
 }
 
+type ComponentDeleteInput struct {
+	apis.Meta
+
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
 type ComponentSettings struct {
 	Namespace string                     `json:"namespace"`
 	CephCSI   *ComponentSettingCephCSI   `json:"cephCSI"`
@@ -44,13 +51,40 @@ type ComponentSettingCephCSI struct {
 	Config []ComponentCephCSIConfigCluster `json:"config"`
 }
 
+type ComponentStorage struct {
+	// 是否启用持久化存储
+	Enabled bool `json:"enabled"`
+	// 存储大小, 单位 MB
+	SizeMB int `json:"sizeMB"`
+	// storageClass 名称
+	ClassName string `json:"storageClassName"`
+}
+
+func (s ComponentStorage) GetAccessModes() []string {
+	return []string{"ReadWriteOnce"}
+}
+
 type ComponentSettingMonitorGrafana struct {
-	AdminUser     string `json:"adminUser"`
+	// grafana 登录用户名
+	//
+	// default: admin
+	AdminUser string `json:"adminUser"`
+	// grafana 登录用户密码
+	//
+	// default: prom-operator
 	AdminPassword string `json:"adminPassword"`
+	// grafana 持久化存储配置
+	Storage *ComponentStorage `json:"storage"`
+}
+
+type ComponentSettingMonitorLoki struct {
+	// loki 持久化存储配置
+	Storage *ComponentStorage `json:"storage"`
 }
 
 type ComponentSettingMonitorPrometheus struct {
-	StorageSize string `json:"storageSize"`
+	// prometheus 持久化存储配置
+	Storage *ComponentStorage `json:"storage"`
 }
 
 type ComponentSettingVolume struct {
@@ -64,14 +98,33 @@ type ComponentSettingMonitorPromtail struct {
 }
 
 type ComponentSettingMonitor struct {
-	Grafana    ComponentSettingMonitorGrafana    `json:"grafana"`
-	Prometheus ComponentSettingMonitorPrometheus `json:"prometheus"`
-	Promtail   ComponentSettingMonitorPromtail   `json:"promtail"`
+	// Grafana 前端日志、监控展示服务
+	//
+	// required: true
+	Grafana *ComponentSettingMonitorGrafana `json:"grafana"`
+	// Loki 后端日志收集服务
+	//
+	// required: true
+	Loki *ComponentSettingMonitorLoki `json:"loki"`
+	// Prometheus 监控数据采集服务
+	//
+	// required: true
+	Prometheus *ComponentSettingMonitorPrometheus `json:"prometheus"`
+	// Promtail 日志收集 agent
+	//
+	// required: false
+	Promtail *ComponentSettingMonitorPromtail `json:"promtail"`
 }
 
 type ComponentSettingFluentBitBackendTLS struct {
-	TLS string `json:"tls"`
-	// "off" or "on"
+	// 是否开启 TLS 连接
+	//
+	// required: false
+	TLS bool `json:"tls"`
+
+	// 是否开启 TLS 教研
+	//
+	// required: false
 	TLSVerify bool   `json:"tlsVerify"`
 	TLSDebug  bool   `json:"tlsDebug"`
 	TLSCA     string `json:"tlsCA"`
@@ -84,17 +137,38 @@ type ComponentSettingFluentBitBackendForward struct {
 }
 
 type ComponentSettingFluentBitBackendCommon struct {
+	// 是否启用该后端
+	// required: true
 	Enabled bool `json:"enabled"`
 }
 
 type ComponentSettingFluentBitBackendES struct {
 	ComponentSettingFluentBitBackendCommon
+	// Elastic 集群连接地址
+	//
+	// required: true
+	// example: 10.168.26.182
 	Host string `json:"host"`
-	Port int    `json:"port"`
-	// Elastic index name, default: fluentbit
+
+	// Elastic 集群连接地址
+	//
+	// required: true
+	// default: 9200
+	// example: 9200
+	Port int `json:"port"`
+
+	// Elastic index 名称
+	//
+	// required: true
+	// default: fluentbit
 	Index string `json:"index"`
-	// Type name, default: flb_type
-	Type           string `json:"type"`
+
+	// 类型
+	//
+	// required: true
+	// default: flb_type
+	Type string `json:"type"`
+
 	LogstashPrefix string `json:"logstashPrefix"`
 	LogstashFormat bool   `json:"logstashFormat"`
 	ReplaceDots    bool   `json:"replaceDots"`
@@ -108,15 +182,25 @@ type ComponentSettingFluentBitBackendES struct {
 // check: https://fluentbit.io/documentation/0.14/output/kafka.html
 type ComponentSettingFluentBitBackendKafka struct {
 	ComponentSettingFluentBitBackendCommon
-	// specify data format, options available: json, msgpack, default: json
+	// 上报数据格式
+	//
+	// required: false
+	// default: json
+	// example: json|msgpack
 	Format string `json:"format"`
 	// Optional key to store the message
 	MessageKey string `json:"messageKey"`
 	// Set the key to store the record timestamp
 	TimestampKey string `json:"timestampKey"`
-	// Single of multiple list of kafka brokers
+	// kafka broker 地址
+	//
+	// required: true
+	// example: ["192.168.222.10:9092", "192.168.222.11:9092", "192.168.222.13:9092"]
 	Brokers []string `json:"brokers"`
-	// Single entry or list of topics separated by comma(,)
+	// kafka topic
+	//
+	// required: true
+	// example: ["fluent-bit"]
 	Topics []string `json:"topics"`
 }
 
@@ -126,8 +210,9 @@ const (
 )
 
 type ComponentSettingFluentBitBackend struct {
-	//Forward *ComponentSettingFluentBitBackendForward `json:"forward"`
-	ES    *ComponentSettingFluentBitBackendES    `json:"es"`
+	// Elasticsearch 配置
+	ES *ComponentSettingFluentBitBackendES `json:"es"`
+	// Kafka 配置
 	Kafka *ComponentSettingFluentBitBackendKafka `json:"kafka"`
 }
 

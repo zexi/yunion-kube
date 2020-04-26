@@ -21,7 +21,7 @@ LDFLAGS := "-w \
 
 export GO111MODULE:=on
 export GOPROXY:=direct
-RELEASE_BRANCH:=release/2.12
+RELEASE_BRANCH:=release/2.13
 mod:
 	go get yunion.io/x/onecloud@$(RELEASE_BRANCH)
 	go get $(patsubst %,%@master,$(shell GO111MODULE=on go mod edit -print | sed -n -e 's|.*\(yunion.io/x/[a-z].*\) v.*|\1|p' | grep -v '/onecloud$$'))
@@ -83,14 +83,21 @@ fmt:
 		| grep -v '^vendor/' \
 		| xargs gofmt -w
 
-swagger-check:
-	which swagger || (GO111MODULE=off go get -u github.com/go-swagger/go-swagger/cmd/swagger)
+gen-swagger-check:
+	which swagger || (GO111MODULE=off go get -u github.com/yunionio/go-swagger/cmd/swagger)
+	which swagger-serve || (GO111MODULE=off go get -u yunion.io/x/code-generator/cmd/swagger-serve)
 
-swagger: swagger-check
-	GO111MODULE=off swagger generate spec -o ./swagger.yaml --scan-models --work-dir=./pkg/docs
+gen-swagger: gen-swagger-check
+	mkdir -p ./_output/swagger
+	./_output/bin/kube-swagger-gen --input-dirs \
+		yunion.io/x/yunion-kube/pkg/models \
+		--output-package \
+		yunion.io/x/yunion-kube/pkg/generated/kubeserver
+	swagger generate spec -o ./_output/swagger/kubeserver.yaml --scan-models --work-dir=./pkg/generated/kubeserver
 
-swagger-serve: swagger
-	swagger serve -F=swagger swagger.yaml
+swagger-serve: gen-swagger
+	swagger-serve generate -i ./_output/swagger/kubeserver.yaml \
+		-o ./_output/swagger
 
 .PHONY: all build prepare_dir bin_dir clean rpm generate
 

@@ -8,6 +8,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -113,7 +114,13 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 		return nil, err
 	}
 
-	return man.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, data)
+	input := new(apis.StatusStandaloneResourceCreateInput)
+	data.Unmarshal(input)
+	_, err = man.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, *input)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 func (man *SRepoManager) FetchRepoById(id string) (*SRepo, error) {

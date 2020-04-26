@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"github.com/pkg/errors"
@@ -12,7 +13,6 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 )
 
 func init() {
@@ -24,7 +24,7 @@ type MachinePrepareTask struct {
 }
 
 func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	machine := obj.(*machines.SMachine)
+	machine := obj.(*models.SMachine)
 	param := t.GetParams()
 
 	prepareData := new(apis.MachinePrepareInput)
@@ -46,7 +46,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 
 	prepareData.InstanceId = machine.ResourceId
 	driver := machine.GetDriver()
-	session, err := machines.MachineManager.GetSession()
+	session, err := models.MachineManager.GetSession()
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
@@ -79,7 +79,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, nil, t.UserCred, true)
 }
 
-func (t *MachinePrepareTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {
+func (t *MachinePrepareTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
 	machine.SetStatus(t.UserCred, apis.MachineStatusPrepareFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, err.Error(), t.UserCred, false)

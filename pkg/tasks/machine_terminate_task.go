@@ -3,12 +3,11 @@ package tasks
 import (
 	"context"
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 )
 
 func init() {
@@ -20,10 +19,10 @@ type MachineTerminateTask struct {
 }
 
 func (t *MachineTerminateTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	machine := obj.(*machines.SMachine)
+	machine := obj.(*models.SMachine)
 
 	driver := machine.GetDriver()
-	session, err := machines.MachineManager.GetSession()
+	session, err := models.MachineManager.GetSession()
 	if err != nil {
 		t.OnError(ctx, machine, err)
 		return
@@ -42,7 +41,7 @@ func (t *MachineTerminateTask) OnInit(ctx context.Context, obj db.IStandaloneMod
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *MachineTerminateTask) OnError(ctx context.Context, machine *machines.SMachine, err error) {
+func (t *MachineTerminateTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
 	machine.SetStatus(t.UserCred, apis.MachineStatusTerminateFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 }

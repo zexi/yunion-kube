@@ -19,9 +19,11 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -277,9 +279,31 @@ func (model *SSharableVirtualResourceBase) getMoreDetails(ctx context.Context, u
 	return extra
 }
 
+func (model *SSharableVirtualResourceBase) getMoreDetailsV2(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) []apis.SharedProject {
+	out := []apis.SharedProject{}
+	for _, project := range model.GetSharedProjects() {
+		tenant, err := TenantCacheManager.FetchTenantByIdOrName(ctx, project)
+		if err != nil {
+			log.Errorf("failed fetch tenant by id %s", project)
+			continue
+		}
+		out = append(out, apis.SharedProject{Id: tenant.GetId(), Name: tenant.GetName()})
+	}
+	return out
+}
+
 func (model *SSharableVirtualResourceBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := model.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
 	return model.getMoreDetails(ctx, userCred, query, extra)
+}
+
+func (model *SSharableVirtualResourceBase) GetExtraDetailsV2(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, out *apis.SharableVirtualResourceDetails) error {
+	err := model.SVirtualResourceBase.GetExtraDetailsV2(ctx, userCred, query, &out.VirtualResourceDetails)
+	if err != nil {
+		return err
+	}
+	out.SharedProjects = model.getMoreDetailsV2(ctx, userCred, query)
+	return nil
 }
 
 func (model *SSharableVirtualResourceBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
@@ -288,4 +312,13 @@ func (model *SSharableVirtualResourceBase) GetExtraDetails(ctx context.Context, 
 		return nil, err
 	}
 	return model.getMoreDetails(ctx, userCred, query, extra), nil
+}
+
+func (manager *SSharableVirtualResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input apis.SharableVirtualResourceCreateInput) (apis.SharableVirtualResourceCreateInput, error) {
+	var err error
+	input.VirtualResourceCreateInput, err = manager.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input.VirtualResourceCreateInput)
+	if err != nil {
+		return input, errors.Wrap(err, "manager.VirtualResourceBaseManager.ValidateCreateData")
+	}
+	return input, nil
 }

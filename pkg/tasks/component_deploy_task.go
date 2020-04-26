@@ -3,13 +3,13 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 func init() {
@@ -21,7 +21,7 @@ type ComponentDeployTask struct {
 }
 
 func (t *ComponentDeployTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	comp := obj.(*clusters.SComponent)
+	comp := obj.(*models.SComponent)
 	cluster, err := comp.GetCluster()
 	if err != nil {
 		t.onError(ctx, comp, err)
@@ -44,16 +44,16 @@ func (t *ComponentDeployTask) OnInit(ctx context.Context, obj db.IStandaloneMode
 	})
 }
 
-func (t *ComponentDeployTask) OnDeployComplete(ctx context.Context, obj *clusters.SComponent, data jsonutils.JSONObject) {
+func (t *ComponentDeployTask) OnDeployComplete(ctx context.Context, obj *models.SComponent, data jsonutils.JSONObject) {
 	obj.SetStatus(t.UserCred, apis.ComponentStatusDeployed, "")
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ComponentDeployTask) OnDeployCompleteFailed(ctx context.Context, obj *clusters.SComponent, reason jsonutils.JSONObject) {
+func (t *ComponentDeployTask) OnDeployCompleteFailed(ctx context.Context, obj *models.SComponent, reason jsonutils.JSONObject) {
 	t.onError(ctx, obj, fmt.Errorf(reason.String()))
 }
 
-func (t *ComponentDeployTask) onError(ctx context.Context, obj *clusters.SComponent, err error) {
+func (t *ComponentDeployTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
 	obj.SetStatus(t.UserCred, apis.ComponentStatusDeployFail, reason)
 	t.STask.SetStageFailed(ctx, reason)

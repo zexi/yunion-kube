@@ -1,9 +1,15 @@
 package components
 
 import (
+	"fmt"
+	"yunion.io/x/onecloud/pkg/httperrors"
+
 	"sigs.k8s.io/yaml"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+
+	"yunion.io/x/yunion-kube/pkg/apis"
 )
 
 type Image struct {
@@ -29,9 +35,51 @@ type Prometheus struct {
 	Spec PrometheusSpec `json:"prometheusSpec"`
 }
 
+type Resources struct {
+	Requests map[string]string `json:"requests"`
+}
+
+type PersistentVolumeClaimSpec struct {
+	StorageClassName *string   `json:"storageClassName"`
+	AccessModes      []string  `json:"accessModes"`
+	Resources        Resources `json:"resources"`
+}
+
+type PersistentVolumeClaim struct {
+	Spec PersistentVolumeClaimSpec `json:"spec"`
+}
+
+type PrometheusStorageSpec struct {
+	Template PersistentVolumeClaim `json:"volumeClaimTemplate"`
+}
+
+func NewPrometheusStorageSpec(storage apis.ComponentStorage) (*PrometheusStorageSpec, error) {
+	sizeGB := storage.SizeMB / 1024
+	if sizeGB <= 0 {
+		return nil, httperrors.NewInputParameterError("size must large than 1GB")
+	}
+	storageSize := fmt.Sprintf("%dGi", sizeGB)
+	spec := new(PersistentVolumeClaimSpec)
+	if storage.ClassName != "" {
+		spec.StorageClassName = &storage.ClassName
+	}
+	spec.AccessModes = storage.GetAccessModes()
+	spec.Resources = Resources{
+		Requests: map[string]string{
+			"storage": storageSize,
+		},
+	}
+	return &PrometheusStorageSpec{
+		Template: PersistentVolumeClaim{
+			Spec: *spec,
+		},
+	}, nil
+}
+
 type PrometheusSpec struct {
 	// image: quay.io/prometheus/prometheus:v2.15.2
-	Image Image `json:"image"`
+	Image       Image                  `json:"image"`
+	StorageSpec *PrometheusStorageSpec `json:"storageSpec"`
 }
 
 type Alertmanager struct {
@@ -58,14 +106,40 @@ type GrafanaSidecar struct {
 	Image Image `json:"image"`
 }
 
+type Storage struct {
+	Type    string `json:"type"`
+	Enabled bool   `json:"enabled"`
+	StorageClassName string `json:"storageClassName"`
+	AccessModes []string `json:"accessModes"`
+	Size        string   `json:"size"`
+}
+
+func NewPVCStorage(storage *apis.ComponentStorage) (*Storage, error) {
+	sizeMB := storage.SizeMB
+	sizeGB := sizeMB / 1024
+	if sizeGB <= 0 {
+		return nil, httperrors.NewInputParameterError("size must large than 1GB")
+	}
+	accessModes := storage.GetAccessModes()
+	return &Storage{
+		Type:        "pvc",
+		Enabled:     true,
+		StorageClassName: storage.ClassName,
+		AccessModes: accessModes,
+		Size:        fmt.Sprintf("%dGi", sizeGB),
+	}, nil
+}
+
 type Grafana struct {
 	Sidecar GrafanaSidecar `json:"sidecar"`
 	// image: grafana/grafana:6.7.1
-	Image Image `json:"image"`
+	Image   Image    `json:"image"`
+	Storage *Storage `json:"persistence"`
 }
 
 type Loki struct {
-	Image Image `json:"image"`
+	Image   Image    `json:"image"`
+	Storage *Storage `json:"persistence"`
 }
 
 type Promtail struct {
@@ -110,5 +184,6 @@ func GenerateHelmValues(config interface{}) map[string]interface{} {
 	yamlStr := jsonutils.Marshal(config).YAMLString()
 	vals := map[string]interface{}{}
 	yaml.Unmarshal([]byte(yamlStr), &vals)
+	log.Errorf("====generate values: %s", yamlStr)
 	return vals
 }
