@@ -57,6 +57,8 @@ type ComponentStorage struct {
 	// 存储大小, 单位 MB
 	SizeMB int `json:"sizeMB"`
 	// storageClass 名称
+	//
+	// required: true
 	ClassName string `json:"storageClassName"`
 }
 
