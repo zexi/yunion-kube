@@ -202,15 +202,27 @@ func (d K8sModelDispatcher) fetchContextParams(
 	if query != nil {
 		query = mergeQueryParams(params, query, excludes...)
 	}
+	data := jsonutils.NewDict()
 	if body != nil {
-		tmpBody, err := body.Get(handler.Keyword())
-		if err != nil {
-			// return nil, nil, nil, err
-			tmpBody = body
+		if body.Contains(handler.Keyword()) {
+			tmpData, _ := body.Get(handler.Keyword())
+			if tmpData == nil {
+				data = body
+			} else {
+				data = tmpData.(*jsonutils.JSONDict)
+			}
+		} else if body.Contains(handler.KeywordPlural()) {
+			tmpData, _ := body.Get(handler.KeywordPlural())
+			if tmpData == nil {
+				data = body
+			} else {
+				data = tmpData.(*jsonutils.JSONDict)
+			}
+		} else {
+			data = body
 		}
-		body = tmpBody.(*jsonutils.JSONDict)
 	}
-	reqCtx, err := d.getContext(ctx, query, body)
+	reqCtx, err := d.getContext(ctx, query, data)
 	if err != nil {
 		return nil, nil, nil, err
 	}

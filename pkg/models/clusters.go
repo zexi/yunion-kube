@@ -29,10 +29,10 @@ import (
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
-	"yunion.io/x/yunion-kube/pkg/clientv2"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/apis/constants"
+	"yunion.io/x/yunion-kube/pkg/clientv2"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
@@ -1435,10 +1435,7 @@ func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, err
 	}
-	if err := comp.DoDisable(ctx, userCred, input.JSON(input), ""); err != nil {
-		return nil, err
-	}
-	return nil, nil
+	return nil, comp.DoDelete(ctx, userCred, input.JSON(input), "")
 }
 
 func (c *SCluster) AllowPerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {

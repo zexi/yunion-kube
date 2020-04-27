@@ -3,6 +3,8 @@ package models
 import (
 	"bytes"
 	"fmt"
+	"strings"
+
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/release"
@@ -162,7 +164,14 @@ func (m HelmComponentManager) CreateHelmResource(
 }
 
 func (m HelmComponentManager) DeleteHelmResource(cluster *SCluster) error {
-	return m.HelmUninstall(cluster, m.namespace, m.releaseName)
+	if err := m.HelmUninstall(cluster, m.namespace, m.releaseName); err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "release: not found") {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (m HelmComponentManager) UpdateHelmResource(cluster *SCluster, vals map[string]interface{}) error {

@@ -271,6 +271,18 @@ func (m *SComponent) StartComponentDeployTask(ctx context.Context, userCred mccl
 	return nil
 }
 
+func (m *SComponent) StartComponentUndeployTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	if err := m.SetStatus(userCred, apis.ComponentStatusUndeploying, ""); err != nil {
+		return err
+	}
+	task, err := taskman.TaskManager.NewTask(ctx, "ComponentUndeployTask", m, userCred, data, parentTaskId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
 func (m *SComponent) AllowPerformDisable(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
@@ -299,9 +311,10 @@ func (m *SComponent) DeleteWithJoint(ctx context.Context, userCred mcclient.Toke
 }
 
 func (m *SComponent) DoDisable(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	/*if !m.Enabled.Bool() {
-		return httperrors.NewBadRequestError("component %s already disabled", m.Type)
-	}*/
+	return m.StartComponentUndeployTask(ctx, userCred, data, parentTaskId)
+}
+
+func (m *SComponent) DoDelete(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
 	return m.StartComponentDeleteTask(ctx, userCred, data, parentTaskId)
 }
 
