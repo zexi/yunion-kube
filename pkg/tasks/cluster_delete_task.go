@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 func init() {
@@ -22,7 +21,7 @@ type ClusterDeleteTask struct {
 }
 
 func (t *ClusterDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	// TODO: clean cloud resources
 	if err := t.startDeleteMachines(ctx, cluster); err != nil {
 		t.onError(ctx, cluster, err)
@@ -30,7 +29,7 @@ func (t *ClusterDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 	}
 }
 
-func (t *ClusterDeleteTask) startDeleteMachines(ctx context.Context, cluster *clusters.SCluster) error {
+func (t *ClusterDeleteTask) startDeleteMachines(ctx context.Context, cluster *models.SCluster) error {
 	ms, err := cluster.GetMachines()
 	if err != nil {
 		return fmt.Errorf("Get machines: %v", err)
@@ -43,7 +42,7 @@ func (t *ClusterDeleteTask) startDeleteMachines(ctx context.Context, cluster *cl
 	return cluster.StartDeleteMachinesTask(ctx, t.GetUserCred(), ms, nil, t.GetTaskId())
 }
 
-func (t *ClusterDeleteTask) OnMachinesDeleted(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+func (t *ClusterDeleteTask) OnMachinesDeleted(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	if err := cluster.RealDelete(ctx, t.UserCred); err != nil {
 		t.onError(ctx, cluster, err)
 		return
@@ -52,7 +51,7 @@ func (t *ClusterDeleteTask) OnMachinesDeleted(ctx context.Context, cluster *clus
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDelete, nil, t.UserCred, true)
 }
 
-func (t *ClusterDeleteTask) OnMachinesDeletedFailed(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+func (t *ClusterDeleteTask) OnMachinesDeletedFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.onError(ctx, cluster, fmt.Errorf("%s", data.String()))
 }
 
@@ -61,7 +60,7 @@ func (t *ClusterDeleteTask) onError(ctx context.Context, cluster db.IStandaloneM
 }
 
 func (t *ClusterDeleteTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, apis.ClusterStatusDeleteFail, "")
 	t.STask.SetStageFailed(ctx, reason)
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterDelete, reason, t.UserCred, false)

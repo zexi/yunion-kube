@@ -40,9 +40,9 @@ type IRelease interface {
 	List() *action.List
 	Create(*apis.ReleaseCreateInput) (*release.Release, error)
 	Update(*apis.ReleaseUpdateInput) (*release.Release, error)
-	//Install() *action.Install
+	Install() *action.Install
 	UnInstall() *action.Uninstall
-	//Upgrade() *action.Upgrade
+	Upgrade() *action.Upgrade
 	Rollback() *action.Rollback
 	History() *action.History
 	ReleaseContent(name string, version int) (*release.Release, error)

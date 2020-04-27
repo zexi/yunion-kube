@@ -3,6 +3,7 @@ package machines
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -11,8 +12,6 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 )
 
 type sBaseDriver struct{}
@@ -22,7 +21,7 @@ func newBaseDriver() *sBaseDriver {
 }
 
 func (d *sBaseDriver) ValidateCreateData(name string) error {
-	man := machines.MachineManager
+	man := models.MachineManager
 	err := man.ValidateName(name)
 	if err != nil {
 		return err
@@ -35,7 +34,7 @@ func (d *sBaseDriver) ValidateCreateData(name string) error {
 	return nil
 }
 
-func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclient.TokenCredential, machine *machines.SMachine, task taskman.ITask) error {
+func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclient.TokenCredential, machine *models.SMachine, task taskman.ITask) error {
 	/*cluster, err := machine.GetCluster()
 	if err != nil {
 		return errors.Wrap(err, "GetCluster")
@@ -56,16 +55,16 @@ func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclie
 	return machine.StartPrepareTask(ctx, task.GetUserCred(), jsonutils.Marshal(input).(*jsonutils.JSONDict), task.GetTaskId())
 }
 
-func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
+func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *models.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	return nil, nil
 }
 
-func (d *sBaseDriver) PostDelete(ctx context.Context, userCred mcclient.TokenCredential, m *machines.SMachine, t taskman.ITask) error {
+func (d *sBaseDriver) PostDelete(ctx context.Context, userCred mcclient.TokenCredential, m *models.SMachine, t taskman.ITask) error {
 	t.SetStageComplete(ctx, nil)
 	return nil
 }
 
-func (d *sBaseDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {
+func (d *sBaseDriver) TerminateResource(session *mcclient.ClientSession, machine *models.SMachine) error {
 	return nil
 }
 
@@ -77,6 +76,6 @@ func (d *sBaseDriver) UseClusterAPI() bool {
 	return false
 }
 
-func (d *sBaseDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine) error {
+func (d *sBaseDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machine *models.SMachine) error {
 	return nil
 }

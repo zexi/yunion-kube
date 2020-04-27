@@ -60,7 +60,6 @@ type SMetadata struct {
 }
 
 var Metadata *SMetadataManager
-var ResourceMap map[string]*SVirtualResourceBaseManager
 
 func init() {
 	Metadata = &SMetadataManager{
@@ -72,13 +71,6 @@ func init() {
 		),
 	}
 	Metadata.SetVirtualObject(Metadata)
-
-	ResourceMap = map[string]*SVirtualResourceBaseManager{
-		"disk":     {SStatusStandaloneResourceBaseManager: NewStatusStandaloneResourceBaseManager(SVirtualResourceBase{}, "disks_tbl", "disk", "disks")},
-		"server":   {SStatusStandaloneResourceBaseManager: NewStatusStandaloneResourceBaseManager(SVirtualResourceBase{}, "guests_tbl", "server", "servers")},
-		"eip":      {SStatusStandaloneResourceBaseManager: NewStatusStandaloneResourceBaseManager(SVirtualResourceBase{}, "elasticips_tbl", "eip", "eips")},
-		"snapshot": {SStatusStandaloneResourceBaseManager: NewStatusStandaloneResourceBaseManager(SVirtualResourceBase{}, "snapshots_tbl", "snpashot", "snpashots")},
-	}
 }
 
 func (m *SMetadata) GetId() string {
@@ -119,29 +111,69 @@ func (manager *SMetadataManager) AllowGetPropertyTagValuePairs(ctx context.Conte
 }
 
 func (manager *SMetadataManager) GetPropertyTagValuePairs(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	q := manager.Query("key", "value").Distinct()
+	q := manager.Query("id", "key", "value")
+	if key, _ := query.GetString("key"); len(key) > 0 {
+		q = q.Equals("key", key)
+	}
+	if value, _ := query.GetString("value"); len(value) > 0 {
+		q = q.Equals("value", value)
+	}
 	sql, err := manager.ListItemFilter(ctx, q, userCred, query)
 	if err != nil {
 		return nil, err
 	}
-	result := &struct {
-		Total int
-		Data  []struct {
-			Key   string
-			Value string
-		} `json:"data,allowempty"`
-	}{
-		Total: 0,
-		Data: []struct {
-			Key   string
-			Value string
-		}{},
-	}
-	err = sql.All(&result.Data)
+	sql = sql.Asc("key").Asc("value")
+	metadatas := []struct {
+		Id    string
+		Key   string
+		Value string
+	}{}
+	err = sql.All(&metadatas)
 	if err != nil {
 		return nil, err
 	}
-	result.Total = len(result.Data)
+
+	result := &struct {
+		Total int
+		Data  []*jsonutils.JSONDict `json:"data,allowempty"`
+	}{
+		Total: 0,
+		Data:  []*jsonutils.JSONDict{},
+	}
+
+	statistics := map[string]map[string]map[string][]string{} //map[key][value][resourcetype][]string{ids}
+	for _, metadata := range metadatas {
+		if _, ok := statistics[metadata.Key]; !ok {
+			statistics[metadata.Key] = map[string]map[string][]string{}
+		}
+		if _, ok := statistics[metadata.Key][metadata.Value]; !ok {
+			statistics[metadata.Key][metadata.Value] = map[string][]string{}
+		}
+		if resourceInfo := strings.Split(metadata.Id, "::"); len(resourceInfo) == 2 {
+			resourceType, resourceId := resourceInfo[0], resourceInfo[1]
+			if _, ok := statistics[metadata.Key][metadata.Value][resourceType]; !ok {
+				statistics[metadata.Key][metadata.Value][resourceType] = []string{}
+			}
+			statistics[metadata.Key][metadata.Value][resourceType] = append(statistics[metadata.Key][metadata.Value][resourceType], resourceId)
+		}
+	}
+
+	for key, v := range statistics {
+		for value, info := range v {
+			data := jsonutils.NewDict()
+			data.Add(jsonutils.NewString(key), "key")
+			data.Add(jsonutils.NewString(value), "value")
+			count := 0
+			for resourceType, ids := range info {
+				count += len(ids)
+				data.Add(jsonutils.NewInt(int64(len(ids))), fmt.Sprintf("%s_count", resourceType))
+			}
+			if count > 0 {
+				data.Add(jsonutils.NewInt(int64(count)), "count")
+				result.Data = append(result.Data, data)
+			}
+		}
+	}
 	return jsonutils.Marshal(result), nil
 }
 
@@ -152,29 +184,32 @@ func (manager *SMetadataManager) AllowListItems(ctx context.Context, userCred mc
 func (manager *SMetadataManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
 	resources := jsonutils.GetQueryStringArray(query, "resources")
 	if len(resources) == 0 {
-		for resource := range ResourceMap {
+		for resource := range globalTables {
 			resources = append(resources, resource)
 		}
 	}
 	conditions := []sqlchemy.ICondition{}
 	for _, resource := range resources {
-		if man, ok := ResourceMap[resource]; ok {
-			resourceView := man.Query().SubQuery()
-			prefix := sqlchemy.NewStringField(fmt.Sprintf("%s::", man.Keyword()))
-			field := sqlchemy.CONCAT(man.Keyword(), prefix, resourceView.Field("id"))
-			sq := resourceView.Query(field)
-			ownerId, queryScope, err := FetchCheckQueryOwnerScope(ctx, userCred, query, man, policy.PolicyActionList, true)
-			if err != nil {
-				log.Warningf("FetchCheckQueryOwnerScope.%s error: %v", man.Keyword(), err)
-				continue
-			}
-			sq = man.FilterByOwner(sq, ownerId, queryScope)
-			sq = man.FilterBySystemAttributes(sq, userCred, query, queryScope)
-			sq = man.FilterByHiddenSystemAttributes(sq, userCred, query, queryScope)
-			conditions = append(conditions, sqlchemy.In(q.Field("id"), sq))
-		} else {
+		man, ok := globalTables[resource]
+		if !ok {
 			return nil, httperrors.NewInputParameterError("Not support resource %s tag filter", resource)
 		}
+		if !man.IsStandaloneManager() {
+			continue
+		}
+		resourceView := man.Query().SubQuery()
+		prefix := sqlchemy.NewStringField(fmt.Sprintf("%s::", man.Keyword()))
+		field := sqlchemy.CONCAT(man.Keyword(), prefix, resourceView.Field("id"))
+		sq := resourceView.Query(field)
+		ownerId, queryScope, err := FetchCheckQueryOwnerScope(ctx, userCred, query, man, policy.PolicyActionList, true)
+		if err != nil {
+			log.Warningf("FetchCheckQueryOwnerScope.%s error: %v", man.Keyword(), err)
+			continue
+		}
+		sq = man.FilterByOwner(sq, ownerId, queryScope)
+		sq = man.FilterBySystemAttributes(sq, userCred, query, queryScope)
+		sq = man.FilterByHiddenSystemAttributes(sq, userCred, query, queryScope)
+		conditions = append(conditions, sqlchemy.In(q.Field("id"), sq))
 	}
 	if len(conditions) > 0 {
 		q = q.Filter(sqlchemy.OR(conditions...))

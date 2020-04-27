@@ -3,6 +3,7 @@ package machines
 import (
 	"context"
 	"strings"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"github.com/pkg/errors"
 
@@ -15,8 +16,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 	"yunion.io/x/yunion-kube/pkg/utils/ssh"
@@ -34,7 +33,7 @@ func NewYunionHostDriver() *SYunionHostDriver {
 
 func init() {
 	driver := NewYunionHostDriver()
-	machines.RegisterMachineDriver(driver)
+	models.RegisterMachineDriver(driver)
 }
 
 func (d *SYunionHostDriver) GetProvider() apis.ProviderType {
@@ -88,7 +87,7 @@ func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, 
 	return d.sBaseDriver.ValidateCreateData(input.Name)
 }
 
-func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
+func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machine *models.SMachine, data *jsonutils.JSONDict) error {
 	return d.sClusterAPIBaseDriver.PostCreate(ctx, userCred, cluster, machine, data)
 }
 
@@ -106,7 +105,7 @@ func createContainerSchedtag(s *mcclient.ClientSession) error {
 	return nil
 }
 
-func addMachineToContainerSchedtag(s *mcclient.ClientSession, machine *machines.SMachine) error {
+func addMachineToContainerSchedtag(s *mcclient.ClientSession, machine *models.SMachine) error {
 	err := createContainerSchedtag(s)
 	if err != nil {
 		return err
@@ -118,7 +117,7 @@ func addMachineToContainerSchedtag(s *mcclient.ClientSession, machine *machines.
 	return nil
 }
 
-func removeCloudContainers(s *mcclient.ClientSession, machine *machines.SMachine) error {
+func removeCloudContainers(s *mcclient.ClientSession, machine *models.SMachine) error {
 	params := jsonutils.NewDict()
 	params.Add(jsonutils.NewInt(2000), "limit")
 	params.Add(jsonutils.JSONTrue, "admin")
@@ -139,12 +138,12 @@ func removeCloudContainers(s *mcclient.ClientSession, machine *machines.SMachine
 	return nil
 }
 
-func removeMachineFromContainerSchedtag(s *mcclient.ClientSession, machine *machines.SMachine) error {
+func removeMachineFromContainerSchedtag(s *mcclient.ClientSession, machine *models.SMachine) error {
 	_, err := cloudmod.Schedtaghosts.Detach(s, apis.ContainerSchedtag, machine.ResourceId, nil)
 	return err
 }
 
-func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
+func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, machine *models.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	hostId := data.InstanceId
 	accessIP, err := d.GetPrivateIP(session, hostId)
 	if err != nil {
@@ -184,11 +183,11 @@ func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, mac
 	return nil, err
 }
 
-func (d *SYunionHostDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine) error {
+func (d *SYunionHostDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machine *models.SMachine) error {
 	return cluster.GetDriver().ValidateDeleteMachines(ctx, userCred, cluster, []manager.IMachine{machine})
 }
 
-func (d *SYunionHostDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {
+func (d *SYunionHostDriver) TerminateResource(session *mcclient.ClientSession, machine *models.SMachine) error {
 	hostId := machine.ResourceId
 	accessIP, err := d.GetPrivateIP(session, hostId)
 	if err != nil {

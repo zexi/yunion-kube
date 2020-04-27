@@ -27,6 +27,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -65,6 +66,10 @@ type SStandaloneResourceBaseManager struct {
 
 func NewStandaloneResourceBaseManager(dt interface{}, tableName string, keyword string, keywordPlural string) SStandaloneResourceBaseManager {
 	return SStandaloneResourceBaseManager{SResourceBaseManager: NewResourceBaseManager(dt, tableName, keyword, keywordPlural)}
+}
+
+func (manager *SStandaloneResourceBaseManager) IsStandaloneManager() bool {
+	return true
 }
 
 func (manager *SStandaloneResourceBaseManager) GetIStandaloneModelManager() IStandaloneModelManager {
@@ -130,48 +135,45 @@ func (manager *SStandaloneResourceBaseManager) FetchByIdOrName(userCred mcclient
 	return FetchByIdOrName(manager.GetIStandaloneModelManager(), userCred, idStr)
 }
 
-type STagValue struct {
-	value string
-	exist bool
+func (manager *SStandaloneResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	input := &apis.StandaloneResourceListInput{}
+	err := query.Unmarshal(input)
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("invalid input error: %v", err)
+	}
+
+	return manager.ListItemFilterV2(ctx, q, userCred, input)
 }
 
-func (manager *SStandaloneResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	q, err := manager.SResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+func (manager *SStandaloneResourceBaseManager) ListItemFilterV2(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.StandaloneResourceListInput) (*sqlchemy.SQuery, error) {
+	q, err := manager.SResourceBaseManager.ListItemFilterV2(ctx, q, userCred, &input.ModelBaseListInput)
 	if err != nil {
 		return q, err
 	}
 
-	tags := map[string]STagValue{}
-	if query.Contains("tags") {
-		idx := 0
-		for {
-			key, _ := query.GetString("tags", fmt.Sprintf("%d", idx), "key")
-			if len(key) == 0 {
-				break
-			}
-			value := STagValue{exist: false}
-			if query.Contains("tags", fmt.Sprintf("%d", idx), "value") {
-				value.value, _ = query.GetString("tags", fmt.Sprintf("%d", idx), "value")
-				value.exist = true
-			}
-			tags[key] = value
-			idx++
+	tags := map[string][]string{}
+	for _, tag := range input.Tags {
+		if _, ok := tags[tag.Key]; !ok {
+			tags[tag.Key] = []string{}
+		}
+		if len(tag.Value) > 0 && !utils.IsInStringArray(tag.Value, tags[tag.Key]) {
+			tags[tag.Key] = append(tags[tag.Key], tag.Value)
 		}
 	}
 
 	if len(tags) > 0 {
 		metadataView := Metadata.Query()
 		idx := 0
-		for k, v := range tags {
+		for key, values := range tags {
 			if idx == 0 {
-				metadataView = metadataView.Equals("key", k)
-				if v.exist {
-					metadataView = metadataView.Equals("value", v.value)
+				metadataView = metadataView.Equals("key", key)
+				if len(values) > 0 {
+					metadataView = metadataView.In("value", values)
 				}
 			} else {
-				subMetataView := Metadata.Query().Equals("key", k)
-				if v.exist {
-					subMetataView = subMetataView.Equals("value", v.value)
+				subMetataView := Metadata.Query().Equals("key", key)
+				if len(values) > 0 {
+					subMetataView = subMetataView.In("value", values)
 				}
 				sq := subMetataView.SubQuery()
 				metadataView.Join(sq, sqlchemy.Equals(metadataView.Field("id"), sq.Field("id")))
@@ -187,7 +189,7 @@ func (manager *SStandaloneResourceBaseManager) ListItemFilter(ctx context.Contex
 		q = q.Filter(sqlchemy.In(q.Field("id"), sq))
 	}
 
-	if withoutUserMeta, _ := query.Bool("without_user_meta"); withoutUserMeta {
+	if input.WithoutUserMeta {
 		metadatas := Metadata.Query().SubQuery()
 		fieldName := fmt.Sprintf("%s_id", manager.Keyword())
 		metadataSQ := metadatas.Query(
@@ -224,6 +226,14 @@ func (model *SStandaloneResourceBase) GetShortDesc(ctx context.Context) *jsonuti
 	/*if len(model.ExternalId) > 0 {
 		desc.Add(jsonutils.NewString(model.ExternalId), "external_id")
 	}*/
+	return desc
+}
+
+func (model *SStandaloneResourceBase) GetShortDescV2(ctx context.Context) *apis.StandaloneResourceShortDescDetail {
+	desc := &apis.StandaloneResourceShortDescDetail{}
+	desc.ModelBaseShortDescDetail = *model.SResourceBase.GetShortDescV2(ctx)
+	desc.Name = model.GetName()
+	desc.Id = model.GetId()
 	return desc
 }
 
@@ -410,6 +420,15 @@ func (model *SStandaloneResourceBase) AppendDescription(userCred mcclient.TokenC
 	}
 	OpsLog.LogEvent(model, "append_desc", msg, userCred)
 	return nil
+}
+
+func (manager *SStandaloneResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input apis.StandaloneResourceCreateInput) (apis.StandaloneResourceCreateInput, error) {
+	var err error
+	input.ResourceBaseCreateInput, err = manager.SResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input.ResourceBaseCreateInput)
+	if err != nil {
+		return input, errors.Wrap(err, "SResourceBaseManager.ValidateCreateData")
+	}
+	return input, nil
 }
 
 /*
