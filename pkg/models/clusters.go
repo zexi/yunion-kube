@@ -4,15 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	"net/http"
-	"strings"
-	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -1344,7 +1345,7 @@ func (c *SCluster) EnableComponent(
 	if err != nil {
 		return err
 	}
-	return comp.DoEnable(ctx, userCred, nil, "")
+	return nil
 }
 
 func (c *SCluster) AllowGetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -1437,7 +1438,7 @@ func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient
 	if err := comp.DoDisable(ctx, userCred, input.JSON(input), ""); err != nil {
 		return nil, err
 	}
-	return nil, comp.DeleteWithJoint(ctx, userCred)
+	return nil, nil
 }
 
 func (c *SCluster) AllowPerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
