@@ -2,6 +2,7 @@ package clusters
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"github.com/pkg/errors"
 
@@ -12,7 +13,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 type SDefaultImportDriver struct {
@@ -26,7 +26,7 @@ func NewDefaultImportDriver() *SDefaultImportDriver {
 }
 
 func init() {
-	clusters.RegisterClusterDriver(NewDefaultImportDriver())
+	models.RegisterClusterDriver(NewDefaultImportDriver())
 }
 
 func (d *SDefaultImportDriver) GetK8sVersions() []string {
@@ -65,14 +65,14 @@ func (d *SDefaultImportDriver) NeedCreateMachines() bool {
 	return false
 }
 
-func (d *SDefaultImportDriver) GetKubeconfig(cluster *clusters.SCluster) (string, error) {
+func (d *SDefaultImportDriver) GetKubeconfig(cluster *models.SCluster) (string, error) {
 	return cluster.Kubeconfig, nil
 }
 
 func (d *SDefaultImportDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	c *clusters.SCluster,
+	c *models.SCluster,
 	imageRepo *apis.ImageRepository,
 	data []*apis.CreateMachineData) error {
 	return httperrors.NewBadRequestError("Not support add machines")

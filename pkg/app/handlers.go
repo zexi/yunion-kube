@@ -11,8 +11,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	k8sapp "yunion.io/x/yunion-kube/pkg/resources/app"
 
 	//"yunion.io/x/yunion-kube/pkg/resources/job"
@@ -53,10 +51,10 @@ func InitHandlers(app *appsrv.Application) {
 	for _, man := range []db.IModelManager{
 		db.OpsLog,
 		models.RepoManager,
-		clusters.ClusterManager,
-		clusters.X509KeyPairManager,
-		clusters.ComponentManager,
-		machines.MachineManager,
+		models.ClusterManager,
+		models.X509KeyPairManager,
+		models.ComponentManager,
+		models.MachineManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
@@ -64,8 +62,8 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []db.IJointModelManager{
-		clusters.ClusterX509KeyPairManager,
-		clusters.ClusterComponentManager,
+		models.ClusterX509KeyPairManager,
+		models.ClusterComponentManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewJointModelHandler(man)

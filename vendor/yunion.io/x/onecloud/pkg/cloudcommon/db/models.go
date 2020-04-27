@@ -29,11 +29,18 @@ import (
 
 var globalTables map[string]IModelManager
 
+func GlobalModelManagerTables() map[string]IModelManager {
+	return globalTables
+}
+
 func RegisterModelManager(modelMan IModelManager) {
 	if globalTables == nil {
 		globalTables = make(map[string]IModelManager)
 	}
 	mustCheckModelManager(modelMan)
+	if _, ok := globalTables[modelMan.Keyword()]; ok {
+		log.Fatalf("keyword %s exists in globalTables!", modelMan.Keyword())
+	}
 	globalTables[modelMan.Keyword()] = modelMan
 }
 

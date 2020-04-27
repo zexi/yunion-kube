@@ -2,6 +2,7 @@ package yunion_host
 
 import (
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -15,8 +16,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 )
 
@@ -39,7 +38,7 @@ func ValidateHostId(s *mcclient.ClientSession, privateKey string, hostId string)
 	}
 	hostType, _ := ret.GetString("host_type")
 	hostId, _ = ret.GetString("id")
-	if m, err := machines.MachineManager.GetMachineByResourceId(hostId); err != nil {
+	if m, err := models.MachineManager.GetMachineByResourceId(hostId); err != nil {
 		return nil, err
 	} else if m != nil {
 		return nil, httperrors.NewInputParameterError("Machine %s already use host %s", m.GetName(), hostId)
@@ -55,7 +54,7 @@ func ValidateHostId(s *mcclient.ClientSession, privateKey string, hostId string)
 }
 
 func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis.CreateMachineData) error {
-	if err := machines.ValidateRole(m.Role); err != nil {
+	if err := models.ValidateRole(m.Role); err != nil {
 		return err
 	}
 	if err := ValidateResourceType(m.ResourceType); err != nil {
@@ -76,7 +75,7 @@ func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis
 	return nil
 }
 
-func CheckControlplaneExists(cluster *clusters.SCluster) error {
+func CheckControlplaneExists(cluster *models.SCluster) error {
 	controlplane, err := cluster.GetRunningControlplaneMachine()
 	if err != nil {
 		return httperrors.NewInputParameterError("CheckControlplaneExists: %v", err)
@@ -88,7 +87,7 @@ func CheckControlplaneExists(cluster *clusters.SCluster) error {
 }
 
 func ValidateCreateMachines(ms []*apis.CreateMachineData) error {
-	session, err := clusters.ClusterManager.GetSession()
+	session, err := models.ClusterManager.GetSession()
 	if err != nil {
 		return err
 	}
@@ -125,7 +124,7 @@ func ValidateClusterCreateData(data *jsonutils.JSONDict) error {
 	if len(controls) == 0 && createData.Provider != string(apis.ProviderTypeSystem) {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
-	session, err := clusters.ClusterManager.GetSession()
+	session, err := models.ClusterManager.GetSession()
 	if err != nil {
 		return err
 	}

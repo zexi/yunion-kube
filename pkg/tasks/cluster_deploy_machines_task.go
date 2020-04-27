@@ -2,14 +2,13 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -23,12 +22,12 @@ func init() {
 
 func (t *ClusterDeployMachinesTask) getAddMachines() ([]manager.IMachine, error) {
 	msIds := []string{}
-	if err := t.Params.Unmarshal(&msIds, clusters.MachinesDeployIdsKey); err != nil {
+	if err := t.Params.Unmarshal(&msIds, models.MachinesDeployIdsKey); err != nil {
 		return nil, err
 	}
 	ms := make([]manager.IMachine, 0)
 	for _, id := range msIds {
-		m, err := machines.MachineManager.FetchMachineById(id)
+		m, err := models.MachineManager.FetchMachineById(id)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +37,7 @@ func (t *ClusterDeployMachinesTask) getAddMachines() ([]manager.IMachine, error)
 }
 
 func (t *ClusterDeployMachinesTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	ms, err := t.getAddMachines()
 	if err != nil {
 		t.OnError(ctx, cluster, err)
@@ -52,7 +51,7 @@ func (t *ClusterDeployMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *clusters.SCluster, err error) {
+func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err error) {
 	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 }

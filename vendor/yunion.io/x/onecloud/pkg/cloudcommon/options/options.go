@@ -36,6 +36,12 @@ import (
 	"yunion.io/x/onecloud/pkg/util/atexit"
 )
 
+const (
+	DefaultQuotaUnlimit = "unlimit"
+	DefaultQuotaZero    = "zero"
+	DefaultQuotaDefault = "default"
+)
+
 type BaseOptions struct {
 	Region string `help:"Region name or ID" alias:"auth-region"`
 
@@ -52,7 +58,7 @@ type BaseOptions struct {
 	TempPath  string   `help:"Path for store temp file, at least 40G space" default:"/opt/yunion/tmp"`
 
 	ApplicationID      string `help:"Application ID"`
-	RequestWorkerCount int    `default:"4" help:"Request worker thread count, default is 4"`
+	RequestWorkerCount int    `default:"8" help:"Request worker thread count, default is 8"`
 
 	EnableSsl   bool   `help:"Enable https"`
 	SslCaCerts  string `help:"ssl certificate ca root file, separating ca and cert file is not encouraged" alias:"ca-file"`
@@ -67,12 +73,16 @@ type BaseOptions struct {
 	RbacPolicySyncPeriodSeconds      int  `help:"policy sync interval in seconds, default 5 minutes" default:"300"`
 	RbacPolicySyncFailedRetrySeconds int  `help:"seconds to wait after a failed sync, default 30 seconds" default:"30"`
 
+	ConfigSyncPeriodSeconds int `help:"service config sync interval in seconds, default 300 seconds/5 minutes" default:"300"`
+
 	IsSlaveNode        bool `help:"Region service slave node"`
 	CronJobWorkerCount int  `help:"Cron job worker count" default:"4"`
 
+	DefaultQuotaValue string `help:"default quota value" choices:"unlimit|zero|default" default:"default"`
+
 	CalculateQuotaUsageIntervalSeconds int `help:"interval to calculate quota usages, default 30 minutes" default:"900"`
 
-	NonDefaultDomainProjects bool `help:"allow projects in non-default domains" default:"false"`
+	NonDefaultDomainProjects bool `help:"allow projects in non-default domains" default:"false" json:",allowfalse"`
 
 	TimeZone string `help:"time zone" default:"Asia/Shanghai"`
 

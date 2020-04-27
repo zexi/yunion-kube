@@ -24,6 +24,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/object"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
@@ -53,6 +54,10 @@ func NewModelBaseManager(model interface{}, tableName string, keyword string, ke
 	ts := sqlchemy.NewTableSpecFromStruct(model, tableName)
 	modelMan := SModelBaseManager{tableSpec: ts, keyword: keyword, keywordPlural: keywordPlural}
 	return modelMan
+}
+
+func (manager *SModelBaseManager) IsStandaloneManager() bool {
+	return false
 }
 
 func (manager *SModelBaseManager) GetIModelManager() IModelManager {
@@ -118,6 +123,10 @@ func (manager *SModelBaseManager) ValidateListConditions(ctx context.Context, us
 }
 
 func (manager *SModelBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+	return q, nil
+}
+
+func (manager *SModelBaseManager) ListItemFilterV2(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.ModelBaseListInput) (*sqlchemy.SQuery, error) {
 	return q, nil
 }
 
@@ -188,11 +197,11 @@ func (manager *SModelBaseManager) AllowCreateItem(ctx context.Context, userCred 
 	return false
 }
 
-func (manager *SModelBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	return data, nil
+func (manager *SModelBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input apis.ModelBaseCreateInput) (apis.ModelBaseCreateInput, error) {
+	return input, nil
 }
 
-func (manager *SModelBaseManager) OnCreateComplete(ctx context.Context, items []IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+func (manager *SModelBaseManager) OnCreateComplete(ctx context.Context, items []IModel, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	// do nothing
 }
 
@@ -372,12 +381,16 @@ func (manager *SModelBaseManager) GetPropertyDistinctField(ctx context.Context, 
 func (manager *SModelBaseManager) BatchPreValidate(
 	ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider,
 	query jsonutils.JSONObject, data *jsonutils.JSONDict, count int,
-) (func(), error) {
-	return nil, nil
+) error {
+	return nil
 }
 
 func (manager *SModelBaseManager) BatchCreateValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	return nil, nil
+}
+
+func (manager *SModelBaseManager) OnCreateFailed(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	return nil
 }
 
 func (model *SModelBase) GetId() string {
@@ -415,6 +428,10 @@ func (model *SModelBase) GetShortDesc(ctx context.Context) *jsonutils.JSONDict {
 	return desc
 }
 
+func (model *SModelBase) GetShortDescV2(ctx context.Context) *apis.ModelBaseShortDescDetail {
+	return &apis.ModelBaseShortDescDetail{ResName: model.Keyword()}
+}
+
 // list hooks
 func (model *SModelBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
 	extra := jsonutils.NewDict()
@@ -424,6 +441,22 @@ func (model *SModelBase) GetCustomizeColumns(ctx context.Context, userCred mccli
 // get hooks
 func (model *SModelBase) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return false
+}
+
+func (model *SModelBase) GetExtraDetailsV2(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, out *apis.ModelBaseDetails) error {
+	out.CanDelete = true
+	out.CanUpdate = true
+	err := model.GetIModel().ValidateDeleteCondition(ctx)
+	if err != nil {
+		out.CanDelete = false
+		out.DeleteFailReason = err.Error()
+	}
+	err = model.GetIModel().ValidateUpdateCondition(ctx)
+	if err != nil {
+		out.CanUpdate = false
+		out.UpdateFailReason = err.Error()
+	}
+	return nil
 }
 
 func (model *SModelBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
@@ -487,8 +520,17 @@ func (model *SModelBase) CustomizeDelete(ctx context.Context, userCred mcclient.
 	return nil
 }
 
+func cleanModelUsages(ctx context.Context, userCred mcclient.TokenCredential, model IModel) {
+	usages := model.GetIModel().GetUsages()
+	if CancelUsages != nil && len(usages) > 0 {
+		CancelUsages(ctx, userCred, usages)
+	}
+}
+
 func (model *SModelBase) PreDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	// do nothing
+	// clean usage on predelete
+	// clean usage before fakedelete for pending delete models
+	cleanModelUsages(ctx, userCred, model)
 }
 
 func (model *SModelBase) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
@@ -526,4 +568,8 @@ func (model *SModelBase) UpdateInContext(ctx context.Context, userCred mcclient.
 
 func (model *SModelBase) DeleteInContext(ctx context.Context, userCred mcclient.TokenCredential, ctxObjs []IModel, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	return nil, nil
+}
+
+func (model *SModelBase) GetUsages() []IUsage {
+	return nil
 }

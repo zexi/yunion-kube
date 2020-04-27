@@ -24,17 +24,15 @@ import (
 )
 
 type CloudaccountCreateInput struct {
-	apis.Meta
+	apis.EnabledStatusStandaloneResourceCreateInput
 
 	Provider            string
+	AccountId           string
 	Brand               string
 	IsPublicCloud       bool
 	IsOnPremise         bool
 	Tenant              string
 	TenantId            string
-	Name                string
-	Description         string
-	Enabled             bool
 	EnableAutoSync      bool
 	SyncIntervalSeconds int
 	AutoCreateProject   bool

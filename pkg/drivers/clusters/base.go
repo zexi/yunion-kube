@@ -2,6 +2,7 @@ package clusters
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"github.com/pkg/errors"
 
@@ -12,8 +13,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -43,8 +42,8 @@ func (d *SBaseDriver) GetResourceType() apis.ClusterResourceType {
 	return d.clusterResourceType
 }
 
-func (d *SBaseDriver) GetMachineDriver(mT apis.MachineResourceType) clusters.IMachineDriver {
-	drv := machines.GetDriver(d.GetProvider(), mT)
+func (d *SBaseDriver) GetMachineDriver(mT apis.MachineResourceType) models.IMachineDriver {
+	drv := models.GetMachineDriver(d.GetProvider(), mT)
 	return drv
 }
 
@@ -64,19 +63,19 @@ func (d *SBaseDriver) NeedCreateMachines() bool {
 	return true
 }
 
-func (d *SBaseDriver) CreateClusterResource(man *clusters.SClusterManager, data *apis.ClusterCreateInput) error {
+func (d *SBaseDriver) CreateClusterResource(man *models.SClusterManager, data *apis.ClusterCreateInput) error {
 	// do nothing
 	return nil
 }
 
-func (d *SBaseDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
+func (d *SBaseDriver) GetAddonsManifest(cluster *models.SCluster) (string, error) {
 	return "", nil
 }
 
 func (d *SBaseDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	cluster *clusters.SCluster,
+	cluster *models.SCluster,
 	data []*apis.CreateMachineData,
 ) ([]*apis.CreateMachineData, []*apis.CreateMachineData, error) {
 	var needControlplane bool
@@ -98,11 +97,11 @@ func (d *SBaseDriver) ValidateCreateMachines(
 	return controls, nodes, nil
 }
 
-func (d *SBaseDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SBaseDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
 	return nil, nil
 }
 
-func (d *SBaseDriver) StartSyncStatus(cluster *clusters.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
+func (d *SBaseDriver) StartSyncStatus(cluster *models.SCluster, ctx context.Context, userCred mcclient.TokenCredential, parentTaskId string) error {
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterSyncstatusTask", cluster, userCred, nil, parentTaskId, "", nil)
 	if err != nil {
 		return err
@@ -115,14 +114,14 @@ func (d *SBaseDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.Usab
 	return nil, nil
 }
 
-func (d *SBaseDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine, task taskman.ITask) error {
+func (d *SBaseDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machines []manager.IMachine, task taskman.ITask) error {
 	return nil
 }
 
-func (d *SBaseDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine, task taskman.ITask) error {
+func (d *SBaseDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machines []manager.IMachine, task taskman.ITask) error {
 	return nil
 }
 
-func (d *SBaseDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machines []manager.IMachine) error {
+func (d *SBaseDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machines []manager.IMachine) error {
 	return nil
 }

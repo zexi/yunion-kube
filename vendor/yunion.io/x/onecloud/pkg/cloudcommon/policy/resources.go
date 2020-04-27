@@ -22,6 +22,7 @@ var (
 		"zones",
 		"storages",
 		"wires",
+		"globalvpcs",
 		"vpcs",
 		"route_tables",
 		"cloudregions",
@@ -108,6 +109,10 @@ var (
 	itsmDomainResources = []string{}
 	itsmUserResources   = []string{}
 
+	cloudeventSystemResoruces = []string{
+		"cloudevents",
+	}
+
 	systemResources = map[string][]string{
 		"compute":     computeSystemResources,
 		"notify":      notifySystemResources,
@@ -118,6 +123,7 @@ var (
 		"log":         logSystemResources,
 		"identity":    identitySystemResources,
 		"itsm":        itsmSystemResources,
+		"cloudevent":  cloudeventSystemResoruces,
 	}
 
 	domainResources = map[string][]string{

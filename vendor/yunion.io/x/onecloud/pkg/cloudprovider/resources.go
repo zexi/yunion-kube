@@ -132,7 +132,10 @@ type ICloudRegion interface {
 	GetIElasticcacheById(id string) (ICloudElasticcache, error)
 	CreateIElasticcaches(ec *SCloudElasticCacheInput) (ICloudElasticcache, error)
 
+	GetCloudEnv() string
 	GetProvider() string
+
+	GetICloudEvents(start time.Time, end time.Time, withReadEvent bool) ([]ICloudEvent, error) //获取公有云操作日志接口
 }
 
 type ICloudZone interface {
@@ -163,7 +166,7 @@ type ICloudImage interface {
 	GetMinOsDiskSizeGb() int
 	GetMinRamSizeMb() int
 	GetImageFormat() string
-	GetCreateTime() time.Time
+	GetCreatedAt() time.Time
 }
 
 type ICloudStoragecache interface {
@@ -244,7 +247,6 @@ type ICloudVM interface {
 	IBillingResource
 	IVirtualResource
 
-	GetCreateTime() time.Time
 	GetIHost() ICloudHost
 	GetIHostId() string
 
@@ -413,6 +415,7 @@ type ICloudSnapshotPolicy interface {
 }
 
 type ICloudVpc interface {
+	// GetGlobalId() // 若vpc属于globalvpc,此函数返回格式必须是 'region.GetGlobalId()/vpc.GetGlobalId()'
 	ICloudResource
 
 	GetRegion() ICloudRegion
@@ -485,7 +488,7 @@ type ICloudLoadbalancer interface {
 
 	GetIEIP() (ICloudEIP, error)
 
-	Delete() error
+	Delete(ctx context.Context) error
 
 	Start() error
 	Stop() error
@@ -496,7 +499,7 @@ type ICloudLoadbalancer interface {
 	CreateILoadBalancerBackendGroup(group *SLoadbalancerBackendGroup) (ICloudLoadbalancerBackendGroup, error)
 	GetILoadBalancerBackendGroupById(groupId string) (ICloudLoadbalancerBackendGroup, error)
 
-	CreateILoadBalancerListener(listener *SLoadbalancerListener) (ICloudLoadbalancerListener, error)
+	CreateILoadBalancerListener(ctx context.Context, listener *SLoadbalancerListener) (ICloudLoadbalancerListener, error)
 	GetILoadBalancerListenerById(listenerId string) (ICloudLoadbalancerListener, error)
 }
 
@@ -546,9 +549,9 @@ type ICloudLoadbalancerListener interface {
 
 	Start() error
 	Stop() error
-	Sync(listener *SLoadbalancerListener) error
+	Sync(ctx context.Context, listener *SLoadbalancerListener) error
 
-	Delete() error
+	Delete(ctx context.Context) error
 }
 
 type ICloudLoadbalancerListenerRule interface {
@@ -560,7 +563,7 @@ type ICloudLoadbalancerListenerRule interface {
 	GetCondition() string
 	GetBackendGroupId() string
 
-	Delete() error
+	Delete(ctx context.Context) error
 }
 
 type ICloudLoadbalancerBackendGroup interface {
@@ -578,8 +581,8 @@ type ICloudLoadbalancerBackendGroup interface {
 	AddBackendServer(serverId string, weight int, port int) (ICloudLoadbalancerBackend, error)
 	RemoveBackendServer(serverId string, weight int, port int) error
 
-	Delete() error
-	Sync(group *SLoadbalancerBackendGroup) error
+	Delete(ctx context.Context) error
+	Sync(ctx context.Context, group *SLoadbalancerBackendGroup) error
 }
 
 type ICloudLoadbalancerBackend interface {
@@ -590,7 +593,7 @@ type ICloudLoadbalancerBackend interface {
 	GetBackendType() string
 	GetBackendRole() string
 	GetBackendId() string
-	SyncConf(port, weight int) error
+	SyncConf(ctx context.Context, port, weight int) error
 }
 
 type ICloudLoadbalancerCertificate interface {
@@ -916,4 +919,17 @@ type ICloudElasticcacheParameter interface {
 	GetDescription() string
 	GetModifiable() bool
 	GetForceRestart() bool
+}
+
+type ICloudEvent interface {
+	GetName() string
+	GetService() string
+	GetAction() string
+	GetResourceType() string
+	GetRequestId() string
+	GetRequest() jsonutils.JSONObject
+	GetAccount() string
+	IsSuccess() bool
+
+	GetCreatedAt() time.Time
 }

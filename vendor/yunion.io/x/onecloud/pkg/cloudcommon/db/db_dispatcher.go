@@ -24,6 +24,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/util/filterclause"
 	"yunion.io/x/pkg/utils"
@@ -38,7 +39,6 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
-	"yunion.io/x/onecloud/pkg/util/httputils"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
@@ -255,7 +255,7 @@ func listItemQueryFilters(manager IModelManager,
 	q = manager.FilterBySystemAttributes(q, userCred, query, queryScope)
 	q = manager.FilterByHiddenSystemAttributes(q, userCred, query, queryScope)
 
-	q, err = manager.ListItemFilter(ctx, q, userCred, query)
+	q, err = ListItemFilter(manager, ctx, q, userCred, query)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +363,9 @@ func Query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 		if showDetails && !query.Contains("export_keys") {
 			extraDict := item.GetCustomizeColumns(ctx, userCred, query)
 			if extraDict != nil {
-				jsonDict.Update(extraDict)
+				// Fix for Now
+				extraDict.Update(jsonDict)
+				jsonDict = extraDict
 			}
 			// jsonDict = getModelExtraDetails(item, ctx, jsonDict)
 		}
@@ -500,6 +502,17 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		limit = exportLimit
 	}
 
+	// orders defined in pagingConf should have the highest priority
+	if pagingConf != nil {
+		for _, f := range pagingConf.MarkerFields {
+			if pagingConf.Order == sqlchemy.SQL_ORDER_ASC {
+				q = q.Asc(f)
+			} else {
+				q = q.Desc(f)
+			}
+		}
+	}
+
 	var primaryCol sqlchemy.IColumnSpec
 	primaryCols := manager.TableSpec().PrimaryColumns()
 	if len(primaryCols) == 1 {
@@ -514,8 +527,8 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 	}
 	orderQuery := query.(*jsonutils.JSONDict).Copy()
 	for _, orderByField := range orderBy {
-		if pagingConf != nil && orderByField == pagingConf.MarkerField {
-			// skip markerField
+		if pagingConf != nil && utils.IsInStringArray(orderByField, pagingConf.MarkerFields) {
+			// skip markerField in pagingConf
 			continue
 		}
 		colSpec := manager.TableSpec().ColumnSpec(orderByField)
@@ -539,8 +552,8 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		}
 	}
 	for _, orderByField := range orderBy {
-		if pagingConf != nil && pagingConf.MarkerField == orderByField {
-			// skip markerField
+		if pagingConf != nil && utils.IsInStringArray(orderByField, pagingConf.MarkerFields) {
+			// skip markerField in pagingConf
 			continue
 		}
 		colSpec := manager.TableSpec().ColumnSpec(orderByField)
@@ -552,36 +565,38 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 			}
 		}
 	}
-	if pagingConf != nil {
-		if pagingConf.Order == sqlchemy.SQL_ORDER_ASC {
-			q = q.Asc(pagingConf.MarkerField)
-		} else {
-			q = q.Desc(pagingConf.MarkerField)
-		}
-	}
 
 	if pagingConf != nil {
 		q = q.Limit(int(limit) + 1)
 		if len(pagingMarker) > 0 {
-			if pagingConf.Order == sqlchemy.SQL_ORDER_ASC {
-				q = q.GE(pagingConf.MarkerField, pagingMarker)
-			} else {
-				q = q.LE(pagingConf.MarkerField, pagingMarker)
+			markers := decodePagingMarker(pagingMarker)
+			for markerIdx, marker := range markers {
+				if markerIdx < len(pagingConf.MarkerFields) {
+					if pagingConf.Order == sqlchemy.SQL_ORDER_ASC {
+						q = q.GE(pagingConf.MarkerFields[markerIdx], marker)
+					} else {
+						q = q.LE(pagingConf.MarkerFields[markerIdx], marker)
+					}
+				}
 			}
 		}
 		retList, err := Query2List(manager, ctx, userCred, q, queryDict, false)
 		if err != nil {
 			return nil, httperrors.NewGeneralError(err)
 		}
-		nextMarker := ""
+		nextMarkers := make([]string, 0)
 		if int64(len(retList)) > limit {
-			nextMarker, _ = retList[limit].GetString(pagingConf.MarkerField)
+			for _, markerField := range pagingConf.MarkerFields {
+				nextMarker, _ := retList[limit].GetString(markerField)
+				nextMarkers = append(nextMarkers, nextMarker)
+			}
 			retList = retList[:limit]
 		}
+		nextMarker := encodePagingMarker(nextMarkers)
 		retResult := modulebase.ListResult{
 			Data: retList, Limit: int(limit),
 			NextMarker:  nextMarker,
-			MarkerField: pagingConf.MarkerField,
+			MarkerField: strings.Join(pagingConf.MarkerFields, ","),
 			MarkerOrder: string(pagingConf.Order),
 		}
 		return &retResult, nil
@@ -709,7 +724,7 @@ func getModelItemDetails(manager IModelManager, item IModel, ctx context.Context
 }
 
 func getItemDetails(manager IModelManager, item IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	extraDict, err := item.GetExtraDetails(ctx, userCred, query)
+	extraDict, err := GetExtraDetails(item, ctx, userCred, query)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -724,15 +739,15 @@ func getItemDetails(manager IModelManager, item IModel, ctx context.Context, use
 
 	jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
 	jsonDict = jsonDict.CopyIncludes(getFields...)
-	jsonDict.Update(extraDict)
+	extraDict.Update(jsonDict)
 	// jsonDict = getModelExtraDetails(item, ctx, jsonDict)
 
 	extraRows := manager.FetchCustomizeColumns(ctx, userCred, query, []IModel{item}, stringutils2.NewSortedStrings(fieldFilter))
 	if len(extraRows) == 1 {
-		jsonDict.Update(extraRows[0])
+		extraDict.Update(extraRows[0])
 	}
 
-	return jsonDict, nil
+	return extraDict, nil
 }
 
 func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, property string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -822,11 +837,7 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 		return nil, err
 	}
 
-	params := []reflect.Value{
-		reflect.ValueOf(ctx),
-		reflect.ValueOf(userCred),
-		reflect.ValueOf(query),
-	}
+	params := []interface{}{ctx, userCred, query}
 
 	specCamel := utils.Kebab2Camel(spec, "-")
 	modelValue := reflect.ValueOf(model)
@@ -844,7 +855,10 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 			return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 		}
 
-		outs := funcValue.Call(params)
+		outs, err := callFunc(funcValue, params...)
+		if err != nil {
+			return nil, err
+		}
 		if len(outs) != 1 {
 			return nil, httperrors.NewInternalServerError("Invald %s return value", funcName)
 		}
@@ -859,20 +873,23 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 		return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 	}
 
-	outs := funcValue.Call(params)
+	outs, err := callFunc(funcValue, params...)
+	if err != nil {
+		return nil, err
+	}
 	if len(outs) != 2 {
 		return nil, httperrors.NewInternalServerError("Invald %s return value", funcName)
 	}
 
-	resVal := outs[0].Interface()
+	resVal := outs[0]
 	errVal := outs[1].Interface()
 	if !gotypes.IsNil(errVal) {
 		return nil, errVal.(error)
 	} else {
-		if gotypes.IsNil(resVal) {
+		if gotypes.IsNil(resVal.Interface()) {
 			return nil, nil
 		} else {
-			return resVal.(jsonutils.JSONObject), nil
+			return ValueToJSONObject(resVal), nil
 		}
 	}
 }
@@ -1013,13 +1030,12 @@ func _doCreateItem(
 	if batchCreate {
 		dataDict, err = manager.BatchCreateValidateCreateData(ctx, userCred, ownerId, query, dataDict)
 	} else {
-		dataDict, err = manager.ValidateCreateData(ctx, userCred, ownerId, query, dataDict)
+		dataDict, err = ValidateCreateData(manager, ctx, userCred, ownerId, query, dataDict)
 	}
 
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
-
 	// run name validation after validate create data
 	parentId := manager.FetchParentId(ctx, dataDict)
 	name, _ := dataDict.GetString("name")
@@ -1050,6 +1066,12 @@ func _doCreateItem(
 	err = manager.TableSpec().InsertOrUpdate(model)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
+	}
+	// save generateName
+	if len(generateName) > 0 {
+		if standaloneMode, ok := model.(IStandaloneModel); ok {
+			standaloneMode.SetMetadata(ctx, "generate_name", generateName, userCred)
+		}
 	}
 	// HACK: set data same as dataDict
 	data.(*jsonutils.JSONDict).Update(dataDict)
@@ -1091,9 +1113,23 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 		return nil, httperrors.NewForbiddenError("Not allow to create item")
 	}
 
+	if InitPendingUsagesInContext != nil {
+		ctx = InitPendingUsagesInContext(ctx)
+	}
+
 	model, err := DoCreate(dispatcher.modelManager, ctx, userCred, query, data, ownerId)
 	if err != nil {
-		log.Errorf("fail to doCreateItem %s", err)
+		// log.Errorf("fail to doCreateItem %s", err)
+		if CancelPendingUsagesInContext != nil {
+			err := CancelPendingUsagesInContext(ctx, userCred)
+			if err != nil {
+				log.Errorf("CancelPendingUsagesInContext fail %s", err)
+			}
+		}
+		failErr := manager.OnCreateFailed(ctx, userCred, ownerId, query, data)
+		if failErr != nil {
+			log.Errorf("manager.OnCreateFailed %s", failErr)
+		}
 		return nil, httperrors.NewGeneralError(err)
 	}
 
@@ -1105,7 +1141,7 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 	}()
 
 	OpsLog.LogEvent(model, ACT_CREATE, model.GetShortDesc(ctx), userCred)
-	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{model}, userCred, query, data)
+	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{model}, userCred, ownerId, query, data)
 	return getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
 }
 
@@ -1166,54 +1202,71 @@ func (dispatcher *DBModelDispatcher) BatchCreate(ctx context.Context, query json
 	}
 
 	var (
-		multiData         []jsonutils.JSONObject
-		onBatchCreateFail func()
-		validateError     error
+		multiData []jsonutils.JSONObject
+		// onBatchCreateFail func()
+		// validateError error
 	)
+
+	if InitPendingUsagesInContext != nil {
+		ctx = InitPendingUsagesInContext(ctx)
+	}
 
 	createResults, err := func() ([]sCreateResult, error) {
 		lockman.LockClass(ctx, manager, GetLockClassKey(manager, ownerId))
 		defer lockman.ReleaseClass(ctx, manager, GetLockClassKey(manager, ownerId))
 
-		multiData, err = expandMultiCreateParams(data, count)
+		// invoke only Once
+		err = manager.BatchPreValidate(ctx, userCred, ownerId, query, data.(*jsonutils.JSONDict), count)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "manager.BatchPreValidate")
 		}
 
-		ret := make([]sCreateResult, len(multiData))
-		for i, cdata := range multiData {
-			if i == 0 {
-				onBatchCreateFail, validateError = manager.BatchPreValidate(
-					ctx, userCred, ownerId, query, cdata.(*jsonutils.JSONDict), len(multiData))
-				if validateError != nil {
-					return nil, validateError
-				}
-			}
-			model, err := batchCreateDoCreateItem(manager, ctx, userCred, ownerId, query, cdata, i)
-			if err != nil && onBatchCreateFail != nil {
-				onBatchCreateFail()
-			}
-			ret[i] = sCreateResult{model: model, err: err}
+		multiData, err = expandMultiCreateParams(data, count)
+		if err != nil {
+			return nil, errors.Wrap(err, "expandMultiCreateParams")
 		}
-		return ret, nil
+
+		// one fail, then all fail
+		ret := make([]sCreateResult, len(multiData))
+		for i := range multiData {
+			var model IModel
+			model, err = batchCreateDoCreateItem(manager, ctx, userCred, ownerId, query, multiData[i], i)
+			if err == nil {
+				ret[i] = sCreateResult{model: model, err: nil}
+			} else {
+				break
+			}
+		}
+		if err != nil {
+			for i := range ret {
+				if ret[i].model != nil {
+					DeleteModel(ctx, userCred, ret[i].model)
+					ret[i].model = nil
+				}
+				ret[i].err = err
+			}
+			return nil, errors.Wrap(err, "batchCreateDoCreateItem")
+		} else {
+			return ret, nil
+		}
 	}()
 
 	if err != nil {
-		return nil, err
+		failErr := manager.OnCreateFailed(ctx, userCred, ownerId, query, data)
+		if failErr != nil {
+			log.Errorf("manager.OnCreateFailed %s", failErr)
+		}
+		return nil, errors.Wrap(err, "createResults")
 	}
+
 	results := make([]modulebase.SubmitResult, count)
 	models := make([]IModel, 0)
 	for i, res := range createResults {
 		result := modulebase.SubmitResult{}
 		if res.err != nil {
-			jsonErr, ok := res.err.(*httputils.JSONClientError)
-			if ok {
-				result.Status = jsonErr.Code
-				result.Data = jsonutils.Marshal(jsonErr)
-			} else {
-				result.Status = 500
-				result.Data = jsonutils.NewString(res.err.Error())
-			}
+			jsonErr := httperrors.NewGeneralError(res.err)
+			result.Status = jsonErr.Code
+			result.Data = jsonutils.Marshal(jsonErr)
 		} else {
 			lockman.LockObject(ctx, res.model)
 			defer lockman.ReleaseObject(ctx, res.model)
@@ -1236,7 +1289,7 @@ func (dispatcher *DBModelDispatcher) BatchCreate(ctx context.Context, query json
 		lockman.LockClass(ctx, manager, GetLockClassKey(manager, ownerId))
 		defer lockman.ReleaseClass(ctx, manager, GetLockClassKey(manager, ownerId))
 
-		manager.OnCreateComplete(ctx, models, userCred, query, multiData[0])
+		manager.OnCreateComplete(ctx, models, userCred, ownerId, query, multiData[0])
 	}
 	return results, nil
 }
@@ -1261,7 +1314,20 @@ func managerPerformCheckCreateData(
 		return nil, httperrors.NewForbiddenError("not allow to perform %s", action)
 	}
 
-	return manager.ValidateCreateData(ctx, userCred, ownerId, query, bodyDict)
+	if InitPendingUsagesInContext != nil {
+		ctx = InitPendingUsagesInContext(ctx)
+
+		defer func() {
+			if CancelPendingUsagesInContext != nil {
+				err := CancelPendingUsagesInContext(ctx, userCred)
+				if err != nil {
+					log.Errorf("CancelPendingUsagesInContext fail %s", err)
+				}
+			}
+		}()
+	}
+
+	return ValidateCreateData(manager, ctx, userCred, ownerId, query, bodyDict)
 }
 
 func (dispatcher *DBModelDispatcher) PerformClassAction(ctx context.Context, action string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -1354,23 +1420,12 @@ func reflectDispatcherInternal(
 		}
 	}
 
-	var params []reflect.Value
+	var params []interface{}
 
 	if isGeneral {
-		params = []reflect.Value{
-			reflect.ValueOf(ctx),
-			reflect.ValueOf(userCred),
-			reflect.ValueOf(spec),
-			reflect.ValueOf(query),
-			reflect.ValueOf(data),
-		}
+		params = []interface{}{ctx, userCred, spec, query, data}
 	} else {
-		params = []reflect.Value{
-			reflect.ValueOf(ctx),
-			reflect.ValueOf(userCred),
-			reflect.ValueOf(query),
-			reflect.ValueOf(data),
-		}
+		params = []interface{}{ctx, userCred, query, data}
 	}
 
 	if consts.IsRbacEnabled() {
@@ -1398,7 +1453,10 @@ func reflectDispatcherInternal(
 			return nil, httperrors.NewActionNotFoundError(msg)
 		}
 
-		outs := allowFuncValue.Call(params)
+		outs, err := callFunc(allowFuncValue, params...)
+		if err != nil {
+			return nil, err
+		}
 		if len(outs) != 1 {
 			return nil, httperrors.NewInternalServerError("Invald %s return value", allowFuncName)
 		}
@@ -1408,19 +1466,22 @@ func reflectDispatcherInternal(
 		}
 	}
 
-	outs := funcValue.Call(params)
+	outs, err := callFunc(funcValue, params...)
+	if err != nil {
+		return nil, err
+	}
 	if len(outs) != 2 {
 		return nil, httperrors.NewInternalServerError("Invald %s return value", funcName)
 	}
-	resVal := outs[0].Interface()
+	resVal := outs[0]
 	errVal := outs[1].Interface()
 	if !gotypes.IsNil(errVal) {
 		return nil, errVal.(error)
 	} else {
-		if gotypes.IsNil(resVal) {
+		if gotypes.IsNil(resVal.Interface()) {
 			return nil, nil
 		} else {
-			return resVal.(jsonutils.JSONObject), nil
+			return ValueToJSONObject(resVal), nil
 		}
 	}
 }
@@ -1448,7 +1509,7 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 		}
 	}
 
-	dataDict, err = item.ValidateUpdateData(ctx, userCred, query, dataDict)
+	dataDict, err = ValidateUpdateData(item, ctx, userCred, query, dataDict)
 	if err != nil {
 		errMsg := fmt.Sprintf("validate update data error: %s", err)
 		log.Errorf(errMsg)
@@ -1537,6 +1598,7 @@ func objectUpdateSpec(dispatcher *DBModelDispatcher, model IModel, modelValue re
 
 func DeleteModel(ctx context.Context, userCred mcclient.TokenCredential, item IModel) error {
 	// log.Debugf("Ready to delete %s %s %#v", jsonutils.Marshal(item), item, manager)
+	// cleanModelUsages(ctx, userCred, item)
 	_, err := Update(item, func() error {
 		return item.MarkDelete()
 	})
@@ -1559,7 +1621,7 @@ func deleteItem(manager IModelManager, model IModel, ctx context.Context, userCr
 		return nil, err
 	}
 
-	err = model.CustomizeDelete(ctx, userCred, query, data)
+	err = CustomizeDelete(model, ctx, userCred, query, data)
 	if err != nil {
 		log.Errorf("customize delete error: %s", err)
 		return nil, httperrors.NewNotAcceptableError(err.Error())
