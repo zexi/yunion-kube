@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -43,7 +43,7 @@ func (t *ClusterDeleteMachinesTask) getDeleteMachines() ([]manager.IMachine, err
 }
 
 func (t *ClusterDeleteMachinesTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	ms, err := t.getDeleteMachines()
 	if err != nil {
 		t.OnError(ctx, cluster, err)
@@ -56,16 +56,16 @@ func (t *ClusterDeleteMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 	}
 }
 
-func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, nil, t.UserCred, true)
 }
 
-func (t *ClusterDeleteMachinesTask) OnDeleteMachinesFailed(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+func (t *ClusterDeleteMachinesTask) OnDeleteMachinesFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.OnError(ctx, cluster, fmt.Errorf(data.String()))
 }
 
-func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *clusters.SCluster, err error) {
+func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err error) {
 	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, err.Error(), t.UserCred, false)

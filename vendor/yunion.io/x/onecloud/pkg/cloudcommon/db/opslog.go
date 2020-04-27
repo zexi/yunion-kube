@@ -72,6 +72,10 @@ const (
 	ACT_STOP      = "stop"
 	ACT_STOP_FAIL = "stop_fail"
 
+	ACT_RESUMING    = "resuming"
+	ACT_RESUME      = "resume"
+	ACT_RESUME_FAIL = "resume_fail"
+
 	ACT_RESIZING    = "resizing"
 	ACT_RESIZE      = "resize"
 	ACT_RESIZE_FAIL = "resize_fail"
@@ -202,6 +206,7 @@ const (
 
 	ACT_SYNC_CLOUD_DISK          = "sync_cloud_disk"
 	ACT_SYNC_CLOUD_SERVER        = "sync_cloud_server"
+	ACT_SYNC_CLOUD_SKUS          = "sync_cloud_skus"
 	ACT_SYNC_CLOUD_EIP           = "sync_cloud_eip"
 	ACT_SYNC_CLOUD_PROJECT       = "sync_cloud_project"
 	ACT_SYNC_CLOUD_ELASTIC_CACHE = "sync_cloud_elastic_cache"
@@ -222,6 +227,8 @@ const (
 	ACT_GUEST_DETACH_ISOLATED_DEVICE_FAIL = "guest_detach_isolated_deivce_fail"
 	ACT_GUEST_SAVE_GUEST_IMAGE            = "guest_save_guest_image"
 	ACT_GUEST_SAVE_GUEST_IMAGE_FAIL       = "guest_save_guest_image_fail"
+
+	ACT_GUEST_SRC_CHECK = "guest_src_check"
 
 	ACT_CHANGE_BANDWIDTH = "eip_change_bandwidth"
 
@@ -624,7 +631,7 @@ func (manager *SOpsLogManager) ResourceScope() rbacutils.TRbacScope {
 func (manager *SOpsLogManager) GetPagingConfig() *SPagingConfig {
 	return &SPagingConfig{
 		Order:        sqlchemy.SQL_ORDER_DESC,
-		MarkerField:  "id",
+		MarkerFields: []string{"id"},
 		DefaultLimit: 20,
 	}
 }

@@ -34,3 +34,5 @@ bin
 .ropeproject
 
 management-state/
+static
+pkg/generated

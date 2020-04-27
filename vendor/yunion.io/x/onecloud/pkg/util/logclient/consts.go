@@ -91,6 +91,7 @@ const (
 	ACT_VM_REBUILD                   = "重装系统"
 	ACT_VM_RESET_PSWD                = "重置密码"
 	ACT_VM_CHANGE_BANDWIDTH          = "调整带宽"
+	ACT_VM_SRC_CHECK                 = "调整源IP、MAC地址检查"
 	ACT_VM_START                     = "开机"
 	ACT_VM_STOP                      = "关机"
 	ACT_VM_RESTART                   = "重启"
@@ -127,6 +128,8 @@ const (
 	ACT_VM_RESET                     = "虚拟机回滚快照"
 	ACT_VM_SNAPSHOT_AND_CLONE        = "虚拟机快照并克隆"
 	ACT_VM_BLOCK_STREAM              = "同步数据"
+
+	ACT_CACHED_IMAGE = "缓存镜像"
 
 	ACT_REBOOT        = "重启"
 	ACT_CHANGE_CONFIG = "调整配置"
