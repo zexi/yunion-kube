@@ -3,6 +3,8 @@ package machines
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/models"
+
 	//"strings"
 
 	//"k8s.io/apimachinery/pkg/api/errors"
@@ -14,8 +16,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
@@ -39,11 +39,11 @@ func (d *sClusterAPIBaseDriver) UseClusterAPI() bool {
 	return true
 }
 
-func (d *sClusterAPIBaseDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
+func (d *sClusterAPIBaseDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machine *models.SMachine, data *jsonutils.JSONDict) error {
 	return nil
 }
 
-func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters.SCluster, machine *machines.SMachine) userdata.BaseConfigure {
+func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *models.SCluster, machine *models.SMachine) userdata.BaseConfigure {
 	o := options.Options
 	schedulerUrl, err := session.GetServiceURL("scheduler", "internalURL")
 	if err != nil {
@@ -66,7 +66,7 @@ func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *clusters
 	}
 }
 
-func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, machine *machines.SMachine, data *apis.MachinePrepareInput) (string, error) {
+func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, machine *models.SMachine, data *apis.MachinePrepareInput) (string, error) {
 	var userData string
 	var err error
 
@@ -147,6 +147,6 @@ func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, mac
 	return userData, nil
 }
 
-func (d *sClusterAPIBaseDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine) error {
+func (d *sClusterAPIBaseDriver) ValidateDeleteCondition(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machine *models.SMachine) error {
 	return cluster.GetDriver().ValidateDeleteMachines(ctx, userCred, cluster, []manager.IMachine{machine})
 }

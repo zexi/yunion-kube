@@ -20,8 +20,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/options"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
@@ -41,7 +39,7 @@ func NewYunionVMDriver() *SYunionVMDriver {
 }
 
 func init() {
-	clusters.RegisterClusterDriver(NewYunionVMDriver())
+	models.RegisterClusterDriver(NewYunionVMDriver())
 }
 
 func (d *SYunionVMDriver) GetMode() apis.ModeType {
@@ -62,7 +60,7 @@ func (d *SYunionVMDriver) GetK8sVersions() []string {
 	}
 }
 
-func getClusterMachineIndexs(cluster *clusters.SCluster, role string, count int) ([]int, error) {
+func getClusterMachineIndexs(cluster *models.SCluster, role string, count int) ([]int, error) {
 	if count == 0 {
 		return nil, nil
 	}
@@ -139,7 +137,7 @@ func (d *SYunionVMDriver) findImage(session *mcclient.ClientSession) (string, er
 func (d *SYunionVMDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	cluster *clusters.SCluster,
+	cluster *models.SCluster,
 	imageRepo *apis.ImageRepository,
 	data []*apis.CreateMachineData,
 ) error {
@@ -155,7 +153,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 			return errors.New("VmNamePrefix not in context")
 		}
 		namePrefix = ret.(string)
-		imageRepo = clusters.ClusterManager.GetImageRepository(imageRepo)
+		imageRepo = models.ClusterManager.GetImageRepository(imageRepo)
 	} else {
 		namePrefix = cluster.GetName()
 		imageRepo, err = cluster.GetImageRepository()
@@ -164,7 +162,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 		}
 	}
 
-	session, err := clusters.ClusterManager.GetSession()
+	session, err := models.ClusterManager.GetSession()
 	if err != nil {
 		return err
 	}
@@ -276,7 +274,7 @@ func (d *SYunionVMDriver) applyMachineCreateConfig(m *apis.CreateMachineData, im
 }
 
 func (d *SYunionVMDriver) validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis.CreateMachineData) error {
-	if err := machines.ValidateRole(m.Role); err != nil {
+	if err := models.ValidateRole(m.Role); err != nil {
 		return err
 	}
 	if m.ResourceType != apis.MachineResourceTypeVm {
@@ -296,7 +294,7 @@ func (d *SYunionVMDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.
 	return nil, httperrors.NewInputParameterError("Can't get UsableInstances")
 }
 
-func (d *SYunionVMDriver) GetKubeconfig(cluster *clusters.SCluster) (string, error) {
+func (d *SYunionVMDriver) GetKubeconfig(cluster *models.SCluster) (string, error) {
 	masterMachine, err := cluster.GetRunningControlplaneMachine()
 	if err != nil {
 		return "", err
@@ -325,19 +323,19 @@ func (d *SYunionVMDriver) GetKubeconfig(cluster *clusters.SCluster) (string, err
 	return out, err
 }
 
-func (d *SYunionVMDriver) CreateClusterResource(man *clusters.SClusterManager, data *apis.ClusterCreateInput) error {
+func (d *SYunionVMDriver) CreateClusterResource(man *models.SClusterManager, data *apis.ClusterCreateInput) error {
 	return d.sClusterAPIDriver.CreateClusterResource(man, data)
 }
 
-func (d *SYunionVMDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SYunionVMDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 
-func (d *SYunionVMDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+func (d *SYunionVMDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine, task taskman.ITask) error {
 	return d.sClusterAPIDriver.RequestDeployMachines(d, ctx, userCred, cluster, ms, task)
 }
 
-func (d *SYunionVMDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
+func (d *SYunionVMDriver) GetAddonsManifest(cluster *models.SCluster) (string, error) {
 	commonConf, err := d.GetCommonAddonsConfig(cluster)
 	if err != nil {
 		return "", err

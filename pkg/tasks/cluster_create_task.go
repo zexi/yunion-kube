@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
-
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 func init() {
@@ -21,7 +20,7 @@ type ClusterCreateTask struct {
 	taskman.STask
 }
 
-func (t *ClusterCreateTask) getMachines(cluster *clusters.SCluster) ([]*apis.CreateMachineData, error) {
+func (t *ClusterCreateTask) getMachines(cluster *models.SCluster) ([]*apis.CreateMachineData, error) {
 	if !cluster.GetDriver().NeedCreateMachines() {
 		return nil, nil
 	}
@@ -40,7 +39,7 @@ func (t *ClusterCreateTask) getMachines(cluster *clusters.SCluster) ([]*apis.Cre
 }
 
 func (t *ClusterCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	machines, err := t.getMachines(cluster)
 	if err != nil {
 		t.onError(ctx, obj, err)
@@ -63,7 +62,7 @@ func (t *ClusterCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 	t.CreateMachines(ctx, cluster)
 }
 
-func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *clusters.SCluster) {
+func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *models.SCluster) {
 	machines, err := t.getMachines(cluster)
 	if err != nil {
 		t.onError(ctx, cluster, err)
@@ -73,7 +72,7 @@ func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *cluster
 	cluster.StartCreateMachinesTask(ctx, t.GetUserCred(), machines, t.GetTaskId())
 }
 
-func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *clusters.SCluster, data jsonutils.JSONObject) {
+func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.SetStage("OnApplyAddonsComplete", nil)
 	cluster.StartApplyAddonsTask(ctx, t.GetUserCred(), t.GetParams(), t.GetTaskId())
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterAddMachine, nil, t.UserCred, true)
@@ -84,7 +83,7 @@ func (t *ClusterCreateTask) OnMachinesCreatedFailed(ctx context.Context, obj db.
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	t.SetStage("OnSyncStatus", nil)
 	cluster.StartSyncStatus(ctx, t.UserCred, t.GetTaskId())
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, nil, t.UserCred, true)
@@ -108,7 +107,7 @@ func (t *ClusterCreateTask) onError(ctx context.Context, cluster db.IStandaloneM
 }
 
 func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, apis.ClusterStatusCreateFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterCreate, reason, t.UserCred, false)

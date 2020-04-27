@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
 
 	"yunion.io/x/jsonutils"
@@ -19,7 +20,6 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 type IK8sModelDispatchHandler interface {
@@ -163,7 +163,7 @@ func (d K8sModelDispatcher) getCluster(query, data *jsonutils.JSONDict, userCred
 	if clusterId == "" {
 		return nil, httperrors.NewMissingParameterError("cluster")
 	}
-	cluster, err := clusters.ClusterManager.FetchClusterByIdOrName(userCred, clusterId)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred, clusterId)
 	if err != nil {
 		return nil, err
 	}

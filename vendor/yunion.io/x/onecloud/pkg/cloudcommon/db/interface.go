@@ -34,6 +34,7 @@ type IModelManager interface {
 	lockman.ILockedClass
 	object.IObject
 
+	IsStandaloneManager() bool
 	GetContextManagers() [][]IModelManager
 
 	GetIModelManager() IModelManager
@@ -52,7 +53,8 @@ type IModelManager interface {
 	// list hooks
 	AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool
 	ValidateListConditions(ctx context.Context, userCred mcclient.TokenCredential, query *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
-	ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error)
+	// ListItemFilter dynamic called by dispatcher
+	// ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error)
 	CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*CustomizeListFilters, error)
 	ExtraSearchConditions(ctx context.Context, q *sqlchemy.SQuery, like string) []sqlchemy.ICondition
 	GetExportExtraKeys(ctx context.Context, query jsonutils.JSONObject, rowMap map[string]string) *jsonutils.JSONDict
@@ -80,10 +82,13 @@ type IModelManager interface {
 	// create hooks
 	AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool
 	BatchCreateValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
-	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
-	OnCreateComplete(ctx context.Context, items []IModel, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject)
+	// ValidateCreateData dynamic called by dispatcher
+	// ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
+	OnCreateComplete(ctx context.Context, items []IModel, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject)
 	BatchPreValidate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider,
-		query jsonutils.JSONObject, data *jsonutils.JSONDict, count int) (func(), error)
+		query jsonutils.JSONObject, data *jsonutils.JSONDict, count int) error
+
+	OnCreateFailed(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error
 
 	// allow perform action
 	AllowPerformAction(ctx context.Context, userCred mcclient.TokenCredential, action string, query jsonutils.JSONObject, data jsonutils.JSONObject) bool
@@ -139,7 +144,8 @@ type IModel interface {
 
 	// get hooks
 	AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool
-	GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error)
+	// GetExtraDetails dynamic call by model dispatcher
+	// GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error)
 	GetExtraDetailsHeaders(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) map[string]string
 
 	// create hooks
@@ -154,7 +160,7 @@ type IModel interface {
 	ValidateUpdateCondition(ctx context.Context) error
 
 	AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool
-	ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
+	// ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error)
 	PreUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject)
 	PostUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject)
 
@@ -163,7 +169,7 @@ type IModel interface {
 	// delete hooks
 	AllowDeleteItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool
 	ValidateDeleteCondition(ctx context.Context) error
-	CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error
+	// CustomizeDelete(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) error
 	PreDelete(ctx context.Context, userCred mcclient.TokenCredential)
 	MarkDelete() error
 	Delete(ctx context.Context, userCred mcclient.TokenCredential) error
@@ -179,6 +185,8 @@ type IModel interface {
 	CustomizedGetDetailsBody(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error)
 	MarkDeletePreventionOn()
 	MarkDeletePreventionOff()
+
+	GetUsages() []IUsage
 }
 
 type IResourceModelManager interface {
@@ -246,12 +254,23 @@ type IStandaloneModel interface {
 
 	GetIStandaloneModel() IStandaloneModel
 	ClearSchedDescCache() error
+
+	GetMetadata(key string, userCred mcclient.TokenCredential) string
+	GetMetadataJson(key string, userCred mcclient.TokenCredential) jsonutils.JSONObject
+	SetMetadata(ctx context.Context, key string, value interface{}, userCred mcclient.TokenCredential) error
+	SetAllMetadata(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error
+	SetUserMetadataValues(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error
+	SetUserMetadataAll(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error
+	SetCloudMetadataAll(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error
+	RemoveMetadata(ctx context.Context, key string, userCred mcclient.TokenCredential) error
+	RemoveAllMetadata(ctx context.Context, userCred mcclient.TokenCredential) error
+	GetAllMetadata(userCred mcclient.TokenCredential) (map[string]string, error)
 }
 
 type IMetadataModel interface {
 	IStandaloneModel
 
-	GetAllMetadata(userCred mcclient.TokenCredential) (map[string]string, error)
+	// GetAllMetadata(userCred mcclient.TokenCredential) (map[string]string, error)
 	GetMetadataHideKeys() []string
 }
 

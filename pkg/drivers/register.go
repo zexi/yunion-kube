@@ -55,7 +55,7 @@ func (m *DriverManager) GetDrivers() map[string]interface{} {
 	ret := make(map[string]interface{})
 	m.Range(func(key, value interface{}) bool {
 		ret[key.(string)] = value
-		return false
+		return true
 	})
 	return ret
 }
