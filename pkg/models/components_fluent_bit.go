@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
@@ -119,7 +118,6 @@ func (c componentDriverFluentBit) GetCreateSettings(input *apis.ComponentCreateI
 	if input.ComponentSettings.Namespace == "" {
 		input.ComponentSettings.Namespace = MonitorNamespace
 	}
-	log.Errorf("===create settings: %s", input.JSON(input))
 	return &input.ComponentSettings, nil
 }
 

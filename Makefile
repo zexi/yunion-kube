@@ -42,6 +42,7 @@ build: clean fmt
 
 bundle:
 	./tools/bundle_libraries.sh $(BIN_DIR)/bundles/kube-server $(BIN_DIR)/kube-server
+	./tools/host_find_libraries.sh $(BIN_DIR)/bundles/kube-server
 
 grpc:
 	protoc --proto_path=pkg/agent/localvolume --go_out=plugins=grpc:pkg/agent/localvolume \

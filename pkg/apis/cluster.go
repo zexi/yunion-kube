@@ -36,9 +36,9 @@ const (
 type ProviderType string
 
 const (
-	// system provider type by yunion YKE deploy
+	// system provider type means default v3 supervisor cluster
 	ProviderTypeSystem ProviderType = "system"
-	// default provider type by yunion onecloud
+	// default provider type by onecloud
 	ProviderTypeOnecloud ProviderType = "onecloud"
 	// AWS provider
 	ProviderTypeAws ProviderType = "aws"
