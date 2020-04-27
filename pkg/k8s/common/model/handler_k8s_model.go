@@ -384,7 +384,7 @@ func (h *K8SModelHandler) PerformClassAction(ctx *RequestContext, action string,
 }
 
 func (h *K8SModelHandler) PerformAction(ctx *RequestContext, id, action string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
-	namespace := ctx.GetNamespaceByQuery()
+	namespace := ctx.GetNamespace()
 	model, err := fetchK8SModel(ctx, h.modelManager, namespace, id, query)
 	if err != nil {
 		return nil, err
