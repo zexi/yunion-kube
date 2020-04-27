@@ -3,13 +3,13 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 func init() {
@@ -27,7 +27,10 @@ func (t *ComponentDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneMode
 }
 
 func (t *ComponentDeleteTask) OnUndeployComplete(ctx context.Context, obj *models.SComponent, data jsonutils.JSONObject) {
-	obj.DeleteWithJoint(ctx, t.UserCred)
+	if err := obj.DeleteWithJoint(ctx, t.UserCred); err != nil {
+		t.onError(ctx, obj, err)
+		return
+	}
 	t.SetStageComplete(ctx, nil)
 }
 

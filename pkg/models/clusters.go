@@ -1345,7 +1345,7 @@ func (c *SCluster) EnableComponent(
 	if err != nil {
 		return err
 	}
-	return comp.DoEnable(ctx, userCred, nil, "")
+	return nil
 }
 
 func (c *SCluster) AllowGetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
