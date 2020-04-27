@@ -41,6 +41,10 @@ func (t *ComponentDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneMode
 		return
 	}
 	comp.SetStatus(t.UserCred, apis.ComponentStatusInit, "")
+	if err := comp.DeleteWithJoint(ctx, t.UserCred); err != nil {
+		t.onError(ctx, comp, err)
+		return
+	}
 	t.SetStageComplete(ctx, nil)
 }
 
