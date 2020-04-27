@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -9,7 +10,6 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
@@ -22,7 +22,7 @@ type ClusterSyncstatusTask struct {
 }
 
 func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	mCnt, err := cluster.GetMachinesCount()
 	if err != nil {
 		t.onError(ctx, cluster, err)
@@ -56,7 +56,7 @@ func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandal
 }
 
 func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
-	cluster := obj.(*clusters.SCluster)
+	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, apis.ClusterStatusUnknown, "")
 	t.STask.SetStageFailed(ctx, reason)
 }

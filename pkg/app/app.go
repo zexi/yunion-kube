@@ -21,7 +21,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/initial"
 	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/server"
 )
@@ -47,7 +46,6 @@ func Run(ctx context.Context) error {
 	if db.CheckSync(options.Options.AutoSyncTable) {
 		for _, initDBFunc := range []func() error{
 			models.InitDB,
-			clusters.InitDB,
 		} {
 			err := initDBFunc()
 			if err != nil {
@@ -71,7 +69,7 @@ func Run(ctx context.Context) error {
 	initial.InitClient()
 
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
-	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, clusters.ClusterManager.ClusterHealthCheckTask, true)
+	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, models.ClusterManager.ClusterHealthCheckTask, true)
 	cron.Start()
 	defer cron.Stop()
 

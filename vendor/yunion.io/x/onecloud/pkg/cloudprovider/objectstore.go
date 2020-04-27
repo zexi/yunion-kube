@@ -29,6 +29,8 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/s3cli"
+
+	"yunion.io/x/onecloud/pkg/httperrors"
 )
 
 type TBucketACLType string
@@ -266,7 +268,7 @@ func GetIBucketStats(bucket ICloudBucket) (SBucketStats, error) {
 		return stats, errors.Wrap(err, "GetIObjects")
 	}
 	if objs.IsTruncated {
-		return stats, errors.Error("too many objects")
+		return stats, errors.Wrap(httperrors.ErrTooLarge, "too many objects")
 	}
 	for _, obj := range objs.Objects {
 		stats.SizeBytes += obj.GetSizeBytes()

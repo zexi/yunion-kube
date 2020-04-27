@@ -21,6 +21,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -85,6 +86,12 @@ type ICloudProviderFactory interface {
 	NeedSyncSkuFromCloud() bool
 
 	IsSupportObjectStorage() bool
+	IsSupportComputeEngine() bool
+	IsSupportNetworkManage() bool
+
+	IsCloudeventRegional() bool
+	GetMaxCloudEventSyncDays() int
+	GetMaxCloudEventKeepDays() int
 }
 
 type ICloudProvider interface {
@@ -109,6 +116,32 @@ type ICloudProvider interface {
 	GetCloudRegionExternalIdPrefix() string
 
 	GetStorageClasses(regionId string) []string
+
+	GetCapabilities() []string
+}
+
+func IsSupportProject(prod ICloudProvider) bool {
+	return utils.IsInStringArray(CLOUD_CAPABILITY_PROJECT, prod.GetCapabilities())
+}
+
+func IsSupportCompute(prod ICloudProvider) bool {
+	return utils.IsInStringArray(CLOUD_CAPABILITY_COMPUTE, prod.GetCapabilities())
+}
+
+func IsSupportLoadbalancer(prod ICloudProvider) bool {
+	return utils.IsInStringArray(CLOUD_CAPABILITY_LOADBALANCER, prod.GetCapabilities())
+}
+
+func IsSupportObjectstore(prod ICloudProvider) bool {
+	return utils.IsInStringArray(CLOUD_CAPABILITY_OBJECTSTORE, prod.GetCapabilities())
+}
+
+func IsSupportRds(prod ICloudProvider) bool {
+	return utils.IsInStringArray(CLOUD_CAPABILITY_RDS, prod.GetCapabilities())
+}
+
+func IsSupportElasticCache(prod ICloudProvider) bool {
+	return utils.IsInStringArray(CLOUD_CAPABILITY_CACHE, prod.GetCapabilities())
 }
 
 var providerTable map[string]ICloudProviderFactory
@@ -241,6 +274,18 @@ func (factory *baseProviderFactory) IsOnPremise() bool {
 	return false
 }
 
+func (factory *baseProviderFactory) IsCloudeventRegional() bool {
+	return false
+}
+
+func (factory *baseProviderFactory) GetMaxCloudEventSyncDays() int {
+	return 7
+}
+
+func (factory *baseProviderFactory) GetMaxCloudEventKeepDays() int {
+	return 7
+}
+
 type SPremiseBaseProviderFactory struct {
 	baseProviderFactory
 }
@@ -265,6 +310,14 @@ func (factory *SPremiseBaseProviderFactory) NeedSyncSkuFromCloud() bool {
 	return false
 }
 
+func (factory *SPremiseBaseProviderFactory) IsSupportComputeEngine() bool {
+	return true
+}
+
+func (factory *SPremiseBaseProviderFactory) IsSupportNetworkManage() bool {
+	return false
+}
+
 type SPublicCloudBaseProviderFactor struct {
 	baseProviderFactory
 }
@@ -285,6 +338,14 @@ func (factory *SPublicCloudBaseProviderFactor) NeedSyncSkuFromCloud() bool {
 	return false
 }
 
+func (factory *SPublicCloudBaseProviderFactor) IsSupportComputeEngine() bool {
+	return true
+}
+
+func (factory *SPublicCloudBaseProviderFactor) IsSupportNetworkManage() bool {
+	return true
+}
+
 type SPrivateCloudBaseProviderFactor struct {
 	baseProviderFactory
 }
@@ -302,5 +363,13 @@ func (factory *SPrivateCloudBaseProviderFactor) IsSupportObjectStorage() bool {
 }
 
 func (factory *SPrivateCloudBaseProviderFactor) NeedSyncSkuFromCloud() bool {
+	return true
+}
+
+func (factory *SPrivateCloudBaseProviderFactor) IsSupportComputeEngine() bool {
+	return true
+}
+
+func (factory *SPrivateCloudBaseProviderFactor) IsSupportNetworkManage() bool {
 	return true
 }

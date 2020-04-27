@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/ceph"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -12,7 +13,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/k8smodels"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 )
 
 const (
@@ -77,7 +77,7 @@ func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *apis.Stora
 		return nil, err
 	}
 
-	cluster := ctx.Cluster().GetClusterObject().(*clusters.SCluster)
+	cluster := ctx.Cluster().GetClusterObject().(*models.SCluster)
 	// check clusterId
 	component, err := cluster.GetComponentByType(apis.ClusterComponentCephCSI)
 	if err != nil {

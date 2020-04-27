@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"github.com/pkg/errors"
 	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
@@ -17,8 +18,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/kubeadm"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
@@ -37,7 +36,7 @@ func NewYunionVMDriver() *SYunionVMDriver {
 
 func init() {
 	driver := NewYunionVMDriver()
-	machines.RegisterMachineDriver(driver)
+	models.RegisterMachineDriver(driver)
 }
 
 func (d *SYunionVMDriver) GetProvider() apis.ProviderType {
@@ -84,23 +83,24 @@ func (d *SYunionVMDriver) validateConfig(s *mcclient.ClientSession, config *apis
 	return nil
 }
 
-func (d *SYunionVMDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, machine *machines.SMachine, data *jsonutils.JSONDict) error {
+func (d *SYunionVMDriver) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machine *models.SMachine, data *jsonutils.JSONDict) error {
 	return d.sClusterAPIBaseDriver.PostCreate(ctx, userCred, cluster, machine, data)
 }
 
-func (d *SYunionVMDriver) getServerCreateInput(machine *machines.SMachine, prepareInput *apis.MachinePrepareInput) (*api.ServerCreateInput, error) {
-	tmp := false
+func (d *SYunionVMDriver) getServerCreateInput(machine *models.SMachine, prepareInput *apis.MachinePrepareInput) (*api.ServerCreateInput, error) {
+	tmpFalse := false
+	tmpTrue := true
 	config := prepareInput.Config.Vm
 	input := &api.ServerCreateInput{
 		ServerConfigs: new(api.ServerConfigs),
-		Name:          machine.Name,
-		IsSystem:      true,
 		VmemSize:      config.VmemSize,
 		VcpuCount:     config.VcpuCount,
 		AutoStart:     true,
-		DisableDelete: &tmp,
 		//EnableCloudInit: true,
 	}
+	input.Name = machine.Name
+	input.IsSystem = &tmpTrue
+	input.DisableDelete = &tmpFalse
 	input.Hypervisor = config.Hypervisor
 	input.Disks = config.Disks
 	input.Networks = config.Networks
@@ -146,7 +146,7 @@ func GetDefaultDockerConfig(input *apis.DockerConfig) *apis.DockerConfig {
 	return input
 }
 
-func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data *apis.MachinePrepareInput, ip string) (string, error) {
+func (d *SYunionVMDriver) GetMachineInitScript(machine *models.SMachine, data *apis.MachinePrepareInput, ip string) (string, error) {
 	var initScript string
 	var err error
 
@@ -265,7 +265,7 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *machines.SMachine, data 
 
 func (d *SYunionVMDriver) PrepareResource(
 	session *mcclient.ClientSession,
-	machine *machines.SMachine,
+	machine *models.SMachine,
 	data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	// 1. create vm
 	// 2. wait vm running
@@ -360,7 +360,7 @@ func (d *SYunionVMDriver) RemoteRunCmd(s *mcclient.ClientSession, srvId string, 
 	return ssh.RemoteSSHCommand(loginInfo.Ip, 22, loginInfo.Username, loginInfo.Password, loginInfo.PrivateKey, cmd)
 }
 
-func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, machine *machines.SMachine) error {
+func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, machine *models.SMachine) error {
 	srvId := machine.ResourceId
 	if len(srvId) == 0 {
 		//return errors.Errorf("Machine resource id is empty")

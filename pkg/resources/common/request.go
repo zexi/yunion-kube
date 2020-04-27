@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,14 +19,13 @@ import (
 	yclient "yunion.io/x/yunion-kube/pkg/client"
 	clientapi "yunion.io/x/yunion-kube/pkg/client/api"
 	"yunion.io/x/yunion-kube/pkg/helm"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 	"yunion.io/x/yunion-kube/pkg/types"
 	api "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type Request struct {
-	Cluster         *clusters.SCluster
+	Cluster         *models.SCluster
 	ClusterManager  *yclient.ClusterManager
 	K8sClient       client.Interface
 	K8sAdminClient  client.Interface
@@ -100,7 +100,7 @@ func (r *Request) GetK8sAdminClient() client.Interface {
 	return r.K8sAdminClient
 }
 
-func (r *Request) GetCluster() *clusters.SCluster {
+func (r *Request) GetCluster() *models.SCluster {
 	return r.Cluster
 }
 

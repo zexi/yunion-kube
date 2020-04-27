@@ -59,6 +59,9 @@ const (
 	VM_SUSPEND        = "suspend"
 	VM_SUSPEND_FAILED = "suspend_failed"
 
+	VM_RESUMING      = "resuming"
+	VM_RESUME_FAILED = "resume_failed"
+
 	VM_START_DELETE = "start_delete"
 	VM_DELETE_FAIL  = "delete_fail"
 	VM_DELETING     = "deleting"
@@ -140,9 +143,16 @@ const (
 	HYPERVISOR_OPENSTACK = "openstack"
 	HYPERVISOR_UCLOUD    = "ucloud"
 	HYPERVISOR_ZSTACK    = "zstack"
+	HYPERVISOR_GOOGLE    = "google"
+	HYPERVISOR_CTYUN     = "ctyun"
 
 	//	HYPERVISOR_DEFAULT = HYPERVISOR_KVM
 	HYPERVISOR_DEFAULT = HYPERVISOR_KVM
+)
+
+const (
+	CPU_MODE_QEMU = "qemu"
+	CPU_MODE_HOST = "host"
 )
 
 var VM_RUNNING_STATUS = []string{VM_START_START, VM_STARTING, VM_RUNNING, VM_BLOCK_STREAM}
@@ -161,6 +171,8 @@ var HYPERVISORS = []string{
 	HYPERVISOR_OPENSTACK,
 	HYPERVISOR_UCLOUD,
 	HYPERVISOR_ZSTACK,
+	HYPERVISOR_GOOGLE,
+	HYPERVISOR_CTYUN,
 }
 
 var ONECLOUD_HYPERVISORS = []string{
@@ -176,6 +188,8 @@ var PUBLIC_CLOUD_HYPERVISORS = []string{
 	HYPERVISOR_QCLOUD,
 	HYPERVISOR_HUAWEI,
 	HYPERVISOR_UCLOUD,
+	HYPERVISOR_GOOGLE,
+	HYPERVISOR_CTYUN,
 }
 
 var PRIVATE_CLOUD_HYPERVISORS = []string{
@@ -198,6 +212,8 @@ var HYPERVISOR_HOSTTYPE = map[string]string{
 	HYPERVISOR_OPENSTACK: HOST_TYPE_OPENSTACK,
 	HYPERVISOR_UCLOUD:    HOST_TYPE_UCLOUD,
 	HYPERVISOR_ZSTACK:    HOST_TYPE_ZSTACK,
+	HYPERVISOR_GOOGLE:    HOST_TYPE_GOOGLE,
+	HYPERVISOR_CTYUN:     HOST_TYPE_CTYUN,
 }
 
 var HOSTTYPE_HYPERVISOR = map[string]string{
@@ -213,6 +229,8 @@ var HOSTTYPE_HYPERVISOR = map[string]string{
 	HOST_TYPE_OPENSTACK:  HYPERVISOR_OPENSTACK,
 	HOST_TYPE_UCLOUD:     HYPERVISOR_UCLOUD,
 	HOST_TYPE_ZSTACK:     HYPERVISOR_ZSTACK,
+	HOST_TYPE_GOOGLE:     HYPERVISOR_GOOGLE,
+	HOST_TYPE_CTYUN:      HYPERVISOR_CTYUN,
 }
 
 const (
@@ -231,3 +249,11 @@ const (
 	VM_METADATA_OS_NAME             = "os_name"
 	VM_METADATA_OS_VERSION          = "os_version"
 )
+
+func Hypervisors2HostTypes(hypervisors []string) []string {
+	hostTypes := make([]string, len(hypervisors))
+	for i := range hypervisors {
+		hostTypes[i] = HYPERVISOR_HOSTTYPE[hypervisors[i]]
+	}
+	return hostTypes
+}

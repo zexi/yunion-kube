@@ -22,8 +22,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/utils/etcd"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
@@ -35,14 +33,14 @@ type SYunionHostDriver struct {
 	*sClusterAPIDriver
 }
 
-func NewYunionHostDriver() clusters.IClusterDriver {
+func NewYunionHostDriver() models.IClusterDriver {
 	return &SYunionHostDriver{
 		sClusterAPIDriver: newClusterAPIDriver(apis.ModeTypeSelfBuild, apis.ProviderTypeOnecloud, apis.ClusterResourceTypeHost),
 	}
 }
 
 func init() {
-	clusters.RegisterClusterDriver(NewYunionHostDriver())
+	models.RegisterClusterDriver(NewYunionHostDriver())
 }
 
 func (d *SYunionHostDriver) GetK8sVersions() []string {
@@ -76,7 +74,7 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]apis.UsableInstance, erro
 			continue
 		}
 		name, _ := host.GetString("name")
-		machine, err := machines.MachineManager.GetMachineByResourceId(id)
+		machine, err := models.MachineManager.GetMachineByResourceId(id)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +94,7 @@ func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]api
 	return GetUsableCloudHosts(s)
 }
 
-func (d *SYunionHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, error) {
+func (d *SYunionHostDriver) GetKubeconfig(cluster *models.SCluster) (string, error) {
 	masterMachine, err := cluster.GetRunningControlplaneMachine()
 	if err != nil {
 		return "", err
@@ -120,7 +118,7 @@ func (d *SYunionHostDriver) GetKubeconfig(cluster *clusters.SCluster) (string, e
 func (d *SYunionHostDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	cluster *clusters.SCluster,
+	cluster *models.SCluster,
 	repo *apis.ImageRepository,
 	data []*apis.CreateMachineData) error {
 	if _, _, err := d.sClusterAPIDriver.ValidateCreateMachines(ctx, userCred, cluster, data); err != nil {
@@ -129,15 +127,15 @@ func (d *SYunionHostDriver) ValidateCreateMachines(
 	return yunion_host.ValidateCreateMachines(data)
 }
 
-func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 
-func (d *SYunionHostDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+func (d *SYunionHostDriver) RequestDeployMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine, task taskman.ITask) error {
 	return d.sClusterAPIDriver.RequestDeployMachines(d, ctx, userCred, cluster, ms, task)
 }
 
-func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
+func (d *SYunionHostDriver) GetAddonsManifest(cluster *models.SCluster) (string, error) {
 	commonConf, err := d.GetCommonAddonsConfig(cluster)
 	if err != nil {
 		return "", err
@@ -157,7 +155,7 @@ func (d *SYunionHostDriver) GetAddonsManifest(cluster *clusters.SCluster) (strin
 	return pluginConf.GenerateYAML()
 }
 
-func (d *SYunionHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) ([]string, error) {
+func (d *SYunionHostDriver) GetClusterEtcdEndpoints(cluster *models.SCluster) ([]string, error) {
 	ms, err := cluster.GetControlplaneMachines()
 	if err != nil {
 		return nil, err
@@ -173,7 +171,7 @@ func (d *SYunionHostDriver) GetClusterEtcdEndpoints(cluster *clusters.SCluster) 
 	return endpoints, nil
 }
 
-func (d *SYunionHostDriver) GetClusterEtcdClient(cluster *clusters.SCluster) (*etcd.Client, error) {
+func (d *SYunionHostDriver) GetClusterEtcdClient(cluster *models.SCluster) (*etcd.Client, error) {
 	//spec, err := d.GetClusterAPIClusterSpec(cluster)
 	//if err != nil {
 	//return nil, err
@@ -246,7 +244,7 @@ func (d *SYunionHostDriver) updateKubeadmClusterStatus(cli clientset.Interface, 
 	return err
 }
 
-func (d *SYunionHostDriver) RemoveEtcdMembers(cluster *clusters.SCluster, ms []manager.IMachine) error {
+func (d *SYunionHostDriver) RemoveEtcdMembers(cluster *models.SCluster, ms []manager.IMachine) error {
 	joinControls := make([]manager.IMachine, 0)
 	for _, m := range ms {
 		if m.IsControlplane() && !m.IsFirstNode() {
@@ -290,7 +288,7 @@ func (d *SYunionHostDriver) RemoveEtcdMembers(cluster *clusters.SCluster, ms []m
 	return nil
 }
 
-func (d *SYunionHostDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+func (d *SYunionHostDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine, task taskman.ITask) error {
 	//if err := d.CleanNodeRecords(cluster, ms); err != nil {
 	//return err
 	//}

@@ -3,6 +3,7 @@ package clusters
 import (
 	"context"
 	"fmt"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	perrors "github.com/pkg/errors"
 	apiv1 "k8s.io/api/core/v1"
@@ -26,8 +27,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
-	"yunion.io/x/yunion-kube/pkg/models/clusters"
-	"yunion.io/x/yunion-kube/pkg/models/machines"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/utils/registry"
@@ -59,10 +58,10 @@ func (d *sClusterAPIDriver) ValidateCreateData(ctx context.Context, userCred mcc
 }
 
 func (d *sClusterAPIDriver) CreateMachines(
-	drv clusters.IClusterDriver,
+	drv models.IClusterDriver,
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	cluster *clusters.SCluster,
+	cluster *models.SCluster,
 	data []*apis.CreateMachineData,
 ) ([]manager.IMachine, error) {
 	needControlplane, err := cluster.NeedControlplane()
@@ -90,11 +89,11 @@ func (d *sClusterAPIDriver) CreateMachines(
 }
 
 type machineData struct {
-	machine *machines.SMachine
+	machine *models.SMachine
 	data    *jsonutils.JSONDict
 }
 
-func newMachineData(machine *machines.SMachine, input *apis.CreateMachineData) *machineData {
+func newMachineData(machine *models.SMachine, input *apis.CreateMachineData) *machineData {
 	return &machineData{
 		machine: machine,
 		data:    jsonutils.Marshal(input).(*jsonutils.JSONDict),
@@ -107,11 +106,11 @@ func createMachines(ctx context.Context, userCred mcclient.TokenCredential, cont
 	cf := func(data []*apis.CreateMachineData) ([]*machineData, error) {
 		ret := make([]*machineData, 0)
 		for _, m := range data {
-			obj, err := machines.MachineManager.CreateMachineNoHook(ctx, userCred, m)
+			obj, err := models.MachineManager.CreateMachineNoHook(ctx, userCred, m)
 			if err != nil {
 				return nil, err
 			}
-			ret = append(ret, newMachineData(obj.(*machines.SMachine), m))
+			ret = append(ret, newMachineData(obj.(*models.SMachine), m))
 		}
 		return ret, nil
 	}
@@ -138,22 +137,22 @@ func machinesPostCreate(ctx context.Context, userCred mcclient.TokenCredential, 
 }
 
 type IClusterAPIDriver interface {
-	clusters.IClusterDriver
+	models.IClusterDriver
 }
 
 func (d *sClusterAPIDriver) RequestDeployMachines(
-	drv clusters.IClusterDriver,
+	drv models.IClusterDriver,
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	cluster *clusters.SCluster,
+	cluster *models.SCluster,
 	ms []manager.IMachine,
 	task taskman.ITask,
 ) error {
-	var firstCm *machines.SMachine
-	var restMachines []*machines.SMachine
+	var firstCm *models.SMachine
+	var restMachines []*models.SMachine
 	var needControlplane bool
 
-	doPostCreate := func(m *machines.SMachine) {
+	doPostCreate := func(m *models.SMachine) {
 		lockman.LockObject(ctx, m)
 		defer lockman.ReleaseObject(ctx, m)
 		m.PostCreate(ctx, userCred, userCred, nil, jsonutils.NewDict())
@@ -161,10 +160,10 @@ func (d *sClusterAPIDriver) RequestDeployMachines(
 
 	for _, m := range ms {
 		if m.IsFirstNode() {
-			firstCm = m.(*machines.SMachine)
+			firstCm = m.(*models.SMachine)
 			needControlplane = true
 		} else {
-			restMachines = append(restMachines, m.(*machines.SMachine))
+			restMachines = append(restMachines, m.(*models.SMachine))
 		}
 	}
 
@@ -181,7 +180,7 @@ func (d *sClusterAPIDriver) RequestDeployMachines(
 		//}
 		doPostCreate(firstCm)
 		// wait first controlplane machine running
-		if err := machines.WaitMachineRunning(firstCm); err != nil {
+		if err := models.WaitMachineRunning(firstCm); err != nil {
 			return fmt.Errorf("Create first controlplane machine error: %v", err)
 		}
 	}
@@ -194,11 +193,11 @@ func (d *sClusterAPIDriver) RequestDeployMachines(
 	return nil
 }
 
-func (d *sClusterAPIDriver) GetAddonsManifest(cluster *clusters.SCluster) (string, error) {
+func (d *sClusterAPIDriver) GetAddonsManifest(cluster *models.SCluster) (string, error) {
 	return "", nil
 }
 
-func (d *sClusterAPIDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine) error {
+func (d *sClusterAPIDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine) error {
 	oldMachines, err := cluster.GetMachines()
 	if err != nil {
 		return err
@@ -219,7 +218,7 @@ func (d *sClusterAPIDriver) getKubeadmConfigmap(cli kubernetes.Interface) (*apiv
 	return configMap, nil
 }
 
-func (d *sClusterAPIDriver) GetKubeadmClusterStatus(cluster *clusters.SCluster) (*kubeadmapi.ClusterStatus, error) {
+func (d *sClusterAPIDriver) GetKubeadmClusterStatus(cluster *models.SCluster) (*kubeadmapi.ClusterStatus, error) {
 	log.Infof("Reading clusterstatus from cluster: %s", cluster.GetName())
 	cli, err := cluster.GetK8sClient()
 	if err != nil {
@@ -244,17 +243,17 @@ func (d *sClusterAPIDriver) unmarshalClusterStatus(data map[string]string) (*kub
 	return clusterStatus, nil
 }
 
-func (d *sClusterAPIDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *clusters.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+func (d *sClusterAPIDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine, task taskman.ITask) error {
 	items := make([]db.IStandaloneModel, 0)
 	for _, m := range ms {
 		items = append(items, m.(db.IStandaloneModel))
 	}
-	return machines.MachineManager.StartMachineBatchDeleteTask(ctx, userCred, items, nil, task.GetTaskId())
+	return models.MachineManager.StartMachineBatchDeleteTask(ctx, userCred, items, nil, task.GetTaskId())
 }
 
-func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *clusters.SCluster) (addons.YunionAuthConfig, error) {
+func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *models.SCluster) (addons.YunionAuthConfig, error) {
 	o := options.Options
-	s, _ := clusters.ClusterManager.GetSession()
+	s, _ := models.ClusterManager.GetSession()
 	authConfig := addons.YunionAuthConfig{
 		AuthUrl:       o.AuthURL,
 		AdminUser:     o.AdminUser,
@@ -283,7 +282,7 @@ func (d *sClusterAPIDriver) GetAddonYunionAuthConfig(cluster *clusters.SCluster)
 	return authConfig, nil
 }
 
-func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *clusters.SCluster) (*addons.YunionCommonPluginsConfig, error) {
+func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *models.SCluster) (*addons.YunionCommonPluginsConfig, error) {
 	authConfig, err := d.GetAddonYunionAuthConfig(cluster)
 	if err != nil {
 		return nil, err

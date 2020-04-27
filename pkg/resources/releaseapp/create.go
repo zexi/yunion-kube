@@ -60,5 +60,5 @@ func (man *SReleaseAppManager) Create(req *common.Request) (interface{}, error) 
 	if err != nil {
 		return nil, err
 	}
-	return release.ReleaseCreate(cli.Release().Install(), createOpt.ToData())
+	return release.ReleaseCreate(cli.Release(), createOpt.ToData())
 }

@@ -53,6 +53,9 @@ type ServerConfig struct {
 	GuestStatus string `json:"guest_status"`
 	Cdrom       string `json:"cdrom"`
 
+	Project string `json:"project_id"`
+	Domain  string `json:"domain_id"`
+
 	// DEPRECATED
 	Metadata       map[string]string `json:"__meta__"`
 	ForGuests      []*ForGuest       `json:"for_guests"`
@@ -74,6 +77,9 @@ type ScheduleInput struct {
 	LiveMigrate  bool   `json:"live_migrate"`
 	CpuDesc      string `json:"cpu_desc"`
 	CpuMicrocode string `json:"cpu_microcode"`
+	CpuMode      string `json:"cpu_mode"`
+
+	PendingUsages []jsonutils.JSONObject
 }
 
 func (input ScheduleInput) ToConditionInput() *jsonutils.JSONDict {
