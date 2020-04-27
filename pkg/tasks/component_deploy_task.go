@@ -46,6 +46,10 @@ func (t *ComponentDeployTask) OnInit(ctx context.Context, obj db.IStandaloneMode
 
 func (t *ComponentDeployTask) OnDeployComplete(ctx context.Context, obj *models.SComponent, data jsonutils.JSONObject) {
 	obj.SetStatus(t.UserCred, apis.ComponentStatusDeployed, "")
+	if err := obj.DeleteWithJoint(ctx, t.UserCred); err != nil {
+		t.onError(ctx, obj, err)
+		return
+	}
 	t.SetStageComplete(ctx, nil)
 }
 

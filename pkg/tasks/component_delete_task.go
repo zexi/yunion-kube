@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
@@ -21,27 +22,17 @@ type ComponentDeleteTask struct {
 
 func (t *ComponentDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	comp := obj.(*models.SComponent)
-	cluster, err := comp.GetCluster()
-	if err != nil {
-		t.onError(ctx, comp, err)
-		return
-	}
-	drv, err := comp.GetDriver()
-	if err != nil {
-		t.onError(ctx, comp, err)
-		return
-	}
-	settings, err := comp.GetSettings()
-	if err != nil {
-		t.onError(ctx, comp, err)
-		return
-	}
-	if err := drv.DoDisable(cluster, settings); err != nil {
-		t.onError(ctx, comp, err)
-		return
-	}
-	comp.SetStatus(t.UserCred, apis.ComponentStatusInit, "")
+	t.SetStage("OnUndeployComplete", nil)
+	comp.StartComponentUndeployTask(ctx, t.UserCred, data.(*jsonutils.JSONDict), t.GetTaskId())
+}
+
+func (t *ComponentDeleteTask) OnUndeployComplete(ctx context.Context, obj *models.SComponent, data jsonutils.JSONObject) {
+	obj.DeleteWithJoint(ctx, t.UserCred)
 	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ComponentDeleteTask) OnUndeployCompleteFailed(ctx context.Context, obj *models.SComponent, reason jsonutils.JSONObject) {
+	t.onError(ctx, obj, fmt.Errorf("%s", reason))
 }
 
 func (t *ComponentDeleteTask) onError(ctx context.Context, obj *models.SComponent, err error) {

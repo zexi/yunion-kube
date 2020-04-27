@@ -1435,10 +1435,7 @@ func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, err
 	}
-	if err := comp.DoDisable(ctx, userCred, input.JSON(input), ""); err != nil {
-		return nil, err
-	}
-	return nil, comp.DeleteWithJoint(ctx, userCred)
+	return nil, comp.DoDelete(ctx, userCred, input.JSON(input), "")
 }
 
 func (c *SCluster) AllowPerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {

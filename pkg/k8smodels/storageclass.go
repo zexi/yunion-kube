@@ -94,7 +94,7 @@ func (m *SStorageClassManager) ValidateCreateData(
 }
 
 func (m *SStorageClassManager) NewK8SRawObjectForCreate(
-	ctx *model.RequestContext, query *jsonutils.JSONDict, input *apis.StorageClassCreateInput) (
+	ctx *model.RequestContext, input *apis.StorageClassCreateInput) (
 	runtime.Object, error) {
 	drv, err := m.GetDriver(input.Provisioner)
 	if err != nil {

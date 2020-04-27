@@ -13,6 +13,8 @@ const (
 	ComponentStatusDeployFail = "deploy_fail"
 	ComponentStatusDeployed   = "deployed"
 	ComponentStatusDeleting   = "deleting"
+	ComponentStatusUndeploying = "undeploying"
+	ComponentStatusUndeployFail = "undeploy_fail"
 	ComponentStatusDeleteFail = "delete_fail"
 	ComponentStatusUpdating   = "updating"
 	ComponentStatusUpdateFail = "update_fail"
@@ -36,18 +38,29 @@ type ComponentDeleteInput struct {
 }
 
 type ComponentSettings struct {
-	Namespace string                     `json:"namespace"`
-	CephCSI   *ComponentSettingCephCSI   `json:"cephCSI"`
-	Monitor   *ComponentSettingMonitor   `json:"monitor"`
+	Namespace string `json:"namespace"`
+	// Ceph CSI 组件配置
+	CephCSI *ComponentSettingCephCSI `json:"cephCSI"`
+	// Monitor stack 组件配置
+	Monitor *ComponentSettingMonitor `json:"monitor"`
+	// Fluentbit 日志收集 agent 配置
 	FluentBit *ComponentSettingFluentBit `json:"fluentbit"`
 }
 
 type ComponentCephCSIConfigCluster struct {
-	ClsuterId string   `json:"clusterId"`
-	Monitors  []string `json:"monitors"`
+	// 集群 Id
+	// required: true
+	// example: office-ceph-cluster
+	ClsuterId string `json:"clusterId"`
+	// ceph monitor 连接地址, 比如: 192.168.222.12:6239
+	// required: true
+	// example: ["192.168.222.12:6239", "192.168.222.13:6239", "192.168.222.14:6239"]
+	Monitors []string `json:"monitors"`
 }
 
 type ComponentSettingCephCSI struct {
+	// 集群配置
+	// required: true
 	Config []ComponentCephCSIConfigCluster `json:"config"`
 }
 

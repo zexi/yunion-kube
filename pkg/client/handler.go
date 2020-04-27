@@ -78,10 +78,11 @@ func (h *resourceHandler) CreateV2(kind string, namespace string, object runtime
 		return nil, fmt.Errorf("Resource kind (%s) not support yet . ", kind)
 	}
 	kubeClient := h.getClientByGroupVersion(resource.GroupVersionResourceKind.GroupVersionResource)
-	return kubeClient.Post().
-		Resource(kind).
-		Namespace(namespace).
-		VersionedParams(&metav1.CreateOptions{}, metav1.ParameterCodec).
+	req := kubeClient.Post().Resource(kind)
+	if resource.Namespaced {
+		req.Namespace(namespace)
+	}
+	return req.VersionedParams(&metav1.CreateOptions{}, metav1.ParameterCodec).
 		Body(object).
 		Do().
 		Get()
