@@ -353,6 +353,9 @@ func (m *SComponent) DoUpdate(ctx context.Context, userCred mcclient.TokenCreden
 	if !m.Enabled.Bool() {
 		return httperrors.NewBadRequestError("component %s not enabled", m.Type)
 	}
+	if !utils.IsInStringArray(m.Status, []string{apis.ComponentStatusDeployed, apis.ComponentStatusUpdateFail}) {
+		return httperrors.NewBadRequestError("component can't update when status is %s", m.Status)
+	}
 	drv, err := m.GetDriver()
 	if err != nil {
 		return err

@@ -66,10 +66,14 @@ func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *apis.ServiceCreateOpt
 			Ports:    GetServicePortsByMapping(opt.PortMappings),
 		},
 	}
+	if svc.Annotations == nil {
+		svc.Annotations = map[string]string{}
+	}
 	if opt.LoadBalancerNetwork != "" {
-		svc.Annotations = map[string]string{
-			apis.YUNION_LB_NETWORK_ANNOTATION: opt.LoadBalancerNetwork,
-		}
+		svc.Annotations[apis.YUNION_LB_NETWORK_ANNOTATION] = opt.LoadBalancerNetwork
+	}
+	if opt.LoadBalancerCluster != "" {
+		svc.Annotations[apis.YUNION_LB_CLUSTER_ANNOTATION] = opt.LoadBalancerCluster
 	}
 	return svc
 }

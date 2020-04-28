@@ -92,6 +92,7 @@ type ServiceCreateOption struct {
 	IsExternal          bool              `json:"isExternal"`
 	PortMappings        []PortMapping     `json:"portMappings"`
 	Selector            map[string]string `json:"selector"`
+	LoadBalancerCluster string            `json:"loadBalancerCluster"`
 	LoadBalancerNetwork string            `json:"loadBalancerNetwork"`
 }
 
@@ -106,6 +107,7 @@ const (
 	YUNION_CNI_IPADDR_ANNOTATION  = "cni.yunion.io/ip"
 
 	YUNION_LB_NETWORK_ANNOTATION = "loadbalancer.yunion.io/network"
+	YUNION_LB_CLUSTER_ANNOTATION = "loadbalancer.yunion.io/cluster"
 )
 
 type NetworkConfig struct {
