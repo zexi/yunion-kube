@@ -246,8 +246,6 @@ func (d *sClusterAPIDriver) unmarshalClusterStatus(data map[string]string) (*kub
 }
 
 func (d *sClusterAPIDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine, task taskman.ITask) error {
-	// task run twices
-	task.ScheduleRun(nil)
 	items := make([]db.IStandaloneModel, 0)
 	for _, m := range ms {
 		items = append(items, m.(db.IStandaloneModel))

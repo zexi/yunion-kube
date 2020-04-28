@@ -87,7 +87,11 @@ func (m HelmComponentManager) NewHelmClient(cluster *SCluster, namespace string)
 	if err != nil {
 		return nil, err
 	}
-	return helm.NewClient(clusterMan.KubeConfigPath, namespace, true)
+	kubeconfigPath, err := clusterMan.GetKubeConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	return helm.NewClient(kubeconfigPath, namespace, true)
 }
 
 func LoadEmbedChart(chartName string) (*chart.Chart, error) {
