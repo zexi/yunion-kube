@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+
 	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
@@ -25,7 +26,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 	cluster := obj.(*models.SCluster)
 	mCnt, err := cluster.GetMachinesCount()
 	if err != nil {
-		t.onError(ctx, cluster, err)
+		t.onError(ctx, cluster, err.Error())
 		return
 	}
 	if mCnt == 0 && cluster.GetDriver().NeedCreateMachines() {
@@ -34,25 +35,33 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		return
 	}
 
-	k8sCli, err := cluster.GetK8sClient()
-	if err != nil {
-		t.onError(ctx, cluster, err)
-		return
-	}
-	info, err := k8sCli.Discovery().ServerVersion()
-	if err != nil {
-		t.onError(ctx, cluster, err)
-		return
-	}
-	log.Infof("Get %s cluster k8s version: %#v", cluster.GetName(), info)
+	taskman.LocalTaskRun(t, func() (jsonutils.JSONObject, error) {
+		k8sCli, err := cluster.GetK8sClient()
+		if err != nil {
+			return nil, err
+		}
+		info, err := k8sCli.Discovery().ServerVersion()
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("Get %s cluster k8s version: %#v", cluster.GetName(), info)
+		cluster.SetK8sVersion(info.String())
+		return nil, nil
+	})
+}
+
+func (t *ClusterSyncstatusTask) OnSyncStatus(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	cluster.SetStatus(t.UserCred, apis.ClusterStatusRunning, "")
-	cluster.SetK8sVersion(info.String())
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandaloneModel, err error) {
-	t.SetFailed(ctx, cluster, err.Error())
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, err.Error(), t.UserCred, false)
+func (t *ClusterSyncstatusTask) OnSyncStatusFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.onError(ctx, cluster, data.String())
+}
+
+func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandaloneModel, err string) {
+	t.SetFailed(ctx, cluster, err)
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, err, t.UserCred, false)
 }
 
 func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
