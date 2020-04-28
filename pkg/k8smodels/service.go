@@ -44,7 +44,8 @@ func (m SServiceManager) GetK8SResourceInfo() model.K8SResourceInfo {
 func (m SServiceManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
 	input apis.ServiceCreateInput) (runtime.Object, error) {
-	return nil, nil
+	objMeta := input.ToObjectMeta()
+	return GetServiceFromOption(&objMeta, &input.ServiceCreateOption), nil
 }
 
 func (m SServiceManager) GetRawServices(cluster model.ICluster, ns string) ([]*v1.Service, error) {
