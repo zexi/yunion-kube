@@ -32,12 +32,6 @@ func (t *MachineTerminateTask) OnInit(ctx context.Context, obj db.IStandaloneMod
 		t.OnError(ctx, machine, err)
 		return
 	}
-	cluster, err := machine.GetCluster()
-	if err != nil {
-		t.OnError(ctx, machine, err)
-		return
-	}
-	cluster.StartSyncStatus(ctx, t.UserCred, "")
 	t.SetStageComplete(ctx, nil)
 }
 

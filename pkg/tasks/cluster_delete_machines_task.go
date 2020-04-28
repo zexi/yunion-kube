@@ -49,27 +49,32 @@ func (t *ClusterDeleteMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 		t.OnError(ctx, cluster, err.Error())
 		return
 	}
-	t.SetStage("OnDeleteEtcdMembers", nil)
+	t.SetStage("OnDeleteMachines", nil)
 	if err := cluster.GetDriver().RequestDeleteMachines(ctx, t.UserCred, cluster, ms, t); err != nil {
 		t.OnError(ctx, cluster, err.Error())
 		return
 	}
 }
 
-func (t *ClusterDeleteMachinesTask) OnDeleteEtcdMembers(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	t.SetStage("OnDeleteMachines", nil)
-}
-
-func (t *ClusterDeleteMachinesTask) OnDeleteEtcdMembersFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	t.OnError(ctx, cluster, data.String())
-}
-
 func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	t.SetStageComplete(ctx, nil)
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, nil, t.UserCred, true)
+	if cluster.GetStatus() == apis.ClusterStatusDeleting {
+		t.SetStageComplete(ctx, nil)
+		return
+	}
+	t.SetStage("OnSyncStatus", nil)
+	cluster.StartSyncStatus(ctx, t.UserCred, t.GetTaskId())
 }
 
 func (t *ClusterDeleteMachinesTask) OnDeleteMachinesFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.OnError(ctx, cluster, data.String())
+}
+
+func (t *ClusterDeleteMachinesTask) OnSyncStatus(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterDeleteMachinesTask) OnSyncStatusFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.OnError(ctx, cluster, data.String())
 }
 

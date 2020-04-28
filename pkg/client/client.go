@@ -46,8 +46,30 @@ type ClusterManager struct {
 	APIServer  string
 	KubeConfig string
 	// KubeConfigPath used for kubectl or helm client
-	KubeConfigPath string
+	kubeConfigPath string
 	ClientV2       *clientv2.Client
+}
+
+func (c ClusterManager) GetKubeConfigPath() (string, error) {
+	if c.kubeConfigPath == "" {
+		confPath, err := BuildKubeConfigPath(c.Cluster, c.KubeConfig)
+		if err != nil {
+			return "", err
+		}
+		c.kubeConfigPath = confPath
+	}
+	if _, err := os.Stat(c.kubeConfigPath); err != nil {
+		if os.IsNotExist(err) {
+			confPath, err := BuildKubeConfigPath(c.Cluster, c.KubeConfig)
+			if err != nil {
+				return "", err
+			}
+			c.kubeConfigPath = confPath
+		} else {
+			return "", err
+		}
+	}
+	return c.kubeConfigPath, nil
 }
 
 func (c ClusterManager) GetClusterObject() manager.ICluster {
@@ -83,7 +105,7 @@ func (c ClusterManager) GetHandler() ResourceHandler {
 }
 
 func (c ClusterManager) Close() {
-	os.RemoveAll(c.KubeConfigPath)
+	os.RemoveAll(c.kubeConfigPath)
 	c.KubeClient.Close()
 }
 
@@ -140,7 +162,7 @@ func BuildApiserverClient() {
 				KubeClient:     NewResourceHandler(clientSet, cacheFactory),
 				APIServer:      apiServer,
 				KubeConfig:     kubeconfig,
-				KubeConfigPath: kubeconfigPath,
+				kubeConfigPath: kubeconfigPath,
 				ClientV2:       cliv2,
 			}
 			managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
