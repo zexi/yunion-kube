@@ -35,6 +35,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		return
 	}
 
+	t.SetStage("OnSyncStatus", nil)
 	taskman.LocalTaskRun(t, func() (jsonutils.JSONObject, error) {
 		k8sCli, err := cluster.GetK8sClient()
 		if err != nil {
