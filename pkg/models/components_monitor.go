@@ -208,21 +208,21 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *apis
 		},
 	}
 	input := setting.Monitor
-	if input.Prometheus.Storage != nil {
+	if input.Prometheus.Storage != nil && input.Prometheus.Storage.Enabled {
 		spec, err := components.NewPrometheusStorageSpec(*input.Prometheus.Storage)
 		if err != nil {
 			return nil, errors.Wrap(err, "prometheus storage spec")
 		}
 		conf.Prometheus.Spec.StorageSpec = spec
 	}
-	if input.Grafana.Storage != nil {
+	if input.Grafana.Storage != nil && input.Grafana.Storage.Enabled {
 		spec, err := components.NewPVCStorage(input.Grafana.Storage)
 		if err != nil {
 			return nil, errors.Wrap(err, "grafana storage spec")
 		}
 		conf.Grafana.Storage = spec
 	}
-	if input.Loki.Storage != nil {
+	if input.Loki.Storage != nil && input.Loki.Storage.Enabled {
 		spec, err := components.NewPVCStorage(input.Loki.Storage)
 		if err != nil {
 			return nil, errors.Wrap(err, "loki storage")
