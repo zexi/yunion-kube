@@ -109,7 +109,11 @@ func (r *Request) GetVerberClient() yclient.ResourceHandler {
 }
 
 func (r *Request) GetHelmClient(namespace string) (*helm.Client, error) {
-	return helm.NewClient(r.ClusterManager.KubeConfigPath, namespace, true)
+	kubeConfigPath, err := r.ClusterManager.GetKubeConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	return helm.NewClient(kubeConfigPath, namespace, true)
 }
 
 /*func (r *Request) GetGenericClient() (*k8sclient.GenericClient, error) {
