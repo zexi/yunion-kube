@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
@@ -22,11 +23,18 @@ type ClusterApplyAddonsTask struct {
 
 func (t *ClusterApplyAddonsTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
-	if err := ApplyAddons(cluster); err != nil {
-		t.OnError(ctx, cluster, err)
-		return
-	}
+	t.SetStage("OnApplyAddons", nil)
+	taskman.LocalTaskRun(t, func() (jsonutils.JSONObject, error) {
+		return nil, ApplyAddons(cluster)
+	})
+}
+
+func (t *ClusterApplyAddonsTask) OnApplyAddons(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterApplyAddonsTask) OnApplyAddonsFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.OnError(ctx, cluster, data.String())
 }
 
 func ApplyAddons(cluster *models.SCluster) error {
@@ -48,7 +56,7 @@ func ApplyAddons(cluster *models.SCluster) error {
 	return cli.Apply(manifest)
 }
 
-func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *models.SCluster, err error) {
-	t.SetStageFailed(ctx, err.Error())
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err.Error(), t.UserCred, false)
+func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *models.SCluster, err string) {
+	t.SetStageFailed(ctx, err)
+	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err, t.UserCred, false)
 }
