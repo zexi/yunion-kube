@@ -117,6 +117,7 @@ func (m HelmComponentManager) HelmInstall(
 	install.Namespace = namespace
 	install.ReleaseName = releaseName
 	install.Atomic = true
+	install.Replace = true
 	return install.Run(eChart, vals)
 }
 
@@ -147,6 +148,7 @@ func (m HelmComponentManager) HelmUpdate(
 	}
 	upgrade := cli.Release().Upgrade()
 	upgrade.Namespace = namespace
+	upgrade.Force = true
 	return upgrade.Run(releaseName, eChart, vals)
 }
 
