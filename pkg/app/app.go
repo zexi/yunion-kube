@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"yunion.io/x/pkg/util/signalutils"
 
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon"
@@ -77,4 +78,9 @@ func Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func init() {
+	signalutils.SetDumpStackSignal()
+	signalutils.StartTrap()
 }

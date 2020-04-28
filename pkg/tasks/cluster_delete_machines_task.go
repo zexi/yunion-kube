@@ -2,7 +2,7 @@ package tasks
 
 import (
 	"context"
-	"fmt"
+
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
@@ -46,14 +46,22 @@ func (t *ClusterDeleteMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 	cluster := obj.(*models.SCluster)
 	ms, err := t.getDeleteMachines()
 	if err != nil {
-		t.OnError(ctx, cluster, err)
+		t.OnError(ctx, cluster, err.Error())
 		return
 	}
-	t.SetStage("OnDeleteMachines", nil)
+	t.SetStage("OnDeleteEtcdMembers", nil)
 	if err := cluster.GetDriver().RequestDeleteMachines(ctx, t.UserCred, cluster, ms, t); err != nil {
-		t.OnError(ctx, cluster, err)
+		t.OnError(ctx, cluster, err.Error())
 		return
 	}
+}
+
+func (t *ClusterDeleteMachinesTask) OnDeleteEtcdMembers(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.SetStage("OnDeleteMachines", nil)
+}
+
+func (t *ClusterDeleteMachinesTask) OnDeleteEtcdMembersFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.OnError(ctx, cluster, data.String())
 }
 
 func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
@@ -62,11 +70,11 @@ func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluste
 }
 
 func (t *ClusterDeleteMachinesTask) OnDeleteMachinesFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	t.OnError(ctx, cluster, fmt.Errorf(data.String()))
+	t.OnError(ctx, cluster, data.String())
 }
 
-func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err error) {
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err.Error())
-	t.SetStageFailed(ctx, err.Error())
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, err.Error(), t.UserCred, false)
+func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err string) {
+	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err)
+	t.SetStageFailed(ctx, err)
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, err, t.UserCred, false)
 }
