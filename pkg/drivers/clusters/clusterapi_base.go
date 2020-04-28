@@ -3,6 +3,7 @@ package clusters
 import (
 	"context"
 	"fmt"
+
 	"yunion.io/x/yunion-kube/pkg/models"
 
 	perrors "github.com/pkg/errors"
@@ -11,9 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
-	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
-	//kubeadmconfig "k8s.io/kubernetes/cmd/kubeadm/app/util/config"
 	kubeadmscheme "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/scheme"
+	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -148,48 +148,50 @@ func (d *sClusterAPIDriver) RequestDeployMachines(
 	ms []manager.IMachine,
 	task taskman.ITask,
 ) error {
-	var firstCm *models.SMachine
-	var restMachines []*models.SMachine
-	var needControlplane bool
+	taskman.LocalTaskRun(task, func() (jsonutils.JSONObject, error) {
+		var firstCm *models.SMachine
+		var restMachines []*models.SMachine
+		var needControlplane bool
 
-	doPostCreate := func(m *models.SMachine) {
-		lockman.LockObject(ctx, m)
-		defer lockman.ReleaseObject(ctx, m)
-		m.PostCreate(ctx, userCred, userCred, nil, jsonutils.NewDict())
-	}
-
-	for _, m := range ms {
-		if m.IsFirstNode() {
-			firstCm = m.(*models.SMachine)
-			needControlplane = true
-		} else {
-			restMachines = append(restMachines, m.(*models.SMachine))
+		doPostCreate := func(m *models.SMachine) {
+			lockman.LockObject(ctx, m)
+			defer lockman.ReleaseObject(ctx, m)
+			m.PostCreate(ctx, userCred, userCred, nil, jsonutils.NewDict())
 		}
-	}
 
-	if needControlplane {
-		// TODO: fix this
-		//masterIP, err := firstCm.GetPrivateIP()
-		//if err != nil {
-		//log.Errorf("Get privateIP error: %v", err)
-		//}
-		//if len(masterIP) != 0 {
-		//if err := d.updateClusterStaticLBAddress(cluster, masterIP); err != nil {
-		//return err
-		//}
-		//}
-		doPostCreate(firstCm)
-		// wait first controlplane machine running
-		if err := models.WaitMachineRunning(firstCm); err != nil {
-			return fmt.Errorf("Create first controlplane machine error: %v", err)
+		for _, m := range ms {
+			if m.IsFirstNode() {
+				firstCm = m.(*models.SMachine)
+				needControlplane = true
+			} else {
+				restMachines = append(restMachines, m.(*models.SMachine))
+			}
 		}
-	}
 
-	// create rest join controlplane
-	for _, d := range restMachines {
-		doPostCreate(d)
-	}
-	task.ScheduleRun(nil)
+		if needControlplane {
+			// TODO: fix this
+			//masterIP, err := firstCm.GetPrivateIP()
+			//if err != nil {
+			//log.Errorf("Get privateIP error: %v", err)
+			//}
+			//if len(masterIP) != 0 {
+			//if err := d.updateClusterStaticLBAddress(cluster, masterIP); err != nil {
+			//return err
+			//}
+			//}
+			doPostCreate(firstCm)
+			// wait first controlplane machine running
+			if err := models.WaitMachineRunning(firstCm); err != nil {
+				return nil, fmt.Errorf("Create first controlplane machine error: %v", err)
+			}
+		}
+
+		// create rest join controlplane
+		for _, d := range restMachines {
+			doPostCreate(d)
+		}
+		return nil, nil
+	})
 	return nil
 }
 
@@ -244,6 +246,8 @@ func (d *sClusterAPIDriver) unmarshalClusterStatus(data map[string]string) (*kub
 }
 
 func (d *sClusterAPIDriver) RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, ms []manager.IMachine, task taskman.ITask) error {
+	// task run twices
+	task.ScheduleRun(nil)
 	items := make([]db.IStandaloneModel, 0)
 	for _, m := range ms {
 		items = append(items, m.(db.IStandaloneModel))

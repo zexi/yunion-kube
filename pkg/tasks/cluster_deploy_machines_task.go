@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+
 	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
@@ -40,18 +41,27 @@ func (t *ClusterDeployMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 	cluster := obj.(*models.SCluster)
 	ms, err := t.getAddMachines()
 	if err != nil {
-		t.OnError(ctx, cluster, err)
+		t.OnError(ctx, cluster, err.Error())
 		return
 	}
+	t.SetStage("OnDeployMachines", nil)
 	if err := cluster.GetDriver().RequestDeployMachines(ctx, t.UserCred, cluster, ms, t); err != nil {
-		t.OnError(ctx, cluster, err)
+		t.OnError(ctx, cluster, err.Error())
 		return
 	}
+
+}
+
+func (t *ClusterDeployMachinesTask) OnDeployMachines(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	cluster.StartApplyAddonsTask(ctx, t.UserCred, nil, "")
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err error) {
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err.Error())
-	t.SetStageFailed(ctx, err.Error())
+func (t *ClusterDeployMachinesTask) OnDeployMachinesFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.OnError(ctx, cluster, data.String())
+}
+
+func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err string) {
+	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err)
+	t.SetStageFailed(ctx, err)
 }
