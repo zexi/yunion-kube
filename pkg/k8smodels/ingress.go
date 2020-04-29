@@ -4,8 +4,6 @@ import (
 	extensions "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"yunion.io/x/jsonutils"
-
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -40,7 +38,6 @@ func (m *SIngressManager) GetK8SResourceInfo() model.K8SResourceInfo {
 
 func (m *SIngressManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	_ *jsonutils.JSONDict,
 	input *apis.IngressCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	ing := &extensions.Ingress{

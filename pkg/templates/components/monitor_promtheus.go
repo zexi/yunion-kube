@@ -107,11 +107,11 @@ type GrafanaSidecar struct {
 }
 
 type Storage struct {
-	Type    string `json:"type"`
-	Enabled bool   `json:"enabled"`
-	StorageClassName string `json:"storageClassName"`
-	AccessModes []string `json:"accessModes"`
-	Size        string   `json:"size"`
+	Type             string   `json:"type"`
+	Enabled          bool     `json:"enabled"`
+	StorageClassName string   `json:"storageClassName"`
+	AccessModes      []string `json:"accessModes"`
+	Size             string   `json:"size"`
 }
 
 func NewPVCStorage(storage *apis.ComponentStorage) (*Storage, error) {
@@ -122,11 +122,11 @@ func NewPVCStorage(storage *apis.ComponentStorage) (*Storage, error) {
 	}
 	accessModes := storage.GetAccessModes()
 	return &Storage{
-		Type:        "pvc",
-		Enabled:     true,
+		Type:             "pvc",
+		Enabled:          true,
 		StorageClassName: storage.ClassName,
-		AccessModes: accessModes,
-		Size:        fmt.Sprintf("%dGi", sizeGB),
+		AccessModes:      accessModes,
+		Size:             fmt.Sprintf("%dGi", sizeGB),
 	}, nil
 }
 
@@ -178,6 +178,7 @@ type MonitorStack struct {
 	Grafana                Grafana                `json:"grafana"`
 	Loki                   Loki                   `json:"loki"`
 	Promtail               Promtail               `json:"promtail"`
+	PrometheusOperator     PrometheusOperator     `json:"prometheusOperator"`
 }
 
 func GenerateHelmValues(config interface{}) map[string]interface{} {
