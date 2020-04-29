@@ -59,6 +59,12 @@ func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, in
 }
 
 func (d *SYunionVMDriver) validateConfig(s *mcclient.ClientSession, config *apis.MachineCreateVMConfig) error {
+	if config.VcpuCount < 4 {
+		return httperrors.NewNotAcceptableError("CPU count must large than 4")
+	}
+	if config.VmemSize < 4096 {
+		return httperrors.NewNotAcceptableError("Memory size must large than 4G")
+	}
 	input := &api.ServerCreateInput{
 		ServerConfigs: &api.ServerConfigs{
 			PreferRegion:     config.PreferRegion,
