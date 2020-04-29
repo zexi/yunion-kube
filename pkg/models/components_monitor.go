@@ -206,6 +206,15 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *apis
 		Promtail: components.Promtail{
 			Image: mi("promtail", "1.4.1"),
 		},
+		PrometheusOperator: components.PrometheusOperator{
+			AdmissionWebhooks: components.AdmissionWebhooks{
+				Enabled: false,
+				Patch: components.AdmissionWebhooksPatch{
+					Enabled: false,
+					Image:   mi("kube-webhook-certgen", "v1.0.0"),
+				},
+			},
+		},
 	}
 	input := setting.Monitor
 	if input.Prometheus.Storage != nil && input.Prometheus.Storage.Enabled {
