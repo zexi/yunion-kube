@@ -295,7 +295,7 @@ func (d *SYunionVMDriver) PrepareResource(
 	machine.SetResourceId(id)
 	// wait server running and check service
 	if err := helper.WaitRunning(id); err != nil {
-		return nil, fmt.Errorf("Wait server %d running error: %v", err)
+		return nil, fmt.Errorf("Wait server %s running error: %v", id, err)
 	}
 	_, err = helper.ObjectIsExists(id)
 	if err != nil {
