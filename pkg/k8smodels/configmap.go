@@ -130,3 +130,11 @@ func (m SConfigMap) GetAPIDetailObject() (*apis.ConfigMapDetail, error) {
 		Pods:      mntPods,
 	}, nil
 }
+
+func (m SConfigMap) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input apis.ConfigMapUpdateInput) (runtime.Object, error) {
+	updateObj := m.GetRawConfigMap().DeepCopy()
+	for k, v := range input.Data {
+		updateObj.Data[k] = v
+	}
+	return updateObj, nil
+}
