@@ -21,6 +21,8 @@ type StatefulSet struct {
 	// Aggregate information about pods belonging to this Pet Set.
 	Pods PodInfo `json:"podsInfo"`
 
+	Replicas *int32 `json:"replicas"`
+
 	// Container images of the Stateful Set.
 	ContainerImages []ContainerImage `json:"containerImages"`
 

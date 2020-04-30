@@ -113,6 +113,7 @@ func (obj *SStatefulSet) GetAPIObject() (*apis.StatefulSet, error) {
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		ContainerImages:     GetContainerImages(&ss.Spec.Template.Spec),
+		Replicas:            ss.Spec.Replicas,
 		InitContainerImages: GetContainerImages(&ss.Spec.Template.Spec),
 		Pods:                *podInfo,
 		StatefulSetStatus:   *getters.GetStatefulSetStatus(podInfo, *ss),
