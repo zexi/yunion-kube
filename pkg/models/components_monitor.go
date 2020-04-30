@@ -172,12 +172,6 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *apis
 		}
 	}
 	conf := components.MonitorStack{
-		Image:                         mi("prometheus-operator", "v0.37.0"),
-		ConfigmapReloadImage:          mi("configmap-reload", "v0.0.1"),
-		PrometheusConfigReloaderImage: mi("prometheus-config-reloader", "v0.37.0"),
-		TLSProxy: components.PromTLSProxy{
-			Image: mi("ghostunnel", "v1.5.2"),
-		},
 		Prometheus: components.Prometheus{
 			Spec: components.PrometheusSpec{
 				Image: mi("prometheus", "v2.15.2"),
@@ -207,6 +201,12 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *apis
 			Image: mi("promtail", "1.4.1"),
 		},
 		PrometheusOperator: components.PrometheusOperator{
+			Image:                         mi("prometheus-operator", "v0.37.0"),
+			ConfigmapReloadImage:          mi("configmap-reload", "v0.0.1"),
+			PrometheusConfigReloaderImage: mi("prometheus-config-reloader", "v0.37.0"),
+			TLSProxy: components.PromTLSProxy{
+				Image: mi("ghostunnel", "v1.5.2"),
+			},
 			AdmissionWebhooks: components.AdmissionWebhooks{
 				Enabled: false,
 				Patch: components.AdmissionWebhooksPatch{
