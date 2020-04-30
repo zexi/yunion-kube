@@ -159,18 +159,20 @@ type AdmissionWebhooks struct {
 }
 
 type PrometheusOperator struct {
+	// image: squareup/ghostunnel:v1.5.2
+	TLSProxy          PromTLSProxy      `json:"tlsProxy"`
 	AdmissionWebhooks AdmissionWebhooks `json:"admissionWebhooks"`
+	// image: quay.io/coreos/prometheus-operator:v0.37.0
+	Image Image `json:"image"`
+	// image: quay.io/coreos/configmap-reload:v0.0.1
+	ConfigmapReloadImage Image `json:"configmapReloadImage"`
+	// image: quay.io/coreos/prometheus-config-reloader:v0.37.0
+	PrometheusConfigReloaderImage Image `json:"prometheusConfigReloaderImage"`
+	// image: k8s.gcr.io/hyperkube:v1.12.1
+	HyperkubeImage Image `json:"hyperkubeImage"`
 }
 
 type MonitorStack struct {
-	// image: quay.io/coreos/prometheus-operator:v0.37.0
-	Image Image `json:"image"`
-	// image: quay.io/coreos/prometheus-config-reloader:v0.37.0
-	ConfigmapReloadImage Image `json:"configmapReloadImage"`
-	// image: quay.io/coreos/configmap-reload:v0.0.1
-	PrometheusConfigReloaderImage Image `json:"prometheusConfigReloaderImage"`
-	// image: squareup/ghostunnel:v1.5.2
-	TLSProxy               PromTLSProxy           `json:"tlsProxy"`
 	Prometheus             Prometheus             `json:"prometheus"`
 	Alertmanager           Alertmanager           `json:"alertmanager"`
 	PrometheusNodeExporter PrometheusNodeExporter `json:"prometheus-node-exporter"`
