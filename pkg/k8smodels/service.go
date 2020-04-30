@@ -1,10 +1,11 @@
 package k8smodels
 
 import (
+	"reflect"
+
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"reflect"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
@@ -27,6 +28,7 @@ func init() {
 
 type SServiceManager struct {
 	model.SK8SNamespaceResourceBaseManager
+	model.SK8SOwnerResourceBaseManager
 }
 
 type SService struct {
@@ -72,6 +74,22 @@ func (m *SServiceManager) GetAPIServices(cluster model.ICluster, svcs []*v1.Serv
 	rets := make([]*apis.Service, 0)
 	err := ConvertRawToAPIObjects(m, cluster, svcs, &rets)
 	return rets, err
+}
+
+func (m *SServiceManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.ServiceListInput) (model.IQuery, error) {
+	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return nil, err
+	}
+	q, err = m.SK8SOwnerResourceBaseManager.ListItemFilter(ctx, q, query.ListInputOwner)
+	if err != nil {
+		return nil, err
+	}
+	return q, nil
+}
+
+func (obj *SService) IsOwnerBy(ownerModel model.IK8SModel) (bool, error) {
+	return model.IsServiceOwner(ownerModel.(model.IServiceOwnerModel), obj.GetRawService())
 }
 
 func (obj *SService) GetRawService() *v1.Service {

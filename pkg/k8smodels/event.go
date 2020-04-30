@@ -10,8 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"yunion.io/x/onecloud/pkg/httperrors"
-
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -41,6 +39,7 @@ var FailedReasonPartials = []string{"failed", "err", "exceeded", "invalid", "unh
 
 type SEventManager struct {
 	model.SK8SNamespaceResourceBaseManager
+	model.SK8SOwnerResourceBaseManager
 }
 
 type SEvent struct {
@@ -146,25 +145,15 @@ func (m SEventManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery,
 	if err != nil {
 		return q, err
 	}
-	if query.ListInputOwner.ShouldDo() {
-		q.AddFilter(m.ListOwnerFilter(query.ListInputOwner, query.Namespace))
+	q, err = m.SK8SOwnerResourceBaseManager.ListItemFilter(ctx, q, query.ListInputOwner)
+	if err != nil {
+		return q, err
 	}
 	return q, nil
 }
 
-func (m SEventManager) ListOwnerFilter(input apis.ListInputOwner, namespace string) model.QueryFilter {
-	return func(obj model.IK8SModel) (bool, error) {
-		event := obj.(*SEvent).GetRawEvent()
-		man := model.GetK8SModelManagerByKind(input.OwnerKind)
-		if man == nil {
-			return false, httperrors.NewNotFoundError("Not found owner_kind %s", input.OwnerKind)
-		}
-		ownerModel, err := model.NewK8SModelObjectByName(man, obj.GetCluster(), namespace, input.OwnerName)
-		if err != nil {
-			return false, err
-		}
-		return model.IsEventOwner(ownerModel, event)
-	}
+func (obj *SEvent) IsOwnerBy(ownerModel model.IK8SModel) (bool, error) {
+	return model.IsEventOwner(ownerModel, obj.GetRawEvent())
 }
 
 func (m SEventManager) GetRawEventsByPods(cluster model.ICluster, pods []*v1.Pod) ([]*v1.Event, error) {

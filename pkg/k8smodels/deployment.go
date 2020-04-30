@@ -128,9 +128,14 @@ func (obj *SDeployment) GetEvents() ([]*apis.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
-func (obj *SDeployment) GetServices() ([]*apis.Service, error) {
+func (obj *SDeployment) GetRawServices() ([]*v1.Service, error) {
 	deploy := obj.GetRawDeployment()
 	svcs, err := ServiceManager.GetRawServicesByMatchLabels(obj.GetCluster(), obj.GetNamespace(), deploy.Spec.Selector.MatchLabels)
+	return svcs, err
+}
+
+func (obj *SDeployment) GetServices() ([]*apis.Service, error) {
+	svcs, err := obj.GetRawServices()
 	if err != nil {
 		return nil, err
 	}

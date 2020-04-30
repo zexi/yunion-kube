@@ -278,19 +278,6 @@ func NewK8SModelObjectByName(man IK8SModelManager, cluster ICluster, namespace, 
 	return NewK8SModelObject(man, cluster, obj)
 }
 
-func NewPodOwnerObjectByName(man IK8SModelManager, cluster ICluster, namespace, name string) (IPodOwnerModel, error) {
-	kind := man.GetK8SResourceInfo().ResourceName
-	obj, err := cluster.GetHandler().Get(kind, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-	model, err := NewK8SModelObject(man, cluster, obj)
-	if err != nil {
-		return nil, err
-	}
-	return model.(IPodOwnerModel), nil
-}
-
 func NewK8SModelObject(man IK8SModelManager, cluster ICluster, obj runtime.Object) (IK8SModel, error) {
 	m, ok := reflect.New(man.Factory().DataType()).Interface().(IK8SModel)
 	if !ok {
@@ -459,7 +446,7 @@ func doCreateItem(
 }
 
 func (h *K8SModelHandler) Update(ctx *RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
-	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespace(), id, query)
+	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespaceByQuery(), id, query)
 	if err != nil {
 		return nil, err
 	}
