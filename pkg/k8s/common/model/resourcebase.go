@@ -113,12 +113,48 @@ func (m SK8SNamespaceResourceBase) GetNamespace() string {
 	return m.GetMetaObject().GetNamespace()
 }
 
+type SK8SOwnerResourceBaseManager struct{}
+
+type IK8SOwnerResource interface {
+	IsOwnerBy(ownerModel IK8SModel) (bool, error)
+}
+
+func (m SK8SOwnerResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputOwner) (IQuery, error) {
+	if !query.ShouldDo() {
+		return q, nil
+	}
+	q.AddFilter(m.ListOwnerFilter(query))
+	return q, nil
+}
+
+func (m SK8SOwnerResourceBaseManager) ListOwnerFilter(query apis.ListInputOwner) QueryFilter {
+	return func(obj IK8SModel) (bool, error) {
+		man := GetK8SModelManagerByKind(query.OwnerKind)
+		if man == nil {
+			return false, httperrors.NewNotFoundError("Not found owner_kind %s", query.OwnerKind)
+		}
+		ownerModel, err := NewK8SModelObjectByName(man, obj.GetCluster(), obj.GetNamespace(), query.OwnerName)
+		if err != nil {
+			return false, err
+		}
+		return obj.(IK8SOwnerResource).IsOwnerBy(ownerModel)
+	}
+}
+
 func IsPodOwner(model IPodOwnerModel, pod *v1.Pod) (bool, error) {
 	pods, err := model.GetRawPods()
 	if err != nil {
 		return false, err
 	}
 	return IsObjectContains(pod, pods), nil
+}
+
+func IsServiceOwner(model IServiceOwnerModel, svc *v1.Service) (bool, error) {
+	svcs, err := model.GetRawServices()
+	if err != nil {
+		return false, err
+	}
+	return IsObjectContains(svc, svcs), nil
 }
 
 func IsObjectContains(obj metav1.Object, objs interface{}) bool {

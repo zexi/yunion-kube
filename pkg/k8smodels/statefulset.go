@@ -124,9 +124,13 @@ func (obj *SStatefulSet) GetEvents() ([]*apis.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
-func (obj *SStatefulSet) GetServices() ([]*apis.Service, error) {
+func (obj *SStatefulSet) GetRawServices() ([]*v1.Service, error) {
 	ss := obj.GetRawStatefulSet()
-	svcs, err := ServiceManager.GetRawServicesByMatchLabels(obj.GetCluster(), obj.GetNamespace(), ss.Spec.Selector.MatchLabels)
+	return ServiceManager.GetRawServicesByMatchLabels(obj.GetCluster(), obj.GetNamespace(), ss.Spec.Selector.MatchLabels)
+}
+
+func (obj *SStatefulSet) GetServices() ([]*apis.Service, error) {
+	svcs, err := obj.GetRawServices()
 	if err != nil {
 		return nil, err
 	}

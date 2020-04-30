@@ -134,3 +134,8 @@ func GetServicePorts(apiPorts []v1.ServicePort) []ServicePort {
 	}
 	return ports
 }
+
+type ServiceListInput struct {
+	ListInputK8SNamespaceBase
+	ListInputOwner
+}

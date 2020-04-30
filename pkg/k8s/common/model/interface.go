@@ -54,3 +54,9 @@ type IPodOwnerModel interface {
 
 	GetRawPods() ([]*v1.Pod, error)
 }
+
+type IServiceOwnerModel interface {
+	IK8SModel
+
+	GetRawServices() ([]*v1.Service, error)
+}
