@@ -90,7 +90,7 @@ func NewGeneralError(err error) *httputils.JSONClientError {
 	} else {
 		return httperrors.NewInternalServerError(err.Error())
 	}
-	return httputils.NewJsonClientError(statusCode, title, msg, httputils.Error{})
+	return httputils.NewJsonClientError(statusCode, title, msg)
 }
 
 func GeneralServerError(w http.ResponseWriter, err error) {
