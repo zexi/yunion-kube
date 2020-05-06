@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -25,6 +24,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/utils"
@@ -96,6 +96,116 @@ func (m *SClusterManager) InitializeData() error {
 		})
 	}
 	return nil
+}
+
+func (m *SClusterManager) GetSystemCluster() (*SCluster, error) {
+	clusters := m.Query().SubQuery()
+	q := clusters.Query().Filter(sqlchemy.Equals(clusters.Field("provider"), string(apis.ProviderTypeSystem)))
+	q = q.Filter(sqlchemy.IsTrue(q.Field("is_system")))
+	objs := make([]SCluster, 0)
+	err := db.FetchModelObjects(m, q, &objs)
+	if err != nil {
+		return nil, err
+	}
+	if len(objs) == 0 {
+		// return nil, httperrors.NewNotFoundError("Not found default system cluster")
+		return nil, nil
+	}
+	if len(objs) != 1 {
+		return nil, httperrors.NewDuplicateResourceError("Found %d system cluster", len(objs))
+	}
+	sysCluster := objs[0]
+	return &sysCluster, nil
+}
+
+func (m *SClusterManager) GetSystemClusterConfig() (*rest.Config, error) {
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+const (
+	SystemClusterName = "system-default"
+	NamespaceOneCloud = "onecloud"
+)
+
+type k8sInfo struct {
+	ApiServer  string
+	Kubeconfig string
+}
+
+func (m *SClusterManager) GetSystemClusterK8SInfo() (*k8sInfo, error) {
+	restCfg, err := m.GetSystemClusterConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "get rest config")
+	}
+	kubeconfig, err := m.GetSystemClusterKubeconfig(restCfg.Host, restCfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate k8s kubeconfig")
+	}
+	return &k8sInfo{
+		ApiServer:  restCfg.Host,
+		Kubeconfig: kubeconfig,
+	}, nil
+}
+
+func (m *SClusterManager) GetSystemClusterCreateData() (*apis.ClusterCreateInput, error) {
+	createData := &apis.ClusterCreateInput{
+		Name:        SystemClusterName,
+		ClusterType: string(apis.ClusterTypeDefault),
+		CloudType:   string(apis.CloudTypePrivate),
+		Mode:        string(apis.ModeTypeImport),
+		Provider:    string(apis.ProviderTypeSystem),
+	}
+	k8sInfo, err := m.GetSystemClusterK8SInfo()
+	if err != nil {
+		return nil, errors.Wrap(err, "get k8s info")
+	}
+	createData.ApiServer = k8sInfo.ApiServer
+	createData.Kubeconfig = k8sInfo.Kubeconfig
+	return createData, nil
+}
+
+func (m *SClusterManager) RegisterSystemCluster() error {
+	sysCluster, err := m.GetSystemCluster()
+	if err != nil {
+		return errors.Wrap(err, "get system cluster")
+	}
+	userCred := GetAdminCred()
+	if sysCluster == nil {
+		// create system cluster
+		createData, err := m.GetSystemClusterCreateData()
+		if err != nil {
+			return errors.Wrap(err, "get cluster create data")
+		}
+		obj, err := db.DoCreate(m, context.TODO(), userCred, nil, createData.JSON(createData), userCred)
+		if err != nil {
+			return errors.Wrap(err, "create cluster")
+		}
+		sysCluster = obj.(*SCluster)
+	}
+	// update system cluster
+	k8sInfo, err := m.GetSystemClusterK8SInfo()
+	if err != nil {
+		return errors.Wrap(err, "get k8s info")
+	}
+	if _, err := db.Update(sysCluster, func() error {
+		if sysCluster.ApiServer != k8sInfo.ApiServer {
+			sysCluster.ApiServer = k8sInfo.ApiServer
+		}
+		if sysCluster.Kubeconfig != k8sInfo.Kubeconfig {
+			sysCluster.Kubeconfig = k8sInfo.Kubeconfig
+		}
+		if !sysCluster.IsSystem {
+			sysCluster.IsSystem = true
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "update system cluster")
+	}
+	return sysCluster.StartSyncStatus(context.TODO(), userCred, "")
 }
 
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
@@ -720,9 +830,9 @@ func (c *SCluster) CheckPVCEmpty() error {
 }
 
 func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
-	//if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
-	//return err
-	//}
+	if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
+		return err
+	}
 	//if err := c.CheckPVCEmpty(); err != nil {
 	//return err
 	//}
@@ -916,14 +1026,14 @@ func (c *SCluster) GetKubeconfigByCerts() (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "failed to decode CA Cert")
 	} else if cert == nil {
-		return "", errors.New("certificate not found")
+		return "", errors.Errorf("certificate not found")
 	}
 
 	key, err := certificates.DecodePrivateKeyPEM(caKp.Key)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to decode private key")
 	} else if key == nil {
-		return "", errors.New("key not foudn in status")
+		return "", errors.Errorf("key not foudn in status")
 	}
 	controlPlaneURL, err := c.GetControlPlaneUrl()
 	if err != nil {

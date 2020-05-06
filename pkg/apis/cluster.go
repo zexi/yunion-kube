@@ -1,5 +1,7 @@
 package apis
 
+import "yunion.io/x/onecloud/pkg/apis"
+
 // k8s cluster type
 type ClusterType string
 
@@ -107,6 +109,8 @@ const (
 )
 
 type ClusterCreateInput struct {
+	apis.Meta
+
 	Name            string               `json:"name"`
 	ClusterType     string               `json:"cluster_type"`
 	CloudType       string               `json:"cloud_type"`

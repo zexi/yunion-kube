@@ -67,6 +67,9 @@ func Run(ctx context.Context) error {
 		}()
 	})
 
+	if err := models.ClusterManager.RegisterSystemCluster(); err != nil {
+		log.Fatalf("Register system cluster %v", err)
+	}
 	initial.InitClient()
 
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)

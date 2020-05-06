@@ -8,7 +8,7 @@ import (
 
 func InitDB() error {
 	for _, manager := range []db.IModelManager{
-		RepoManager,
+		//RepoManager,
 		ClusterManager,
 	} {
 		err := manager.InitializeData()
