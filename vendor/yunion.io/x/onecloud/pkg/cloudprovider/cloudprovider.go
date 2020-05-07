@@ -25,6 +25,7 @@ import (
 
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
 const (
@@ -32,43 +33,130 @@ const (
 )
 
 type SCloudaccountCredential struct {
-	ProjectName string //OpenStack
-	DomainName  string //OpenStack
-	Username    string //OpenStack Esxi ZStack
-	Password    string //OpenStack Esxi ZStack
-	AuthUrl     string //OpenStack ZStack
+	// 账号所在的项目 (openstack)
+	ProjectName string `json:"project_name"`
 
-	AccessKeyId     string //Huawei Aliyun Ucloud Aws
-	AccessKeySecret string //Huawei Aliyun Ucloud Aws
-	Environment     string //Huawei Azure Aws
+	// 账号所在的域 (openstack)
+	// default: Default
+	DomainName string `json:"domain_name"`
 
-	DirectoryId  string //Azure
-	ClientId     string //Azure
-	ClientSecret string //Azure
+	// 用户名 (openstack, zstack, esxi)
+	Username string `json:"username"`
 
-	Host string //Esxi
-	Port int    //Esxi
+	// 密码 (openstack, zstack, esxi)
+	Password string `json:"password"`
 
-	Endpoint string
+	// 认证地址 (openstack,zstack)
+	AuthUrl string `json:"auto_url"`
 
-	AppId     string //Qcloud
-	SecretId  string //Qcloud
-	SecretKey string //Qcloud
+	// 秘钥id (Aliyun, Aws, huawei, ucloud, ctyun, zstack, s3)
+	AccessKeyId string `json:"access_key_id"`
 
-	ClientEmail  string //Google
-	ProjectId    string //Google
-	PrivateKeyId string //Google
-	PrivateKey   string //Google
+	// 秘钥key (Aliyun, Aws, huawei, ucloud, ctyun, zstack, s3)
+	AccessKeySecret string `json:"access_key_secret"`
+
+	// 环境 (Azure, Aws, huawei, ctyun)
+	Environment string `json:"environment"`
+
+	// 目录ID (Azure)
+	DirectoryId string `json:"directory_id"`
+
+	// 客户端ID (Azure)
+	ClientId string `json:"client_id"`
+
+	// 客户端秘钥 (Azure)
+	ClientSecret string `json:"client_secret"`
+
+	// 主机IP (esxi)
+	Host string `json:"host"`
+
+	// 主机端口 (esxi)
+	Port int `json:"port"`
+
+	// 端点 (s3)
+	Endpoint string `json:"endpoint"`
+
+	// app id (Qcloud)
+	AppId string `json:"app_id"`
+
+	//秘钥ID (Qcloud)
+	SecretId string `json:"secret_id"`
+
+	//秘钥key (Qcloud)
+	SecretKey string `json:"secret_key"`
+
+	// Google服务账号email (gcp)
+	GCPClientEmail string `json:"gcp_client_email"`
+	// Google服务账号project id (gcp)
+	GCPProjectId string `json:"gcp_project_id"`
+	// Google服务账号秘钥id (gcp)
+	GCPPrivateKeyId string `json:"gcp_private_key_id"`
+	// Google服务账号秘钥 (gcp)
+	GCPPrivateKey string `json:"gcp_private_key"`
 }
 
 type SCloudaccount struct {
-	Account   string
-	Secret    string
-	AccessUrl string
+	// 账号信息，各个平台字段不尽相同，以下是各个平台账号创建所需要的字段
+	//
+	//
+	//
+	// | 云平台		|字段				| 翻译				| 是否必传	| 默认值	| 可否更新	| 获取方式	|
+	// | ------ 	|------				| ------			| ---------	| --------	|--------	|--------	|
+	// |Aliyun	 	|access_key_id		|秘钥ID				| 是		|			|	是		|			|
+	// |Aliyun		|access_key_secret	|秘钥Key			| 是		|			|	是		|			|
+	// |Qcloud	 	|app_id				|APP ID				| 是		|			|	否		|			|
+	// |Qcloud		|secret_id			|秘钥ID				| 是		|			|	是		|			|
+	// |Qcloud		|secret_key			|秘钥Key			| 是		|			|	是		|			|
+	// |OpenStack	|project_name		|用户所在项目 		| 是		|			|	是		|			|
+	// |OpenStack	|username			|用户名				| 是		|			|	是		|			|
+	// |OpenStack	|password			|用户密码			| 是		|			|	是		|			|
+	// |OpenStack	|auth_url			|认证地址			| 是		|			|	否		|			|
+	// |OpenStack	|domain_name		|用户所在的域		| 否		|Default	|	是		|			|
+	// |VMware		|username			|用户名				| 是		|			|	是		|			|
+	// |VMware		|password			|密码				| 是		|			|	是		|			|
+	// |VMware		|host				|主机IP或域名		| 是		|			|	否		|			|
+	// |VMware		|port				|主机端口			| 否		|443		|	否		|			|
+	// |Azure		|directory_id		|目录ID				| 是		|			|	否		|			|
+	// |Azure		|environment		|区域				| 是		|			|	否		|			|
+	// |Azure		|client_id			|客户端ID			| 是		|			|	是		|			|
+	// |Azure		|client_secret		|客户端密码			| 是		|			|	是		|			|
+	// |Huawei		|access_key_id		|秘钥ID				| 是		|			|	是		|			|
+	// |Huawei		|access_key_secret	|秘钥				| 是		|			|	是		|			|
+	// |Huawei		|environment		|区域				| 是		|			|	否		|			|
+	// |Aws			|access_key_id		|秘钥ID				| 是		|			|	是		|			|
+	// |Aws			|access_key_secret	|秘钥				| 是		|			|	是		|			|
+	// |Aws			|environment		|区域				| 是		|			|	否		|			|
+	// |Ucloud		|access_key_id		|秘钥ID				| 是		|			|	是		|			|
+	// |Ucloud		|access_key_secret	|秘钥				| 是		|			|	是		|			|
+	// |Google		|project_id			|项目ID				| 是		|			|	否		|			|
+	// |Google		|client_email		|客户端email		| 是		|			|	否		|			|
+	// |Google		|private_key_id		|秘钥ID				| 是		|			|	是		|			|
+	// |Google		|private_key		|秘钥Key			| 是		|			|	是		|			|
+	Account string `json:"account"`
+
+	// swagger:ignore
+	Secret string
+
+	// 认证地址
+	AccessUrl string `json:"access_url"`
+}
+
+type ProviderConfig struct {
+	// Id, Name are properties of Cloudprovider object
+	Id   string
+	Name string
+
+	// Vendor are names like Aliyun, OpenStack, etc.
+	Vendor  string
+	URL     string
+	Account string
+	Secret  string
+
+	ProxyFunc httputils.TransportProxyFunc
 }
 
 type ICloudProviderFactory interface {
-	GetProvider(providerId, providerName, url, account, secret string) (ICloudProvider, error)
+	GetProvider(cfg ProviderConfig) (ICloudProvider, error)
 
 	GetClientRC(url, account, secret string) (map[string]string, error)
 
@@ -84,10 +172,6 @@ type ICloudProviderFactory interface {
 	IsOnPremise() bool
 	IsSupportPrepaidResources() bool
 	NeedSyncSkuFromCloud() bool
-
-	IsSupportObjectStorage() bool
-	IsSupportComputeEngine() bool
-	IsSupportNetworkManage() bool
 
 	IsCloudeventRegional() bool
 	GetMaxCloudEventSyncDays() int
@@ -118,6 +202,8 @@ type ICloudProvider interface {
 	GetStorageClasses(regionId string) []string
 
 	GetCapabilities() []string
+	GetICloudQuotas() ([]ICloudQuota, error)
+	GetICloudPolicyDefinitions() ([]ICloudPolicyDefinition, error)
 }
 
 func IsSupportProject(prod ICloudProvider) bool {
@@ -171,12 +257,12 @@ func GetRegistedProviderIds() []string {
 	return providers
 }
 
-func GetProvider(providerId, providerName, accessUrl, account, secret, provider string) (ICloudProvider, error) {
-	driver, err := GetProviderFactory(provider)
+func GetProvider(cfg ProviderConfig) (ICloudProvider, error) {
+	driver, err := GetProviderFactory(cfg.Vendor)
 	if err != nil {
 		return nil, errors.Wrap(err, "GetProviderFactory")
 	}
-	return driver.GetProvider(providerId, providerName, accessUrl, account, secret)
+	return driver.GetProvider(cfg)
 }
 
 func GetClientRC(accessUrl, account, secret, provider string) (map[string]string, error) {
@@ -192,10 +278,10 @@ func IsSupported(provider string) bool {
 	return ok
 }
 
-func IsValidCloudAccount(accessUrl, account, secret, provider string) (string, error) {
-	factory, ok := providerTable[provider]
+func IsValidCloudAccount(cfg ProviderConfig) (string, error) {
+	factory, ok := providerTable[cfg.Vendor]
 	if ok {
-		provider, err := factory.GetProvider("", "", accessUrl, account, secret)
+		provider, err := factory.GetProvider(cfg)
 		if err != nil {
 			return "", err
 		}
@@ -214,6 +300,14 @@ func (provider *SBaseProvider) GetFactory() ICloudProviderFactory {
 }
 
 func (self *SBaseProvider) GetOnPremiseIRegion() (ICloudRegion, error) {
+	return nil, ErrNotImplemented
+}
+
+func (self *SBaseProvider) GetICloudQuotas() ([]ICloudQuota, error) {
+	return nil, ErrNotImplemented
+}
+
+func (self *SBaseProvider) GetICloudPolicyDefinitions() ([]ICloudPolicyDefinition, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -253,6 +347,20 @@ func GetOnPremiseProviders() []string {
 		}
 	}
 	return providers
+}
+
+func GetProviderCloudEnv(provider string) string {
+	p, err := GetProviderFactory(provider)
+	if err != nil {
+		return ""
+	}
+	if p.IsPublicCloud() {
+		return CLOUD_ENV_PUBLIC_CLOUD
+	}
+	if p.IsOnPremise() {
+		return CLOUD_ENV_ON_PREMISE
+	}
+	return CLOUD_ENV_PRIVATE_CLOUD
 }
 
 type baseProviderFactory struct {
@@ -302,19 +410,7 @@ func (factory *SPremiseBaseProviderFactory) IsOnPremise() bool {
 	return true
 }
 
-func (factory *SPremiseBaseProviderFactory) IsSupportObjectStorage() bool {
-	return false
-}
-
 func (factory *SPremiseBaseProviderFactory) NeedSyncSkuFromCloud() bool {
-	return false
-}
-
-func (factory *SPremiseBaseProviderFactory) IsSupportComputeEngine() bool {
-	return true
-}
-
-func (factory *SPremiseBaseProviderFactory) IsSupportNetworkManage() bool {
 	return false
 }
 
@@ -330,20 +426,8 @@ func (factory *SPublicCloudBaseProviderFactor) IsSupportPrepaidResources() bool 
 	return true
 }
 
-func (factory *SPublicCloudBaseProviderFactor) IsSupportObjectStorage() bool {
-	return true
-}
-
 func (factory *SPublicCloudBaseProviderFactor) NeedSyncSkuFromCloud() bool {
 	return false
-}
-
-func (factory *SPublicCloudBaseProviderFactor) IsSupportComputeEngine() bool {
-	return true
-}
-
-func (factory *SPublicCloudBaseProviderFactor) IsSupportNetworkManage() bool {
-	return true
 }
 
 type SPrivateCloudBaseProviderFactor struct {
@@ -358,18 +442,6 @@ func (factory *SPrivateCloudBaseProviderFactor) IsSupportPrepaidResources() bool
 	return false
 }
 
-func (factory *SPrivateCloudBaseProviderFactor) IsSupportObjectStorage() bool {
-	return false
-}
-
 func (factory *SPrivateCloudBaseProviderFactor) NeedSyncSkuFromCloud() bool {
-	return true
-}
-
-func (factory *SPrivateCloudBaseProviderFactor) IsSupportComputeEngine() bool {
-	return true
-}
-
-func (factory *SPrivateCloudBaseProviderFactor) IsSupportNetworkManage() bool {
 	return true
 }

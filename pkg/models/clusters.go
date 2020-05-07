@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -221,8 +222,8 @@ func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
 	return GetAdminSession()
 }
 
-func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	return m.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.ClusterListInput) (*sqlchemy.SQuery, error) {
+	return m.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.SharableVirtualResourceListInput)
 }
 
 func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data apis.ClusterCreateInput) (manager.ICluster, error) {
@@ -589,11 +590,6 @@ func (c *SCluster) GetImageRepository() (*apis.ImageRepository, error) {
 	return ClusterManager.GetImageRepository(ret), nil
 }
 
-func (c *SCluster) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := c.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	return c.moreExtraInfo(extra)
-}
-
 func (c *SCluster) IsHealthy() error {
 	cli, err := c.GetK8sClient()
 	if err != nil {
@@ -605,13 +601,30 @@ func (c *SCluster) IsHealthy() error {
 	return nil
 }
 
-func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
-	extra, err := c.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+func (m *SClusterManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []*jsonutils.JSONDict {
+	rows := make([]*jsonutils.JSONDict, len(objs))
+	virtRows := m.SSharableVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range objs {
+		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
+		rows[i] = objs[i].(*SCluster).moreExtraInfo(rows[i])
+	}
+	return rows
+}
+
+func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*jsonutils.JSONDict, error) {
+	extra, err := c.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query, isList)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.moreExtraInfo(extra), nil
+	return c.moreExtraInfo(jsonutils.Marshal(extra).(*jsonutils.JSONDict)), nil
 }
 
 func (c *SCluster) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
@@ -1517,11 +1530,11 @@ func (c *SCluster) PerformEnableComponent(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, err
 	}
-	ret, err := comp.GetExtraDetails(ctx, userCred, query)
+	ret, err := comp.GetExtraDetails(ctx, userCred, query, false)
 	if err != nil {
 		return nil, err
 	}
-	return ret, nil
+	return jsonutils.Marshal(ret), nil
 }
 
 func (c *SCluster) AllowPerformDisableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {

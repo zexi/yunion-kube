@@ -2,9 +2,11 @@ package apis
 
 import "yunion.io/x/onecloud/pkg/apis"
 
+type RepoType string
+
 const (
-	RepoTypeOneCloud  = "onecloud"
-	RepoTypeCommunity = "community"
+	RepoTypeInternal  RepoType = "internal"
+	RepoTypeExternal RepoType = "external"
 )
 
 type RepoCreateInput struct {
@@ -17,5 +19,11 @@ type RepoCreateInput struct {
 
 	// Repo type
 	// default: community
+	Type string `json:"type"`
+}
+
+type RepoListInput struct {
+	apis.SharableVirtualResourceListInput
+
 	Type string `json:"type"`
 }

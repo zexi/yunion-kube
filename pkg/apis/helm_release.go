@@ -4,14 +4,29 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/time"
+	"yunion.io/x/onecloud/pkg/apis"
+)
+
+const (
+	ReleaseStatusDeploying = "deploying"
+	ReleaseStatusDeployFail = "deploy_fail"
+	ReleaseStatusDeployed = "deployed"
+	ReleaseStatusUpdating = "updating"
+	ReleaseStatusUpdateFail = "update_fail"
+	ReleaseStatusDeleting = "deleting"
+	ReleaseStatusDeleteFail = "delete_fail"
 )
 
 type ReleaseCreateInput struct {
+	apis.VirtualResourceCreateInput
+	NamespaceResourceCreateInput
 	Repo        string            `json:"repo"`
+	// Deprecated, use Chart and Repo
 	ChartName   string            `json:"chart_name"`
-	Namespace   string            `json:"namespace"`
+	Chart string `json:"chart"`
 	ReleaseName string            `json:"release_name"`
 	Version     string            `json:"version"`
+	// Values is yaml config content
 	Values      string            `json:"values"`
 	Sets        map[string]string `json:"sets"`
 }

@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"yunion.io/x/onecloud/pkg/apis"
 	api "yunion.io/x/onecloud/pkg/apis/compute"
 )
 
@@ -53,3 +54,10 @@ const (
 const (
 	MachineMetadataCreateParams = "create_params"
 )
+
+type MachineListInput struct {
+	apis.VirtualResourceListInput
+
+	// Filter by cluster name or id
+	Cluster string `json:"cluster"`
+}

@@ -18,23 +18,26 @@ import (
 	"context"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
+	api "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
-type SScopedResourceBaseManager struct{}
-
-type SScopedResourceBase struct {
-	DomainId  string `width:"64" charset:"ascii" nullable:"true" index:"true" list:"user"`
-	ProjectId string `name:"tenant_id" width:"128" charset:"ascii" nullable:"true" index:"true" list:"user"`
+type SScopedResourceBaseManager struct {
+	SProjectizedResourceBaseManager
 }
 
-func (m *SScopedResourceBaseManager) ResourceScope() rbacutils.TRbacScope {
-	return rbacutils.ScopeProject
+type SScopedResourceBase struct {
+	SProjectizedResourceBase
+	// DomainId  string `width:"64" charset:"ascii" nullable:"true" index:"true" list:"user"`
+	// ProjectId string `name:"tenant_id" width:"128" charset:"ascii" nullable:"true" index:"true" list:"user"`
 }
 
 func (m *SScopedResourceBaseManager) FilterByOwner(q *sqlchemy.SQuery, userCred mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
@@ -56,23 +59,18 @@ func (m *SScopedResourceBaseManager) FilterByOwner(q *sqlchemy.SQuery, userCred 
 	return q
 }
 
-func (m *SScopedResourceBaseManager) FetchOwnerId(ctx context.Context, data jsonutils.JSONObject) (mcclient.IIdentityProvider, error) {
-	return FetchProjectInfo(ctx, data)
-}
-
-func (m *SScopedResourceBaseManager) ValidateCreateData(man IScopedResourceManager, ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	scope, _ := data.GetString("scope")
-	if scope == "" {
-		scope = string(rbacutils.ScopeSystem)
+func (m *SScopedResourceBaseManager) ValidateCreateData(man IScopedResourceManager, ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input api.ScopedResourceCreateInput) (api.ScopedResourceCreateInput, error) {
+	if input.Scope == "" {
+		input.Scope = string(rbacutils.ScopeSystem)
 	}
-	if !utils.IsInStringArray(scope, []string{
+	if !utils.IsInStringArray(input.Scope, []string{
 		string(rbacutils.ScopeSystem),
 		string(rbacutils.ScopeDomain),
 		string(rbacutils.ScopeProject)}) {
-		return nil, httperrors.NewInputParameterError("invalid scope %s", scope)
+		return input, httperrors.NewInputParameterError("invalid scope %s", input.Scope)
 	}
 	var allowCreate bool
-	switch rbacutils.TRbacScope(scope) {
+	switch rbacutils.TRbacScope(input.Scope) {
 	case rbacutils.ScopeSystem:
 		allowCreate = IsAdminAllowCreate(userCred, man)
 	case rbacutils.ScopeDomain:
@@ -81,10 +79,9 @@ func (m *SScopedResourceBaseManager) ValidateCreateData(man IScopedResourceManag
 		allowCreate = IsProjectAllowCreate(userCred, man)
 	}
 	if !allowCreate {
-		return nil, httperrors.NewForbiddenError("not allow create %s in scope %s", man.ResourceScope(), scope)
+		return input, httperrors.NewForbiddenError("not allow create %s in scope %s", man.ResourceScope(), input.Scope)
 	}
-	data.Set("scope", jsonutils.NewString(scope))
-	return data, nil
+	return input, nil
 }
 
 func getScopedResourceScope(domainId, projectId string) rbacutils.TRbacScope {
@@ -98,13 +95,6 @@ func getScopedResourceScope(domainId, projectId string) rbacutils.TRbacScope {
 		return rbacutils.ScopeProject
 	}
 	return rbacutils.ScopeNone
-}
-
-func (s *SScopedResourceBase) GetOwnerId() mcclient.IIdentityProvider {
-	return &SOwnerId{
-		DomainId:  s.DomainId,
-		ProjectId: s.ProjectId,
-	}
 }
 
 func (s *SScopedResourceBase) GetResourceScope() rbacutils.TRbacScope {
@@ -161,7 +151,7 @@ func (m *SScopedResourceBaseManager) PerformSetScope(
 	domainId := jsonutils.GetAnyString(data, []string{"domain_id", "domain", "project_domain_id", "project_domain"})
 	projectId := jsonutils.GetAnyString(data, []string{"project_id", "project"})
 	if projectId != "" {
-		project, err := TenantCacheManager.FetchTenantByIdOrName(ctx, projectId)
+		project, err := DefaultProjectFetcher(ctx, projectId)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +159,7 @@ func (m *SScopedResourceBaseManager) PerformSetScope(
 		domainId = project.GetDomainId()
 	}
 	if domainId != "" {
-		domain, err := TenantCacheManager.FetchDomainByIdOrName(ctx, domainId)
+		domain, err := DefaultDomainFetcher(ctx, domainId)
 		if err != nil {
 			return nil, err
 		}
@@ -235,4 +225,51 @@ func (m *SScopedResourceBaseManager) SetScopedResourceToProject(model IScopedRes
 		return err
 	}
 	return setScopedResourceIds(model, userCred, project.GetDomainId(), projectId)
+}
+
+func (m *SScopedResourceBaseManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query apis.ScopedResourceBaseListInput,
+) (*sqlchemy.SQuery, error) {
+	q, err := m.SProjectizedResourceBaseManager.ListItemFilter(ctx, q, userCred, query.ProjectizedResourceListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SProjectizedResourceBaseManager.ListItemFilter")
+	}
+	return q, nil
+}
+
+func (m *SScopedResourceBaseManager) OrderByExtraFields(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query apis.ScopedResourceBaseListInput,
+) (*sqlchemy.SQuery, error) {
+	q, err := m.SProjectizedResourceBaseManager.OrderByExtraFields(ctx, q, userCred, query.ProjectizedResourceListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SProjectizedResourceBaseManager.OrderByExtraFields")
+	}
+	return q, nil
+}
+
+func (manager *SScopedResourceBaseManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []apis.ScopedResourceBaseInfo {
+	rows := make([]apis.ScopedResourceBaseInfo, len(objs))
+
+	projRows := manager.SProjectizedResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+
+	for i := range rows {
+		rows[i] = apis.ScopedResourceBaseInfo{
+			ProjectizedResourceInfo: projRows[i],
+		}
+	}
+
+	return rows
 }

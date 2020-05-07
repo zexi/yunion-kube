@@ -21,7 +21,7 @@ LDFLAGS := "-w \
 
 export GO111MODULE:=on
 export GOPROXY:=direct
-RELEASE_BRANCH:=release/2.13
+RELEASE_BRANCH:=release/3.2
 mod:
 	go get yunion.io/x/onecloud@$(RELEASE_BRANCH)
 	go get $(patsubst %,%@master,$(shell GO111MODULE=on go mod edit -print | sed -n -e 's|.*\(yunion.io/x/[a-z].*\) v.*|\1|p' | grep -v '/onecloud$$'))

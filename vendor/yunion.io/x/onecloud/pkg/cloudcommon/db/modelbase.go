@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/apis"
@@ -122,12 +123,27 @@ func (manager *SModelBaseManager) ValidateListConditions(ctx context.Context, us
 	return query, nil
 }
 
-func (manager *SModelBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+func (manager *SModelBaseManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	input apis.ModelBaseListInput,
+) (*sqlchemy.SQuery, error) {
 	return q, nil
 }
 
-func (manager *SModelBaseManager) ListItemFilterV2(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.ModelBaseListInput) (*sqlchemy.SQuery, error) {
+func (manager *SModelBaseManager) OrderByExtraFields(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	input apis.ModelBaseListInput,
+) (*sqlchemy.SQuery, error) {
 	return q, nil
+}
+
+func (manager *SModelBaseManager) QueryDistinctExtraField(q *sqlchemy.SQuery, field string) (*sqlchemy.SQuery, error) {
+	// no field match
+	return q, httperrors.ErrNotFound
 }
 
 func (manager *SModelBaseManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*CustomizeListFilters, error) {
@@ -150,6 +166,10 @@ func (manager *SModelBaseManager) Query(fieldNames ...string) *sqlchemy.SQuery {
 		fields[i] = instance.Field(f)
 	}
 	return instance.Query(fields...)
+}
+
+func (manager *SModelBaseManager) RawQuery(fieldNames ...string) *sqlchemy.SQuery {
+	return manager.Query(fieldNames...)
 }
 
 func (manager *SModelBaseManager) FilterById(q *sqlchemy.SQuery, idStr string) *sqlchemy.SQuery {
@@ -221,16 +241,12 @@ func (manager *SModelBaseManager) InitializeData() error {
 	return nil
 }
 
-func (manager *SModelBaseManager) ListItemExportKeys(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+func (manager *SModelBaseManager) ListItemExportKeys(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, keys stringutils2.SSortedStrings) (*sqlchemy.SQuery, error) {
 	q = q.AppendField(q.QueryFields()...)
 	return q, nil
 }
 
-func (manager *SModelBaseManager) OrderByExtraFields(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	return q, nil
-}
-
-func (manager *SModelBaseManager) GetExportExtraKeys(ctx context.Context, query jsonutils.JSONObject, rowMap map[string]string) *jsonutils.JSONDict {
+func (manager *SModelBaseManager) GetExportExtraKeys(ctx context.Context, keys stringutils2.SSortedStrings, rowMap map[string]string) *jsonutils.JSONDict {
 	return jsonutils.NewDict()
 }
 
@@ -265,10 +281,25 @@ func (manager *SModelBaseManager) GetSkipLog(ctx context.Context, userCred mccli
 	return false
 }
 
-func (manager *SModelBaseManager) FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []IModel, fields stringutils2.SSortedStrings) []*jsonutils.JSONDict {
-	ret := make([]*jsonutils.JSONDict, len(objs))
+func (model *SModelBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (apis.ModelBaseDetails, error) {
+	return apis.ModelBaseDetails{}, nil
+}
+
+func (manager *SModelBaseManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []apis.ModelBaseDetails {
+	showReason := false
+	if query.Contains("show_fail_reason") {
+		showReason = true
+	}
+	ret := make([]apis.ModelBaseDetails, len(objs))
 	for i := range objs {
-		ret[i] = jsonutils.NewDict()
+		ret[i] = getModelExtraDetails(objs[i].(IModel), ctx, showReason)
 	}
 	return ret
 }
@@ -287,10 +318,6 @@ func (manager *SModelBaseManager) NamespaceScope() rbacutils.TRbacScope {
 
 func (manager *SModelBaseManager) ResourceScope() rbacutils.TRbacScope {
 	return rbacutils.ScopeSystem
-}
-
-func (manager *SModelBaseManager) QueryDistinctExtraField(q *sqlchemy.SQuery, field string) (*sqlchemy.SQuery, error) {
-	return q, httperrors.NewBadRequestError("unsupport field %s", field)
 }
 
 func (manager *SModelBaseManager) AllowGetPropertyDistinctField(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -360,10 +387,10 @@ func (manager *SModelBaseManager) GetPropertyDistinctField(ctx context.Context, 
 		fe, _ := efs[i].GetString()
 		nqp, err := im.QueryDistinctExtraField(&nq, fe)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		ef, err := nqp.AllStringMap()
-		if err == sql.ErrNoRows {
+		if errors.Cause(err) == sql.ErrNoRows {
 			continue
 		}
 		efa := make([]string, len(ef))
@@ -409,6 +436,18 @@ func (model *SModelBase) GetName() string {
 	return ""
 }
 
+func (model *SModelBase) GetUpdatedAt() time.Time {
+	return time.Time{}
+}
+
+func (model *SModelBase) GetUpdateVersion() int {
+	return 0
+}
+
+func (model *SModelBase) GetDeleted() bool {
+	return false
+}
+
 func (model *SModelBase) SetModelManager(man IModelManager, virtual IModel) {
 	model.manager = man
 	model.SetVirtualObject(virtual)
@@ -432,36 +471,9 @@ func (model *SModelBase) GetShortDescV2(ctx context.Context) *apis.ModelBaseShor
 	return &apis.ModelBaseShortDescDetail{ResName: model.Keyword()}
 }
 
-// list hooks
-func (model *SModelBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := jsonutils.NewDict()
-	return getModelExtraDetails(model.GetIModel(), ctx, extra)
-}
-
 // get hooks
 func (model *SModelBase) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return false
-}
-
-func (model *SModelBase) GetExtraDetailsV2(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, out *apis.ModelBaseDetails) error {
-	out.CanDelete = true
-	out.CanUpdate = true
-	err := model.GetIModel().ValidateDeleteCondition(ctx)
-	if err != nil {
-		out.CanDelete = false
-		out.DeleteFailReason = err.Error()
-	}
-	err = model.GetIModel().ValidateUpdateCondition(ctx)
-	if err != nil {
-		out.CanUpdate = false
-		out.UpdateFailReason = err.Error()
-	}
-	return nil
-}
-
-func (model *SModelBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
-	extra := jsonutils.NewDict()
-	return getModelExtraDetails(model.GetIModel(), ctx, extra), nil
 }
 
 func (model *SModelBase) GetExtraDetailsHeaders(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) map[string]string {
@@ -490,8 +502,8 @@ func (model *SModelBase) AllowUpdateItem(ctx context.Context, userCred mcclient.
 	return false
 }
 
-func (model *SModelBase) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	return data, nil
+func (model *SModelBase) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input apis.ModelBaseUpdateInput) (apis.ModelBaseUpdateInput, error) {
+	return input, nil
 }
 
 func (model *SModelBase) PreUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {

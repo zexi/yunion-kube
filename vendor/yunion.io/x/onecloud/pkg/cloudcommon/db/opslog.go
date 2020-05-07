@@ -24,14 +24,18 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/util/reflectutils"
 	"yunion.io/x/pkg/util/stringutils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
 const (
@@ -48,6 +52,9 @@ const (
 	ACT_ATTACH_FAIL = "attach_fail"
 	ACT_DETACH_FAIL = "detach_fail"
 	ACT_DELETE_FAIL = "delete_fail"
+
+	ACT_PUBLIC  = "public"
+	ACT_PRIVATE = "private"
 
 	ACT_SYNC_UPDATE = "sync_update"
 	ACT_SYNC_CREATE = "sync_create"
@@ -83,6 +90,10 @@ const (
 	ACT_MIGRATING    = "migrating"
 	ACT_MIGRATE      = "migrate"
 	ACT_MIGRATE_FAIL = "migrate_fail"
+
+	ACT_VM_CONVERT      = "vm_convert"
+	ACT_VM_CONVERTING   = "vm_converting"
+	ACT_VM_CONVERT_FAIL = "vm_convert_fail"
 
 	ACT_SPLIT = "net_split"
 	ACT_MERGE = "net_merge"
@@ -139,6 +150,9 @@ const (
 	ACT_BACKUP_ALLOCATE_FAIL = "backup_alloc_fail"
 	ACT_REW_FAIL             = "renew_fail"
 
+	ACT_SET_AUTO_RENEW      = "set_auto_renew"
+	ACT_SET_AUTO_RENEW_FAIL = "set_auto_renew_fail"
+
 	ACT_DELOCATING    = "delocating"
 	ACT_DELOCATE      = "delocate"
 	ACT_DELOCATE_FAIL = "delocate_fail"
@@ -175,6 +189,7 @@ const (
 
 	ACT_CHANGE_OWNER = "change_owner"
 	ACT_SYNC_OWNER   = "sync_owner"
+	ACT_SYNC_SHARE   = "sync_share"
 
 	ACT_RESERVE_IP = "reserve_ip"
 	ACT_RELEASE_IP = "release_ip"
@@ -231,6 +246,7 @@ const (
 	ACT_GUEST_SRC_CHECK = "guest_src_check"
 
 	ACT_CHANGE_BANDWIDTH = "eip_change_bandwidth"
+	ACT_EIP_CONVERT_FAIL = "eip_convert_fail"
 
 	ACT_RENEW = "renew"
 
@@ -245,6 +261,7 @@ const (
 	ACT_GUEST_CREATE_FROM_IMPORT_FAIL    = "guest_create_from_import_fail"
 	ACT_GUEST_PANICKED                   = "guest_panicked"
 	ACT_HOST_MAINTENANCE                 = "host_maintenance"
+	ACT_HOST_DOWN                        = "host_down"
 
 	ACT_UPLOAD_OBJECT = "upload_obj"
 	ACT_DELETE_OBJECT = "delete_obj"
@@ -327,6 +344,14 @@ func (opslog *SOpsLog) GetId() string {
 
 func (opslog *SOpsLog) GetName() string {
 	return fmt.Sprintf("%s-%s", opslog.ObjType, opslog.Action)
+}
+
+func (opslog *SOpsLog) GetUpdatedAt() time.Time {
+	return opslog.OpsTime
+}
+
+func (opslog *SOpsLog) GetUpdateVersion() int {
+	return 1
 }
 
 func (opslog *SOpsLog) GetModelManager() IModelManager {
@@ -429,7 +454,13 @@ func (manager *SOpsLogManager) LogDetachEvent(ctx context.Context, m1, m2 IModel
 	manager.logJoinEvent(ctx, m1, m2, ACT_DETACH, userCred, notes)
 }
 
-func (manager *SOpsLogManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
+// 操作日志列表
+func (manager *SOpsLogManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+) (*sqlchemy.SQuery, error) {
 	userStrs := jsonutils.GetQueryStringArray(query, "user")
 	if len(userStrs) > 0 {
 		for i := range userStrs {
@@ -454,7 +485,7 @@ func (manager *SOpsLogManager) ListItemFilter(ctx context.Context, q *sqlchemy.S
 	projStrs := jsonutils.GetQueryStringArray(query, "project")
 	if len(projStrs) > 0 {
 		for i := range projStrs {
-			projObj, err := TenantCacheManager.FetchTenantByIdOrName(ctx, projStrs[i])
+			projObj, err := DefaultProjectFetcher(ctx, projStrs[i])
 			if err != nil {
 				if err == sql.ErrNoRows {
 					return nil, httperrors.NewResourceNotFoundError2("project", projStrs[i])
@@ -584,6 +615,10 @@ func (self *SOpsLogManager) FilterByName(q *sqlchemy.SQuery, name string) *sqlch
 func (self *SOpsLogManager) FilterByOwner(q *sqlchemy.SQuery, ownerId mcclient.IIdentityProvider, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
 	if ownerId != nil {
 		switch scope {
+		case rbacutils.ScopeUser:
+			if len(ownerId.GetUserId()) > 0 {
+				q = q.Filter(sqlchemy.Equals(q.Field("user_id"), ownerId.GetUserId()))
+			}
 		case rbacutils.ScopeProject:
 			if len(ownerId.GetProjectId()) > 0 {
 				q = q.Filter(sqlchemy.OR(
@@ -598,25 +633,24 @@ func (self *SOpsLogManager) FilterByOwner(q *sqlchemy.SQuery, ownerId mcclient.I
 					sqlchemy.Equals(q.Field("domain_id"), ownerId.GetProjectDomainId()),
 				))
 			}
+		default:
+			// systemScope, no filter
 		}
-		/* if len(ownerId.GetProjectId()) > 0 {
-			q = q.Filter(sqlchemy.OR(
-				sqlchemy.Equals(q.Field("owner_tenant_id"), ownerId.GetProjectId()),
-				sqlchemy.Equals(q.Field("tenant_id"), ownerId.GetProjectId()),
-			))
-		} else if len(ownerId.GetProjectDomainId()) > 0 {
-			q = q.Filter(sqlchemy.OR(
-				sqlchemy.Equals(q.Field("owner_domain_id"), ownerId.GetProjectDomainId()),
-				sqlchemy.Equals(q.Field("domain_id"), ownerId.GetProjectDomainId()),
-			))
-		}
-		*/
 	}
 	return q
 }
 
 func (self *SOpsLog) GetOwnerId() mcclient.IIdentityProvider {
-	owner := SOwnerId{DomainId: self.OwnerDomainId, ProjectId: self.OwnerProjectId}
+	owner := SOwnerId{
+		Domain:       self.ProjectDomain,
+		DomainId:     self.ProjectDomainId,
+		Project:      self.Project,
+		ProjectId:    self.ProjectId,
+		User:         self.User,
+		UserId:       self.UserId,
+		UserDomain:   self.Domain,
+		UserDomainId: self.DomainId,
+	}
 	return &owner
 }
 
@@ -625,7 +659,7 @@ func (self *SOpsLog) IsSharable(reqCred mcclient.IIdentityProvider) bool {
 }
 
 func (manager *SOpsLogManager) ResourceScope() rbacutils.TRbacScope {
-	return rbacutils.ScopeProject
+	return rbacutils.ScopeUser
 }
 
 func (manager *SOpsLogManager) GetPagingConfig() *SPagingConfig {
@@ -634,4 +668,82 @@ func (manager *SOpsLogManager) GetPagingConfig() *SPagingConfig {
 		MarkerFields: []string{"id"},
 		DefaultLimit: 20,
 	}
+}
+
+func (manager *SOpsLogManager) FetchOwnerId(ctx context.Context, data jsonutils.JSONObject) (mcclient.IIdentityProvider, error) {
+	ownerId := SOwnerId{}
+	err := data.Unmarshal(&ownerId)
+	if err != nil {
+		return nil, errors.Wrap(err, "data.Unmarshal")
+	}
+	if ownerId.IsValid() {
+		return &ownerId, nil
+	}
+	return FetchUserInfo(ctx, data)
+}
+
+func (manager *SOpsLogManager) ValidateCreateData(ctx context.Context,
+	userCred mcclient.TokenCredential,
+	ownerId mcclient.IIdentityProvider,
+	query jsonutils.JSONObject,
+	data apis.OpsLogCreateInput,
+) (apis.OpsLogCreateInput, error) {
+	return data, nil
+}
+
+func (log *SOpsLog) CustomizeCreate(ctx context.Context,
+	userCred mcclient.TokenCredential,
+	ownerId mcclient.IIdentityProvider,
+	query jsonutils.JSONObject,
+	data jsonutils.JSONObject) error {
+	log.User = ownerId.GetUserName()
+	log.UserId = ownerId.GetUserId()
+	log.Domain = ownerId.GetDomainName()
+	log.DomainId = ownerId.GetDomainId()
+	log.Project = ownerId.GetProjectName()
+	log.ProjectId = ownerId.GetProjectId()
+	log.ProjectDomain = ownerId.GetProjectDomain()
+	log.ProjectDomainId = ownerId.GetProjectDomainId()
+	return log.SModelBase.CustomizeCreate(ctx, userCred, ownerId, query, data)
+}
+
+func (manager *SOpsLogManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []apis.OpsLogDetails {
+	rows := make([]apis.OpsLogDetails, len(objs))
+
+	projectIds := make([]string, len(rows))
+	domainIds := make([]string, len(rows))
+	for i := range rows {
+		var base *SOpsLog
+		err := reflectutils.FindAnonymouStructPointer(objs[i], &base)
+		if err != nil {
+			log.Errorf("Cannot find OpsLog in %#v: %s", objs[i], err)
+		} else {
+			if len(base.OwnerProjectId) > 0 {
+				projectIds[i] = base.OwnerProjectId
+			} else if len(base.OwnerDomainId) > 0 {
+				domainIds[i] = base.OwnerDomainId
+			}
+		}
+	}
+
+	projects := DefaultProjectsFetcher(ctx, projectIds, false)
+	domains := DefaultProjectsFetcher(ctx, domainIds, true)
+
+	for i := range rows {
+		if project, ok := projects[projectIds[i]]; ok {
+			rows[i].OwnerProject = project.Name
+			rows[i].OwnerDomain = project.Domain
+		} else if domain, ok := domains[domainIds[i]]; ok {
+			rows[i].OwnerDomain = domain.Name
+		}
+	}
+
+	return rows
 }

@@ -35,6 +35,7 @@ const (
 	BUCKET_STATUS_DELETING     = "deleting"
 	BUCKET_STATUS_DELETED      = "deleted"
 	BUCKET_STATUS_DELETE_FAIL  = "delete_fail"
+	BUCKET_STATUS_UNKNOWN      = "unknown"
 
 	BUCKET_UPLOAD_OBJECT_KEY_HEADER          = "X-Yunion-Bucket-Upload-Key"
 	BUCKET_UPLOAD_OBJECT_ACL_HEADER          = "X-Yunion-Bucket-Upload-Acl"
@@ -42,17 +43,22 @@ const (
 )
 
 type BucketCreateInput struct {
-	apis.VirtualResourceCreateInput
-	RegionalResourceCreateInput
-	ManagedResourceCreateInput
+	apis.SharableVirtualResourceCreateInput
+	CloudregionResourceInput
+	CloudproviderResourceInput
 
 	StorageClass string `json:"storage_class"`
 }
 
-type BucketDetail struct {
-	apis.Meta
+type BucketDetails struct {
+	apis.SharableVirtualResourceDetails
+	ManagedResourceInfo
+	CloudregionResourceInfo
+
 	SBucket
-	CloudproviderDetails
+
+	// 访问URL列表
+	AccessUrls []cloudprovider.SBucketAccessUrl `json:"access_urls"`
 }
 
 type BucketObjectsActionInput struct {
@@ -89,4 +95,28 @@ func (input *BucketMetadataInput) Validate() error {
 		return errors.Wrap(httperrors.ErrEmptyRequest, "metadata")
 	}
 	return nil
+}
+
+type BucketListInput struct {
+	apis.SharableVirtualResourceListInput
+	apis.ExternalizedResourceBaseListInput
+
+	ManagedResourceListInput
+	RegionalFilterListInput
+
+	// STORAGE_CLASS
+	StorageClass []string `json:"storage_class"`
+
+	// 位置
+	Location []string `json:"location"`
+
+	// ACL
+	Acl []string `json:"acl"`
+}
+
+type BucketSyncstatusInput struct {
+}
+
+type BucketUpdateInput struct {
+	apis.SharableVirtualResourceBaseUpdateInput
 }

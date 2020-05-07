@@ -107,9 +107,11 @@ const (
 	ACT_CREATE_BACKUP                = "创建备份机"
 	ACT_SWITCH_TO_BACKUP             = "主备切换"
 	ACT_RENEW                        = "续费"
+	ACT_SET_AUTO_RENEW               = "设置自动续费"
 	ACT_MIGRATE                      = "迁移"
 	ACT_EIP_ASSOCIATE                = "绑定弹性IP"
 	ACT_EIP_DISSOCIATE               = "解绑弹性IP"
+	ACT_EIP_CONVERT                  = "弹性IP转换"
 	ACT_CHANGE_BANDWIDTH             = "调整带宽"
 	ACT_DISK_CREATE_SNAPSHOT         = "磁盘创建快照"
 	ACT_LB_ADD_BACKEND               = "添加后端服务器"
@@ -128,6 +130,8 @@ const (
 	ACT_VM_RESET                     = "虚拟机回滚快照"
 	ACT_VM_SNAPSHOT_AND_CLONE        = "虚拟机快照并克隆"
 	ACT_VM_BLOCK_STREAM              = "同步数据"
+	ACT_ATTACH_NETWORK               = "绑定网卡"
+	ACT_VM_CONVERT                   = "虚拟机转换Hypervisor"
 
 	ACT_CACHED_IMAGE = "缓存镜像"
 
@@ -181,4 +185,10 @@ const (
 	ACT_INSTANCE_GROUP_UNBIND = "解绑主机组"
 
 	ACT_FLUSH_INSTANCE = "清空数据"
+
+	ACT_UPDATE_STATUS = "更新状态"
+
+	ACT_REMOVE_GUEST          = "移除实例"
+	ACT_CREATE_SCALING_POLICY = "创建伸缩策略"
+	ACT_DELETE_SCALING_POLICY = "删除伸缩策略"
 )

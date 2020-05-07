@@ -171,11 +171,6 @@ func (kp *SX509KeyPair) ToKeyPair() *apis.KeyPair {
 	}
 }
 
-func (kp *SX509KeyPair) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := kp.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	return kp.getExtraInfo(extra)
-}
-
 func (kp *SX509KeyPair) getExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	cluster, _ := kp.GetCluster()
 	if cluster != nil {

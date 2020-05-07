@@ -33,6 +33,8 @@ var (
 
 	defaultPagingLimit int64 = 2048
 	maxPagingLimit     int64 = 2048
+
+	domainizedNamespace = true
 )
 
 func SetRegion(region string) {
@@ -74,4 +76,12 @@ func GetDefaultPagingLimit() int64 {
 
 func GetMaxPagingLimit() int64 {
 	return maxPagingLimit
+}
+
+func SetDomainizedNamespace(domainNS bool) {
+	domainizedNamespace = domainNS
+}
+
+func IsDomainizedNamespace() bool {
+	return nonDefaultDomainProjects && domainizedNamespace
 }

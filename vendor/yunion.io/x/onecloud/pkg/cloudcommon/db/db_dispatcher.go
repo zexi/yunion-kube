@@ -30,6 +30,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/appsrv/dispatcher"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
@@ -39,6 +40,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
+	"yunion.io/x/onecloud/pkg/util/logclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
@@ -119,12 +121,15 @@ func listItemsQueryByColumn(manager IModelManager, q *sqlchemy.SQuery, userCred 
 	}
 	qdata, err := query.GetMap()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "query.GetMap %s", query.String())
 	}
 
 	listF := searchFields(manager, userCred)
 	for key := range qdata {
-		fn, op := parseSearchFieldkey(key)
+		if !strings.HasPrefix(key, "@") {
+			continue
+		}
+		fn, op := parseSearchFieldkey(key[1:])
 		if listF.Contains(fn) {
 			colSpec := manager.TableSpec().ColumnSpec(fn)
 			if colSpec != nil {
@@ -210,6 +215,9 @@ func applyListItemsGeneralJointFilters(manager IModelManager, q *sqlchemy.SQuery
 		jfc := filterclause.ParseJointFilterClause(f)
 		if jfc != nil {
 			jointModelManager := GetModelManager(jfc.GetJointModelName())
+			if jointModelManager == nil {
+				return nil, httperrors.NewResourceNotFoundError("invalid joint resources %s", jfc.GetJointModelName())
+			}
 			schFields := searchFields(jointModelManager, userCred)
 			if schFields.Contains(jfc.GetField()) {
 				sq := jointModelManager.Query(jfc.RelatedKey)
@@ -238,37 +246,49 @@ func ListItemQueryFilters(manager IModelManager,
 	return listItemQueryFilters(manager, ctx, q, userCred, query, action, false)
 }
 
-func listItemQueryFilters(manager IModelManager,
+func listItemQueryFiltersRaw(manager IModelManager,
 	ctx context.Context, q *sqlchemy.SQuery,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
 	action string,
 	doCheckRbac bool,
+	useRawQuery bool,
 ) (*sqlchemy.SQuery, error) {
 	ownerId, queryScope, err := FetchCheckQueryOwnerScope(ctx, userCred, query, manager, action, doCheckRbac)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
 
-	q = manager.FilterByOwner(q, ownerId, queryScope)
-	// apply all filters
-	q = manager.FilterBySystemAttributes(q, userCred, query, queryScope)
-	q = manager.FilterByHiddenSystemAttributes(q, userCred, query, queryScope)
+	if !useRawQuery {
+		// Specifically for joint resource, these filters will exclude
+		// deleted resources by joining with master/slave tables
+		q = manager.FilterByOwner(q, ownerId, queryScope)
+		q = manager.FilterBySystemAttributes(q, userCred, query, queryScope)
+		q = manager.FilterByHiddenSystemAttributes(q, userCred, query, queryScope)
+	}
 
 	q, err = ListItemFilter(manager, ctx, q, userCred, query)
 	if err != nil {
 		return nil, err
 	}
 	if query.Contains("export_keys") {
-		q, err = manager.ListItemExportKeys(ctx, q, userCred, query)
+		exportKeys, _ := query.GetString("export_keys")
+		keys := stringutils2.NewSortedStrings(strings.Split(exportKeys, ","))
+		q, err = manager.ListItemExportKeys(ctx, q, userCred, keys)
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	// TURN ON automatic filter by column name, ONLY if query key starts with @!!!!
+	// example: @name=abc&@city=111
+	// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 	q, err = listItemsQueryByColumn(manager, q, userCred, query)
 	if err != nil {
 		return nil, err
 	}
+
 	searches := jsonutils.GetQueryStringArray(query, "search")
 	if len(searches) > 0 {
 		q, err = applyListItemsSearchFilters(manager, ctx, q, userCred, searches)
@@ -283,9 +303,22 @@ func listItemQueryFilters(manager IModelManager,
 	}
 	jointFilter := jsonutils.GetQueryStringArray(query, "joint_filter")
 	if len(jointFilter) > 0 {
-		q, _ = applyListItemsGeneralJointFilters(manager, q, userCred, jointFilter, filterAny)
+		q, err = applyListItemsGeneralJointFilters(manager, q, userCred, jointFilter, filterAny)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return q, nil
+}
+
+func listItemQueryFilters(manager IModelManager,
+	ctx context.Context, q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	action string,
+	doCheckRbac bool,
+) (*sqlchemy.SQuery, error) {
+	return listItemQueryFiltersRaw(manager, ctx, q, userCred, query, action, doCheckRbac, false)
 }
 
 func mergeFields(metaFields, queryFields []string, isSysAdmin bool) stringutils2.SSortedStrings {
@@ -306,9 +339,10 @@ func mergeFields(metaFields, queryFields []string, isSysAdmin bool) stringutils2
 }
 
 func Query2List(manager IModelManager, ctx context.Context, userCred mcclient.TokenCredential, q *sqlchemy.SQuery, query jsonutils.JSONObject, delayFetch bool) ([]jsonutils.JSONObject, error) {
-	metaFields := listFields(manager, userCred)
+	metaFields, excludeFields := listFields(manager, userCred)
 	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
 	listF := mergeFields(metaFields, fieldFilter, IsAllowList(rbacutils.ScopeSystem, userCred, manager))
+	listExcludes, _, _ := stringutils2.Split(stringutils2.NewSortedStrings(excludeFields), listF)
 
 	showDetails := false
 	showDetailsJson, _ := query.Get("details")
@@ -317,33 +351,46 @@ func Query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 	} else {
 		showDetails = true
 	}
-	items := make([]IModel, 0)
-	results := make([]jsonutils.JSONObject, 0)
+	items := make([]interface{}, 0)
+	extraResults := make([]jsonutils.JSONObject, 0)
 	rows, err := q.Rows()
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
 	defer rows.Close()
+
+	var exportKeys stringutils2.SSortedStrings
+	if query.Contains("export_keys") {
+		exportKeyStr, _ := query.GetString("export_keys")
+		exportKeys = stringutils2.NewSortedStrings(strings.Split(exportKeyStr, ","))
+	}
+
 	for rows.Next() {
 		item, err := NewModelObject(manager)
 		if err != nil {
 			return nil, err
 		}
 
-		extraData := jsonutils.NewDict()
-		if query.Contains("export_keys") {
-			RowMap, err := q.Row2Map(rows)
+		if exportKeys != nil {
+			rowMap, err := q.Row2Map(rows)
 			if err != nil {
 				return nil, err
 			}
-			extraKeys := manager.GetExportExtraKeys(ctx, query, RowMap)
+			extraData := jsonutils.NewDict()
+			for k, v := range rowMap {
+				if len(v) > 0 {
+					extraData.Add(jsonutils.NewString(v), k)
+				}
+			}
+			extraKeys := manager.GetExportExtraKeys(ctx, exportKeys, rowMap)
 			if extraKeys != nil {
 				extraData.Update(extraKeys)
 			}
-			err = q.RowMap2Struct(RowMap, item)
+			err = q.RowMap2Struct(rowMap, item)
 			if err != nil {
 				return nil, err
 			}
+			extraResults = append(extraResults, extraData)
 		} else {
 			err = q.Row2Struct(rows, item)
 			if err != nil {
@@ -357,28 +404,47 @@ func Query2List(manager IModelManager, ctx context.Context, userCred mcclient.To
 			}
 		}
 
-		jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
-		jsonDict = jsonDict.CopyIncludes([]string(listF)...)
-		jsonDict.Update(extraData)
-		if showDetails && !query.Contains("export_keys") {
-			extraDict := item.GetCustomizeColumns(ctx, userCred, query)
+		// jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
+		// jsonDict = jsonDict.CopyIncludes([]string(listF)...)
+		// jsonDict.Update(extraData)
+		// ignore GetExtraDetails since release/3.2
+		/*if showDetails && !query.Contains("export_keys") {
+			extraDict, _ := GetExtraDetails(item, ctx, userCred, query, true)
 			if extraDict != nil {
 				// Fix for Now
 				extraDict.Update(jsonDict)
 				jsonDict = extraDict
 			}
 			// jsonDict = getModelExtraDetails(item, ctx, jsonDict)
-		}
-		results = append(results, jsonDict)
+		}*/
+		// results = append(results, jsonDict)
 		items = append(items, item)
 	}
+	results := make([]jsonutils.JSONObject, len(items))
 	if showDetails && !query.Contains("export_keys") {
-		extraRows := manager.FetchCustomizeColumns(ctx, userCred, query, items, stringutils2.NewSortedStrings(fieldFilter))
-		// log.Debugf("manager.FetchCustomizeColumns: %s %s", extraRows, listF)
+		var sortedListFields stringutils2.SSortedStrings
+		if len(fieldFilter) > 0 {
+			sortedListFields = stringutils2.NewSortedStrings(fieldFilter)
+		}
+		extraRows, err := FetchCustomizeColumns(manager, ctx, userCred, query, items, sortedListFields, true)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "FetchCustomizeColumns")
+		}
 		if len(extraRows) == len(results) {
 			for i := range results {
-				results[i].(*jsonutils.JSONDict).Update(extraRows[i])
+				results[i] = extraRows[i].CopyExcludes(listExcludes...)
 			}
+		} else {
+			return nil, httperrors.NewInternalServerError("FetchCustomizeColumns return incorrect number of results")
+		}
+	} else {
+		for i := range items {
+			jsonDict := jsonutils.Marshal(items[i]).(*jsonutils.JSONDict).CopyExcludes(listExcludes...)
+			if i < len(extraResults) {
+				jsonDict.Update(extraResults[i])
+			}
+			results[i] = jsonDict
 		}
 	}
 	return results, nil
@@ -448,7 +514,24 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 	limit, _ := query.Int("limit")
 	offset, _ := query.Int("offset")
 	pagingMarker, _ := query.GetString("paging_marker")
-	q := manager.Query()
+
+	var (
+		q           *sqlchemy.SQuery
+		useRawQuery bool
+	)
+	{
+		// query senders are responsible for clear up other constraint
+		// like setting "pendinge_delete" to "all"
+		queryDelete, _ := query.GetString("delete")
+		if queryDelete == "all" && userCred.HasSystemAdminPrivilege() {
+			useRawQuery = true
+		}
+	}
+	if useRawQuery {
+		q = manager.RawQuery()
+	} else {
+		q = manager.Query()
+	}
 
 	queryDict, ok := query.(*jsonutils.JSONDict)
 	if !ok {
@@ -467,7 +550,7 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		return nil, err
 	}
 
-	q, err = listItemQueryFilters(manager, ctx, q, userCred, queryDict, policy.PolicyActionList, true)
+	q, err = listItemQueryFiltersRaw(manager, ctx, q, userCred, queryDict, policy.PolicyActionList, true, useRawQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -536,9 +619,9 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 			orderQuery.Set(fmt.Sprintf("order_by_%s", orderByField), jsonutils.NewString(string(order)))
 		}
 	}
-	q, err = manager.OrderByExtraFields(ctx, q, userCred, orderQuery)
+	q, err = OrderByExtraFields(manager, ctx, q, userCred, orderQuery)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "OrderByExtraFields")
 	}
 	if orderBy == nil {
 		orderBy = []string{}
@@ -547,6 +630,9 @@ func ListItems(manager IModelManager, ctx context.Context, userCred mcclient.Tok
 		orderBy = append(orderBy, primaryCol.Name())
 	} else if manager.TableSpec().ColumnSpec("created_at") != nil {
 		orderBy = append(orderBy, "created_at")
+		if manager.TableSpec().ColumnSpec("name") != nil {
+			orderBy = append(orderBy, "name")
+		}
 		if primaryCol != nil {
 			orderBy = append(orderBy, primaryCol.Name())
 		}
@@ -653,8 +739,10 @@ func calculateListResult(data []jsonutils.JSONObject, total, limit, offset int64
 			}
 		}
 		// do limit
-		if limit > 0 && total > limit {
+		if limit > 0 && total-offset > limit {
 			data = data[:limit]
+		} else {
+			data = data[:total-offset]
 		}
 	}
 
@@ -681,22 +769,26 @@ func (dispatcher *DBModelDispatcher) List(ctx context.Context, query jsonutils.J
 	return items, nil
 }
 
-func getModelExtraDetails(item IModel, ctx context.Context, extra *jsonutils.JSONDict) *jsonutils.JSONDict {
+func getModelExtraDetails(item IModel, ctx context.Context, showReason bool) apis.ModelBaseDetails {
+	out := apis.ModelBaseDetails{
+		CanDelete: true,
+		CanUpdate: true,
+	}
 	err := item.ValidateDeleteCondition(ctx)
 	if err != nil {
-		extra.Add(jsonutils.JSONFalse, "can_delete")
-		extra.Add(jsonutils.NewString(err.Error()), "delete_fail_reason")
-	} else {
-		extra.Add(jsonutils.JSONTrue, "can_delete")
+		out.CanDelete = false
+		if showReason {
+			out.DeleteFailReason = err.Error()
+		}
 	}
 	err = item.ValidateUpdateCondition(ctx)
 	if err != nil {
-		extra.Add(jsonutils.JSONFalse, "can_update")
-		extra.Add(jsonutils.NewString(err.Error()), "update_fail_reason")
-	} else {
-		extra.Add(jsonutils.JSONTrue, "can_update")
+		out.CanUpdate = false
+		if showReason {
+			out.UpdateFailReason = err.Error()
+		}
 	}
-	return extra
+	return out
 }
 
 func getModelItemDetails(manager IModelManager, item IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isHead bool) (jsonutils.JSONObject, error) {
@@ -724,7 +816,7 @@ func getModelItemDetails(manager IModelManager, item IModel, ctx context.Context
 }
 
 func getItemDetails(manager IModelManager, item IModel, ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	extraDict, err := GetExtraDetails(item, ctx, userCred, query)
+	extraDict, err := GetExtraDetails(item, ctx, userCred, query, false)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
 	}
@@ -733,21 +825,29 @@ func getItemDetails(manager IModelManager, item IModel, ctx context.Context, use
 		return nil, nil
 	}
 
-	metaFields := GetDetailFields(manager, userCred)
+	metaFields, excludeFields := GetDetailFields(manager, userCred)
 	fieldFilter := jsonutils.GetQueryStringArray(query, "field")
 	getFields := mergeFields(metaFields, fieldFilter, IsAllowGet(rbacutils.ScopeSystem, userCred, item))
+	excludes, _, _ := stringutils2.Split(stringutils2.NewSortedStrings(excludeFields), getFields)
 
-	jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
-	jsonDict = jsonDict.CopyIncludes(getFields...)
-	extraDict.Update(jsonDict)
+	//jsonDict := jsonutils.Marshal(item).(*jsonutils.JSONDict)
+	//jsonDict = jsonDict.CopyIncludes(getFields...)
+	// extraDict.Update(jsonDict)
 	// jsonDict = getModelExtraDetails(item, ctx, jsonDict)
 
-	extraRows := manager.FetchCustomizeColumns(ctx, userCred, query, []IModel{item}, stringutils2.NewSortedStrings(fieldFilter))
-	if len(extraRows) == 1 {
-		extraDict.Update(extraRows[0])
+	var sortedListFields stringutils2.SSortedStrings
+	if len(fieldFilter) > 0 {
+		sortedListFields = stringutils2.NewSortedStrings(fieldFilter)
 	}
-
-	return extraDict, nil
+	extraRows, err := FetchCustomizeColumns(manager, ctx, userCred, query, []interface{}{item}, sortedListFields, false)
+	if err != nil {
+		return nil, errors.Wrap(err, "FetchCustomizeColumns")
+	}
+	if len(extraRows) == 1 {
+		return extraRows[0].CopyExcludes(excludes...), nil
+	}
+	log.Errorf("FetchCustomizeColumns return incorrect number of objects %d", len(extraRows))
+	return nil, httperrors.NewInternalServerError("FetchCustomizeColumns returns incorrect results")
 }
 
 func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, property string, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -760,12 +860,11 @@ func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, pr
 		return nil, nil
 	}
 	userCred := fetchUserCredential(ctx)
-	params := []reflect.Value{
-		reflect.ValueOf(ctx),
-		reflect.ValueOf(userCred),
-		reflect.ValueOf(query),
+	params := []interface{}{ctx, userCred, query}
+	outs, err := callFunc(funcValue, allowFuncName, params...)
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("reflect call %s fail %s", allowFuncName, err)
 	}
-	outs := funcValue.Call(params)
 	if len(outs) != 1 {
 		return nil, httperrors.NewInternalServerError("Invald %s return value", funcName)
 	}
@@ -774,12 +873,15 @@ func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, pr
 	}
 
 	funcValue = modelValue.MethodByName(funcName)
-	outs = funcValue.Call(params)
+	outs, err = callFunc(funcValue, funcName, params...)
+	if err != nil {
+		return nil, httperrors.NewInternalServerError("reflect call %s fail %s", funcName, err)
+	}
 	if len(outs) != 2 {
 		return nil, httperrors.NewInternalServerError("Invald %s return value", funcName)
 	}
 
-	resVal := outs[0].Interface()
+	resVal := outs[0]
 	errVal := outs[1].Interface()
 	if !gotypes.IsNil(errVal) {
 		return nil, errVal.(error)
@@ -787,7 +889,7 @@ func (dispatcher *DBModelDispatcher) tryGetModelProperty(ctx context.Context, pr
 		if gotypes.IsNil(resVal) {
 			return nil, httperrors.NewBadRequestError("No return value, so why query?")
 		} else {
-			return resVal.(jsonutils.JSONObject), nil
+			return ValueToJSONObject(resVal), nil
 		}
 	}
 }
@@ -855,7 +957,7 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 			return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 		}
 
-		outs, err := callFunc(funcValue, params...)
+		outs, err := callFunc(funcValue, funcName, params...)
 		if err != nil {
 			return nil, err
 		}
@@ -873,7 +975,7 @@ func (dispatcher *DBModelDispatcher) GetSpecific(ctx context.Context, idStr stri
 		return nil, httperrors.NewSpecNotFoundError("%s %s %s not found", dispatcher.Keyword(), idStr, spec)
 	}
 
-	outs, err := callFunc(funcValue, params...)
+	outs, err := callFunc(funcValue, funcName, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -1140,7 +1242,11 @@ func (dispatcher *DBModelDispatcher) Create(ctx context.Context, query jsonutils
 		model.PostCreate(ctx, userCred, ownerId, query, data)
 	}()
 
-	OpsLog.LogEvent(model, ACT_CREATE, model.GetShortDesc(ctx), userCred)
+	{
+		notes := model.GetShortDesc(ctx)
+		OpsLog.LogEvent(model, ACT_CREATE, notes, userCred)
+		logclient.AddActionLogWithContext(ctx, model, logclient.ACT_CREATE, notes, userCred, true)
+	}
 	dispatcher.modelManager.OnCreateComplete(ctx, []IModel{model}, userCred, ownerId, query, data)
 	return getItemDetails(dispatcher.modelManager, model, ctx, userCred, query)
 }
@@ -1453,7 +1559,7 @@ func reflectDispatcherInternal(
 			return nil, httperrors.NewActionNotFoundError(msg)
 		}
 
-		outs, err := callFunc(allowFuncValue, params...)
+		outs, err := callFunc(allowFuncValue, allowFuncName, params...)
 		if err != nil {
 			return nil, err
 		}
@@ -1466,7 +1572,7 @@ func reflectDispatcherInternal(
 		}
 	}
 
-	outs, err := callFunc(funcValue, params...)
+	outs, err := callFunc(funcValue, funcName, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -1501,14 +1607,6 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 		return nil, httperrors.NewInternalServerError("Invalid data JSONObject")
 	}
 
-	name, _ := data.GetString("name")
-	if len(name) > 0 {
-		err = alterNameValidator(item, name)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	dataDict, err = ValidateUpdateData(item, ctx, userCred, query, dataDict)
 	if err != nil {
 		errMsg := fmt.Sprintf("validate update data error: %s", err)
@@ -1534,6 +1632,7 @@ func updateItem(manager IModelManager, item IModel, ctx context.Context, userCre
 		return nil, httperrors.NewGeneralError(err)
 	}
 	OpsLog.LogEvent(item, ACT_UPDATE, diff, userCred)
+	logclient.AddActionLogWithContext(ctx, item, logclient.ACT_UPDATE, diff, userCred, true)
 
 	item.PostUpdate(ctx, userCred, query, data)
 

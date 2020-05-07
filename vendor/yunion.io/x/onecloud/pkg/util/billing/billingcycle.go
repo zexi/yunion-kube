@@ -37,11 +37,13 @@ const (
 
 var (
 	ErrInvalidBillingCycle = errors.New("invalid billing cycle")
+	ErrInvalidDuration     = errors.New("invalid duration")
 )
 
 type SBillingCycle struct {
-	Count int
-	Unit  TBillingCycleUnit
+	AutoRenew bool
+	Count     int
+	Unit      TBillingCycleUnit
 }
 
 func ParseBillingCycle(cycleStr string) (SBillingCycle, error) {
@@ -72,6 +74,14 @@ func ParseBillingCycle(cycleStr string) (SBillingCycle, error) {
 	}
 	cycle.Count = val
 	return cycle, nil
+}
+
+// parse duration to minute unit billing cycle
+func DurationToBillingCycle(dur time.Duration) SBillingCycle {
+	return SBillingCycle{
+		Unit:  BillingCycleMinute,
+		Count: int(dur.Minutes()),
+	}
 }
 
 func (cycle *SBillingCycle) String() string {

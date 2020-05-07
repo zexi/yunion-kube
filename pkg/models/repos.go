@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"path"
+	"yunion.io/x/onecloud/pkg/apis"
 
 	"helm.sh/helm/v3/pkg/repo"
 
@@ -11,6 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
@@ -30,50 +32,75 @@ func init() {
 	RepoManager.SetVirtualObject(RepoManager)
 }
 
-// TODO: insert stable and incubator repo
-/* func (m *SRepoManager) InitializeData() error {
-	// check if default repo exists
-	_, err := m.FetchByIdOrName(nil, STABLE_REPO_NAME)
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return err
-		}
-		defRepo := SRepo{}
-		defRepo.Id = stringutils.UUID4()
-		defRepo.Name = STABLE_REPO_NAME
-		defRepo.Url = options.Options.StableChartRepo
-		err = m.TableSpec().Insert(&defRepo)
-		if err != nil {
-			return fmt.Errorf("Insert default repo error: %v", err)
+func (m *SRepoManager) InitializeData() error {
+	// 填充 v2 没有 tenant_id 的 repo，默认变为 system project
+	repos := []SRepo{}
+	q := m.Query()
+	q = q.Filter(sqlchemy.OR(
+		sqlchemy.IsNullOrEmpty(q.Field("tenant_id")),
+		sqlchemy.IsNullOrEmpty(q.Field("project_src")),
+		sqlchemy.IsNullOrEmpty(q.Field("type")),
+	))
+	if err := db.FetchModelObjects(m, q, &repos); err != nil {
+		return errors.Wrap(err, "fetch empty project repos")
+	}
+	userCred := GetAdminCred()
+	for _, r := range repos {
+		tmpRepo := &r
+		if _, err := db.Update(tmpRepo, func() error {
+			tmpRepo.ProjectId = userCred.GetProjectId()
+			tmpRepo.DomainId = userCred.GetProjectDomainId()
+			tmpRepo.ProjectSrc = string(apis.OWNER_SOURCE_LOCAL)
+			tmpRepo.Type = string(api.RepoTypeExternal)
+			return nil
+		}); err != nil {
+			return errors.Wrapf(err, "update empty project repo %s", tmpRepo.GetName())
 		}
 	}
+
 	return nil
-}*/
+}
 
 type SRepo struct {
 	db.SSharableVirtualResourceBase
 
-	Url      string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
+	Url      string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	Username string `width:"256" charset:"ascii" nullable:"false"`
 	Password string `width:"256" charset:"ascii" nullable:"false"`
-	Type     string `charset:"ascii" width:"128" nullable:"true" list:"user"`
+	Type     string `charset:"ascii" width:"128" create:"required" nullable:"true" list:"user"`
 }
 
 func (man *SRepoManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return true
 }
 
-func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	return man.SStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.RepoListInput) (*sqlchemy.SQuery, error) {
+	q, err := man.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.SharableVirtualResourceListInput)
+	if err != nil {
+		return nil, err
+	}
+	if input.Type != "" {
+		q = q.Equals("type", input.Type)
+	}
+	return q, nil
 }
 
 func (man *SRepoManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return db.IsAdminAllowCreate(userCred, man)
 }
 
+func (man *SRepoManager) GetRepoDataDir(projectId string) string {
+	return path.Join(options.Options.HelmDataDir, projectId)
+}
+
 func (man *SRepoManager) GetClient(projectId string) (*helm.RepoClient, error) {
-	dataDir := path.Join(options.Options.HelmDataDir, projectId)
+	dataDir := man.GetRepoDataDir(projectId)
 	return helm.NewRepoClient(dataDir)
+}
+
+func (man *SRepoManager) GetChartClient(projectId string) *helm.ChartClient {
+	dataDir := man.GetRepoDataDir(projectId)
+	return helm.NewChartClient(dataDir)
 }
 
 func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.RepoCreateInput) (*api.RepoCreateInput, error) {
@@ -90,9 +117,9 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 	}
 
 	if data.Type == "" {
-		data.Type = api.RepoTypeCommunity
+		data.Type = string(api.RepoTypeExternal)
 	}
-	if !utils.IsInStringArray(data.Type, []string{api.RepoTypeCommunity, api.RepoTypeOneCloud}) {
+	if !utils.IsInStringArray(data.Type, []string{string(api.RepoTypeExternal), string(api.RepoTypeInternal)}) {
 		return nil, httperrors.NewInputParameterError("Not support type %q", data.Type)
 	}
 
@@ -168,4 +195,12 @@ func (r *SRepo) DoSync() error {
 		return err
 	}
 	return cli.Update(r.Name)
+}
+
+func (r *SRepo) GetType() api.RepoType {
+	return api.RepoType(r.Type)
+}
+
+func (r *SRepo) GetChartClient() *helm.ChartClient {
+	return RepoManager.GetChartClient(r.ProjectId)
 }

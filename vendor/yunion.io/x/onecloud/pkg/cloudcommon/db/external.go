@@ -15,16 +15,21 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 
 	"yunion.io/x/sqlchemy"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
 type SExternalizedResourceBase struct {
-	ExternalId string `width:"256" charset:"utf8" index:"true" list:"user" create:"admin_optional" update:"admin"`
+	// 外部Id, 对用公有云私有资源自身的Id
+	ExternalId string `width:"256" charset:"utf8" index:"true" list:"user" create:"admin_optional" update:"admin" json:"external_id"`
 }
+
+type SExternalizedResourceBaseManager struct{}
 
 func (model SExternalizedResourceBase) GetExternalId() string {
 	return model.ExternalId
@@ -82,4 +87,16 @@ func FetchByExternalId(manager IModelManager, idStr string) (IExternalizedModel,
 	} else {
 		return nil, sql.ErrNoRows
 	}
+}
+
+func (manager *SExternalizedResourceBaseManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query apis.ExternalizedResourceBaseListInput,
+) (*sqlchemy.SQuery, error) {
+	if len(query.ExternalId) > 0 {
+		q = q.Equals("external_id", query.ExternalId)
+	}
+	return q, nil
 }

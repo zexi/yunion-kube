@@ -10,25 +10,15 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/k8s"
-	"yunion.io/x/yunion-kube/pkg/models"
-	k8sapp "yunion.io/x/yunion-kube/pkg/resources/app"
-
-	//"yunion.io/x/yunion-kube/pkg/resources/job"
-	//"yunion.io/x/yunion-kube/pkg/resources/namespace"
-	//"yunion.io/x/yunion-kube/pkg/resources/persistentvolume"
-	//"yunion.io/x/yunion-kube/pkg/resources/persistentvolumeclaim"
-	//"yunion.io/x/yunion-kube/pkg/resources/pod"
-	"yunion.io/x/yunion-kube/pkg/k8smodels"
-	"yunion.io/x/yunion-kube/pkg/resources/release"
-	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/meter"
-	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/notify"
-	//"yunion.io/x/yunion-kube/pkg/resources/releaseapp/servicetree"
 	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
+	"yunion.io/x/yunion-kube/pkg/k8smodels"
+	"yunion.io/x/yunion-kube/pkg/models"
 
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/secret"
 	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/storageclass"
+	_ "yunion.io/x/yunion-kube/pkg/models/drivers/release"
 )
 
 func InitHandlers(app *appsrv.Application) {
@@ -55,6 +45,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.X509KeyPairManager,
 		models.ComponentManager,
 		models.MachineManager,
+		models.ReleaseManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
@@ -71,8 +62,8 @@ func InitHandlers(app *appsrv.Application) {
 	}
 
 	for _, man := range []k8s.IK8sResourceManager{
-		k8sapp.AppFromFileManager,
-		release.ReleaseManager,
+		//k8sapp.AppFromFileManager,
+		//release.ReleaseManager,
 	} {
 		handler := k8s.NewK8sResourceHandler(man)
 		k8s.AddResourceDispatcher(apiPrefix, app, handler)
