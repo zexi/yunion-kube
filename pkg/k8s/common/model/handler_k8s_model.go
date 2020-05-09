@@ -446,7 +446,7 @@ func doCreateItem(
 }
 
 func (h *K8SModelHandler) Update(ctx *RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
-	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespaceByQuery(), id, query)
+	model, err := fetchK8SModel(ctx, h.modelManager, ctx.GetNamespace(), id, query)
 	if err != nil {
 		return nil, err
 	}
