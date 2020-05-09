@@ -11,7 +11,9 @@ import (
 	extensions "k8s.io/client-go/listers/extensions/v1beta1"
 	rbac "k8s.io/client-go/listers/rbac/v1"
 	storage "k8s.io/client-go/listers/storage/v1"
+	"k8s.io/client-go/tools/cache"
 
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/yunion-kube/pkg/client/api"
 )
 
@@ -26,15 +28,22 @@ func buildCacheController(client *kubernetes.Clientset) (*CacheFactory, error) {
 	// sharedInformerFactory := informers.NewSharedInformerFactory(client, 0)
 
 	// Start all Resources defined in KindToResourceMap
+	informerSyncs := make([]cache.InformerSynced, 0)
 	for _, value := range api.KindToResourceMap {
 		genericInformer, err := sharedInformerFactory.ForResource(value.GroupVersionResourceKind.GroupVersionResource)
 		if err != nil {
 			return nil, err
 		}
-		go genericInformer.Informer().Run(stop)
+		informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
+		//genericInformer.Informer().AddEventHandler()
+		// go genericInformer.Informer().Run(stop)
 	}
 
 	sharedInformerFactory.Start(stop)
+
+	if !cache.WaitForCacheSync(stop, informerSyncs...) {
+		return nil, errors.Errorf("informers not synced")
+	}
 
 	return &CacheFactory{
 		stopChan:              stop,

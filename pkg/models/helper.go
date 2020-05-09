@@ -9,6 +9,14 @@ import (
 	"html/template"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"reflect"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"helm.sh/helm/v3/pkg/release"
+	"k8s.io/apimachinery/pkg/runtime"
+	"helm.sh/helm/v3/pkg/chart"
+	"k8s.io/cli-runtime/pkg/resource"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -20,10 +28,12 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/log"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/helm"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 )
 
@@ -101,12 +111,12 @@ current-context: "{{.ClusterName}}"
 	return outBuf.String(), nil
 }
 
-func NewCheckIdOrNameError(msg string, err error) error {
+func NewCheckIdOrNameError(res, resName string, err error) error {
 	if errors.Cause(err) == sql.ErrNoRows {
-		return httperrors.NewNotFoundError(msg, err)
+		return httperrors.NewNotFoundError(fmt.Sprintf("resource %s/%s not found: %v", res, resName, err))
 	}
 	if errors.Cause(err) == sqlchemy.ErrDuplicateEntry {
-		return httperrors.NewDuplicateResourceError(msg, err)
+		return httperrors.NewDuplicateResourceError(fmt.Sprintf("resource %s/%s duplicate: %v", res, resName, err))
 	}
 	return httperrors.NewGeneralError(err)
 }
@@ -134,5 +144,68 @@ func EnsureNamespace(cluster *SCluster, namespace string) error {
 		return errors.Wrap(err, "get cluster k8s client")
 	}
 	return k8sutil.EnsureNamespace(lister, cli, namespace)
+}
+func GetReleaseResources(
+	cli *helm.Client, rel *release.Release,
+	clusterMan model.ICluster,
+) (map[string][]interface{}, error) {
+	cfg := cli.GetConfig()
+	ress, err := cfg.KubeClient.Build(bytes.NewBufferString(rel.Manifest), true)
+	if err != nil {
+		return nil, err
+	}
+	ret := make(map[string][]interface{})
+	ress.Visit(func(info *resource.Info, err error) error {
+		gvk := info.Object.GetObjectKind().GroupVersionKind()
+		man := model.GetK8SModelManagerByKind(gvk.Kind)
+		if man == nil {
+			log.Warningf("not fond %s manager", gvk.Kind)
+			return nil
+		}
+		keyword := man.Keyword()
+		unstructObj := info.Object.(*unstructured.Unstructured)
+		newObj := man.GetK8SResourceInfo().Object.DeepCopyObject()
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructObj.Object, newObj); err != nil {
+			return err
+		}
+		namespace := info.Namespace
+		metaObj := newObj.(metav1.Object)
+		modelObj, err := model.NewK8SModelObjectByName(man, clusterMan, namespace, metaObj.GetName())
+		if err != nil {
+			return err
+		}
+		obj, err := model.GetObject(modelObj)
+		if err != nil {
+			return err
+		}
+		if list, ok := ret[keyword]; ok {
+			list = append(list, obj)
+		} else {
+			list = []interface{}{obj}
+			ret[keyword] = list
+		}
+		return nil
+	})
+	return ret, nil
+}
+
+func GetChartRawFiles(chObj *chart.Chart) []*chart.File {
+	files := make([]*chart.File, len(chObj.Raw))
+	for idx, rf := range chObj.Raw {
+		files[idx] = &chart.File{
+			Name: filepath.Join(chObj.Name(), rf.Name),
+			Data: rf.Data,
+		}
+	}
+	return files
+}
+
+func GetK8SObjectTypeMeta(kObj runtime.Object) metav1.TypeMeta {
+	v := reflect.ValueOf(kObj)
+	f := reflect.Indirect(v).FieldByName("TypeMeta")
+	if !f.IsValid() {
+		panic(fmt.Sprintf("get invalid object meta %#v", kObj))
+	}
+	return f.Interface().(metav1.TypeMeta)
 }
 

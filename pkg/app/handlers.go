@@ -45,6 +45,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.X509KeyPairManager,
 		models.ComponentManager,
 		models.MachineManager,
+		models.NamespaceManager,
 		models.ReleaseManager,
 	} {
 		db.RegisterModelManager(man)
@@ -73,7 +74,7 @@ func InitHandlers(app *appsrv.Application) {
 	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
 	for _, man := range []model.IK8SModelManager{
 		k8smodels.NodeManager,
-		k8smodels.NamespaceManager,
+		//k8smodels.NamespaceManager,
 		k8smodels.LimitRangeManager,
 		k8smodels.ResourceQuotaManager,
 		k8smodels.PodManager,

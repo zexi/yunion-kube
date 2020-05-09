@@ -1586,3 +1586,44 @@ func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient
 func (c *SCluster) GetProjectId() string {
 	return c.ProjectId
 }
+
+func (c *SCluster) prepareStartSync() error {
+	if c.GetStatus() != apis.ClusterStatusRunning {
+		return errors.Errorf("Cluster status is %s", c.GetStatus())
+	}
+	return nil
+}
+
+func (m *SClusterManager) StartAutoSyncTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	clusters, err := m.GetRunningClusters()
+	if err != nil {
+		log.Errorf("Start auto sync cluster task get running clusters: %v", err)
+		return
+	}
+	for _, cls := range clusters {
+		cls.(*SCluster).SubmitSyncTask(ctx, userCred, nil)
+	}
+}
+
+func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCredential, waitChan chan error) {
+	RunSyncClusterTask(func() {
+		log.Infof("start sync cluster %s", c.GetName())
+		if err := c.prepareStartSync(); err != nil {
+			log.Errorf("sync cluster task error: %v", err)
+			if waitChan != nil {
+				waitChan <- err
+			}
+			return
+		}
+		for _, man := range []IClusterModelManager{
+			NamespaceManager,
+			ReleaseManager,
+		} {
+			if ret := SyncClusterResources(ctx, man, userCred, c); ret.IsError() {
+				log.Errorf("Sync cluster %s resource %s error: %v", c.GetName(), man.KeywordPlural(), ret.Result())
+			} else {
+				log.Infof("Sync cluster %s resource %s completed: %v", c.GetName(), man.KeywordPlural(), ret.Result())
+			}
+		}
+	})
+}

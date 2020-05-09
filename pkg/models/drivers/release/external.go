@@ -9,7 +9,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
 )
 
 func init() {
@@ -32,17 +31,18 @@ func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 		return nil, err
 	}
 	data.Cluster = cluster.GetId()
-	man, err := client.GetManagerByCluster(cluster)
+	_, err = client.GetManagerByCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
 	if data.Namespace == "" {
 		return nil, httperrors.NewNotEmptyError("namespace")
 	}
-	_, err = man.GetIndexer().NamespaceLister().Get(data.Namespace)
+	nInput, err := models.ReleaseManager.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, nil, &data.NamespaceResourceCreateInput)
 	if err != nil {
-		return nil, k8serrors.NewGeneralError(err)
+		return nil, err
 	}
+	data.NamespaceResourceCreateInput = *nInput
 	return data, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"path"
 	"yunion.io/x/onecloud/pkg/apis"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 
 	"helm.sh/helm/v3/pkg/repo"
 
@@ -83,6 +84,27 @@ func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery,
 		q = q.Equals("type", input.Type)
 	}
 	return q, nil
+}
+
+func (man *SRepoManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool) []api.RepoDetail {
+	rows := make([]api.RepoDetail, len(objs))
+	svRows := man.SSharableVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range svRows {
+		rObj := objs[i].(*SRepo)
+		detail := api.RepoDetail{
+			SharableVirtualResourceDetails: svRows[i],
+			Url:                            rObj.Url,
+			Type:                           rObj.Type,
+		}
+		rows[i] = detail
+	}
+	return rows
 }
 
 func (man *SRepoManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {

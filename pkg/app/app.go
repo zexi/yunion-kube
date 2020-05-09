@@ -74,6 +74,7 @@ func Run(ctx context.Context) error {
 
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
 	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, models.ClusterManager.ClusterHealthCheckTask, true)
+	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterAutoSyncTask", 30*time.Second, models.ClusterManager.StartAutoSyncTask, true)
 	cron.Start()
 	defer cron.Stop()
 

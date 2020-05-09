@@ -18,12 +18,19 @@ type RepoCreateInput struct {
 	Url string `json:"url"`
 
 	// Repo type
-	// default: community
+	// enum: internal, external
 	Type string `json:"type"`
 }
 
 type RepoListInput struct {
 	apis.SharableVirtualResourceListInput
 
+	Type string `json:"type"`
+}
+
+type RepoDetail struct {
+	apis.SharableVirtualResourceDetails
+
+	Url string `json:"url"`
 	Type string `json:"type"`
 }

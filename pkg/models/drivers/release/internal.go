@@ -41,18 +41,19 @@ func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 		return nil, httperrors.NewNotFoundError("system cluster not found")
 	}
 	data.Cluster = sysCls.GetId()
+	nsData := new(apis.NamespaceCreateInputV2)
+	nsData.Name = ownerCred.GetProjectId()
+	nsData.Cluster = sysCls.GetId()
+	ns, err := models.NamespaceManager.EnsureNamespace(ctx, userCred, ownerCred, sysCls, nsData)
+	if err != nil {
+		return nil, errors.Wrap(err, "ensure namespace")
+	}
+	data.Namespace = ns.GetId()
 	return data, nil
 }
 
 func (d *internalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *apis.ReleaseCreateInput) error {
 	release.ClusterId = data.Cluster
-	release.Namespace = ownerCred.GetProjectId()
-	cluster, err := release.GetCluster()
-	if err != nil {
-		return errors.Wrap(err, "get cluster")
-	}
-	if err := models.EnsureNamespace(cluster, release.Namespace); err != nil {
-		return errors.Wrap(err, "ensure namespace")
-	}
+	release.NamespaceId = data.Namespace
 	return nil
 }
