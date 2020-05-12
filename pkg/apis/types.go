@@ -34,9 +34,15 @@ const (
 	KindNameServiceAccount          KindName = "ServiceAccount"
 	KindNameLimitRange              KindName = "LimitRange"
 	KindNameResourceQuota           KindName = "ResourceQuota"
+
+	// onecloud service operator native kind
+	KindNameVirtualMachine KindName = "VirtualMachine"
+	KindNameAnsiblePlaybook KindName = "AnsiblePlaybook"
+	KindNameAnsiblePlaybookTemplate KindName = "AnsiblePlaybookTemplate"
 )
 
 const (
+	// kubernetes native resource
 	ResourceNameConfigMap               string = "configmaps"
 	ResourceNameDaemonSet               string = "daemonsets"
 	ResourceNameDeployment              string = "deployments"
@@ -63,6 +69,11 @@ const (
 	ResourceNameServiceAccount          string = "serviceaccounts"
 	ResourceNameLimitRange              string = "limitranges"
 	ResourceNameResourceQuota           string = "resourcequotas"
+
+	// onecloud service operator resource
+	ResourceNameVirtualMachine  string = "virtualmachines"
+	ResourceNameAnsiblePlaybook string = "ansibleplaybooks"
+	ResourceNameAnsiblePlaybookTemplate string = "ansibleplaybooktemplates"
 )
 
 // ObjectMeta is metadata about an instance of a resource.
@@ -75,6 +86,21 @@ type ObjectMeta struct {
 
 type TypeMeta struct {
 	metav1.TypeMeta
+}
+
+type ObjectTypeMeta struct {
+	ObjectMeta
+	TypeMeta
+}
+
+func (m *ObjectTypeMeta) SetObjectMeta(meta ObjectMeta) *ObjectTypeMeta {
+	m.ObjectMeta = meta
+	return m
+}
+
+func (m *ObjectTypeMeta) SetTypeMeta(meta TypeMeta) *ObjectTypeMeta {
+	m.TypeMeta = meta
+	return m
 }
 
 type ClusterMeta struct {

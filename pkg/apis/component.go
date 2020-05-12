@@ -9,16 +9,16 @@ const (
 )
 
 const (
-	ComponentStatusDeploying  = "deploying"
-	ComponentStatusDeployFail = "deploy_fail"
-	ComponentStatusDeployed   = "deployed"
-	ComponentStatusDeleting   = "deleting"
-	ComponentStatusUndeploying = "undeploying"
+	ComponentStatusDeploying    = "deploying"
+	ComponentStatusDeployFail   = "deploy_fail"
+	ComponentStatusDeployed     = "deployed"
+	ComponentStatusDeleting     = "deleting"
+	ComponentStatusUndeploying  = "undeploying"
 	ComponentStatusUndeployFail = "undeploy_fail"
-	ComponentStatusDeleteFail = "delete_fail"
-	ComponentStatusUpdating   = "updating"
-	ComponentStatusUpdateFail = "update_fail"
-	ComponentStatusInit       = "init"
+	ComponentStatusDeleteFail   = "delete_fail"
+	ComponentStatusUpdating     = "updating"
+	ComponentStatusUpdateFail   = "update_fail"
+	ComponentStatusInit         = "init"
 )
 
 type ComponentCreateInput struct {

@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	ClusterResourceStatusCreating = "creating"
-	ClusterResourceStatusCreated = "created"
+	ClusterResourceStatusCreating   = "creating"
+	ClusterResourceStatusCreated    = "created"
 	ClusterResourceStatusCreateFail = "create_fail"
-	ClusterResourceStatusDeleting = "deleting"
+	ClusterResourceStatusDeleting   = "deleting"
 	ClusterResourceStatusDeleteFail = "delete_fail"
 )
 
@@ -28,8 +28,8 @@ type ClusterResourceCreateInput struct {
 
 func (input ClusterResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
 	return metav1.ObjectMeta{
-		Name: input.Name,
-		Labels: input.Labels,
+		Name:        input.Name,
+		Labels:      input.Labels,
 		Annotations: input.Annotations,
 	}
 }
@@ -130,7 +130,6 @@ type ClusterK8SResourceMetaDetail struct {
 	// +optional
 	// +patchStrategy=merge
 	Finalizers []string `json:"finalizers,omitempty" patchStrategy:"merge" protobuf:"bytes,14,rep,name=finalizers"`
-
 }
 
 type ClusterResourceDetail struct {
@@ -140,5 +139,5 @@ type ClusterResourceDetail struct {
 	ClusterId string `json:"cluster_id"`
 	// clusterID is DEPRECATED, use cluster_id
 	ClusterID string `json:"clusterID"`
-	Cluster string `json:"cluster"`
+	Cluster   string `json:"cluster"`
 }

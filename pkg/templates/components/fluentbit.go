@@ -47,7 +47,7 @@ type FluentBitBackendKafka struct {
 }
 
 type FluentBitBackend struct {
-	ES   *FluentBitBackendES `json:"es"`
+	ES    *FluentBitBackendES    `json:"es"`
 	Kafka *FluentBitBackendKafka `json:"kafka"`
 }
 
@@ -55,4 +55,3 @@ type FluentBit struct {
 	Image   FluentBitImage   `json:"image"`
 	Backend FluentBitBackend `json:"backend"`
 }
-

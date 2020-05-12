@@ -2,6 +2,9 @@ package client
 
 import (
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/restmapper"
 	"os"
 	"path"
 	"strings"
@@ -144,9 +147,26 @@ func BuildApiserverClient() {
 				log.Warningf("build cluster %s kubeconfig path: %v", cluster.GetName(), err)
 				continue
 			}
-			cacheFactory, err := buildCacheController(clientSet)
+			dc := clientSet.Discovery()
+			restMapperRes, err := restmapper.GetAPIGroupResources(dc)
+			if err != nil {
+				log.Warningf("cluster %s get api group resources: %v", cluster.GetName(), err)
+				continue
+			}
+			restMapper := restmapper.NewDiscoveryRESTMapper(restMapperRes)
+			dclient, err := dynamic.NewForConfig(config)
+			if err != nil {
+				log.Warningf("build cluster (%s) dynamic client error: %v", err)
+				continue
+			}
+			cacheFactory, err := buildCacheController(cluster, clientSet, dclient, restMapper.(meta.PriorityRESTMapper))
 			if err != nil {
 				log.Warningf("build cluster (%s) cache controller error: %v", cluster.GetName(), err)
+				continue
+			}
+			resHandler, err := NewResourceHandler(clientSet, dclient, restMapper, cacheFactory)
+			if err != nil {
+				log.Warningf("build cluster (%s) resource handler error: %v", cluster.GetName(), err)
 				continue
 			}
 
@@ -159,7 +179,7 @@ func BuildApiserverClient() {
 			clusterManager := &ClusterManager{
 				Cluster:        cluster,
 				Config:         config,
-				KubeClient:     NewResourceHandler(clientSet, cacheFactory),
+				KubeClient:     resHandler,
 				APIServer:      apiServer,
 				KubeConfig:     kubeconfig,
 				kubeConfigPath: kubeconfigPath,

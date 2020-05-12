@@ -70,7 +70,6 @@ func (res *SNamespace) SetCluster(userCred mcclient.TokenCredential, cls *SClust
 	res.SetIsSystem(cls.IsSystem)
 }
 
-
 func (obj *SNamespaceManager) NewRemoteObjectForCreate(_ IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(apis.NamespaceCreateInputV2)
 	data.Unmarshal(input)
@@ -177,13 +176,13 @@ func (m *SNamespaceManager) FetchCustomizeColumns(
 
 func (ns *SNamespace) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
 	if err := ns.SClusterResourceBase.Delete(ctx, userCred); err != nil {
-	cluster, err := ns.GetCluster()
-	if err != nil {
-		return errors.Wrap(err, "get cluster")
-	}
-	if cluster.IsSystem {
-		if !userCred.HasSystemAdminPrivilege() {
-			return httperrors.NewForbiddenError("Not system admin")
+		cluster, err := ns.GetCluster()
+		if err != nil {
+			return errors.Wrap(err, "get cluster")
+		}
+		if cluster.IsSystem {
+			if !userCred.HasSystemAdminPrivilege() {
+				return httperrors.NewForbiddenError("Not system admin")
 			}
 		}
 		return err
@@ -208,4 +207,3 @@ func (ns *SNamespace) PostDelete(ctx context.Context, userCred mcclient.TokenCre
 	ns.SClusterResourceBase.PostDelete(ctx, userCred)
 	ns.StartDeleteTask(ns, ctx, userCred)
 }
-

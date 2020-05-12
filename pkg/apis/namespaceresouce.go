@@ -16,5 +16,5 @@ type NamespaceResourceDetail struct {
 	ClusterResourceDetail
 
 	NamespaceId string `json:"namespace_id"`
-	Namespace string `json:"namespace"`
+	Namespace   string `json:"namespace"`
 }

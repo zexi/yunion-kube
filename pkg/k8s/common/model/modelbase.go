@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -95,12 +96,28 @@ func (m *SK8SModelBase) GetNamespace() string {
 
 func (m *SK8SModelBase) GetObjectMeta() apis.ObjectMeta {
 	kObj := m.GetK8SObject()
-	v := reflect.ValueOf(kObj)
-	f := reflect.Indirect(v).FieldByName("ObjectMeta")
-	if !f.IsValid() {
-		panic(fmt.Sprintf("get invalid object meta %#v", kObj))
+	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
+	meta := metav1.ObjectMeta{}
+	if isUnstruct {
+		metaObj := unstructObj.UnstructuredContent()["metadata"]
+		if metaObj == nil {
+			panic(fmt.Sprintf("unstructed object not contains metadata"))
+		}
+		metaBytes, err := json.Marshal(metaObj)
+		if err != nil {
+			panic(err)
+		}
+		if err := json.Unmarshal(metaBytes, &meta); err != nil {
+			panic(err)
+		}
+	} else {
+		v := reflect.ValueOf(kObj)
+		f := reflect.Indirect(v).FieldByName("ObjectMeta")
+		if !f.IsValid() {
+			panic(fmt.Sprintf("get invalid object meta %#v", kObj))
+		}
+		meta = f.Interface().(metav1.ObjectMeta)
 	}
-	meta := f.Interface().(metav1.ObjectMeta)
 	return apis.ObjectMeta{
 		ObjectMeta:  meta,
 		ClusterMeta: apis.NewClusterMeta(m.GetCluster()),
@@ -109,12 +126,25 @@ func (m *SK8SModelBase) GetObjectMeta() apis.ObjectMeta {
 
 func (m *SK8SModelBase) GetTypeMeta() apis.TypeMeta {
 	kObj := m.GetK8SObject()
-	v := reflect.ValueOf(kObj)
-	f := reflect.Indirect(v).FieldByName("TypeMeta")
-	if !f.IsValid() {
-		panic(fmt.Sprintf("get invalid object meta %#v", kObj))
+	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
+	meta := metav1.TypeMeta{}
+	if isUnstruct {
+		objContent := unstructObj.UnstructuredContent()
+		if objContent == nil {
+			panic(fmt.Sprintf("unstructed object not contains metadata"))
+		}
+		apiVersion := objContent["apiVersion"]
+		kind := objContent["kind"]
+		meta.APIVersion = apiVersion.(string)
+		meta.Kind = kind.(string)
+	} else {
+		v := reflect.ValueOf(kObj)
+		f := reflect.Indirect(v).FieldByName("TypeMeta")
+		if !f.IsValid() {
+			panic(fmt.Sprintf("get invalid object meta %#v", kObj))
+		}
+		meta = f.Interface().(metav1.TypeMeta)
 	}
-	meta := f.Interface().(metav1.TypeMeta)
 	return apis.TypeMeta{
 		TypeMeta: meta,
 	}

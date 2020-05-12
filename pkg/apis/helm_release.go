@@ -110,6 +110,7 @@ type ReleaseV2 struct {
 
 type ReleaseDetailV2 struct {
 	ReleaseV2
+	Type RepoType `json:"type"`
 	Resources map[string][]interface{} `json:"resources"`
 	Files     []*chart.File            `json:"files"`
 }
