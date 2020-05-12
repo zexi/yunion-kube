@@ -2,17 +2,18 @@ package clusters
 
 import (
 	"context"
-	"yunion.io/x/yunion-kube/pkg/models"
 
-	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type SDefaultImportDriver struct {
@@ -52,6 +53,30 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 	if err != nil {
 		return httperrors.NewGeneralError(errors.Wrap(err, "Get kubernetes version"))
 	}
+	// check system cluster duplicate imported
+	sysCluster, err := models.ClusterManager.GetSystemCluster()
+	if err != nil {
+		return httperrors.NewGeneralError(errors.Wrap(err, "Get system cluster %v"))
+	}
+	if sysCluster == nil {
+		return httperrors.NewNotFoundError("Not found system cluster %v", sysCluster)
+	}
+	k8sSvc, err := cli.CoreV1().Services(metav1.NamespaceDefault).Get("kubernetes", metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	sysCli, err := sysCluster.GetK8sClient()
+	if err != nil {
+		return httperrors.NewGeneralError(errors.Wrap(err, "Get system cluster k8s client"))
+	}
+	sysK8SSvc, err := sysCli.CoreV1().Services(metav1.NamespaceDefault).Get("kubernetes", metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if k8sSvc.UID == sysK8SSvc.UID {
+		return httperrors.NewNotAcceptableError("cluster already imported as default system cluster")
+	}
+
 	// TODO: inject version info
 	log.Infof("Get version: %#v", version)
 	return nil

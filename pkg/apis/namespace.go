@@ -31,3 +31,15 @@ type NamespaceDetail struct {
 type NamespaceCreateInput struct {
 	K8sClusterResourceCreateInput
 }
+
+type NamespaceCreateInputV2 struct {
+	ClusterResourceCreateInput
+}
+
+type NamespaceListInput struct {
+	ClusterResourceListInput
+}
+
+type NamespaceDetailV2 struct {
+	ClusterResourceDetail
+}

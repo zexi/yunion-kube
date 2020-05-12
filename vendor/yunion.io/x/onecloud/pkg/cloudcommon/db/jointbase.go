@@ -21,12 +21,14 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/reflectutils"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
 type SJointResourceBase struct {
@@ -103,24 +105,17 @@ func (manager *SJointResourceBaseManager) AllowAttach(ctx context.Context, userC
 	return IsAllowCreate(rbacutils.ScopeSystem, userCred, manager)
 }
 
-func JointModelExtra(jointModel IJointModel, extra *jsonutils.JSONDict) *jsonutils.JSONDict {
+func JointModelExtra(jointModel IJointModel) (string, string) {
+	masterName, slaveName := "", ""
 	master := jointModel.Master()
 	if master != nil {
-		extra.Add(jsonutils.NewString(master.GetName()), master.GetModelManager().Keyword())
-		alias := master.GetModelManager().Alias()
-		if len(alias) > 0 {
-			extra.Add(jsonutils.NewString(master.GetName()), alias)
-		}
+		masterName = master.GetName()
 	}
 	slave := jointModel.Slave()
 	if slave != nil {
-		extra.Add(jsonutils.NewString(slave.GetName()), slave.GetModelManager().Keyword())
-		alias := slave.GetModelManager().Alias()
-		if len(alias) > 0 {
-			extra.Add(jsonutils.NewString(slave.GetName()), alias)
-		}
+		slaveName = slave.GetName()
 	}
-	return extra
+	return masterName, slaveName
 }
 
 func (joint *SJointResourceBase) GetJointModelManager() IJointModelManager {
@@ -156,7 +151,9 @@ func JointMaster(joint IJointModel) IStandaloneModel { // need override
 	//log.Debugf("MasterID: %s %s", masterId, masterMan.KeywordPlural())
 	if len(masterId) > 0 {
 		master, _ := masterMan.FetchById(masterId)
-		return master.(IStandaloneModel)
+		if master != nil {
+			return master.(IStandaloneModel)
+		}
 	}
 	return nil
 }
@@ -167,7 +164,9 @@ func JointSlave(joint IJointModel) IStandaloneModel { // need override
 	//log.Debugf("SlaveID: %s %s", slaveId, slaveMan.KeywordPlural())
 	if len(slaveId) > 0 {
 		slave, _ := slaveMan.FetchById(slaveId)
-		return slave.(IStandaloneModel)
+		if slave != nil {
+			return slave.(IStandaloneModel)
+		}
 	}
 	return nil
 }
@@ -208,18 +207,6 @@ func (self *SJointResourceBase) AllowDetach(ctx context.Context, userCred mcclie
 	return false
 }
 
-/*
-func (joint *SJointResourceBase) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := joint.SResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	return JointModelExtra(joint, extra)
-}
-
-func (joint *SJointResourceBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := joint.SResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	return JointModelExtra(joint, extra)
-}
-*/
-
 func (manager *SJointResourceBaseManager) ResourceScope() rbacutils.TRbacScope {
 	return manager.GetMasterManager().ResourceScope()
 }
@@ -233,6 +220,79 @@ func (manager *SJointResourceBaseManager) ValidateCreateData(ctx context.Context
 	input.ResourceBaseCreateInput, err = manager.SResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input.ResourceBaseCreateInput)
 	if err != nil {
 		return input, err
+	}
+	return input, nil
+}
+
+func (model *SJointResourceBase) GetExtraDetails(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	isList bool,
+) (apis.JointResourceBaseDetails, error) {
+	return apis.JointResourceBaseDetails{}, nil
+}
+
+func (manager *SJointResourceBaseManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []apis.JointResourceBaseDetails {
+	ret := make([]apis.JointResourceBaseDetails, len(objs))
+	upperRet := manager.SResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range objs {
+		ret[i] = apis.JointResourceBaseDetails{
+			ResourceBaseDetails: upperRet[i],
+		}
+	}
+	return ret
+}
+
+func (manager *SJointResourceBaseManager) ListItemFilter(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query apis.JointResourceBaseListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+
+	q, err = manager.SResourceBaseManager.ListItemFilter(ctx, q, userCred, query.ResourceBaseListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SResourceBaseManager.ListItemFilter")
+	}
+
+	return q, nil
+}
+
+func (manager *SJointResourceBaseManager) OrderByExtraFields(
+	ctx context.Context,
+	q *sqlchemy.SQuery,
+	userCred mcclient.TokenCredential,
+	query apis.JointResourceBaseListInput,
+) (*sqlchemy.SQuery, error) {
+	var err error
+
+	q, err = manager.SResourceBaseManager.OrderByExtraFields(ctx, q, userCred, query.ResourceBaseListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SResourceBaseManager.ListItemFilter")
+	}
+
+	return q, nil
+}
+
+func (model *SJointResourceBase) ValidateUpdateData(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	input apis.JointResourceBaseUpdateInput,
+) (apis.JointResourceBaseUpdateInput, error) {
+	var err error
+	input.ResourceBaseUpdateInput, err = model.SResourceBase.ValidateUpdateData(ctx, userCred, query, input.ResourceBaseUpdateInput)
+	if err != nil {
+		return input, errors.Wrap(err, "SResourceBase.ValidateUpdateData")
 	}
 	return input, nil
 }

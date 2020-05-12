@@ -2,111 +2,154 @@ package models
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
+	"net/url"
+	"path"
+	"yunion.io/x/onecloud/pkg/apis"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 
 	"helm.sh/helm/v3/pkg/repo"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/util/stringutils"
+	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
+	api "yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/options"
 )
 
-const (
-	STABLE_REPO_NAME = "stable"
-)
-
 type SRepoManager struct {
-	db.SStatusStandaloneResourceBaseManager
+	db.SSharableVirtualResourceBaseManager
 }
 
 var RepoManager *SRepoManager
 
 func init() {
-	RepoManager = &SRepoManager{SStatusStandaloneResourceBaseManager: db.NewStatusStandaloneResourceBaseManager(SRepo{}, "repos_tbl", "repo", "repos")}
+	RepoManager = &SRepoManager{SSharableVirtualResourceBaseManager: db.NewSharableVirtualResourceBaseManager(SRepo{}, "repos_tbl", "repo", "repos")}
 	RepoManager.SetVirtualObject(RepoManager)
 }
 
-// TODO: insert stable and incubator repo
 func (m *SRepoManager) InitializeData() error {
-	// check if default repo exists
-	_, err := m.FetchByIdOrName(nil, STABLE_REPO_NAME)
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return err
-		}
-		defRepo := SRepo{}
-		defRepo.Id = stringutils.UUID4()
-		defRepo.Name = STABLE_REPO_NAME
-		defRepo.Url = options.Options.StableChartRepo
-		err = m.TableSpec().Insert(&defRepo)
-		if err != nil {
-			return fmt.Errorf("Insert default repo error: %v", err)
+	// 填充 v2 没有 tenant_id 的 repo，默认变为 system project
+	repos := []SRepo{}
+	q := m.Query()
+	q = q.Filter(sqlchemy.OR(
+		sqlchemy.IsNullOrEmpty(q.Field("tenant_id")),
+		sqlchemy.IsNullOrEmpty(q.Field("project_src")),
+		sqlchemy.IsNullOrEmpty(q.Field("type")),
+	))
+	if err := db.FetchModelObjects(m, q, &repos); err != nil {
+		return errors.Wrap(err, "fetch empty project repos")
+	}
+	userCred := GetAdminCred()
+	for _, r := range repos {
+		tmpRepo := &r
+		if _, err := db.Update(tmpRepo, func() error {
+			tmpRepo.ProjectId = userCred.GetProjectId()
+			tmpRepo.DomainId = userCred.GetProjectDomainId()
+			tmpRepo.ProjectSrc = string(apis.OWNER_SOURCE_LOCAL)
+			tmpRepo.Type = string(api.RepoTypeExternal)
+			return nil
+		}); err != nil {
+			return errors.Wrapf(err, "update empty project repo %s", tmpRepo.GetName())
 		}
 	}
+
 	return nil
 }
 
 type SRepo struct {
-	db.SStatusStandaloneResourceBase
+	db.SSharableVirtualResourceBase
 
-	Url      string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
-	Source   string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"admin"`
-	IsPublic bool   `default:"false" nullable:"false" create:"admin_optional" list:"user"`
-	Username string `width:"256" nullable:"false"`
-	Password string `width:"256" nullable:"false"`
+	Url      string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user"`
+	Username string `width:"256" charset:"ascii" nullable:"false"`
+	Password string `width:"256" charset:"ascii" nullable:"false"`
+	Type     string `charset:"ascii" width:"128" create:"required" nullable:"true" list:"user"`
 }
 
 func (man *SRepoManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return true
 }
 
-func (man *SRepoManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*db.CustomizeListFilters, error) {
-	filters := db.NewCustomizeListFilters()
-	if userCred.HasSystemAdminPrivilege() {
-		return filters, nil
+func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.RepoListInput) (*sqlchemy.SQuery, error) {
+	q, err := man.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.SharableVirtualResourceListInput)
+	if err != nil {
+		return nil, err
 	}
-	publicFilter := func(obj jsonutils.JSONObject) (bool, error) {
-		isPublic, _ := obj.Bool("is_public")
-		return isPublic, nil
+	if input.Type != "" {
+		q = q.Equals("type", input.Type)
 	}
-	filters.Append(publicFilter)
-	return filters, nil
+	return q, nil
 }
 
-func (man *SRepoManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	return man.SStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+func (man *SRepoManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool) []api.RepoDetail {
+	rows := make([]api.RepoDetail, len(objs))
+	svRows := man.SSharableVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range svRows {
+		rObj := objs[i].(*SRepo)
+		detail := api.RepoDetail{
+			SharableVirtualResourceDetails: svRows[i],
+			Url:                            rObj.Url,
+			Type:                           rObj.Type,
+		}
+		rows[i] = detail
+	}
+	return rows
 }
 
 func (man *SRepoManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
 	return db.IsAdminAllowCreate(userCred, man)
 }
 
-func (man *SRepoManager) GetClient() (*helm.RepoClient, error) {
-	return helm.NewRepoClient(options.Options.HelmDataDir)
+func (man *SRepoManager) GetRepoDataDir(projectId string) string {
+	return path.Join(options.Options.HelmDataDir, projectId)
 }
 
-func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	name, _ := data.GetString("name")
-	if name == "" {
-		return nil, httperrors.NewInputParameterError("Missing name")
+func (man *SRepoManager) GetClient(projectId string) (*helm.RepoClient, error) {
+	dataDir := man.GetRepoDataDir(projectId)
+	return helm.NewRepoClient(dataDir)
+}
+
+func (man *SRepoManager) GetChartClient(projectId string) *helm.ChartClient {
+	dataDir := man.GetRepoDataDir(projectId)
+	return helm.NewChartClient(dataDir)
+}
+
+func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.RepoCreateInput) (*api.RepoCreateInput, error) {
+	shareInput, err := man.SSharableVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, data.SharableVirtualResourceCreateInput)
+	if err != nil {
+		return nil, err
 	}
-	url, _ := data.GetString("url")
-	if url == "" {
+	data.SharableVirtualResourceCreateInput = shareInput
+	if data.Url == "" {
 		return nil, httperrors.NewInputParameterError("Missing repo url")
 	}
-	entry := &repo.Entry{
-		Name: name,
-		URL:  url,
+	if _, err := url.Parse(data.Url); err != nil {
+		return nil, httperrors.NewNotAcceptableError("Invalid repo url: %v", err)
 	}
-	cli, err := man.GetClient()
+
+	if data.Type == "" {
+		data.Type = string(api.RepoTypeExternal)
+	}
+	if !utils.IsInStringArray(data.Type, []string{string(api.RepoTypeExternal), string(api.RepoTypeInternal)}) {
+		return nil, httperrors.NewInputParameterError("Not support type %q", data.Type)
+	}
+
+	entry := &repo.Entry{
+		Name: data.Name,
+		URL:  data.Url,
+	}
+	cli, err := man.GetClient(ownerId.GetProjectId())
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +157,6 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 		return nil, err
 	}
 
-	input := new(apis.StatusStandaloneResourceCreateInput)
-	data.Unmarshal(input)
-	_, err = man.SStatusStandaloneResourceBaseManager.ValidateCreateData(ctx, userCred, ownerProjId, query, *input)
-	if err != nil {
-		return nil, err
-	}
 	return data, nil
 }
 
@@ -146,40 +183,6 @@ func (man *SRepoManager) ListRepos() ([]SRepo, error) {
 	return repos, err
 }
 
-func (r *SRepo) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return db.IsAdminAllowGet(userCred, r) || r.IsPublic
-}
-
-func (r *SRepo) AllowPerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivilege()
-}
-
-func (r *SRepo) AllowPerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivilege()
-}
-
-func (r *SRepo) PerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !r.IsPublic {
-		_, err := r.GetModelManager().TableSpec().Update(r, func() error {
-			r.IsPublic = true
-			return nil
-		})
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (r *SRepo) PerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if r.IsPublic {
-		_, err := r.GetModelManager().TableSpec().Update(r, func() error {
-			r.IsPublic = false
-			return nil
-		})
-		return nil, err
-	}
-	return nil, nil
-}
-
 func (r *SRepo) ToEntry() *repo.Entry {
 	return &repo.Entry{
 		Name:     r.Name,
@@ -190,14 +193,14 @@ func (r *SRepo) ToEntry() *repo.Entry {
 }
 
 func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	cli, err := RepoManager.GetClient()
+	cli, err := RepoManager.GetClient(r.ProjectId)
 	if err != nil {
 		return err
 	}
 	if err := cli.Remove(r.Name); err != nil {
 		return err
 	}
-	return r.SStandaloneResourceBase.Delete(ctx, userCred)
+	return r.SSharableVirtualResourceBase.Delete(ctx, userCred)
 }
 
 func (r *SRepo) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -209,9 +212,17 @@ func (r *SRepo) PerformSync(ctx context.Context, userCred mcclient.TokenCredenti
 }
 
 func (r *SRepo) DoSync() error {
-	cli, err := RepoManager.GetClient()
+	cli, err := RepoManager.GetClient(r.ProjectId)
 	if err != nil {
 		return err
 	}
 	return cli.Update(r.Name)
+}
+
+func (r *SRepo) GetType() api.RepoType {
+	return api.RepoType(r.Type)
+}
+
+func (r *SRepo) GetChartClient() *helm.ChartClient {
+	return RepoManager.GetChartClient(r.ProjectId)
 }

@@ -21,20 +21,28 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	identityapi "yunion.io/x/onecloud/pkg/apis/identity"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/onecloud/pkg/util/httputils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
+)
+
+var (
+	DefaultProjectFetcher  func(ctx context.Context, id string) (*STenant, error)
+	DefaultDomainFetcher   func(ctx context.Context, id string) (*STenant, error)
+	DefaultProjectsFetcher func(ctx context.Context, idList []string, isDomain bool) map[string]STenant
+	DefaultDomainQuery     func(fields ...string) *sqlchemy.SQuery
+	DefaultProjectQuery    func(fields ...string) *sqlchemy.SQuery
 )
 
 type STenantCacheManager struct {
@@ -49,6 +57,10 @@ func NewTenant(idStr string, name string, domainId string, domainName string) ST
 	return STenant{SKeystoneCacheObject: NewKeystoneCacheObject(idStr, name, domainId, domainName)}
 }
 
+func NewDomain(idStr, name string) STenant {
+	return NewTenant(idStr, name, identityapi.KeystoneDomainRoot, identityapi.KeystoneDomainRoot)
+}
+
 func (tenant *STenant) GetModelManager() IModelManager {
 	return TenantCacheManager
 }
@@ -60,6 +72,12 @@ func init() {
 	// log.Debugf("Initialize tenant cache manager %s %s", TenantCacheManager.KeywordPlural(), TenantCacheManager)
 
 	TenantCacheManager.SetVirtualObject(TenantCacheManager)
+
+	DefaultProjectFetcher = TenantCacheManager.FetchTenantByIdOrName
+	DefaultDomainFetcher = TenantCacheManager.FetchDomainByIdOrName
+	DefaultProjectsFetcher = fetchProjects
+	DefaultDomainQuery = TenantCacheManager.GetDomainQuery
+	DefaultProjectQuery = TenantCacheManager.GetTenantQuery
 }
 
 func RegistUserCredCacheUpdater() {
@@ -96,14 +114,29 @@ func (manager *STenantCacheManager) updateTenantCache(userCred mcclient.TokenCre
 		userCred.GetProjectDomainId(), userCred.GetProjectDomain())
 }
 
+func (manager *STenantCacheManager) GetTenantQuery(fields ...string) *sqlchemy.SQuery {
+	return manager.Query(fields...).NotEquals("domain_id", identityapi.KeystoneDomainRoot)
+}
+
+func (manager *STenantCacheManager) GetDomainQuery(fields ...string) *sqlchemy.SQuery {
+	return manager.Query(fields...).Equals("domain_id", identityapi.KeystoneDomainRoot)
+}
+
 func (manager *STenantCacheManager) fetchTenant(ctx context.Context, idStr string, isDomain bool, noExpireCheck bool, filter func(q *sqlchemy.SQuery) *sqlchemy.SQuery) (*STenant, error) {
-	q := manager.Query()
+	var q *sqlchemy.SQuery
 	if isDomain {
-		q = q.Equals("domain_id", identityapi.KeystoneDomainRoot)
+		q = manager.GetDomainQuery()
 	} else {
-		q = q.NotEquals("domain_id", identityapi.KeystoneDomainRoot)
+		q = manager.GetTenantQuery()
 	}
 	q = filter(q)
+	tcnt, err := q.CountWithError()
+	if err != nil {
+		return nil, errors.Wrap(err, "CountWithError")
+	}
+	if tcnt > 1 {
+		return nil, errors.Wrapf(httperrors.ErrDuplicateName, "duplicate tenant/domain name (%d)", tcnt)
+	}
 	tobj, err := NewModelObject(manager)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewModelObject")
@@ -231,7 +264,7 @@ func (manager *STenantCacheManager) FetchDomainByName(ctx context.Context, idStr
 
 func (manager *STenantCacheManager) fetchDomainFromKeystone(ctx context.Context, idStr string) (*STenant, error) {
 	if len(idStr) == 0 {
-		log.Debugf("fetch empty tenant!!!!\n%s", debug.Stack())
+		log.Debugf("fetch empty domain!!!!\n%s", debug.Stack())
 		return nil, fmt.Errorf("Empty idStr")
 	}
 	s := auth.GetAdminSession(ctx, consts.GetRegion(), "v1")

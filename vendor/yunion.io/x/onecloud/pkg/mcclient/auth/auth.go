@@ -28,10 +28,16 @@ import (
 )
 
 var (
-	manager           *authManager
-	defaultTimeout    int       = 600 // maybe time.Duration better
-	defaultCacheCount int64     = 100000
-	initCh            chan bool = make(chan bool)
+	manager            *authManager
+	defaultTimeout     int       = 600 // maybe time.Duration better
+	defaultCacheCount  int64     = 100000
+	initCh             chan bool = make(chan bool)
+	globalEndpointType string
+)
+
+const (
+	PublicEndpointType   string = "public"
+	InternalEndpointType string = "internal"
 )
 
 type AuthInfo struct {
@@ -47,6 +53,10 @@ type AuthInfo struct {
 
 func SetTimeout(t time.Duration) {
 	defaultTimeout = int(t)
+}
+
+func SetEndpointType(epType string) {
+	globalEndpointType = epType
 }
 
 func NewV2AuthInfo(authUrl, user, passwd, tenant string) *AuthInfo {
@@ -200,10 +210,16 @@ func (a *authManager) reAuth() {
 }
 
 func (a *authManager) GetServiceURL(service, region, zone, endpointType string) (string, error) {
+	if endpointType == "" && globalEndpointType != "" {
+		endpointType = globalEndpointType
+	}
 	return a.adminCredential.GetServiceURL(service, region, zone, endpointType)
 }
 
 func (a *authManager) GetServiceURLs(service, region, zone, endpointType string) ([]string, error) {
+	if endpointType == "" && globalEndpointType != "" {
+		endpointType = globalEndpointType
+	}
 	return a.adminCredential.GetServiceURLs(service, region, zone, endpointType)
 }
 
@@ -216,6 +232,9 @@ func (a *authManager) isExpired() bool {
 }
 
 func (a *authManager) isAuthed() bool {
+	if a == nil {
+		return false
+	}
 	if a.adminCredential == nil || a.isExpired() {
 		return false
 	}
@@ -251,6 +270,10 @@ func GetServiceURL(service, region, zone, endpointType string) (string, error) {
 	return manager.GetServiceURL(service, region, zone, endpointType)
 }
 
+func GetPublicServiceURL(service, region, zone string) (string, error) {
+	return manager.GetServiceURL(service, region, zone, PublicEndpointType)
+}
+
 func GetServiceURLs(service, region, zone, endpointType string) ([]string, error) {
 	return manager.GetServiceURLs(service, region, zone, endpointType)
 }
@@ -276,7 +299,18 @@ func AdminSession(ctx context.Context, region, zone, endpointType, apiVersion st
 	if cli == nil {
 		return nil
 	}
+	if endpointType == "" && globalEndpointType != "" {
+		endpointType = globalEndpointType
+	}
 	return cli.NewSession(ctx, region, zone, endpointType, AdminCredential(), apiVersion)
+}
+
+func AdminSessionWithInternal(ctx context.Context, region, zone, apiVersion string) *mcclient.ClientSession {
+	return AdminSession(ctx, region, zone, "internal", apiVersion)
+}
+
+func AdminSessionWithPublic(ctx context.Context, region, zone, apiVersion string) *mcclient.ClientSession {
+	return AdminSession(ctx, region, zone, "public", apiVersion)
 }
 
 type AuthCompletedCallback func()
@@ -317,8 +351,33 @@ func GetAdminSession(ctx context.Context, region string,
 	return GetSession(ctx, manager.adminCredential, region, apiVersion)
 }
 
+func GetAdminSessionWithPublic(ctx context.Context, region string,
+	apiVersion string) *mcclient.ClientSession {
+	return GetSessionWithPublic(ctx, manager.adminCredential, region, apiVersion)
+}
+
+func GetAdminSessionWithInternal(
+	ctx context.Context, region string, apiVersion string) *mcclient.ClientSession {
+	return GetSessionWithInternal(ctx, manager.adminCredential, region, apiVersion)
+}
+
 func GetSession(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string) *mcclient.ClientSession {
-	return manager.client.NewSession(ctx, region, "", "internal", token, apiVersion)
+	if len(globalEndpointType) != 0 {
+		return getSessionByType(ctx, token, region, apiVersion, globalEndpointType)
+	}
+	return GetSessionWithInternal(ctx, token, region, apiVersion)
+}
+
+func GetSessionWithInternal(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string) *mcclient.ClientSession {
+	return getSessionByType(ctx, token, region, apiVersion, InternalEndpointType)
+}
+
+func GetSessionWithPublic(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string) *mcclient.ClientSession {
+	return getSessionByType(ctx, token, region, apiVersion, PublicEndpointType)
+}
+
+func getSessionByType(ctx context.Context, token mcclient.TokenCredential, region string, apiVersion string, epType string) *mcclient.ClientSession {
+	return manager.client.NewSession(ctx, region, "", epType, token, apiVersion)
 }
 
 // use for climc test only

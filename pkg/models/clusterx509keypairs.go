@@ -85,12 +85,6 @@ func (joint *SClusterX509KeyPair) Slave() db.IStandaloneModel {
 	return db.JointSlave(joint)
 }
 
-func (joint *SClusterX509KeyPair) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := joint.SClusterJointsBase.GetCustomizeColumns(ctx, userCred, query)
-	extra = db.JointModelExtra(joint, extra)
-	return joint.getExtraInfo(extra)
-}
-
 func (joint *SClusterX509KeyPair) GetKeypair() (*SX509KeyPair, error) {
 	kp, err := X509KeyPairManager.FetchById(joint.KeypairId)
 	if err != nil {

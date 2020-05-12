@@ -48,6 +48,19 @@ func NewMonitorManager(keyword, keywordPlural string, columns, adminColumns []st
 		Keyword:     keyword, KeywordPlural: keywordPlural}
 }
 
+func NewMonitorV2Manager(keyword, keywordPlural string, columns, adminColumns []string) modulebase.ResourceManager {
+	return modulebase.ResourceManager{
+		BaseManager: *modulebase.NewBaseManager("monitor", "", "", columns, adminColumns),
+		Keyword:     keyword, KeywordPlural: keywordPlural}
+}
+
+func NewJointMonitorV2Manager(keyword, keywordPlural string, columns, adminColumns []string, master, slave modulebase.Manager) modulebase.JointResourceManager {
+	return modulebase.JointResourceManager{
+		ResourceManager: NewMonitorV2Manager(keyword, keywordPlural, columns, adminColumns),
+		Master:          master,
+		Slave:           slave}
+}
+
 func NewCloudwatcherManager(keyword, keywordPlural string, columns, adminColumns []string) modulebase.ResourceManager {
 	return modulebase.ResourceManager{
 		BaseManager: *modulebase.NewBaseManager("cloudwatcher", "", "v1", columns, adminColumns),
@@ -112,12 +125,6 @@ func NewSchedulerManager(keyword, keywordPlural string, columns, adminColumns []
 func NewMeterManager(keyword, keywordPlural string, columns, adminColumns []string) modulebase.ResourceManager {
 	return modulebase.ResourceManager{
 		BaseManager: *modulebase.NewBaseManager("meter", "", "", columns, adminColumns),
-		Keyword:     keyword, KeywordPlural: keywordPlural}
-}
-
-func NewMeterAlertManager(keyword, keywordPlural string, columns, adminColumns []string) modulebase.ResourceManager {
-	return modulebase.ResourceManager{
-		BaseManager: *modulebase.NewBaseManager("meteralert", "", "", columns, adminColumns),
 		Keyword:     keyword, KeywordPlural: keywordPlural}
 }
 

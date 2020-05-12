@@ -11,26 +11,15 @@ import (
 
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/embed"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/k8s/client/cmd"
-	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 )
 
 type K8SComponentManager struct{}
 
 func (m K8SComponentManager) EnsureNamespace(cluster *SCluster, namespace string) error {
-	k8sMan, err := client.GetManagerByCluster(cluster)
-	if err != nil {
-		return errors.Wrap(err, "get cluster k8s manager")
-	}
-	lister := k8sMan.GetIndexer().NamespaceLister()
-	cli, err := cluster.GetK8sClient()
-	if err != nil {
-		return errors.Wrap(err, "get cluster k8s client")
-	}
-	return k8sutil.EnsureNamespace(lister, cli, namespace)
+	return EnsureNamespace(cluster, namespace)
 }
 
 func (m K8SComponentManager) NewKubectl(cluster *SCluster) (*cmd.Client, error) {
@@ -83,15 +72,7 @@ func NewHelmComponentManager(namespace string, releaseName string, embedChartNam
 }
 
 func (m HelmComponentManager) NewHelmClient(cluster *SCluster, namespace string) (*helm.Client, error) {
-	clusterMan, err := client.GetManagerByCluster(cluster)
-	if err != nil {
-		return nil, err
-	}
-	kubeconfigPath, err := clusterMan.GetKubeConfigPath()
-	if err != nil {
-		return nil, err
-	}
-	return helm.NewClient(kubeconfigPath, namespace, true)
+	return NewHelmClient(cluster, namespace)
 }
 
 func LoadEmbedChart(chartName string) (*chart.Chart, error) {

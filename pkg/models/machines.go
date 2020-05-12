@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	ocapis "yunion.io/x/onecloud/pkg/apis"
@@ -16,6 +14,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/util/wait"
@@ -72,19 +71,19 @@ func (man *SMachineManager) GetSession() (*mcclient.ClientSession, error) {
 	return GetAdminSession()
 }
 
-func (man *SMachineManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	q, err := man.SStatusStandaloneResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+func (man *SMachineManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.MachineListInput) (*sqlchemy.SQuery, error) {
+	q, err := man.SVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.VirtualResourceListInput)
 	if err != nil {
 		return nil, err
 	}
 
 	var sq *sqlchemy.SSubQuery
-	if cluster, _ := query.GetString("cluster"); len(cluster) > 0 {
+	if len(input.Cluster) > 0 {
 		clusters := ClusterManager.Query().SubQuery()
 		sq = clusters.Query(clusters.Field("id")).
 			Filter(sqlchemy.OR(
-				sqlchemy.Equals(clusters.Field("name"), cluster),
-				sqlchemy.Equals(clusters.Field("id"), cluster))).SubQuery()
+				sqlchemy.Equals(clusters.Field("name"), input.Cluster),
+				sqlchemy.Equals(clusters.Field("id"), input.Cluster))).SubQuery()
 	}
 	if sq != nil {
 		q = q.In("cluster_id", sq)
@@ -317,11 +316,6 @@ func (m *SMachine) StartMachineCreateTask(ctx context.Context, userCred mcclient
 	return nil
 }
 
-func (m *SMachine) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := m.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	return m.moreExtraInfo(extra)
-}
-
 func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	cluster, _ := m.GetCluster()
 	if cluster != nil {
@@ -330,13 +324,13 @@ func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict 
 	return extra
 }
 
-func (m *SMachine) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
-	extra, err := m.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+func (m *SMachine) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*jsonutils.JSONDict, error) {
+	extra, err := m.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query, isList)
 	if err != nil {
 		return nil, err
 	}
 
-	return m.moreExtraInfo(extra), nil
+	return m.moreExtraInfo(jsonutils.Marshal(extra).(*jsonutils.JSONDict)), nil
 }
 
 func (m *SMachine) allowPerformAction(userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {

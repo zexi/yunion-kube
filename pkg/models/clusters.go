@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 
-	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -25,6 +25,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/utils"
@@ -98,6 +99,116 @@ func (m *SClusterManager) InitializeData() error {
 	return nil
 }
 
+func (m *SClusterManager) GetSystemCluster() (*SCluster, error) {
+	clusters := m.Query().SubQuery()
+	q := clusters.Query().Filter(sqlchemy.Equals(clusters.Field("provider"), string(apis.ProviderTypeSystem)))
+	q = q.Filter(sqlchemy.IsTrue(q.Field("is_system")))
+	objs := make([]SCluster, 0)
+	err := db.FetchModelObjects(m, q, &objs)
+	if err != nil {
+		return nil, err
+	}
+	if len(objs) == 0 {
+		// return nil, httperrors.NewNotFoundError("Not found default system cluster")
+		return nil, nil
+	}
+	if len(objs) != 1 {
+		return nil, httperrors.NewDuplicateResourceError("Found %d system cluster", len(objs))
+	}
+	sysCluster := objs[0]
+	return &sysCluster, nil
+}
+
+func (m *SClusterManager) GetSystemClusterConfig() (*rest.Config, error) {
+	cfg, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+const (
+	SystemClusterName = "system-default"
+	NamespaceOneCloud = "onecloud"
+)
+
+type k8sInfo struct {
+	ApiServer  string
+	Kubeconfig string
+}
+
+func (m *SClusterManager) GetSystemClusterK8SInfo() (*k8sInfo, error) {
+	restCfg, err := m.GetSystemClusterConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "get rest config")
+	}
+	kubeconfig, err := m.GetSystemClusterKubeconfig(restCfg.Host, restCfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate k8s kubeconfig")
+	}
+	return &k8sInfo{
+		ApiServer:  restCfg.Host,
+		Kubeconfig: kubeconfig,
+	}, nil
+}
+
+func (m *SClusterManager) GetSystemClusterCreateData() (*apis.ClusterCreateInput, error) {
+	createData := &apis.ClusterCreateInput{
+		Name:        SystemClusterName,
+		ClusterType: string(apis.ClusterTypeDefault),
+		CloudType:   string(apis.CloudTypePrivate),
+		Mode:        string(apis.ModeTypeImport),
+		Provider:    string(apis.ProviderTypeSystem),
+	}
+	k8sInfo, err := m.GetSystemClusterK8SInfo()
+	if err != nil {
+		return nil, errors.Wrap(err, "get k8s info")
+	}
+	createData.ApiServer = k8sInfo.ApiServer
+	createData.Kubeconfig = k8sInfo.Kubeconfig
+	return createData, nil
+}
+
+func (m *SClusterManager) RegisterSystemCluster() error {
+	sysCluster, err := m.GetSystemCluster()
+	if err != nil {
+		return errors.Wrap(err, "get system cluster")
+	}
+	userCred := GetAdminCred()
+	if sysCluster == nil {
+		// create system cluster
+		createData, err := m.GetSystemClusterCreateData()
+		if err != nil {
+			return errors.Wrap(err, "get cluster create data")
+		}
+		obj, err := db.DoCreate(m, context.TODO(), userCred, nil, createData.JSON(createData), userCred)
+		if err != nil {
+			return errors.Wrap(err, "create cluster")
+		}
+		sysCluster = obj.(*SCluster)
+	}
+	// update system cluster
+	k8sInfo, err := m.GetSystemClusterK8SInfo()
+	if err != nil {
+		return errors.Wrap(err, "get k8s info")
+	}
+	if _, err := db.Update(sysCluster, func() error {
+		if sysCluster.ApiServer != k8sInfo.ApiServer {
+			sysCluster.ApiServer = k8sInfo.ApiServer
+		}
+		if sysCluster.Kubeconfig != k8sInfo.Kubeconfig {
+			sysCluster.Kubeconfig = k8sInfo.Kubeconfig
+		}
+		if !sysCluster.IsSystem {
+			sysCluster.IsSystem = true
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "update system cluster")
+	}
+	return sysCluster.StartSyncStatus(context.TODO(), userCred, "")
+}
+
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
 	val, _ := data.GetString(key)
 	if len(val) == 0 {
@@ -111,8 +222,8 @@ func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
 	return GetAdminSession()
 }
 
-func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*sqlchemy.SQuery, error) {
-	return m.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, query)
+func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.ClusterListInput) (*sqlchemy.SQuery, error) {
+	return m.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.SharableVirtualResourceListInput)
 }
 
 func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data apis.ClusterCreateInput) (manager.ICluster, error) {
@@ -479,11 +590,6 @@ func (c *SCluster) GetImageRepository() (*apis.ImageRepository, error) {
 	return ClusterManager.GetImageRepository(ret), nil
 }
 
-func (c *SCluster) GetCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) *jsonutils.JSONDict {
-	extra := c.SVirtualResourceBase.GetCustomizeColumns(ctx, userCred, query)
-	return c.moreExtraInfo(extra)
-}
-
 func (c *SCluster) IsHealthy() error {
 	cli, err := c.GetK8sClient()
 	if err != nil {
@@ -495,13 +601,30 @@ func (c *SCluster) IsHealthy() error {
 	return nil
 }
 
-func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*jsonutils.JSONDict, error) {
-	extra, err := c.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query)
+func (m *SClusterManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []*jsonutils.JSONDict {
+	rows := make([]*jsonutils.JSONDict, len(objs))
+	virtRows := m.SSharableVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range objs {
+		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
+		rows[i] = objs[i].(*SCluster).moreExtraInfo(rows[i])
+	}
+	return rows
+}
+
+func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*jsonutils.JSONDict, error) {
+	extra, err := c.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query, isList)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.moreExtraInfo(extra), nil
+	return c.moreExtraInfo(jsonutils.Marshal(extra).(*jsonutils.JSONDict)), nil
 }
 
 func (c *SCluster) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
@@ -720,9 +843,9 @@ func (c *SCluster) CheckPVCEmpty() error {
 }
 
 func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
-	//if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
-	//return err
-	//}
+	if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
+		return err
+	}
 	//if err := c.CheckPVCEmpty(); err != nil {
 	//return err
 	//}
@@ -916,14 +1039,14 @@ func (c *SCluster) GetKubeconfigByCerts() (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "failed to decode CA Cert")
 	} else if cert == nil {
-		return "", errors.New("certificate not found")
+		return "", errors.Errorf("certificate not found")
 	}
 
 	key, err := certificates.DecodePrivateKeyPEM(caKp.Key)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to decode private key")
 	} else if key == nil {
-		return "", errors.New("key not foudn in status")
+		return "", errors.Errorf("key not foudn in status")
 	}
 	controlPlaneURL, err := c.GetControlPlaneUrl()
 	if err != nil {
@@ -1407,11 +1530,11 @@ func (c *SCluster) PerformEnableComponent(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, err
 	}
-	ret, err := comp.GetExtraDetails(ctx, userCred, query)
+	ret, err := comp.GetExtraDetails(ctx, userCred, query, false)
 	if err != nil {
 		return nil, err
 	}
-	return ret, nil
+	return jsonutils.Marshal(ret), nil
 }
 
 func (c *SCluster) AllowPerformDisableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
@@ -1462,4 +1585,45 @@ func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient
 
 func (c *SCluster) GetProjectId() string {
 	return c.ProjectId
+}
+
+func (c *SCluster) prepareStartSync() error {
+	if c.GetStatus() != apis.ClusterStatusRunning {
+		return errors.Errorf("Cluster status is %s", c.GetStatus())
+	}
+	return nil
+}
+
+func (m *SClusterManager) StartAutoSyncTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	clusters, err := m.GetRunningClusters()
+	if err != nil {
+		log.Errorf("Start auto sync cluster task get running clusters: %v", err)
+		return
+	}
+	for _, cls := range clusters {
+		cls.(*SCluster).SubmitSyncTask(ctx, userCred, nil)
+	}
+}
+
+func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCredential, waitChan chan error) {
+	RunSyncClusterTask(func() {
+		log.Infof("start sync cluster %s", c.GetName())
+		if err := c.prepareStartSync(); err != nil {
+			log.Errorf("sync cluster task error: %v", err)
+			if waitChan != nil {
+				waitChan <- err
+			}
+			return
+		}
+		for _, man := range []IClusterModelManager{
+			NamespaceManager,
+			ReleaseManager,
+		} {
+			if ret := SyncClusterResources(ctx, man, userCred, c); ret.IsError() {
+				log.Errorf("Sync cluster %s resource %s error: %v", c.GetName(), man.KeywordPlural(), ret.Result())
+			} else {
+				log.Infof("Sync cluster %s resource %s completed: %v", c.GetName(), man.KeywordPlural(), ret.Result())
+			}
+		}
+	})
 }

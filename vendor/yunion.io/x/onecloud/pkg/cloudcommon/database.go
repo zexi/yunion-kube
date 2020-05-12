@@ -44,7 +44,7 @@ func InitDB(options *common_options.DBOptions) {
 
 	dialect, sqlStr, err := options.GetDBConnection()
 	if err != nil {
-		log.Fatalf("Invalid SqlConnection string: %s", options.SqlConnection)
+		log.Fatalf("Invalid SqlConnection string: %s error: %v", options.SqlConnection, err)
 	}
 	dbConn, err := sql.Open(dialect, sqlStr)
 	if err != nil {
@@ -53,11 +53,11 @@ func InitDB(options *common_options.DBOptions) {
 	sqlchemy.SetDB(dbConn)
 
 	switch options.LockmanMethod {
-	case "inmemory", "":
+	case common_options.LockMethodInMemory, "":
 		log.Infof("using inmemory lockman")
 		lm := lockman.NewInMemoryLockManager()
 		lockman.Init(lm)
-	case "etcd":
+	case common_options.LockMethodEtcd:
 		log.Infof("using etcd lockman")
 		tlsCfg, err := options.GetEtcdTLSConfig()
 		if err != nil {

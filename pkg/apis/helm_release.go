@@ -6,14 +6,28 @@ import (
 	"helm.sh/helm/v3/pkg/time"
 )
 
+const (
+	ReleaseStatusDeploying  = "deploying"
+	ReleaseStatusDeployFail = "deploy_fail"
+	ReleaseStatusDeployed   = "deployed"
+	ReleaseStatusUpdating   = "updating"
+	ReleaseStatusUpdateFail = "update_fail"
+	ReleaseStatusDeleting   = "deleting"
+	ReleaseStatusDeleteFail = "delete_fail"
+)
+
 type ReleaseCreateInput struct {
-	Repo        string            `json:"repo"`
-	ChartName   string            `json:"chart_name"`
-	Namespace   string            `json:"namespace"`
-	ReleaseName string            `json:"release_name"`
-	Version     string            `json:"version"`
-	Values      string            `json:"values"`
-	Sets        map[string]string `json:"sets"`
+	NamespaceResourceCreateInput
+	Repo string `json:"repo"`
+	// Deprecated, use Chart and Repo
+	ChartName string `json:"chart_name"`
+	Chart     string `json:"chart"`
+	// Deprecated, use name
+	ReleaseName string `json:"release_name"`
+	Version     string `json:"version"`
+	// Values is yaml config content
+	Values string            `json:"values"`
+	Sets   map[string]string `json:"sets"`
 }
 
 type ReleaseUpdateInput struct {
@@ -68,4 +82,34 @@ type ReleaseRollbackInput struct {
 	Recreate bool `json:"recreate"`
 	// will (if true) force resource upgrade through uninstall/recreate if needed
 	Force bool `json:"force"`
+}
+
+type ReleaseListInputV2 struct {
+	NamespaceResourceListInput
+	// Release type
+	// enum: internal, external
+	Type string `json:"type"`
+}
+
+type ReleaseV2 struct {
+	NamespaceResourceDetail
+	// Info provides information about a release
+	Info *release.Info `json:"info,omitempty"`
+	// Chart is the chart that was released.
+	Chart *chart.Chart `json:"chart,omitempty"`
+	// Config is the set of extra Values added to the chart.
+	// These values override the default values inside of the chart.
+	Config map[string]interface{} `json:"config,omitempty"`
+	// Manifest is the string representation of the rendered template.
+	Manifest string `json:"manifest,omitempty"`
+	// Hooks are all of the hooks declared for this release.
+	Hooks []*release.Hook `json:"hooks,omitempty"`
+	// Version is an int which represents the version of the release.
+	Version int `json:"version,omitempty"`
+}
+
+type ReleaseDetailV2 struct {
+	ReleaseV2
+	Resources map[string][]interface{} `json:"resources"`
+	Files     []*chart.File            `json:"files"`
 }

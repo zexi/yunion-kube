@@ -45,7 +45,7 @@ func RemoteSSHCommand(host string, port int, username string, passwd string, pri
 
 func CheckRemotePortOpen(host string, port int) error {
 	log.Infof("CheckRemotePortOpen for remote: %s:%d", host, port)
-	_, err := procutils.RunCommandWithoutTimeout("nc", "-z", host, fmt.Sprintf("%d", port))
+	err := procutils.NewCommand("nc", "-z", host, fmt.Sprintf("%d", port)).Run()
 	return err
 }
 

@@ -18,18 +18,18 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/zexi/golosetup v0.0.0-20181117053200-8c308e8bbf44
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20191023171146-3cf2f69b5738
-	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	google.golang.org/grpc v1.24.0
+	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
+	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
+	google.golang.org/grpc v1.26.0
 	gopkg.in/urfave/cli.v1 v1.20.0
-	gopkg.in/yaml.v2 v2.2.4
+	gopkg.in/yaml.v2 v2.2.8
 	helm.sh/helm/v3 v3.0.0
-	k8s.io/api v0.0.0
-	k8s.io/apimachinery v0.0.0
+	k8s.io/api v0.17.3
+	k8s.io/apimachinery v0.17.3
 	k8s.io/apiserver v0.0.0
 	k8s.io/cli-runtime v0.0.0
 	k8s.io/client-go v9.0.0+incompatible
-	k8s.io/cluster-bootstrap v0.0.0
+	k8s.io/cluster-bootstrap v0.17.3
 	k8s.io/gengo v0.0.0-20200425085600-19394052f0fa
 	k8s.io/helm v2.12.3+incompatible
 	k8s.io/klog v1.0.0
@@ -38,10 +38,10 @@ require (
 	k8s.io/kubernetes v1.16.0
 	sigs.k8s.io/controller-runtime v0.1.10
 	sigs.k8s.io/yaml v1.1.0
-	yunion.io/x/code-generator v0.0.0-20200426032426-c5c29b8c93d5
+	yunion.io/x/code-generator v0.0.0-20200427045718-5445cc548331
 	yunion.io/x/jsonutils v0.0.0-20200415132054-2bf8a5e94501
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
-	yunion.io/x/onecloud v0.0.0-20200425162932-e2ad8450b635
+	yunion.io/x/onecloud v0.0.0-20200509110214-2714b6ceb0bf
 	yunion.io/x/pkg v0.0.0-20200416145704-22c189971435
 	yunion.io/x/sqlchemy v0.0.0-20200312002602-1177cd8fbc57
 )

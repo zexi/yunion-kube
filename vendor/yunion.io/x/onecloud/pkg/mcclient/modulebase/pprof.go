@@ -26,7 +26,7 @@ func GetPProfByType(s *mcclient.ClientSession, serviceType string, profileType s
 	if seconds <= 0 {
 		seconds = 15
 	}
-	resp, err := man.rawRequest(s, "GET", fmt.Sprintf("/debug/pprof/%s?seconds=%d", profileType, seconds), nil, nil)
+	resp, err := man.rawBaseUrlRequest(s, "GET", fmt.Sprintf("/debug/pprof/%s?seconds=%d", profileType, seconds), nil, nil)
 	if err != nil {
 		return nil, err
 	}
