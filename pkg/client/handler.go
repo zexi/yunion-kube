@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/client/api"
 )
@@ -27,18 +29,31 @@ type ResourceHandler interface {
 	GetIndexer() *CacheFactory
 	GetClientset() *kubernetes.Clientset
 	Close()
+
+	Dynamic(groupKind schema.GroupKind, versions ...string) (dynamic.NamespaceableResourceInterface, error)
+	DynamicGet(gvr schema.GroupVersionKind, namespace string, name string) (runtime.Object, error)
 }
 
 type resourceHandler struct {
 	client       *kubernetes.Clientset
 	cacheFactory *CacheFactory
+
+	// dynamic client
+	restMapper    meta.RESTMapper
+	dynamicClient dynamic.Interface
 }
 
-func NewResourceHandler(kubeClient *kubernetes.Clientset, cacheFactory *CacheFactory) ResourceHandler {
+func NewResourceHandler(
+	kubeClient *kubernetes.Clientset,
+	dynamicClient dynamic.Interface,
+	restMapper meta.RESTMapper,
+	cacheFactory *CacheFactory) (ResourceHandler, error) {
 	return &resourceHandler{
-		client:       kubeClient,
-		cacheFactory: cacheFactory,
-	}
+		client:        kubeClient,
+		cacheFactory:  cacheFactory,
+		restMapper:    restMapper,
+		dynamicClient: dynamicClient,
+	}, nil
 }
 
 func (h *resourceHandler) GetClientset() *kubernetes.Clientset {
@@ -185,6 +200,39 @@ func (h *resourceHandler) Get(kind string, namespace string, name string) (runti
 		Version: resource.GroupVersionResourceKind.Version,
 		Kind:    resource.GroupVersionResourceKind.Kind,
 	})
+
+	return result, nil
+}
+
+// Dynamic return dynamic interface
+func (h *resourceHandler) Dynamic(groupKind schema.GroupKind, versions ...string) (dynamic.NamespaceableResourceInterface, error) {
+	mapping, err := h.restMapper.RESTMapping(groupKind, versions...)
+	if err != nil {
+		return nil, errors.Wrapf(err, "RESTMapping for %#v", groupKind)
+	}
+	return h.dynamicClient.Resource(mapping.Resource), nil
+}
+
+// DynamicGet object from cache
+func (h *resourceHandler) DynamicGet(gvk schema.GroupVersionKind, namespace string, name string) (runtime.Object, error) {
+	mapping, err := h.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return nil, err
+	}
+	genericInformer := h.cacheFactory.dynamicInformerFactory.ForResource(mapping.Resource)
+	lister := genericInformer.Lister()
+	var result runtime.Object
+	if namespace != "" {
+		result, err = lister.ByNamespace(namespace).Get(name)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		result, err = lister.Get(name)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return result, nil
 }

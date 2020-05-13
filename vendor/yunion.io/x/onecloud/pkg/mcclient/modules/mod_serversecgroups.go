@@ -12,13 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mcclient
+package modules
 
-type IServiceCatalog interface {
-	Len() int
-	GetServiceURL(service, region, zone, endpointType string) (string, error)
-	GetServiceURLs(service, region, zone, endpointType string) ([]string, error)
-	GetInternalServices(region string) []string
-	GetExternalServices(region string) []ExternalService
-	GetServicesByInterface(region string, infType string) []ExternalService
+import "yunion.io/x/onecloud/pkg/mcclient/modulebase"
+
+var (
+	Serversecgroups modulebase.JointResourceManager
+)
+
+func init() {
+	Serversecgroups = NewJointComputeManager(
+		"guestsecgroup",
+		"guestsecgroups",
+		[]string{},
+		[]string{},
+		&Servers,
+		&SecGroups)
+	registerCompute(&Serversecgroups)
 }

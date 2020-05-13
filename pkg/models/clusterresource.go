@@ -511,6 +511,7 @@ func (m *SClusterResourceBaseManager) ListItemFilter(ctx context.Context, q *sql
 		if err != nil {
 			return nil, err
 		}
+		input.Cluster = cls.GetId()
 		q = q.Equals("cluster_id", cls.GetId())
 	}
 	return q, nil

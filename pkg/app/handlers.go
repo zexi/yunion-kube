@@ -62,12 +62,9 @@ func InitHandlers(app *appsrv.Application) {
 		dispatcher.AddJointModelDispatcher(apiPrefix, app, handler)
 	}
 
-	for _, man := range []k8s.IK8sResourceManager{
-		//k8sapp.AppFromFileManager,
-		//release.ReleaseManager,
-	} {
-		handler := k8s.NewK8sResourceHandler(man)
-		k8s.AddResourceDispatcher(apiPrefix, app, handler)
+	// register model manager
+	for _, man := range []model.IK8SModelManager{} {
+		model.RegisterModelManager(man)
 	}
 
 	// v2 dispatcher
@@ -96,6 +93,10 @@ func InitHandlers(app *appsrv.Application) {
 		k8smodels.RoleBindingManager,
 		k8smodels.ServiceAccountManager,
 		k8smodels.EventManager,
+		// onecloud service operator resource manager
+		k8smodels.VirtualMachineManager,
+		k8smodels.AnsiblePlaybookManager,
+		k8smodels.AnsiblePlaybookTemplateManager,
 	} {
 		model.RegisterModelManager(man)
 		handler := model.NewK8SModelHandler(man)

@@ -5,7 +5,7 @@ import "yunion.io/x/onecloud/pkg/apis"
 type RepoType string
 
 const (
-	RepoTypeInternal  RepoType = "internal"
+	RepoTypeInternal RepoType = "internal"
 	RepoTypeExternal RepoType = "external"
 )
 
@@ -31,6 +31,6 @@ type RepoListInput struct {
 type RepoDetail struct {
 	apis.SharableVirtualResourceDetails
 
-	Url string `json:"url"`
+	Url  string `json:"url"`
 	Type string `json:"type"`
 }

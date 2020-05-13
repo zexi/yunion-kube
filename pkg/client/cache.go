@@ -1,6 +1,9 @@
 package client
 
 import (
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	apps "k8s.io/client-go/listers/apps/v1"
@@ -14,18 +17,28 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"yunion.io/x/pkg/errors"
+
 	"yunion.io/x/yunion-kube/pkg/client/api"
+	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
 type CacheFactory struct {
-	stopChan              chan struct{}
-	sharedInformerFactory informers.SharedInformerFactory
+	stopChan               chan struct{}
+	sharedInformerFactory  informers.SharedInformerFactory
+	dynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 }
 
-func buildCacheController(client *kubernetes.Clientset) (*CacheFactory, error) {
+func buildCacheController(
+	cluster manager.ICluster,
+	client *kubernetes.Clientset,
+	dynamicClient dynamic.Interface,
+	restMapper meta.PriorityRESTMapper,
+) (*CacheFactory, error) {
 	stop := make(chan struct{})
-	sharedInformerFactory := informers.NewSharedInformerFactory(client, defaultResyncPeriod)
-	// sharedInformerFactory := informers.NewSharedInformerFactory(client, 0)
+	// sharedInformerFactory := informers.NewSharedInformerFactory(client, defaultResyncPeriod)
+	sharedInformerFactory := informers.NewSharedInformerFactory(client, 0)
+	// dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, defaultResyncPeriod)
+	// dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
 
 	// Start all Resources defined in KindToResourceMap
 	informerSyncs := make([]cache.InformerSynced, 0)
@@ -35,11 +48,30 @@ func buildCacheController(client *kubernetes.Clientset) (*CacheFactory, error) {
 			return nil, err
 		}
 		informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
-		//genericInformer.Informer().AddEventHandler()
+		genericInformer.Informer().AddEventHandler(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    nil,
+				UpdateFunc: nil,
+				DeleteFunc: nil,
+			})
 		// go genericInformer.Informer().Run(stop)
 	}
 
+	// Start all dynamic rest mapper resource
+	/*for _, res := range restMapper.ResourcePriority {
+		genericInformer := dynamicInformerFactory.ForResource(res)
+		informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
+		genericInformer.Informer().AddEventHandler(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc:    nil,
+				UpdateFunc: nil,
+				DeleteFunc: nil,
+			})
+		// go genericInformer.Informer().Run(stop)
+	}*/
+
 	sharedInformerFactory.Start(stop)
+	//dynamicInformerFactory.Start(stop)
 
 	if !cache.WaitForCacheSync(stop, informerSyncs...) {
 		return nil, errors.Errorf("informers not synced")
@@ -48,6 +80,7 @@ func buildCacheController(client *kubernetes.Clientset) (*CacheFactory, error) {
 	return &CacheFactory{
 		stopChan:              stop,
 		sharedInformerFactory: sharedInformerFactory,
+		// dynamicInformerFactory: dynamicInformerFactory,
 	}, nil
 }
 

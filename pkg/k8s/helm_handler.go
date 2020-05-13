@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -98,7 +99,8 @@ func chartlistHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		errors.GeneralServerError(w, err)
 		return
 	}
-	list, err := chart.ChartManager.List(cq, dsq)
+	userCred := policy.FetchUserCredential(ctx)
+	list, err := chart.ChartManager.List(userCred, cq, dsq)
 	if err != nil {
 		errors.GeneralServerError(w, err)
 		return

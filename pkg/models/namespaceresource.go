@@ -76,7 +76,7 @@ func (m SNamespaceResourceBaseManager) ValidateCreateData(ctx context.Context, u
 	return data, nil
 }
 
-func (res *SNamespaceResourceBase) CustomizeCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+func (res *SNamespaceResourceBase) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
 	if err := res.SClusterResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *s
 		return nil, err
 	}
 	if input.Namespace != "" {
-		ns, err := NamespaceManager.FetchByIdOrName(userCred, input.Namespace)
+		ns, err := NamespaceManager.GetByIdOrName(userCred, input.Cluster, input.Namespace)
 		if err != nil {
 			return nil, err
 		}

@@ -11,4 +11,3 @@ func init() {
 type NamespaceCreateTask struct {
 	ClusterResourceCreateTask
 }
-

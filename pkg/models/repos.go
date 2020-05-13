@@ -193,6 +193,13 @@ func (r *SRepo) ToEntry() *repo.Entry {
 }
 
 func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
+	rlsCnt, err := ReleaseManager.Query().Equals("repo_id", r.GetId()).CountWithError()
+	if err != nil {
+		return errors.Wrap(err, "check release count")
+	}
+	if rlsCnt != 0 {
+		return httperrors.NewNotAcceptableError("%d release use this repo", rlsCnt)
+	}
 	cli, err := RepoManager.GetClient(r.ProjectId)
 	if err != nil {
 		return err

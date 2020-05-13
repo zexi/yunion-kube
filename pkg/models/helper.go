@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"os"
 	"path/filepath"
 	"reflect"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/runtime"
-	"helm.sh/helm/v3/pkg/chart"
 	"k8s.io/cli-runtime/pkg/resource"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,12 +23,12 @@ import (
 	"k8s.io/client-go/rest"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
-	"yunion.io/x/log"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -145,6 +145,7 @@ func EnsureNamespace(cluster *SCluster, namespace string) error {
 	}
 	return k8sutil.EnsureNamespace(lister, cli, namespace)
 }
+
 func GetReleaseResources(
 	cli *helm.Client, rel *release.Release,
 	clusterMan model.ICluster,
@@ -162,26 +163,35 @@ func GetReleaseResources(
 			log.Warningf("not fond %s manager", gvk.Kind)
 			return nil
 		}
+		obj := info.Object.(*unstructured.Unstructured)
+		objGVK := obj.GroupVersionKind()
 		keyword := man.Keyword()
-		unstructObj := info.Object.(*unstructured.Unstructured)
-		newObj := man.GetK8SResourceInfo().Object.DeepCopyObject()
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructObj.Object, newObj); err != nil {
-			return err
-		}
-		namespace := info.Namespace
-		metaObj := newObj.(metav1.Object)
-		modelObj, err := model.NewK8SModelObjectByName(man, clusterMan, namespace, metaObj.GetName())
+		handler := clusterMan.GetHandler()
+		dCli, err := handler.Dynamic(objGVK.GroupKind(), objGVK.Version)
 		if err != nil {
-			return err
+			log.Warningf("get %#v dynamic client error: %v", objGVK, err)
+			return nil
 		}
-		obj, err := model.GetObject(modelObj)
+		getObj, err := dCli.Namespace(obj.GetNamespace()).Get(obj.GetName(), metav1.GetOptions{})
+		// getObj, err := handler.DynamicGet(objGVK, obj.GetNamespace(), obj.GetName())
 		if err != nil {
-			return err
+			log.Warningf("get resource %#v error: %v", objGVK, err)
+			return nil
+		}
+		modelObj, err := model.NewK8SModelObject(man, clusterMan, getObj)
+		if err != nil {
+			log.Errorf("%s NewK8sModelObject error: %v", keyword, err)
+			return errors.Wrapf(err, "%s NewK8SModelObject", keyword)
+		}
+		jsonObj, err := model.GetObject(modelObj)
+		if err != nil {
+			return errors.Wrapf(err, "get %s object", modelObj.Keyword())
 		}
 		if list, ok := ret[keyword]; ok {
-			list = append(list, obj)
+			list = append(list, jsonObj)
+			ret[keyword] = list
 		} else {
-			list = []interface{}{obj}
+			list = []interface{}{jsonObj}
 			ret[keyword] = list
 		}
 		return nil
@@ -208,4 +218,3 @@ func GetK8SObjectTypeMeta(kObj runtime.Object) metav1.TypeMeta {
 	}
 	return f.Interface().(metav1.TypeMeta)
 }
-

@@ -17,13 +17,13 @@ import (
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/pkg/util/runtime"
 
+	"yunion.io/x/pkg/util/signalutils"
+	"yunion.io/x/yunion-kube/pkg/controllers"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/initial"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
 	"yunion.io/x/yunion-kube/pkg/server"
-	"yunion.io/x/pkg/util/signalutils"
-	"yunion.io/x/yunion-kube/pkg/controllers"
 )
 
 func prepareEnv() {
@@ -74,7 +74,7 @@ func Run(ctx context.Context) error {
 
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
 	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, models.ClusterManager.ClusterHealthCheckTask, true)
-	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterAutoSyncTask", 30*time.Second, models.ClusterManager.StartAutoSyncTask, true)
+	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterAutoSyncTask", 5*time.Minute, models.ClusterManager.StartAutoSyncTask, true)
 	cron.Start()
 	defer cron.Stop()
 

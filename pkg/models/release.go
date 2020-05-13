@@ -176,30 +176,34 @@ func (m *SReleaseManager) FetchCustomizeColumns(
 			},
 		}
 		var err error
-		if !isList {
-			detail, err = objs[i].(*SRelease).fillReleaseDetail(detail)
-			if err != nil {
-				log.Errorf("Get release detail error: %v", err)
-			}
+		detail, err = objs[i].(*SRelease).fillReleaseDetail(detail, isList)
+		if err != nil {
+			log.Errorf("Get release detail error: %v", err)
 		}
 		rows[i] = detail
 	}
 	return rows
 }
 
-func (rls *SRelease) fillReleaseDetail(detail apis.ReleaseDetailV2) (apis.ReleaseDetailV2, error) {
-	rel, err := rls.GetHelmRelease()
+func (rls *SRelease) fillReleaseDetail(detail apis.ReleaseDetailV2, isList bool) (apis.ReleaseDetailV2, error) {
+	rel, err := rls.GetHelmRelease(isList)
 	if err != nil {
 		return detail, errors.Wrap(err, "get helm release detail")
 	}
 	detail.Info = rel.Info
-	detail.Chart = rel.Chart
+	// detail.Chart = rel.Chart
 	detail.Config = rel.Config
 	detail.Manifest = rel.Manifest
 	detail.Hooks = rel.Hooks
 	detail.Version = rel.Version
 	detail.Resources = rel.Resources
 	detail.Files = rel.Files
+	typ, err := rls.GetType()
+	if err != nil {
+		log.Errorf("get release type error: %v", err)
+		typ = apis.RepoTypeExternal
+	}
+	detail.Type = typ
 	return detail, nil
 }
 
@@ -389,7 +393,7 @@ func (r *SRelease) GetChart() (*chart.Chart, error) {
 	return ReleaseManager.ShowChart(repo, r.Chart, r.ChartVersion)
 }
 
-func (r *SRelease) GetHelmRelease() (*apis.ReleaseDetail, error) {
+func (r *SRelease) GetHelmRelease(isList bool) (*apis.ReleaseDetail, error) {
 	helmCli, err := r.GetHelmClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "get helm client")
@@ -398,11 +402,18 @@ func (r *SRelease) GetHelmRelease() (*apis.ReleaseDetail, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "get helm release")
 	}
+	res := make(map[string][]interface{})
 	clusCli, err := r.GetClusterClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "get cluster client")
 	}
-	res, err := GetReleaseResources(helmCli, rls, clusCli)
+	if !isList {
+		res, err = GetReleaseResources(helmCli, rls, clusCli)
+		if err != nil {
+			log.Errorf("Get release resource error: %v", err)
+			return nil, errors.Wrap(err, "get release resource")
+		}
+	}
 	return &apis.ReleaseDetail{
 		Release:   *ToRelease(rls, clusCli.Cluster.(apis.ICluster)),
 		Resources: res,
