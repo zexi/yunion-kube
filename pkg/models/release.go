@@ -497,7 +497,11 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 	repos := RepoManager.Query().SubQuery()
 	if input.Type != "" {
 		sq := repos.Query(repos.Field("id")).Equals("type", input.Type).SubQuery()
-		q.In("repo_id", sq)
+		cond := sqlchemy.In(q.Field("repo_id"), sq)
+		if input.Type == string(apis.RepoTypeExternal) {
+			cond = sqlchemy.OR(cond, sqlchemy.IsNullOrEmpty(q.Field("repo_id")))
+		}
+		q.Filter(cond)
 	}
 	return q, nil
 }
