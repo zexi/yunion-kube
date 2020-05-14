@@ -3,16 +3,14 @@ package apis
 type VirtualMachine struct {
 	ObjectTypeMeta
 
-	// Eip is elastic ip address
-	Eip string `json:"eip"`
 	// Hypervisor is virtual machine hypervisor
 	Hypervisor string `json:"hypervisor"`
 	// VcpuCount represents the number of CPUs of the virtual machine
-	VcpuCount *int64 `json:"vcpuCount"`
+	VcpuCount *int64 `json:"vcpuCount,omitempty"`
 	// VmemSizeGB reprensents the size of memory
-	VmemSizeGB *int64 `json:"vmemSizeGB"`
+	VmemSizeGB *int64 `json:"vmemSizeGB,omitempty"`
 	// InstanceType describes the specifications of the virtual machine
-	InstanceType string `json:"instanceType"`
+	InstanceType string `json:"instanceType,omitempty"`
 
 	VirtualMachineStatus
 }
@@ -24,6 +22,8 @@ type OnecloudExternalInfoBase struct {
 	Status string `json:"status"`
 	// Action indicate the latest action for external vm
 	Action string `json:"action"`
+	// Eip is elastic ip address
+	Eip string `json:"eip,omitempty"`
 }
 
 type VirtualMachineInfo struct {
@@ -33,7 +33,7 @@ type VirtualMachineInfo struct {
 }
 
 type VirtualMachineStatus struct {
-	Status       string `json:"status"`
+	Status       string             `json:"status"`
 	ExternalInfo VirtualMachineInfo `json:"externalInfo"`
 	// CreateTimes record the continuous creation times
 	CreateTimes int32 `json:"createTimes"`

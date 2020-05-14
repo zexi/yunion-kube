@@ -47,7 +47,6 @@ func (obj *SVirtualMachine) GetAPIObject() (*apis.VirtualMachine, error) {
 
 func (obj *SVirtualMachine) FillAPIObjectBySpec(specObj jsonutils.JSONObject, output IUnstructuredOutput) error {
 	vm := output.(*apis.VirtualMachine)
-	vm.Eip, _ = specObj.GetString("eip")
 	vm.Hypervisor, _ = specObj.GetString("vmConfig", "hypervisor")
 	if cpuCount, _ := specObj.Int("vmConfig", "vcpuCount"); cpuCount != 0 {
 		vm.VcpuCount = &cpuCount
@@ -55,7 +54,7 @@ func (obj *SVirtualMachine) FillAPIObjectBySpec(specObj jsonutils.JSONObject, ou
 	if mem, _ := specObj.Int("vmConfig", "vmemSizeGB"); mem != 0 {
 		vm.VmemSizeGB = &mem
 	}
-	instanceType, _ := specObj.GetString("instanceType")
+	instanceType, _ := specObj.GetString("vmConfig", "instanceType")
 	vm.InstanceType = instanceType
 	return nil
 }
