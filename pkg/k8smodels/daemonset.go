@@ -45,10 +45,31 @@ func (m SDaemonSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	}
 }
 
+func (m SDaemonSetManager) ValidateCreateData(
+	ctx *model.RequestContext,
+	query *jsonutils.JSONDict,
+	input *apis.DaemonSetCreateInput) (*apis.DaemonSetCreateInput, error) {
+	if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
+		return input, err
+	}
+	return input, nil
+}
+
 func (m SDaemonSetManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input jsonutils.JSONObject) (runtime.Object, error) {
-	return nil, nil
+	input *apis.DaemonSetCreateInput) (runtime.Object, error) {
+	objMeta := input.ToObjectMeta()
+	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	input.Template.ObjectMeta = objMeta
+	input.Selector = GetSelectorByObjectMeta(&objMeta)
+	ds := &apps.DaemonSet{
+		ObjectMeta: objMeta,
+		Spec:       input.DaemonSetSpec,
+	}
+	if _, err := CreateServiceIfNotExist(ctx, &objMeta, input.Service); err != nil {
+		return nil, err
+	}
+	return ds, nil
 }
 
 func (obj *SDaemonSet) GetAPIObject() (*apis.DaemonSet, error) {
