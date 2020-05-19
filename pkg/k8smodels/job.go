@@ -29,6 +29,7 @@ func init() {
 
 type SJobManager struct {
 	model.SK8SNamespaceResourceBaseManager
+	model.SK8SOwnerResourceBaseManager
 }
 
 type SJob struct {
@@ -46,6 +47,33 @@ func (m SJobManager) GetK8SResourceInfo() model.K8SResourceInfo {
 func (m SJobManager) GetRawJobs(cluster model.ICluster, ns string) ([]*batch.Job, error) {
 	indexer := cluster.GetHandler().GetIndexer()
 	return indexer.JobLister().Jobs(ns).List(labels.Everything())
+}
+
+func (m SJobManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.JobListInput) (model.IQuery, error) {
+	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return q, err
+	}
+	q, err = m.SK8SOwnerResourceBaseManager.ListItemFilter(ctx, q, query.ListInputOwner)
+	if err != nil {
+		return q, err
+	}
+	if query.Active != nil {
+		q.AddFilter(func(obj model.IK8SModel) (bool, error) {
+			j := obj.(*SJob)
+			rawJob := j.GetRawJob()
+			isActive := *query.Active
+			if isActive {
+				return rawJob.Status.Active > 0, nil
+			}
+			return rawJob.Status.Active == 0, nil
+		})
+	}
+	return q, nil
+}
+
+func (obj *SJob) IsOwnerBy(ownerModel model.IK8SModel) (bool, error) {
+	return model.IsJobOwner(ownerModel, obj.GetRawJob())
 }
 
 func (obj *SJob) GetRawJob() *batch.Job {
