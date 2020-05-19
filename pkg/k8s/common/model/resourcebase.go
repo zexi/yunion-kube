@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 
+	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -171,4 +172,14 @@ func IsObjectContains(obj metav1.Object, objs interface{}) bool {
 func IsEventOwner(model IK8SModel, event *v1.Event) (bool, error) {
 	metaObj := model.GetObjectMeta()
 	return event.InvolvedObject.UID == metaObj.GetUID(), nil
+}
+
+func IsJobOwner(model IK8SModel, job *batch.Job) (bool, error) {
+	metaObj := model.GetObjectMeta()
+	for _, i := range job.OwnerReferences {
+		if i.UID == metaObj.GetUID() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
