@@ -287,6 +287,16 @@ func (obj *SNode) SetNodeScheduleToggle(unschedule bool) error {
 	node := obj.GetRawNode()
 	nodeObj := node.DeepCopy()
 	nodeObj.Spec.Unschedulable = unschedule
+	for i, taint := range nodeObj.Spec.Taints {
+		if taint.Key == "node-role.kubernetes.io/master" {
+			if !unschedule {
+				taint.Effect = v1.TaintEffectPreferNoSchedule
+			} else {
+				taint.Effect = v1.TaintEffectNoSchedule
+			}
+			nodeObj.Spec.Taints[i] = taint
+		}
+	}
 	if _, err := cli.UpdateV2(apis.ResourceNameNode, nodeObj); err != nil {
 		return err
 	}
