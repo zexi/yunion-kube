@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"yunion.io/x/yunion-kube/pkg/clientv2"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -21,6 +20,7 @@ import (
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/clientv2"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -285,32 +285,43 @@ func GetManager(cluster string) (*ClusterManager, error) {
 	return man, nil
 }
 
-func BuildClient(master string, kubeconfig string) (*kubernetes.Clientset, *rest.Config, error) {
+func BuildClientConfig(master string, kubeconfig string) (*rest.Config, *clientcmdapi.Config, error) {
 	configInternal, err := clientcmd.Load([]byte(kubeconfig))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	clientConfig, err := clientcmd.NewDefaultClientConfig(*configInternal, &clientcmd.ConfigOverrides{
+	clientConfig := clientcmd.NewDefaultClientConfig(*configInternal, &clientcmd.ConfigOverrides{
 		ClusterDefaults: clientcmdapi.Cluster{Server: master},
-	}).ClientConfig()
+	})
+	restConfig, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "build client rest config")
+	}
+	restConfig.QPS = defaultQPS
+	restConfig.Burst = defaultBurst
+	apiConfig, err := clientConfig.RawConfig()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "build client api raw config")
+	}
+	return restConfig, &apiConfig, nil
+}
 
+func BuildClient(master string, kubeconfig string) (*kubernetes.Clientset, *rest.Config, error) {
+	restConfig, _, err := BuildClientConfig(master, kubeconfig)
 	if err != nil {
 		log.Errorf("build client config error. %v ", err)
 		return nil, nil, err
 	}
 
-	clientConfig.QPS = defaultQPS
-	clientConfig.Burst = defaultBurst
-
-	clientSet, err := kubernetes.NewForConfig(clientConfig)
+	clientSet, err := kubernetes.NewForConfig(restConfig)
 
 	if err != nil {
-		log.Errorf("(%s) kubernetes.NewForConfig(%v) error.%v", master, err, clientConfig)
+		log.Errorf("(%s) kubernetes.NewForConfig(%v) error.%v", master, err, restConfig)
 		return nil, nil, err
 	}
 
-	return clientSet, clientConfig, nil
+	return clientSet, restConfig, nil
 }
 
 func ClusterKubeConfigPath(c manager.ICluster) string {

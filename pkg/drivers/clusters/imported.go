@@ -4,6 +4,9 @@ import (
 	"context"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -14,6 +17,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
 )
 
 type SDefaultImportDriver struct {
@@ -41,17 +45,24 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	apiServer := createData.ApiServer
-	if apiServer == "" {
-		return httperrors.NewInputParameterError("ApiServer must provide")
-	}
 	kubeconfig := createData.Kubeconfig
-	cli, _, err := client.BuildClient(apiServer, kubeconfig)
+	restConfig, rawConfig, err := client.BuildClientConfig(apiServer, kubeconfig)
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Invalid imported kubeconfig: %v", err)
 	}
+	newKubeconfig, err := runtime.Encode(clientcmdlatest.Codec, rawConfig)
+	if err != nil {
+		return httperrors.NewNotAcceptableError("Load kubeconfig error: %v", err)
+	}
+	createData.Kubeconfig = string(newKubeconfig)
+	createData.ApiServer = restConfig.Host
+	cli, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return k8serrors.NewGeneralError(err)
+	}
 	version, err := cli.Discovery().ServerVersion()
 	if err != nil {
-		return httperrors.NewGeneralError(errors.Wrap(err, "Get kubernetes version"))
+		return k8serrors.NewGeneralError(err)
 	}
 	// check system cluster duplicate imported
 	sysCluster, err := models.ClusterManager.GetSystemCluster()
@@ -78,6 +89,7 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 	}
 
 	// TODO: inject version info
+	data.Update(jsonutils.Marshal(createData))
 	log.Infof("Get version: %#v", version)
 	return nil
 }
