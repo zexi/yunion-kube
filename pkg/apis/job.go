@@ -88,6 +88,12 @@ type JobCreateInput struct {
 	batch.JobSpec
 }
 
+type JobListInput struct {
+	ListInputK8SNamespaceBase
+	ListInputOwner
+	Active *bool `json:"active"`
+}
+
 type CronJobCreateInput struct {
 	K8sNamespaceResourceCreateInput
 	v1beta1.CronJobSpec
