@@ -337,12 +337,11 @@ func (m *SMachineManager) FetchCustomizeColumns(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
-	objs []interface{},
+	objs []db.IModel,
 	fields stringutils2.SSortedStrings,
-	isList bool,
 ) []*jsonutils.JSONDict {
 	rows := make([]*jsonutils.JSONDict, len(objs))
-	virtRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	virtRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields)
 	for i := range objs {
 		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
 		rows[i] = objs[i].(*SMachine).moreExtraInfo(rows[i])
