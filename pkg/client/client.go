@@ -272,7 +272,7 @@ func GetManager(cluster string) (*ClusterManager, error) {
 	manInterface, exist := clusterManagerSets.Load(cluster)
 	if !exist {
 		BuildApiserverClient()
-		_, exist = clusterManagerSets.Load(cluster)
+		manInterface, exist = clusterManagerSets.Load(cluster)
 		if !exist {
 			return nil, errors.Wrapf(ErrNotExist, "cluster %s", cluster)
 		}
