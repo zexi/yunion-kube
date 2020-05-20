@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	ocapis "yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
+
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
 	"yunion.io/x/pkg/util/wait"
@@ -23,6 +24,8 @@ import (
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -322,10 +325,41 @@ func (m *SMachine) GetCustomizeColumns(ctx context.Context, userCred mcclient.To
 	return m.moreExtraInfo(extra)
 }
 
+func (m *SMachine) GetK8sModelNode(cluster *SCluster) (*jsonutils.JSONDict, error) {
+	cm, err := client.GetManagerByCluster(cluster)
+	if err != nil {
+		return nil, errors.Wrap(err, "client.GetManagerByCluster")
+	}
+	return model.GetK8SModelObject(cm, apis.KindNameNode, m.Name)
+}
+
+func (m *SMachineManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []*jsonutils.JSONDict {
+	rows := make([]*jsonutils.JSONDict, len(objs))
+	virtRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	for i := range objs {
+		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
+		rows[i] = objs[i].(*SMachine).moreExtraInfo(rows[i])
+	}
+	return rows
+}
+
 func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	cluster, _ := m.GetCluster()
 	if cluster != nil {
 		extra.Add(jsonutils.NewString(cluster.Name), "cluster")
+
+		if nodeInfo, err := m.GetK8sModelNode(cluster); err == nil {
+			extra.Set("machine_node", nodeInfo)
+		} else {
+			log.Errorf("fetch k8s model node failed %s", err)
+		}
 	}
 	return extra
 }
