@@ -345,6 +345,30 @@ func (m *SMachineManager) FetchCustomizeColumns(
 	return rows
 }
 
+func (m *SMachine) GetK8sModelNode(cluster *SCluster) (*jsonutils.JSONDict, error) {
+	cm, err := client.GetManagerByCluster(cluster)
+	if err != nil {
+		return nil, errors.Wrap(err, "client.GetManagerByCluster")
+	}
+	return model.GetK8SModelObject(cm, apis.KindNameNode, m.Name)
+}
+
+func (m *SMachineManager) FetchCustomizeColumns(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []db.IModel,
+	fields stringutils2.SSortedStrings,
+) []*jsonutils.JSONDict {
+	rows := make([]*jsonutils.JSONDict, len(objs))
+	virtRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields)
+	for i := range objs {
+		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
+		rows[i] = objs[i].(*SMachine).moreExtraInfo(rows[i])
+	}
+	return rows
+}
+
 func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	cluster, _ := m.GetCluster()
 	if cluster != nil {
