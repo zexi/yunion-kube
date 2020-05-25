@@ -25,6 +25,7 @@ const (
 
 type SRepoManager struct {
 	db.SStatusStandaloneResourceBaseManager
+	db.SSharableBaseResourceManager
 }
 
 var RepoManager *SRepoManager
@@ -56,16 +57,12 @@ func (m *SRepoManager) InitializeData() error {
 
 type SRepo struct {
 	db.SStatusStandaloneResourceBase
+	db.SSharableBaseResource
 
 	Url      string `width:"256" charset:"ascii" nullable:"false" create:"required" list:"user" update:"admin"`
 	Source   string `width:"256" charset:"ascii" nullable:"true" list:"user" update:"admin"`
-	IsPublic bool   `default:"false" nullable:"false" create:"admin_optional" list:"user"`
 	Username string `width:"256" nullable:"false"`
 	Password string `width:"256" nullable:"false"`
-}
-
-func (man *SRepoManager) AllowListItems(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
-	return true
 }
 
 func (man *SRepoManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*db.CustomizeListFilters, error) {
@@ -148,36 +145,6 @@ func (man *SRepoManager) ListRepos() ([]SRepo, error) {
 
 func (r *SRepo) AllowGetDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
 	return db.IsAdminAllowGet(userCred, r) || r.IsPublic
-}
-
-func (r *SRepo) AllowPerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivilege()
-}
-
-func (r *SRepo) AllowPerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return userCred.HasSystemAdminPrivilege()
-}
-
-func (r *SRepo) PerformPublic(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if !r.IsPublic {
-		_, err := r.GetModelManager().TableSpec().Update(r, func() error {
-			r.IsPublic = true
-			return nil
-		})
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (r *SRepo) PerformPrivate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if r.IsPublic {
-		_, err := r.GetModelManager().TableSpec().Update(r, func() error {
-			r.IsPublic = false
-			return nil
-		})
-		return nil, err
-	}
-	return nil, nil
 }
 
 func (r *SRepo) ToEntry() *repo.Entry {
