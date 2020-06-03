@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"yunion.io/x/onecloud/pkg/util/stringutils2"
 
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -25,6 +24,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
@@ -1615,9 +1615,12 @@ func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCr
 			}
 			return
 		}
+		// full mode sync
 		for _, man := range []IClusterModelManager{
 			NamespaceManager,
 			ReleaseManager,
+			NodeManager,
+			PodManager,
 		} {
 			if ret := SyncClusterResources(ctx, man, userCred, c); ret.IsError() {
 				log.Errorf("Sync cluster %s resource %s error: %v", c.GetName(), man.KeywordPlural(), ret.Result())
@@ -1626,4 +1629,44 @@ func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCr
 			}
 		}
 	})
+}
+
+func (c *SCluster) GetK8sResourceManager(kindName string) manager.IK8sResourceManager {
+	return GetK8sResourceManagerByKind(kindName)
+}
+
+type sClusterUsage struct {
+	Id string
+}
+
+func (m *SClusterManager) usageClusters(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider) ([]sClusterUsage, error) {
+	q := m.Query("id")
+	switch scope {
+	case rbacutils.ScopeSystem:
+		// do nothing
+	case rbacutils.ScopeDomain:
+		q = q.Equals("domain_id", ownerId.GetProjectDomainId())
+	case rbacutils.ScopeProject:
+		q = q.Equals("tenant_id", ownerId.GetProjectId())
+	}
+	var clusters []sClusterUsage
+	if err := q.All(&clusters); err != nil {
+		return nil, errors.Wrap(err, "query cluster usage")
+	}
+	return clusters, nil
+}
+
+func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider) (*apis.ClusterUsage, error) {
+	usage := new(apis.ClusterUsage)
+	clusters, err := m.usageClusters(scope, ownerId)
+	if err != nil {
+		return nil, err
+	}
+	usage.Count = int64(len(clusters))
+	nodeUsage, err := NodeManager.Usage(clusters)
+	if err != nil {
+		return nil, errors.Wrap(err, "get node usage")
+	}
+	usage.Node = nodeUsage
+	return usage, nil
 }

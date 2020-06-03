@@ -189,6 +189,7 @@ func (ns *SNamespace) Delete(ctx context.Context, userCred mcclient.TokenCredent
 	}
 	for _, man := range []IClusterModelManager{
 		ReleaseManager,
+		PodManager,
 	} {
 		q := man.Query()
 		q.Equals("namespace_id", ns.GetId())

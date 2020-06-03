@@ -4,6 +4,11 @@ import (
 	"k8s.io/api/core/v1"
 )
 
+const (
+	NodeStatusReady    = "Ready"
+	NodeStatusNotReady = "NotReady"
+)
+
 // NodeAllocatedResources describes node allocated resources.
 type NodeAllocatedResources struct {
 	// CPURequests is number of allocated milicores.
@@ -97,4 +102,27 @@ type NodeDetail struct {
 
 type ListInputNode struct {
 	ListInputK8SClusterBase
+}
+
+type NodeCreateInput struct {
+	ClusterResourceCreateInput
+	// TODO: implement create
+}
+
+type NodeListInput struct {
+	ClusterResourceListInput
+}
+
+type NodeDetailV2 struct {
+	ClusterResourceDetail
+	Ready              bool                   `json:"ready"`
+	AllocatedResources NodeAllocatedResources `json:"allocatedResources"`
+	// Addresses is a list of addresses reachable to the node. Queried from cloud provider, if available.
+	Address []v1.NodeAddress `json:"addresses,omitempty"`
+	// Set of ids/uuids to uniquely identify the node.
+	NodeInfo v1.NodeSystemInfo `json:"nodeInfo"`
+	// Taints
+	Taints []v1.Taint `json:"taints,omitempty"`
+	// Unschedulable controls node schedulability of new pods. By default node is schedulable.
+	Unschedulable bool `json:"unschedulable"`
 }

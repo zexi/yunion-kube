@@ -467,6 +467,16 @@ func (m *SReleaseManager) GetRemoteObjectGlobalId(cluster *SCluster, obj interfa
 	return m.getRemoteReleaseGlobalId(cluster.GetId(), rls.Namespace, rls.Name)
 }
 
+func (m *SReleaseManager) IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error) {
+	rls := obj.(*release.Release)
+	objNs := rls.Namespace
+	objName := rls.Name
+	if localObj, _ := m.GetByName(userCred, cluster.GetId(), objNs, objName); localObj != nil {
+		return localObj, true, nil
+	}
+	return nil, false, nil
+}
+
 func (m *SReleaseManager) NewFromRemoteObject(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
@@ -507,8 +517,7 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 }
 
 func (obj *SRelease) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	obj.SNamespaceResourceBase.PostDelete(ctx, userCred)
-	obj.StartDeleteTask(obj, ctx, userCred)
+	obj.SNamespaceResourceBase.PostDelete(obj, ctx, userCred)
 }
 
 func (obj *SRelease) DeleteRemoteObject(_ *client.ClusterManager) error {

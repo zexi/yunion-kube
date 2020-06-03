@@ -53,7 +53,6 @@ cmd/%: prepare_dir
 
 rpm: build
 	$(BUILD_SCRIPT) kube-server
-	$(BUILD_SCRIPT) kube-agent
 
 rpmclean:
 	rm -rf $(BUILD_DIR)rpms

@@ -73,14 +73,14 @@ func (t *ClusterResourceDeleteTask) OnInit(ctx context.Context, obj db.IStandalo
 			log.Errorf("DeleteRemoteObject error: %v", err)
 			return nil, errors.Wrap(err, "DeleteRemoteObject")
 		}
-		if err := resObj.RealDelete(ctx, t.UserCred); err != nil {
-			return nil, errors.Wrap(err, "RealDelete")
-		}
 		return jsonutils.Marshal(obj), nil
 	})
 }
 
 func (t *ClusterResourceDeleteTask) OnDeleteComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
+	if err := obj.RealDelete(ctx, t.UserCred); err != nil {
+		SetObjectTaskFailed(ctx, t, obj, apis.ClusterResourceStatusDeleteFail, err.Error())
+	}
 	t.SetStageComplete(ctx, nil)
 }
 

@@ -3,6 +3,8 @@ package manager
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
@@ -19,6 +21,14 @@ type ICluster interface {
 	GetKubeconfig() (string, error)
 	GetStatus() string
 	GetProjectId() string
+	GetK8sResourceManager(kindName string) IK8sResourceManager
+}
+
+// bidirect sync callback
+type IK8sResourceManager interface {
+	OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
+	OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, oldObj, newObj runtime.Object)
+	OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
 }
 
 type IClusterManager interface {

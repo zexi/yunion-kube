@@ -21,7 +21,6 @@ require (
 	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	google.golang.org/grpc v1.26.0
-	gopkg.in/urfave/cli.v1 v1.20.0
 	gopkg.in/yaml.v2 v2.2.8
 	helm.sh/helm/v3 v3.0.0
 	k8s.io/api v0.17.3
