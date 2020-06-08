@@ -89,8 +89,9 @@ gen-swagger-check:
 
 gen-swagger: gen-swagger-check
 	mkdir -p ./_output/swagger
-	./_output/bin/kube-swagger-gen --input-dirs \
-		yunion.io/x/yunion-kube/pkg/models \
+	./_output/bin/kube-swagger-gen \
+		--input-dirs yunion.io/x/yunion-kube/pkg/usages \
+		--input-dirs yunion.io/x/yunion-kube/pkg/models \
 		--output-package \
 		yunion.io/x/yunion-kube/pkg/generated/kubeserver
 	swagger generate spec -o ./_output/swagger/kubeserver.yaml --scan-models --work-dir=./pkg/generated/kubeserver

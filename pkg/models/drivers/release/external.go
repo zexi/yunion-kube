@@ -6,7 +6,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
@@ -21,11 +21,11 @@ func newExternalDriver() models.IReleaseDriver {
 
 type externalDriver struct{}
 
-func (d *externalDriver) GetType() apis.RepoType {
-	return apis.RepoTypeExternal
+func (d *externalDriver) GetType() api.RepoType {
+	return api.RepoTypeExternal
 }
 
-func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *apis.ReleaseCreateInput) (*apis.ReleaseCreateInput, error) {
+func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *api.ReleaseCreateInput) (*api.ReleaseCreateInput, error) {
 	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred, data.Cluster)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 	return data, nil
 }
 
-func (d *externalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *apis.ReleaseCreateInput) error {
+func (d *externalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *api.ReleaseCreateInput) error {
 	release.ClusterId = data.Cluster
 	return nil
 }

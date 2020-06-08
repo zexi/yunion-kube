@@ -11,18 +11,18 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
 type SBaseDriver struct {
-	modeType            apis.ModeType
-	providerType        apis.ProviderType
-	clusterResourceType apis.ClusterResourceType
+	modeType            api.ModeType
+	providerType        api.ProviderType
+	clusterResourceType api.ClusterResourceType
 }
 
-func newBaseDriver(mt apis.ModeType, pt apis.ProviderType, ct apis.ClusterResourceType) *SBaseDriver {
+func newBaseDriver(mt api.ModeType, pt api.ProviderType, ct api.ClusterResourceType) *SBaseDriver {
 	return &SBaseDriver{
 		modeType:            mt,
 		providerType:        pt,
@@ -30,19 +30,19 @@ func newBaseDriver(mt apis.ModeType, pt apis.ProviderType, ct apis.ClusterResour
 	}
 }
 
-func (d *SBaseDriver) GetMode() apis.ModeType {
+func (d *SBaseDriver) GetMode() api.ModeType {
 	return d.modeType
 }
 
-func (d *SBaseDriver) GetProvider() apis.ProviderType {
+func (d *SBaseDriver) GetProvider() api.ProviderType {
 	return d.providerType
 }
 
-func (d *SBaseDriver) GetResourceType() apis.ClusterResourceType {
+func (d *SBaseDriver) GetResourceType() api.ClusterResourceType {
 	return d.clusterResourceType
 }
 
-func (d *SBaseDriver) GetMachineDriver(mT apis.MachineResourceType) models.IMachineDriver {
+func (d *SBaseDriver) GetMachineDriver(mT api.MachineResourceType) models.IMachineDriver {
 	drv := models.GetMachineDriver(d.GetProvider(), mT)
 	return drv
 }
@@ -63,7 +63,7 @@ func (d *SBaseDriver) NeedCreateMachines() bool {
 	return true
 }
 
-func (d *SBaseDriver) CreateClusterResource(man *models.SClusterManager, data *apis.ClusterCreateInput) error {
+func (d *SBaseDriver) CreateClusterResource(man *models.SClusterManager, data *api.ClusterCreateInput) error {
 	// do nothing
 	return nil
 }
@@ -76,8 +76,8 @@ func (d *SBaseDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *models.SCluster,
-	data []*apis.CreateMachineData,
-) ([]*apis.CreateMachineData, []*apis.CreateMachineData, error) {
+	data []*api.CreateMachineData,
+) ([]*api.CreateMachineData, []*api.CreateMachineData, error) {
 	var needControlplane bool
 	var err error
 	var clusterId string
@@ -97,7 +97,7 @@ func (d *SBaseDriver) ValidateCreateMachines(
 	return controls, nodes, nil
 }
 
-func (d *SBaseDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SBaseDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*api.CreateMachineData) ([]manager.IMachine, error) {
 	return nil, nil
 }
 
@@ -110,7 +110,7 @@ func (d *SBaseDriver) StartSyncStatus(cluster *models.SCluster, ctx context.Cont
 	return nil
 }
 
-func (d *SBaseDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
+func (d *SBaseDriver) GetUsableInstances(s *mcclient.ClientSession) ([]api.UsableInstance, error) {
 	return nil, nil
 }
 

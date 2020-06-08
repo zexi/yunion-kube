@@ -3,7 +3,7 @@ package resources
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 )
 

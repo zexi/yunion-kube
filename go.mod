@@ -37,7 +37,7 @@ require (
 	k8s.io/kubernetes v1.16.0
 	sigs.k8s.io/controller-runtime v0.1.10
 	sigs.k8s.io/yaml v1.1.0
-	yunion.io/x/code-generator v0.0.0-20200427045718-5445cc548331
+	yunion.io/x/code-generator v0.0.0-20200525091704-bb27d6630736
 	yunion.io/x/jsonutils v0.0.0-20200415132054-2bf8a5e94501
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
 	yunion.io/x/onecloud v0.0.0-20200513132056-442e95a2c164

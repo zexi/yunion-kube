@@ -10,7 +10,7 @@ import (
 	deploymentutil "k8s.io/kubectl/pkg/util/deployment"
 	"k8s.io/kubernetes/pkg/util/node"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 )
 
 // code is reference: k8s.io/kubernetes/pkg/printers/internalversion/printers.go

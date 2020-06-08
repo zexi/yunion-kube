@@ -4,7 +4,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -30,14 +30,14 @@ type SAnsiblePlaybookTemplate struct {
 
 func (m *SAnsiblePlaybookTemplateManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameAnsiblePlaybookTemplate,
-		KindName:     apis.KindNameAnsiblePlaybookTemplate,
+		ResourceName: api.ResourceNameAnsiblePlaybookTemplate,
+		KindName:     api.KindNameAnsiblePlaybookTemplate,
 		Object:       &unstructured.Unstructured{},
 	}
 }
 
-func (obj *SAnsiblePlaybookTemplate) GetAPIObject() (*apis.AnsiblePlaybookTemplate, error) {
-	out := new(apis.AnsiblePlaybookTemplate)
+func (obj *SAnsiblePlaybookTemplate) GetAPIObject() (*api.AnsiblePlaybookTemplate, error) {
+	out := new(api.AnsiblePlaybookTemplate)
 	if err := obj.ConvertToAPIObject(obj, out); err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (obj *SAnsiblePlaybookTemplate) GetAPIObject() (*apis.AnsiblePlaybookTempla
 }
 
 func (obj *SAnsiblePlaybookTemplate) FillAPIObjectBySpec(specObj jsonutils.JSONObject, out IUnstructuredOutput) error {
-	ret := out.(*apis.AnsiblePlaybookTemplate)
+	ret := out.(*api.AnsiblePlaybookTemplate)
 	if err := specObj.Unmarshal(&ret.AnsiblePlaybookTemplateSpec); err != nil {
 		return err
 	}

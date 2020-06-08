@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type sBaseDriver struct{}
@@ -43,7 +43,7 @@ func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclie
 	if err != nil {
 		log.Errorf("Get create input error: %v", err)
 	}
-	input := &apis.MachinePrepareInput{
+	input := &api.MachinePrepareInput{
 		FirstNode: machine.IsFirstNode(),
 		Role:      machine.GetRole(),
 		Config:    createInput.Config,
@@ -55,7 +55,7 @@ func (d *sBaseDriver) RequestPrepareMachine(ctx context.Context, userCred mcclie
 	return machine.StartPrepareTask(ctx, task.GetUserCred(), jsonutils.Marshal(input).(*jsonutils.JSONDict), task.GetTaskId())
 }
 
-func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *models.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
+func (d *sBaseDriver) PrepareResource(session *mcclient.ClientSession, machine *models.SMachine, data *api.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	return nil, nil
 }
 

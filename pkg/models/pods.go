@@ -12,7 +12,7 @@ import (
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 var (
@@ -26,8 +26,8 @@ func init() {
 			"pods_tbl",
 			"pod",
 			"pods",
-			apis.ResourceNamePod,
-			apis.KindNamePod,
+			api.ResourceNamePod,
+			api.KindNamePod,
 			new(v1.Pod),
 		),
 	}
@@ -58,11 +58,11 @@ func (m *SPodManager) ValidateCreateData(ctx context.Context, userCred mcclient.
 	return nil, httperrors.NewBadRequestError("Not support pod create")
 }
 
-func (m *SPodManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.NamespaceResourceListInput) (*sqlchemy.SQuery, error) {
+func (m *SPodManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.NamespaceResourceListInput) (*sqlchemy.SQuery, error) {
 	return m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, input)
 }
 
-func (p *SPod) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*apis.PodDetail, error) {
+func (p *SPod) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*api.PodDetail, error) {
 	return nil, nil
 }
 

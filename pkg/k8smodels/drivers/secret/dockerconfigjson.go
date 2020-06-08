@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8smodels"
 )
 
@@ -25,7 +25,7 @@ func newDockerConfigJson() k8smodels.ISecretDriver {
 	return new(dockerConfigJson)
 }
 
-func (d dockerConfigJson) ValidateCreateData(input *apis.SecretCreateInput) error {
+func (d dockerConfigJson) ValidateCreateData(input *api.SecretCreateInput) error {
 	conf := input.DockerConfigJson
 	if conf.User == "" {
 		return httperrors.NewInputParameterError("user is empty")
@@ -41,7 +41,7 @@ func (d dockerConfigJson) toAuth(user, password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func (d dockerConfigJson) ToData(input *apis.SecretCreateInput) (map[string]string, error) {
+func (d dockerConfigJson) ToData(input *api.SecretCreateInput) (map[string]string, error) {
 	spec := input.DockerConfigJson
 	authInfo := jsonutils.NewDict()
 	authInfo.Add(jsonutils.NewString(spec.User), "username")

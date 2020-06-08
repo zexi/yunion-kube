@@ -10,7 +10,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
@@ -30,7 +30,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		return
 	}
 	if mCnt == 0 && cluster.GetDriver().NeedCreateMachines() {
-		cluster.SetStatus(t.UserCred, apis.ClusterStatusInit, "")
+		cluster.SetStatus(t.UserCred, api.ClusterStatusInit, "")
 		t.SetStageComplete(ctx, nil)
 		return
 	}
@@ -52,7 +52,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 }
 
 func (t *ClusterSyncstatusTask) OnSyncStatus(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusRunning, "")
+	cluster.SetStatus(t.UserCred, api.ClusterStatusRunning, "")
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -67,6 +67,6 @@ func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandal
 
 func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*models.SCluster)
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusUnknown, "")
+	cluster.SetStatus(t.UserCred, api.ClusterStatusUnknown, "")
 	t.STask.SetStageFailed(ctx, reason)
 }

@@ -20,7 +20,7 @@ import (
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
@@ -60,7 +60,7 @@ func (m *SNamespaceResourceBaseManager) GetByName(userCred mcclient.IIdentityPro
 	return FetchClusterResourceByName(m, userCred, clusterId, namespaceId, resId)
 }
 
-func (m SNamespaceResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *apis.NamespaceResourceCreateInput) (*apis.NamespaceResourceCreateInput, error) {
+func (m SNamespaceResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.NamespaceResourceCreateInput) (*api.NamespaceResourceCreateInput, error) {
 	cData, err := m.SClusterResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, &data.ClusterResourceCreateInput)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (res *SNamespaceResourceBase) CustomizeCreate(ctx context.Context, userCred
 	if err := res.SClusterResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
-	input := new(apis.NamespaceResourceCreateInput)
+	input := new(api.NamespaceResourceCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "namespace resource unmarshal data")
 	}
@@ -139,7 +139,7 @@ func (res *SNamespaceResourceBaseManager) NewFromRemoteObject(
 	return localObj, nil
 }
 
-func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.NamespaceResourceListInput) (*sqlchemy.SQuery, error) {
+func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.NamespaceResourceListInput) (*sqlchemy.SQuery, error) {
 	q, err := m.SClusterResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.ClusterResourceListInput)
 	if err != nil {
 		return nil, err
@@ -160,7 +160,7 @@ func (res *SNamespaceResourceBase) SetNamespace(userCred mcclient.TokenCredentia
 
 func (m *SNamespaceResourceBaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
 	q = m.SStatusStandaloneResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
-	input := new(apis.NamespaceResourceListInput)
+	input := new(api.NamespaceResourceListInput)
 	if err := query.Unmarshal(input); err != nil {
 		panic(fmt.Sprintf("unmarshal namespace resource list input error: %v", err))
 	}
@@ -201,11 +201,11 @@ func (m *SNamespaceResourceBaseManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []apis.NamespaceResourceDetail {
-	rows := make([]apis.NamespaceResourceDetail, len(objs))
+) []api.NamespaceResourceDetail {
+	rows := make([]api.NamespaceResourceDetail, len(objs))
 	cRows := m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	for i := range cRows {
-		detail := apis.NamespaceResourceDetail{
+		detail := api.NamespaceResourceDetail{
 			ClusterResourceDetail: cRows[i],
 		}
 		resObj := objs[i].(INamespaceModel)

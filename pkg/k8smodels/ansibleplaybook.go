@@ -4,7 +4,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -30,14 +30,14 @@ type SAnsiblePlaybook struct {
 
 func (m *SAnsiblePlaybookManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameAnsiblePlaybook,
-		KindName:     apis.KindNameAnsiblePlaybook,
+		ResourceName: api.ResourceNameAnsiblePlaybook,
+		KindName:     api.KindNameAnsiblePlaybook,
 		Object:       &unstructured.Unstructured{},
 	}
 }
 
-func (obj *SAnsiblePlaybook) GetAPIObject() (*apis.AnsiblePlaybook, error) {
-	out := new(apis.AnsiblePlaybook)
+func (obj *SAnsiblePlaybook) GetAPIObject() (*api.AnsiblePlaybook, error) {
+	out := new(api.AnsiblePlaybook)
 	if err := obj.ConvertToAPIObject(obj, out); err != nil {
 		return nil, err
 	}
@@ -45,9 +45,9 @@ func (obj *SAnsiblePlaybook) GetAPIObject() (*apis.AnsiblePlaybook, error) {
 }
 
 func (obj *SAnsiblePlaybook) FillAPIObjectBySpec(specObj jsonutils.JSONObject, out IUnstructuredOutput) error {
-	ret := out.(*apis.AnsiblePlaybook)
+	ret := out.(*api.AnsiblePlaybook)
 	if tmplateName, err := specObj.GetString("playbookTemplateRef", "name"); err == nil {
-		ret.PlaybookTemplateRef = &apis.LocalObjectReference{
+		ret.PlaybookTemplateRef = &api.LocalObjectReference{
 			Name: tmplateName,
 		}
 	}
@@ -59,7 +59,7 @@ func (obj *SAnsiblePlaybook) FillAPIObjectBySpec(specObj jsonutils.JSONObject, o
 }
 
 func (obj *SAnsiblePlaybook) FillAPIObjectByStatus(statusObj jsonutils.JSONObject, out IUnstructuredOutput) error {
-	ret := out.(*apis.AnsiblePlaybook)
+	ret := out.(*api.AnsiblePlaybook)
 	phase, _ := statusObj.GetString("phase")
 	ret.AnsiblePlaybookStatus.Status = phase
 

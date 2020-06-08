@@ -23,7 +23,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -75,7 +75,7 @@ func (man *SMachineManager) GetSession() (*mcclient.ClientSession, error) {
 	return GetAdminSession()
 }
 
-func (man *SMachineManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.MachineListInput) (*sqlchemy.SQuery, error) {
+func (man *SMachineManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.MachineListInput) (*sqlchemy.SQuery, error) {
 	q, err := man.SVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.VirtualResourceListInput)
 	if err != nil {
 		return nil, err
@@ -124,28 +124,28 @@ func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, i
 	return obj.(*SMachine), true, nil
 }
 
-func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *apis.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *api.CreateMachineData) (manager.IMachine, error) {
 	input := jsonutils.Marshal(data)
 	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred)
 	if err != nil {
 		return nil, err
 	}
 	m := obj.(*SMachine)
-	err = m.SetMetadata(ctx, apis.MachineMetadataCreateParams, input.String(), userCred)
+	err = m.SetMetadata(ctx, api.MachineMetadataCreateParams, input.String(), userCred)
 	return m, err
 }
 
-func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*apis.CreateMachineData, error) {
-	input := new(apis.CreateMachineData)
-	ret := m.GetMetadataJson(apis.MachineMetadataCreateParams, userCred)
+func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*api.CreateMachineData, error) {
+	input := new(api.CreateMachineData)
+	ret := m.GetMetadataJson(api.MachineMetadataCreateParams, userCred)
 	if ret == nil {
-		return nil, errors.Errorf("Not found %s in metadata", apis.MachineMetadataCreateParams)
+		return nil, errors.Errorf("Not found %s in metadata", api.MachineMetadataCreateParams)
 	}
 	err := ret.Unmarshal(input)
 	return input, err
 }
 
-func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *apis.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *api.CreateMachineData) (manager.IMachine, error) {
 	obj, err := man.CreateMachineNoHook(ctx, userCred, data)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (man *SMachineManager) GetClusterControlplaneMachines(clusterId string) ([]
 	}
 	ret := make([]*SMachine, 0)
 	for _, m := range machines {
-		if m.Role == string(apis.RoleTypeControlplane) {
+		if m.Role == string(api.RoleTypeControlplane) {
 			ret = append(ret, m)
 		}
 	}
@@ -230,8 +230,8 @@ func (man *SMachineManager) FetchMachineByIdOrName(userCred mcclient.TokenCreden
 
 func ValidateRole(role string) error {
 	if !utils.IsInStringArray(role, []string{
-		string(apis.RoleTypeControlplane),
-		string(apis.RoleTypeNode),
+		string(api.RoleTypeControlplane),
+		string(api.RoleTypeNode),
 	}) {
 		return httperrors.NewInputParameterError("Invalid role: %q", role)
 	}
@@ -240,8 +240,8 @@ func ValidateRole(role string) error {
 
 func (m *SMachineManager) ValidateResourceType(resType string) error {
 	if !utils.IsInStringArray(resType, []string{
-		string(apis.MachineResourceTypeVm),
-		string(apis.MachineResourceTypeBaremetal),
+		string(api.MachineResourceTypeVm),
+		string(api.MachineResourceTypeBaremetal),
 	}) {
 		return httperrors.NewInputParameterError("Invalid machine resource type: %q", resType)
 	}
@@ -261,7 +261,7 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	data.Set("cluster_id", jsonutils.NewString(clusterId))
 	data.Set("provider", jsonutils.NewString(cluster.Provider))
 
-	resourceType := SetJSONDataDefault(data, "resource_type", string(apis.MachineResourceTypeBaremetal))
+	resourceType := SetJSONDataDefault(data, "resource_type", string(api.MachineResourceTypeBaremetal))
 	if err := man.ValidateResourceType(resourceType); err != nil {
 		return nil, err
 	}
@@ -275,8 +275,8 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	if err != nil {
 		return nil, err
 	}
-	if len(clusterMachines) == 0 && role != string(apis.RoleTypeControlplane) {
-		return nil, httperrors.NewInputParameterError("First machine's role must %s", apis.RoleTypeControlplane)
+	if len(clusterMachines) == 0 && role != string(api.RoleTypeControlplane) {
+		return nil, httperrors.NewInputParameterError("First machine's role must %s", api.RoleTypeControlplane)
 	}
 	firstNode := jsonutils.JSONFalse
 	if len(clusterMachines) == 0 {
@@ -284,9 +284,9 @@ func (man *SMachineManager) ValidateCreateData(ctx context.Context, userCred mcc
 	}
 	data.Set("first_node", firstNode)
 
-	machine := new(apis.CreateMachineData)
+	machine := new(api.CreateMachineData)
 	data.Unmarshal(machine)
-	ms, err := cluster.ValidateAddMachines(ctx, userCred, []apis.CreateMachineData{*machine})
+	ms, err := cluster.ValidateAddMachines(ctx, userCred, []api.CreateMachineData{*machine})
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +309,7 @@ func (m *SMachine) PostCreate(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (m *SMachine) StartMachineCreateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, apis.MachineStatusCreating, ""); err != nil {
+	if err := m.SetStatus(userCred, api.MachineStatusCreating, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "MachineCreateTask", m, userCred, data, parentTaskId, "", nil)
@@ -342,7 +342,7 @@ func (m *SMachine) GetK8sModelNode(cluster *SCluster) (*jsonutils.JSONDict, erro
 	if err != nil {
 		return nil, errors.Wrap(err, "client.GetManagerByCluster")
 	}
-	return model.GetK8SModelObject(cm, apis.KindNameNode, m.Name)
+	return model.GetK8SModelObject(cm, api.KindNameNode, m.Name)
 }
 
 func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
@@ -377,7 +377,7 @@ func (m *SMachine) AllowPerformRecreate(ctx context.Context, userCred mcclient.T
 }
 
 func (m *SMachine) PerformRecreate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if m.Status != apis.MachineStatusCreateFail {
+	if m.Status != api.MachineStatusCreateFail {
 		return nil, httperrors.NewForbiddenError("Status is %s", m.SetStatus)
 	}
 	if err := m.StartMachineCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
@@ -395,7 +395,7 @@ func (m *SMachine) ValidatePrepareCondition(ctx context.Context, userCred mcclie
 }
 
 func (m *SMachine) StartPrepareTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, apis.MachineStatusPrepare, ""); err != nil {
+	if err := m.SetStatus(userCred, api.MachineStatusPrepare, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "MachinePrepareTask", m, userCred, data, parentTaskId, "", nil)
@@ -410,7 +410,7 @@ func (m *SMachine) PerformPrepare(ctx context.Context, userCred mcclient.TokenCr
 	if err := m.ValidatePrepareCondition(ctx, userCred, query, data); err != nil {
 		return nil, err
 	}
-	if utils.IsInStringArray(m.Status, []string{apis.MachineStatusRunning, apis.MachineStatusDeleting}) {
+	if utils.IsInStringArray(m.Status, []string{api.MachineStatusRunning, api.MachineStatusDeleting}) {
 		return nil, fmt.Errorf("machine status is %s", m.Status)
 	}
 
@@ -459,7 +459,7 @@ func (m *SMachine) PerformTerminate(ctx context.Context, userCred mcclient.Token
 
 // StartTerminateTask invoke by MachineBatchDeleteTask
 func (m *SMachine) StartTerminateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, apis.MachineStatusTerminating, ""); err != nil {
+	if err := m.SetStatus(userCred, api.MachineStatusTerminating, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "MachineTerminateTask", m, userCred, data, parentTaskId, "", nil)
@@ -509,7 +509,7 @@ func (m *SMachine) SetHypervisor(hypervisor string) error {
 }
 
 func (m *SMachine) GetDriver() IMachineDriver {
-	return GetMachineDriver(apis.ProviderType(m.Provider), apis.MachineResourceType(m.ResourceType))
+	return GetMachineDriver(api.ProviderType(m.Provider), api.MachineResourceType(m.ResourceType))
 }
 
 func (m *SMachine) GetRole() string {
@@ -517,11 +517,11 @@ func (m *SMachine) GetRole() string {
 }
 
 func (m *SMachine) IsControlplane() bool {
-	return m.GetRole() == apis.RoleTypeControlplane
+	return m.GetRole() == api.RoleTypeControlplane
 }
 
 func (m *SMachine) IsRunning() bool {
-	return m.Status == apis.MachineStatusRunning
+	return m.Status == api.MachineStatusRunning
 }
 
 func (m *SMachine) IsFirstNode() bool {
@@ -536,10 +536,10 @@ func WaitMachineRunning(machine *SMachine) error {
 		if err != nil {
 			return false, err
 		}
-		if machine.Status == apis.MachineStatusRunning {
+		if machine.Status == api.MachineStatusRunning {
 			return true, nil
 		}
-		if utils.IsInStringArray(machine.Status, []string{apis.MachineStatusPrepare, apis.MachineStatusCreating}) {
+		if utils.IsInStringArray(machine.Status, []string{api.MachineStatusPrepare, api.MachineStatusCreating}) {
 			return false, nil
 		}
 		return false, fmt.Errorf("Machine %s status is %s", machine.GetName(), machine.Status)
@@ -558,7 +558,7 @@ func WaitMachineDelete(machine *SMachine) error {
 			return true, nil
 		}
 		machine := m.(*SMachine)
-		if utils.IsInStringArray(machine.Status, []string{apis.MachineStatusDeleting, apis.MachineStatusTerminating}) {
+		if utils.IsInStringArray(machine.Status, []string{api.MachineStatusDeleting, api.MachineStatusTerminating}) {
 			return false, nil
 		}
 		return false, fmt.Errorf("Machine %s status is %s", machine.GetName(), machine.Status)

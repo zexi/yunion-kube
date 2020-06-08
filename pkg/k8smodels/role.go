@@ -5,7 +5,7 @@ import (
 
 	rbac "k8s.io/api/rbac/v1"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -33,23 +33,23 @@ type SRole struct {
 
 func (_ SRoleManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameRole,
+		ResourceName: api.ResourceNameRole,
 		Object:       &rbac.Role{},
-		KindName:     apis.KindNameRole,
+		KindName:     api.KindNameRole,
 	}
 }
 
 func (obj SRole) GetType() string {
-	return strings.ToLower(apis.KindNameRole)
+	return strings.ToLower(api.KindNameRole)
 }
 
 func (obj SRole) GetRawRole() *rbac.Role {
 	return obj.GetK8SObject().(*rbac.Role)
 }
 
-func (obj SRole) GetAPIObject() (*apis.RbacRole, error) {
+func (obj SRole) GetAPIObject() (*api.RbacRole, error) {
 	cr := obj.GetRawRole()
-	return &apis.RbacRole{
+	return &api.RbacRole{
 		ObjectMeta: obj.GetObjectMeta(),
 		TypeMeta:   obj.GetTypeMeta(),
 		Type:       obj.GetType(),
@@ -57,6 +57,6 @@ func (obj SRole) GetAPIObject() (*apis.RbacRole, error) {
 	}, nil
 }
 
-func (obj SRole) GetAPIDetailObject() (*apis.RbacRole, error) {
+func (obj SRole) GetAPIDetailObject() (*api.RbacRole, error) {
 	return obj.GetAPIObject()
 }

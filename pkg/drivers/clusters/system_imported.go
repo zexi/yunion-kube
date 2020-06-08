@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
@@ -22,8 +22,8 @@ func NewDefaultSystemImportDriver() *SDefaultSystemImportDriver {
 	drv := &SDefaultSystemImportDriver{
 		SDefaultImportDriver: NewDefaultImportDriver(),
 	}
-	drv.providerType = apis.ProviderTypeSystem
-	drv.clusterResourceType = apis.ClusterResourceTypeHost
+	drv.providerType = api.ProviderTypeSystem
+	drv.clusterResourceType = api.ClusterResourceTypeHost
 	return drv
 }
 
@@ -37,7 +37,7 @@ func (d *SDefaultSystemImportDriver) GetK8sVersions() []string {
 
 func (d *SDefaultSystemImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	// test kubeconfig is work
-	createData := apis.ClusterCreateInput{}
+	createData := api.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}

@@ -15,7 +15,7 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 )
 
@@ -55,19 +55,19 @@ type SComponent struct {
 
 type IComponentDriver interface {
 	GetType() string
-	ValidateCreateData(input *apis.ComponentCreateInput) error
-	ValidateUpdateData(input *apis.ComponentUpdateInput) error
-	GetCreateSettings(input *apis.ComponentCreateInput) (*apis.ComponentSettings, error)
-	GetUpdateSettings(oldSetting *apis.ComponentSettings, input *apis.ComponentUpdateInput) (*apis.ComponentSettings, error)
-	DoEnable(cluster *SCluster, settings *apis.ComponentSettings) error
-	DoDisable(cluster *SCluster, settings *apis.ComponentSettings) error
-	DoUpdate(cluster *SCluster, settings *apis.ComponentSettings) error
-	FetchStatus(cluster *SCluster, c *SComponent, status *apis.ComponentsStatus) error
+	ValidateCreateData(input *api.ComponentCreateInput) error
+	ValidateUpdateData(input *api.ComponentUpdateInput) error
+	GetCreateSettings(input *api.ComponentCreateInput) (*api.ComponentSettings, error)
+	GetUpdateSettings(oldSetting *api.ComponentSettings, input *api.ComponentUpdateInput) (*api.ComponentSettings, error)
+	DoEnable(cluster *SCluster, settings *api.ComponentSettings) error
+	DoDisable(cluster *SCluster, settings *api.ComponentSettings) error
+	DoUpdate(cluster *SCluster, settings *api.ComponentSettings) error
+	FetchStatus(cluster *SCluster, c *SComponent, status *api.ComponentsStatus) error
 }
 
 type baseComponentDriver struct{}
 
-func (m baseComponentDriver) InitStatus(comp *SComponent, out *apis.ComponentStatus) {
+func (m baseComponentDriver) InitStatus(comp *SComponent, out *api.ComponentStatus) {
 	if comp == nil {
 		out.Created = false
 		out.Enabled = false
@@ -109,7 +109,7 @@ func (m *SComponentManager) CreateByCluster(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *SCluster,
-	input *apis.ComponentCreateInput) (*SComponent, error) {
+	input *api.ComponentCreateInput) (*SComponent, error) {
 	if input.Name == "" {
 		newName, err := db.GenerateName(m, userCred, fmt.Sprintf("%s-%s", cluster.GetName(), input.Type))
 		if err != nil {
@@ -144,7 +144,7 @@ func (m *SComponentManager) ValidateCreateData(
 	userCred mcclient.TokenCredential,
 	ownerId mcclient.IIdentityProvider,
 	_ jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	input := new(apis.ComponentCreateInput)
+	input := new(api.ComponentCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (m *SComponent) CustomizeCreate(
 	query jsonutils.JSONObject,
 	data jsonutils.JSONObject,
 ) error {
-	input := new(apis.ComponentCreateInput)
+	input := new(api.ComponentCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func (m *SComponent) DoEnable(ctx context.Context, userCred mcclient.TokenCreden
 	if m.Enabled.Bool() {
 		return httperrors.NewBadRequestError("component %s already enabled", m.Type)
 	}
-	if utils.IsInStringArray(m.Status, []string{apis.ComponentStatusDeleting}) {
+	if utils.IsInStringArray(m.Status, []string{api.ComponentStatusDeleting}) {
 		return httperrors.NewNotAcceptableError("component %s is %s", m.Type, m.Status)
 	}
 	return m.StartComponentDeployTask(ctx, userCred, data, parentTaskId)
@@ -260,7 +260,7 @@ func (m *SComponent) StartComponentDeployTask(ctx context.Context, userCred mccl
 	if err := m.SetEnabled(true); err != nil {
 		return err
 	}
-	if err := m.SetStatus(userCred, apis.ComponentStatusDeploying, ""); err != nil {
+	if err := m.SetStatus(userCred, api.ComponentStatusDeploying, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ComponentDeployTask", m, userCred, data, parentTaskId, "", nil)
@@ -272,7 +272,7 @@ func (m *SComponent) StartComponentDeployTask(ctx context.Context, userCred mccl
 }
 
 func (m *SComponent) StartComponentUndeployTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, apis.ComponentStatusUndeploying, ""); err != nil {
+	if err := m.SetStatus(userCred, api.ComponentStatusUndeploying, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ComponentUndeployTask", m, userCred, data, parentTaskId, "", nil)
@@ -322,7 +322,7 @@ func (m *SComponent) StartComponentDeleteTask(ctx context.Context, userCred mccl
 	if err := m.SetEnabled(false); err != nil {
 		return err
 	}
-	if err := m.SetStatus(userCred, apis.ComponentStatusDeleting, ""); err != nil {
+	if err := m.SetStatus(userCred, api.ComponentStatusDeleting, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ComponentDeleteTask", m, userCred, data, parentTaskId, "", nil)
@@ -333,7 +333,7 @@ func (m *SComponent) StartComponentDeleteTask(ctx context.Context, userCred mccl
 	return nil
 }
 
-func (m *SComponent) FetchStatus(cluster *SCluster, out *apis.ComponentsStatus) error {
+func (m *SComponent) FetchStatus(cluster *SCluster, out *api.ComponentsStatus) error {
 	drv, err := m.GetDriver()
 	if err != nil {
 		return err
@@ -341,19 +341,19 @@ func (m *SComponent) FetchStatus(cluster *SCluster, out *apis.ComponentsStatus) 
 	return drv.FetchStatus(cluster, m, out)
 }
 
-func (m *SComponent) GetSettings() (*apis.ComponentSettings, error) {
-	out := new(apis.ComponentSettings)
+func (m *SComponent) GetSettings() (*api.ComponentSettings, error) {
+	out := new(api.ComponentSettings)
 	if err := m.Settings.Unmarshal(out); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (m *SComponent) DoUpdate(ctx context.Context, userCred mcclient.TokenCredential, input *apis.ComponentUpdateInput) error {
+func (m *SComponent) DoUpdate(ctx context.Context, userCred mcclient.TokenCredential, input *api.ComponentUpdateInput) error {
 	if !m.Enabled.Bool() {
 		return httperrors.NewBadRequestError("component %s not enabled", m.Type)
 	}
-	if !utils.IsInStringArray(m.Status, []string{apis.ComponentStatusDeployed, apis.ComponentStatusUpdateFail}) {
+	if !utils.IsInStringArray(m.Status, []string{api.ComponentStatusDeployed, api.ComponentStatusUpdateFail}) {
 		return httperrors.NewBadRequestError("component can't update when status is %s", m.Status)
 	}
 	drv, err := m.GetDriver()
@@ -379,7 +379,7 @@ func (m *SComponent) DoUpdate(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (m *SComponent) StartComponentUpdateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := m.SetStatus(userCred, apis.ComponentStatusUpdating, ""); err != nil {
+	if err := m.SetStatus(userCred, api.ComponentStatusUpdating, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ComponentUpdateTask", m, userCred, data, parentTaskId, "", nil)

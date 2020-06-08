@@ -4,7 +4,7 @@ import (
 	rbac "k8s.io/api/rbac/v1"
 	"strings"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -32,9 +32,9 @@ type SClusterRole struct {
 
 func (_ SClusterRoleManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameClusterRole,
+		ResourceName: api.ResourceNameClusterRole,
 		Object:       &rbac.ClusterRole{},
-		KindName:     apis.KindNameClusterRole,
+		KindName:     api.KindNameClusterRole,
 	}
 }
 
@@ -43,12 +43,12 @@ func (obj SClusterRole) GetRawClusterRole() *rbac.ClusterRole {
 }
 
 func (obj SClusterRole) GetType() string {
-	return strings.ToLower(apis.KindNameClusterRole)
+	return strings.ToLower(api.KindNameClusterRole)
 }
 
-func (obj SClusterRole) GetAPIObject() (*apis.RbacRole, error) {
+func (obj SClusterRole) GetAPIObject() (*api.RbacRole, error) {
 	cr := obj.GetRawClusterRole()
-	return &apis.RbacRole{
+	return &api.RbacRole{
 		ObjectMeta:      obj.GetObjectMeta(),
 		TypeMeta:        obj.GetTypeMeta(),
 		Type:            obj.GetType(),
@@ -57,6 +57,6 @@ func (obj SClusterRole) GetAPIObject() (*apis.RbacRole, error) {
 	}, nil
 }
 
-func (obj SClusterRole) GetAPIDetailObject() (*apis.RbacRole, error) {
+func (obj SClusterRole) GetAPIDetailObject() (*api.RbacRole, error) {
 	return obj.GetAPIObject()
 }

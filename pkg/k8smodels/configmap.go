@@ -8,7 +8,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -35,22 +35,22 @@ type SConfigMap struct {
 
 func (m SConfigMapManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameConfigMap,
+		ResourceName: api.ResourceNameConfigMap,
 		Object:       &v1.ConfigMap{},
-		KindName:     apis.KindNameConfigMap,
+		KindName:     api.KindNameConfigMap,
 	}
 }
 
 func (m SConfigMapManager) ValidateCreateData(
 	ctx *model.RequestContext, query *jsonutils.JSONDict,
-	input *apis.ConfigMapCreateInput) (*apis.ConfigMapCreateInput, error) {
+	input *api.ConfigMapCreateInput) (*api.ConfigMapCreateInput, error) {
 	if len(input.Data) == 0 {
 		return nil, httperrors.NewNotAcceptableError("data is empty")
 	}
 	return input, nil
 }
 
-func (m SConfigMapManager) NewK8SRawObjectForCreate(_ *model.RequestContext, input apis.ConfigMapCreateInput) (runtime.Object, error) {
+func (m SConfigMapManager) NewK8SRawObjectForCreate(_ *model.RequestContext, input api.ConfigMapCreateInput) (runtime.Object, error) {
 	return &v1.ConfigMap{
 		ObjectMeta: input.ToObjectMeta(),
 		Data:       input.Data,
@@ -62,8 +62,8 @@ func (m SConfigMapManager) GetRawConfigMaps(cluster model.ICluster, ns string) (
 	return indexer.ConfigMapLister().ConfigMaps(ns).List(labels.Everything())
 }
 
-func (m *SConfigMapManager) GetAPIConfigMaps(cluster model.ICluster, cfgs []*v1.ConfigMap) ([]*apis.ConfigMap, error) {
-	ret := make([]*apis.ConfigMap, 0)
+func (m *SConfigMapManager) GetAPIConfigMaps(cluster model.ICluster, cfgs []*v1.ConfigMap) ([]*api.ConfigMap, error) {
+	ret := make([]*api.ConfigMap, 0)
 	err := ConvertRawToAPIObjects(m, cluster, cfgs, &ret)
 	return ret, err
 }
@@ -72,8 +72,8 @@ func (m SConfigMap) GetRawConfigMap() *v1.ConfigMap {
 	return m.GetK8SObject().(*v1.ConfigMap)
 }
 
-func (m SConfigMap) GetAPIObject() (*apis.ConfigMap, error) {
-	return &apis.ConfigMap{
+func (m SConfigMap) GetAPIObject() (*api.ConfigMap, error) {
+	return &api.ConfigMap{
 		ObjectMeta: m.GetObjectMeta(),
 		TypeMeta:   m.GetTypeMeta(),
 	}, nil
@@ -106,7 +106,7 @@ func (m SConfigMap) GetRawPods() ([]*v1.Pod, error) {
 	return m.getMountRawPods()
 }
 
-func (m SConfigMap) GetMountPods() ([]*apis.Pod, error) {
+func (m SConfigMap) GetMountPods() ([]*api.Pod, error) {
 	mountPods, err := m.getMountRawPods()
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (m SConfigMap) GetMountPods() ([]*apis.Pod, error) {
 	return PodManager.GetAPIPods(m.GetCluster(), mountPods)
 }
 
-func (m SConfigMap) GetAPIDetailObject() (*apis.ConfigMapDetail, error) {
+func (m SConfigMap) GetAPIDetailObject() (*api.ConfigMapDetail, error) {
 	conf, err := m.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -124,14 +124,14 @@ func (m SConfigMap) GetAPIDetailObject() (*apis.ConfigMapDetail, error) {
 		return nil, err
 	}
 	rawConf := m.GetRawConfigMap()
-	return &apis.ConfigMapDetail{
+	return &api.ConfigMapDetail{
 		ConfigMap: *conf,
 		Data:      rawConf.Data,
 		Pods:      mntPods,
 	}, nil
 }
 
-func (m SConfigMap) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input apis.ConfigMapUpdateInput) (runtime.Object, error) {
+func (m SConfigMap) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input api.ConfigMapUpdateInput) (runtime.Object, error) {
 	updateObj := m.GetRawConfigMap().DeepCopy()
 	for k, v := range input.Data {
 		updateObj.Data[k] = v

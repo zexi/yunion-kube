@@ -5,7 +5,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -34,9 +34,9 @@ type SReplicaSet struct {
 
 func (m SReplicaSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameReplicaSet,
+		ResourceName: api.ResourceNameReplicaSet,
 		Object:       &apps.ReplicaSet{},
-		KindName:     apis.KindNameReplicaSet,
+		KindName:     api.KindNameReplicaSet,
 	}
 }
 
@@ -45,13 +45,13 @@ func (m SReplicaSetManager) GetRawReplicaSets(cluster model.ICluster, ns string,
 	return indexer.ReplicaSetLister().ReplicaSets(ns).List(selector)
 }
 
-func (m *SReplicaSetManager) GetAPIReplicaSets(cluster model.ICluster, rss []*apps.ReplicaSet) ([]*apis.ReplicaSet, error) {
-	ret := make([]*apis.ReplicaSet, 0)
+func (m *SReplicaSetManager) GetAPIReplicaSets(cluster model.ICluster, rss []*apps.ReplicaSet) ([]*api.ReplicaSet, error) {
+	ret := make([]*api.ReplicaSet, 0)
 	err := ConvertRawToAPIObjects(m, cluster, rss, &ret)
 	return ret, err
 }
 
-func (m *SReplicaSetManager) GetAPIReplicaSet(cluster model.ICluster, rs *apps.ReplicaSet) (*apis.ReplicaSet, error) {
+func (m *SReplicaSetManager) GetAPIReplicaSet(cluster model.ICluster, rs *apps.ReplicaSet) (*api.ReplicaSet, error) {
 	obj, err := model.NewK8SModelObject(m, cluster, rs)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func (obj *SReplicaSet) GetRawPods() ([]*v1.Pod, error) {
 	return GetRawPodsByController(obj)
 }
 
-func (obj *SReplicaSet) GetPodInfo() (*apis.PodInfo, error) {
+func (obj *SReplicaSet) GetPodInfo() (*api.PodInfo, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -76,13 +76,13 @@ func (obj *SReplicaSet) GetPodInfo() (*apis.PodInfo, error) {
 	return GetPodInfo(obj, rs.Status.Replicas, rs.Spec.Replicas, pods)
 }
 
-func (obj *SReplicaSet) GetAPIObject() (*apis.ReplicaSet, error) {
+func (obj *SReplicaSet) GetAPIObject() (*api.ReplicaSet, error) {
 	rs := obj.GetRawReplicaSet()
 	podInfo, err := obj.GetPodInfo()
 	if err != nil {
 		return nil, err
 	}
-	return &apis.ReplicaSet{
+	return &api.ReplicaSet{
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		Pods:                *podInfo,

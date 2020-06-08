@@ -10,12 +10,12 @@ import (
 	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	api "yunion.io/x/onecloud/pkg/apis/compute"
+	ocapi "yunion.io/x/onecloud/pkg/apis/compute"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/kubeadm"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
 	"yunion.io/x/yunion-kube/pkg/options"
@@ -39,16 +39,16 @@ func init() {
 	models.RegisterMachineDriver(driver)
 }
 
-func (d *SYunionVMDriver) GetProvider() apis.ProviderType {
-	return apis.ProviderTypeOnecloud
+func (d *SYunionVMDriver) GetProvider() api.ProviderType {
+	return api.ProviderTypeOnecloud
 }
 
-func (d *SYunionVMDriver) GetResourceType() apis.MachineResourceType {
-	return apis.MachineResourceTypeVm
+func (d *SYunionVMDriver) GetResourceType() api.MachineResourceType {
+	return api.MachineResourceTypeVm
 }
 
-func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, input *apis.CreateMachineData) error {
-	if input.ResourceType != apis.MachineResourceTypeVm {
+func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, input *api.CreateMachineData) error {
+	if input.ResourceType != api.MachineResourceTypeVm {
 		return httperrors.NewInputParameterError("Invalid resource type: %q", input.ResourceType)
 	}
 	if len(input.ResourceId) != 0 {
@@ -58,15 +58,15 @@ func (d *SYunionVMDriver) ValidateCreateData(session *mcclient.ClientSession, in
 	return d.validateConfig(session, input.Config.Vm)
 }
 
-func (d *SYunionVMDriver) validateConfig(s *mcclient.ClientSession, config *apis.MachineCreateVMConfig) error {
+func (d *SYunionVMDriver) validateConfig(s *mcclient.ClientSession, config *api.MachineCreateVMConfig) error {
 	if config.VcpuCount < 4 {
 		return httperrors.NewNotAcceptableError("CPU count must large than 4")
 	}
 	if config.VmemSize < 4096 {
 		return httperrors.NewNotAcceptableError("Memory size must large than 4G")
 	}
-	input := &api.ServerCreateInput{
-		ServerConfigs: &api.ServerConfigs{
+	input := &ocapi.ServerCreateInput{
+		ServerConfigs: &ocapi.ServerConfigs{
 			PreferRegion:     config.PreferRegion,
 			PreferZone:       config.PreferZone,
 			PreferWire:       config.PreferWire,
@@ -93,12 +93,12 @@ func (d *SYunionVMDriver) PostCreate(ctx context.Context, userCred mcclient.Toke
 	return d.sClusterAPIBaseDriver.PostCreate(ctx, userCred, cluster, machine, data)
 }
 
-func (d *SYunionVMDriver) getServerCreateInput(machine *models.SMachine, prepareInput *apis.MachinePrepareInput) (*api.ServerCreateInput, error) {
+func (d *SYunionVMDriver) getServerCreateInput(machine *models.SMachine, prepareInput *api.MachinePrepareInput) (*ocapi.ServerCreateInput, error) {
 	tmpFalse := false
 	tmpTrue := true
 	config := prepareInput.Config.Vm
-	input := &api.ServerCreateInput{
-		ServerConfigs: new(api.ServerConfigs),
+	input := &ocapi.ServerCreateInput{
+		ServerConfigs: new(ocapi.ServerConfigs),
 		VmemSize:      config.VmemSize,
 		VcpuCount:     config.VcpuCount,
 		AutoStart:     true,
@@ -120,16 +120,16 @@ func (d *SYunionVMDriver) getServerCreateInput(machine *models.SMachine, prepare
 	return input, nil
 }
 
-func GetDefaultDockerConfig(input *apis.DockerConfig) *apis.DockerConfig {
+func GetDefaultDockerConfig(input *api.DockerConfig) *api.DockerConfig {
 	o := options.Options
 	if input.Graph == "" {
-		input.Graph = apis.DefaultDockerGraphDir
+		input.Graph = api.DefaultDockerGraphDir
 	}
 	if len(input.RegistryMirrors) == 0 {
 		input.RegistryMirrors = []string{
-			apis.DefaultDockerRegistryMirror1,
-			apis.DefaultDockerRegistryMirror2,
-			apis.DefaultDockerRegistryMirror3,
+			api.DefaultDockerRegistryMirror1,
+			api.DefaultDockerRegistryMirror2,
+			api.DefaultDockerRegistryMirror3,
 		}
 	}
 	if len(input.Bip) == 0 {
@@ -142,7 +142,7 @@ func GetDefaultDockerConfig(input *apis.DockerConfig) *apis.DockerConfig {
 	}
 	if input.LogDriver == "" {
 		input.LogDriver = "json-file"
-		input.LogOpts = apis.DockerConfigLogOpts{
+		input.LogOpts = api.DockerConfigLogOpts{
 			MaxSize: "100m",
 		}
 	}
@@ -152,7 +152,7 @@ func GetDefaultDockerConfig(input *apis.DockerConfig) *apis.DockerConfig {
 	return input
 }
 
-func (d *SYunionVMDriver) GetMachineInitScript(machine *models.SMachine, data *apis.MachinePrepareInput, ip string) (string, error) {
+func (d *SYunionVMDriver) GetMachineInitScript(machine *models.SMachine, data *api.MachinePrepareInput, ip string) (string, error) {
 	var initScript string
 	var err error
 
@@ -176,7 +176,7 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *models.SMachine, data *a
 	}
 	dockerConfig := GetDefaultDockerConfig(data.Config.DockerConfig)
 	switch data.Role {
-	case apis.RoleTypeControlplane:
+	case api.RoleTypeControlplane:
 		if data.BootstrapToken != "" {
 			log.Infof("Allowing a machine to join the control plane")
 			apiServerEndpoint, err := cluster.GetAPIServerEndpoint()
@@ -251,7 +251,7 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *models.SMachine, data *a
 				return "", err
 			}
 		}
-	case apis.RoleTypeNode:
+	case api.RoleTypeNode:
 		apiServerEndpoint, err := cluster.GetAPIServerEndpoint()
 		if err != nil {
 			return "", err
@@ -272,7 +272,7 @@ func (d *SYunionVMDriver) GetMachineInitScript(machine *models.SMachine, data *a
 func (d *SYunionVMDriver) PrepareResource(
 	session *mcclient.ClientSession,
 	machine *models.SMachine,
-	data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
+	data *api.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	// 1. create vm
 	// 2. wait vm running
 	// 3. ssh run init script

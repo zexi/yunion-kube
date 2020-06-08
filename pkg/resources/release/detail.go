@@ -5,7 +5,7 @@ import (
 
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
@@ -17,7 +17,7 @@ func (man *SReleaseManager) Get(req *common.Request, id string) (interface{}, er
 	return GetReleaseDetailFromRequest(req, id)
 }
 
-func GetReleaseDetailFromRequest(req *common.Request, id string) (*apis.ReleaseDetail, error) {
+func GetReleaseDetailFromRequest(req *common.Request, id string) (*api.ReleaseDetail, error) {
 	namespace := req.GetDefaultNamespace()
 	cli, err := req.GetHelmClient(namespace)
 	if err != nil {
@@ -33,11 +33,11 @@ func GetReleaseDetailFromRequest(req *common.Request, id string) (*apis.ReleaseD
 
 func GetReleaseDetail(
 	helmclient *helm.Client,
-	cluster apis.ICluster,
+	cluster api.ICluster,
 	clusterMan model.ICluster,
 	indexer *client.CacheFactory,
 	namespace, releaseName string,
-) (*apis.ReleaseDetail, error) {
+) (*api.ReleaseDetail, error) {
 	log.Infof("Get helm release: %q", releaseName)
 
 	rls, err := helmclient.Release().ReleaseContent(releaseName, -1)
@@ -50,7 +50,7 @@ func GetReleaseDetail(
 		return nil, errors.Wrapf(err, "Get release resources: %v", releaseName)
 	}
 
-	return &apis.ReleaseDetail{
+	return &api.ReleaseDetail{
 		Release:   *ToRelease(rls, cluster),
 		Resources: res,
 		Files:     chart.GetChartRawFiles(rls.Chart),

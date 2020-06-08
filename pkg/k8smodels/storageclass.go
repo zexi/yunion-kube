@@ -12,7 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -48,16 +48,16 @@ type SStorageClass struct {
 }
 
 type IStorageClassDriver interface {
-	ConnectionTest(ctx *model.RequestContext, input *apis.StorageClassCreateInput) (*apis.StorageClassTestResult, error)
-	ValidateCreateData(ctx *model.RequestContext, input *apis.StorageClassCreateInput) (*apis.StorageClassCreateInput, error)
-	ToStorageClassParams(input *apis.StorageClassCreateInput) (map[string]string, error)
+	ConnectionTest(ctx *model.RequestContext, input *api.StorageClassCreateInput) (*api.StorageClassTestResult, error)
+	ValidateCreateData(ctx *model.RequestContext, input *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error)
+	ToStorageClassParams(input *api.StorageClassCreateInput) (map[string]string, error)
 }
 
 func (m *SStorageClassManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameStorageClass,
+		ResourceName: api.ResourceNameStorageClass,
 		Object:       new(v1.StorageClass),
-		KindName:     apis.KindNameStorageClass,
+		KindName:     api.KindNameStorageClass,
 	}
 }
 
@@ -79,7 +79,7 @@ func (m *SStorageClassManager) GetDriver(provisioner string) (IStorageClassDrive
 }
 
 func (m *SStorageClassManager) ValidateCreateData(
-	ctx *model.RequestContext, query *jsonutils.JSONDict, input *apis.StorageClassCreateInput) (*apis.StorageClassCreateInput, error) {
+	ctx *model.RequestContext, query *jsonutils.JSONDict, input *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error) {
 	if _, err := m.SK8SClusterResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sClusterResourceCreateInput); err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (m *SStorageClassManager) ValidateCreateData(
 }
 
 func (m *SStorageClassManager) NewK8SRawObjectForCreate(
-	ctx *model.RequestContext, input *apis.StorageClassCreateInput) (
+	ctx *model.RequestContext, input *api.StorageClassCreateInput) (
 	runtime.Object, error) {
 	drv, err := m.GetDriver(input.Provisioner)
 	if err != nil {
@@ -124,7 +124,7 @@ func (obj *SStorageClass) GetRawStorageClass() *v1.StorageClass {
 	return obj.GetK8SObject().(*v1.StorageClass)
 }
 
-func (obj *SStorageClass) GetAPIObject() (*apis.StorageClass, error) {
+func (obj *SStorageClass) GetAPIObject() (*api.StorageClass, error) {
 	sc := obj.GetRawStorageClass()
 	isDefault := false
 	if _, ok := sc.Annotations[IsDefaultStorageClassAnnotation]; ok {
@@ -133,7 +133,7 @@ func (obj *SStorageClass) GetAPIObject() (*apis.StorageClass, error) {
 	if _, ok := sc.Annotations[betaIsDefaultStorageClassAnnotation]; ok {
 		isDefault = true
 	}
-	return &apis.StorageClass{
+	return &api.StorageClass{
 		ObjectMeta:  obj.GetObjectMeta(),
 		TypeMeta:    obj.GetTypeMeta(),
 		Provisioner: sc.Provisioner,
@@ -142,7 +142,7 @@ func (obj *SStorageClass) GetAPIObject() (*apis.StorageClass, error) {
 	}, nil
 }
 
-func (obj *SStorageClass) GetPVs() ([]*apis.PersistentVolume, error) {
+func (obj *SStorageClass) GetPVs() ([]*api.PersistentVolume, error) {
 	pvs, err := PVManager.GetRawPVs(obj.GetCluster())
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (obj *SStorageClass) GetPVs() ([]*apis.PersistentVolume, error) {
 	return PVManager.GetAPIPVs(obj.GetCluster(), pvs)
 }
 
-func (obj *SStorageClass) GetAPIDetailObject() (*apis.StorageClassDetail, error) {
+func (obj *SStorageClass) GetAPIDetailObject() (*api.StorageClassDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -165,14 +165,14 @@ func (obj *SStorageClass) GetAPIDetailObject() (*apis.StorageClassDetail, error)
 	if err != nil {
 		return nil, err
 	}
-	return &apis.StorageClassDetail{
+	return &api.StorageClassDetail{
 		StorageClass:      *apiObj,
 		PersistentVolumes: pvs,
 	}, nil
 }
 
 func (m *SStorageClassManager) PerformClassConnectionTest(
-	ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.StorageClassCreateInput) (*apis.StorageClassTestResult, error) {
+	ctx *model.RequestContext, _ *jsonutils.JSONDict, input *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
 	drv, err := m.GetDriver(input.Provisioner)
 	if err != nil {
 		return nil, err

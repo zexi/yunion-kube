@@ -6,7 +6,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -27,7 +27,7 @@ func (man *SReleaseManager) GetDetailsHistory(req *common.Request, id string) (i
 	return GetReleaseHistory(cli.Release(), id, int32(max))
 }
 
-func GetReleaseHistory(helmclient helm.IRelease, name string, max int32) ([]apis.ReleaseHistoryInfo, error) {
+func GetReleaseHistory(helmclient helm.IRelease, name string, max int32) ([]api.ReleaseHistoryInfo, error) {
 	r, err := helmclient.History().Run(name)
 	if err != nil {
 		return nil, err
@@ -38,8 +38,8 @@ func GetReleaseHistory(helmclient helm.IRelease, name string, max int32) ([]apis
 	return getReleaseHistory(r), nil
 }
 
-func getReleaseHistory(rls []*release.Release) []apis.ReleaseHistoryInfo {
-	ret := make([]apis.ReleaseHistoryInfo, 0)
+func getReleaseHistory(rls []*release.Release) []api.ReleaseHistoryInfo {
+	ret := make([]api.ReleaseHistoryInfo, 0)
 	for i := len(rls) - 1; i >= 0; i-- {
 		r := rls[i]
 		c := formatChartname(r.Chart)
@@ -48,7 +48,7 @@ func getReleaseHistory(rls []*release.Release) []apis.ReleaseHistoryInfo {
 		v := r.Version
 		d := r.Info.Description
 
-		rInfo := apis.ReleaseHistoryInfo{
+		rInfo := api.ReleaseHistoryInfo{
 			Revision:    v,
 			Updated:     t,
 			Status:      string(s),

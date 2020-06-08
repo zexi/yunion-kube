@@ -14,7 +14,7 @@ import (
 	//"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/userdata"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	"yunion.io/x/yunion-kube/pkg/options"
@@ -66,7 +66,7 @@ func getUserDataBaseConfigure(session *mcclient.ClientSession, cluster *models.S
 	}
 }
 
-func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, machine *models.SMachine, data *apis.MachinePrepareInput) (string, error) {
+func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, machine *models.SMachine, data *api.MachinePrepareInput) (string, error) {
 	var userData string
 	var err error
 
@@ -84,7 +84,7 @@ func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, mac
 
 	// apply userdata values based on the role of the machine
 	switch data.Role {
-	case apis.RoleTypeControlplane:
+	case api.RoleTypeControlplane:
 		if data.BootstrapToken != "" {
 			log.Infof("Allow machine %q to join control plane for cluster %q", machine.Name, cluster.Name)
 			userData, err = userdata.JoinControlPlane(&userdata.ControlPlaneJoinInput{
@@ -133,7 +133,7 @@ func (d *sClusterAPIBaseDriver) getUserData(session *mcclient.ClientSession, mac
 				return "", err
 			}
 		}
-	case apis.RoleTypeNode:
+	case api.RoleTypeNode:
 		userData, err = userdata.NewNode(&userdata.NodeInput{
 			BaseConfigure:  baseConfigure,
 			CACertHash:     caCertHash,

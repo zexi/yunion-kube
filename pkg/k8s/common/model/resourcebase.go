@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type SK8SClusterResourceBase struct {
@@ -34,7 +34,7 @@ func NewK8SClusterResourceBaseManager(dt interface{}, keyword, keywordPlural str
 	return m
 }
 
-func (m *SK8SClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SClusterBase) (IQuery, error) {
+func (m *SK8SClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SClusterBase) (IQuery, error) {
 	if query.Name != "" {
 		q.AddFilter(func(obj IK8SModel) (bool, error) {
 			return obj.GetName() == query.Name || strings.Contains(obj.GetName(), query.Name), nil
@@ -46,7 +46,7 @@ func (m *SK8SClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q I
 func (m *SK8SClusterResourceBaseManager) ValidateCreateData(
 	ctx *RequestContext,
 	_ *jsonutils.JSONDict,
-	input *apis.K8sClusterResourceCreateInput) (*apis.K8sClusterResourceCreateInput, error) {
+	input *api.K8sClusterResourceCreateInput) (*api.K8sClusterResourceCreateInput, error) {
 	if input.Cluster == "" {
 		return nil, httperrors.NewNotEmptyError("cluster is empty")
 	}
@@ -88,7 +88,7 @@ func NewK8SNamespaceResourceBaseManager(dt interface{}, keyword string, keywordP
 	return man
 }
 
-func (m *SK8SNamespaceResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SNamespaceBase) (IQuery, error) {
+func (m *SK8SNamespaceResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SNamespaceBase) (IQuery, error) {
 	if query.Namespace != "" {
 		q.Namespace(query.Namespace)
 		/*q.AddFilter(func(obj metav1.Object) bool {
@@ -100,7 +100,7 @@ func (m *SK8SNamespaceResourceBaseManager) ListItemFilter(ctx *RequestContext, q
 
 func (m SK8SNamespaceResourceBaseManager) ValidateCreateData(
 	ctx *RequestContext, query *jsonutils.JSONDict,
-	input *apis.K8sNamespaceResourceCreateInput) (*apis.K8sNamespaceResourceCreateInput, error) {
+	input *api.K8sNamespaceResourceCreateInput) (*api.K8sNamespaceResourceCreateInput, error) {
 	cInput, err := m.SK8SClusterResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sClusterResourceCreateInput)
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ type IK8SOwnerResource interface {
 	IsOwnerBy(ownerModel IK8SModel) (bool, error)
 }
 
-func (m SK8SOwnerResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputOwner) (IQuery, error) {
+func (m SK8SOwnerResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputOwner) (IQuery, error) {
 	if !query.ShouldDo() {
 		return q, nil
 	}
@@ -128,7 +128,7 @@ func (m SK8SOwnerResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQue
 	return q, nil
 }
 
-func (m SK8SOwnerResourceBaseManager) ListOwnerFilter(query apis.ListInputOwner) QueryFilter {
+func (m SK8SOwnerResourceBaseManager) ListOwnerFilter(query api.ListInputOwner) QueryFilter {
 	return func(obj IK8SModel) (bool, error) {
 		man := GetK8SModelManagerByKind(query.OwnerKind)
 		if man == nil {

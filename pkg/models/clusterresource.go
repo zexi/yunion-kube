@@ -24,7 +24,7 @@ import (
 	"yunion.io/x/pkg/util/compare"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
@@ -113,7 +113,7 @@ func (m SClusterResourceBaseManager) GetK8SResourceInfo() K8SResourceInfo {
 
 func (m *SClusterResourceBaseManager) FilterBySystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
 	q = m.SVirtualResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
-	input := new(apis.ClusterResourceListInput)
+	input := new(api.ClusterResourceListInput)
 	if input.Cluster != "" {
 		clsObj, err := ClusterManager.FetchClusterByIdOrName(userCred, input.Cluster)
 		if err != nil {
@@ -124,7 +124,7 @@ func (m *SClusterResourceBaseManager) FilterBySystemAttributes(q *sqlchemy.SQuer
 	return q
 }
 
-func (m SClusterResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *apis.ClusterResourceCreateInput) (*apis.ClusterResourceCreateInput, error) {
+func (m SClusterResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.ClusterResourceCreateInput) (*api.ClusterResourceCreateInput, error) {
 	vData, err := m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, data.VirtualResourceCreateInput)
 	if err != nil {
 		return nil, err
@@ -237,7 +237,7 @@ func (res *SClusterResourceBase) CustomizeCreate(ctx context.Context, userCred m
 	if err := res.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
-	input := new(apis.ClusterResourceCreateInput)
+	input := new(api.ClusterResourceCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "cluster resource unmarshal data")
 	}
@@ -413,19 +413,19 @@ func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCred
 
 	if err := dbObj.ValidateDeleteCondition(ctx); err != nil {
 		err := errors.Wrapf(err, "ValidateDeleteCondition")
-		dbObj.SetStatus(userCred, apis.ClusterResourceStatusDeleteFail, err.Error())
+		dbObj.SetStatus(userCred, api.ClusterResourceStatusDeleteFail, err.Error())
 		return err
 	}
 
 	if err := db.CustomizeDelete(dbObj, ctx, userCred, nil, nil); err != nil {
 		err := errors.Wrap(err, "CustomizeDelete")
-		dbObj.SetStatus(userCred, apis.ClusterStatusDeleteFail, err.Error())
+		dbObj.SetStatus(userCred, api.ClusterStatusDeleteFail, err.Error())
 		return err
 	}
 
 	if err := dbObj.Delete(ctx, userCred); err != nil {
 		err := errors.Wrapf(err, "Delete")
-		dbObj.SetStatus(userCred, apis.ClusterResourceStatusDeleteFail, err.Error())
+		dbObj.SetStatus(userCred, api.ClusterResourceStatusDeleteFail, err.Error())
 		return err
 	}
 	dbObj.PostDelete(ctx, userCred)
@@ -534,7 +534,7 @@ func (obj *SClusterResourceBase) UpdateFromRemoteObject(
 	return nil
 }
 
-func (m *SClusterResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.ClusterResourceListInput) (*sqlchemy.SQuery, error) {
+func (m *SClusterResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterResourceListInput) (*sqlchemy.SQuery, error) {
 	q, err := m.SVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.VirtualResourceListInput)
 	if err != nil {
 		return nil, err
@@ -557,12 +557,12 @@ func (m *SClusterResourceBaseManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []apis.ClusterResourceDetail {
-	rows := make([]apis.ClusterResourceDetail, len(objs))
+) []api.ClusterResourceDetail {
+	rows := make([]api.ClusterResourceDetail, len(objs))
 	vRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	k8sResInfo := m.GetK8SResourceInfo()
 	for i := range vRows {
-		detail := apis.ClusterResourceDetail{
+		detail := api.ClusterResourceDetail{
 			VirtualResourceDetails: vRows[i],
 		}
 		resObj := objs[i].(IClusterModel)
@@ -607,13 +607,13 @@ func GetK8SObject(res IClusterModel) (runtime.Object, error) {
 	return k8sObj, nil
 }
 
-func (m *SClusterResourceBaseManager) GetK8SResourceMetaDetail(obj IClusterModel, detail apis.ClusterResourceDetail) (apis.ClusterResourceDetail, error) {
+func (m *SClusterResourceBaseManager) GetK8SResourceMetaDetail(obj IClusterModel, detail api.ClusterResourceDetail) (api.ClusterResourceDetail, error) {
 	k8sObj, err := GetK8SObject(obj)
 	if err != nil {
 		return detail, errors.Wrap(err, "get object from k8s")
 	}
 	metaObj := k8sObj.(metav1.Object)
-	detail.ClusterK8SResourceMetaDetail = &apis.ClusterK8SResourceMetaDetail{
+	detail.ClusterK8SResourceMetaDetail = &api.ClusterK8SResourceMetaDetail{
 		TypeMeta:                   GetK8SObjectTypeMeta(k8sObj),
 		ResourceVersion:            metaObj.GetResourceVersion(),
 		Generation:                 metaObj.GetGeneration(),
@@ -631,8 +631,8 @@ func (m *SClusterResourceBaseManager) GetK8SResourceMetaDetail(obj IClusterModel
 }
 
 // GetExtraDetails is deprecated
-func (res *SClusterResourceBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (apis.ClusterResourceDetail, error) {
-	return apis.ClusterResourceDetail{}, nil
+func (res *SClusterResourceBase) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (api.ClusterResourceDetail, error) {
+	return api.ClusterResourceDetail{}, nil
 }
 
 func (obj *SClusterResourceBase) StartCreateTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query, data jsonutils.JSONObject) {

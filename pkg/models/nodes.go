@@ -12,7 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 var (
@@ -26,8 +26,8 @@ func init() {
 			"nodes_tbl",
 			"k8s_node",
 			"k8s_nodes",
-			apis.ResourceNameNode,
-			apis.KindNameNode,
+			api.ResourceNameNode,
+			api.KindNameNode,
 			new(v1.Node),
 		),
 	}
@@ -57,11 +57,11 @@ type SNode struct {
 	PodCapacity int64 `list:"user"`
 }
 
-func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *apis.NodeCreateInput) (*apis.NodeCreateInput, error) {
+func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.NodeCreateInput) (*api.NodeCreateInput, error) {
 	return nil, httperrors.NewBadRequestError("Not support node create")
 }
 
-func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.NodeListInput) (*sqlchemy.SQuery, error) {
+func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.NodeListInput) (*sqlchemy.SQuery, error) {
 	q, err := m.SClusterResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.ClusterResourceListInput)
 	if err != nil {
 		return nil, err
@@ -69,11 +69,11 @@ func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, u
 	return q, nil
 }
 
-func (m *SNodeManager) FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []interface{}, fields stringutils2.SSortedStrings, isList bool) []apis.NodeDetailV2 {
-	rows := make([]apis.NodeDetailV2, len(objs))
+func (m *SNodeManager) FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []interface{}, fields stringutils2.SSortedStrings, isList bool) []api.NodeDetailV2 {
+	rows := make([]api.NodeDetailV2, len(objs))
 	cRows := m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	for i := range cRows {
-		detail := apis.NodeDetailV2{
+		detail := api.NodeDetailV2{
 			ClusterResourceDetail: cRows[i],
 		}
 		rows[i] = detail
@@ -85,7 +85,7 @@ func (node *SNode) GetExtraDetails(ctx context.Context, userCred mcclient.TokenC
 	return nil, nil
 }
 
-func (node *SNode) moreExtraInfo(detail *apis.NodeDetailV2) *apis.NodeDetailV2 {
+func (node *SNode) moreExtraInfo(detail *api.NodeDetailV2) *api.NodeDetailV2 {
 	return detail
 }
 
@@ -106,9 +106,9 @@ func (node *SNode) getNodeConditionStatus(k8sNode *v1.Node, conditionType v1.Nod
 func (node *SNode) getStatusFromRemote(k8sNode *v1.Node) string {
 	readyCondStatus := node.getNodeConditionStatus(k8sNode, v1.NodeReady)
 	if readyCondStatus == v1.ConditionTrue {
-		return apis.NodeStatusReady
+		return api.NodeStatusReady
 	}
-	return apis.NodeStatusNotReady
+	return api.NodeStatusNotReady
 }
 
 // UpdateFromRemoteObject update local db SNode model by remote k8s node object
@@ -152,7 +152,7 @@ func (m *SNodeManager) getNodePods(node *SNode, pods []SPod) []SPod {
 	return ret
 }
 
-func (m *SNodeManager) Usage(clusters []sClusterUsage) (*apis.NodeUsage, error) {
+func (m *SNodeManager) Usage(clusters []sClusterUsage) (*api.NodeUsage, error) {
 	clusterIds := make([]string, len(clusters))
 	for i := range clusters {
 		clusterIds[i] = clusters[i].Id
@@ -165,7 +165,7 @@ func (m *SNodeManager) Usage(clusters []sClusterUsage) (*apis.NodeUsage, error) 
 	if err != nil {
 		return nil, err
 	}
-	fillUsage := func(pods []SPod, nu *apis.NodeUsage) *apis.NodeUsage {
+	fillUsage := func(pods []SPod, nu *api.NodeUsage) *api.NodeUsage {
 		for _, p := range pods {
 			nu.Memory.Request += p.MemoryRequests
 			nu.Memory.Limit += p.MemoryLimits
@@ -174,30 +174,30 @@ func (m *SNodeManager) Usage(clusters []sClusterUsage) (*apis.NodeUsage, error) 
 		}
 		return nu
 	}
-	eachUsages := make([]*apis.NodeUsage, 0)
+	eachUsages := make([]*api.NodeUsage, 0)
 	for _, node := range nodes {
 		nPods := m.getNodePods(&node, pods)
-		nu := apis.NewNodeUsage()
+		nu := api.NewNodeUsage()
 		nu.Count = 1
-		if node.Status == apis.NodeStatusReady {
+		if node.Status == api.NodeStatusReady {
 			nu.ReadyCount = 1
 		} else {
 			nu.NotReadyCount = 1
 		}
-		nu.Memory = &apis.MemoryUsage{
+		nu.Memory = &api.MemoryUsage{
 			Capacity: node.MemoryCapacity,
 		}
-		nu.Cpu = &apis.CpuUsage{
+		nu.Cpu = &api.CpuUsage{
 			Capacity: node.CpuCapacity,
 		}
-		nu.Pod = &apis.PodUsage{
+		nu.Pod = &api.PodUsage{
 			Count:    int64(len(nPods)),
 			Capacity: node.PodCapacity,
 		}
 		eachUsages = append(eachUsages, fillUsage(nPods, nu))
 	}
 
-	totalUsage := apis.NewNodeUsage()
+	totalUsage := api.NewNodeUsage()
 	for _, each := range eachUsages {
 		totalUsage.Add(each)
 	}

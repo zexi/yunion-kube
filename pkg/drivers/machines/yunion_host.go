@@ -14,7 +14,7 @@ import (
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/pkg/tristate"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers/yunion_host"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
@@ -36,15 +36,15 @@ func init() {
 	models.RegisterMachineDriver(driver)
 }
 
-func (d *SYunionHostDriver) GetProvider() apis.ProviderType {
-	return apis.ProviderTypeOnecloud
+func (d *SYunionHostDriver) GetProvider() api.ProviderType {
+	return api.ProviderTypeOnecloud
 }
 
-func (d *SYunionHostDriver) GetResourceType() apis.MachineResourceType {
-	return apis.MachineResourceTypeBaremetal
+func (d *SYunionHostDriver) GetResourceType() api.MachineResourceType {
+	return api.MachineResourceTypeBaremetal
 }
 
-func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, input *apis.CreateMachineData) error {
+func (d *SYunionHostDriver) ValidateCreateData(session *mcclient.ClientSession, input *api.CreateMachineData) error {
 	if err := yunion_host.ValidateResourceType(input.ResourceType); err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (d *SYunionHostDriver) PostCreate(ctx context.Context, userCred mcclient.To
 
 func createContainerSchedtag(s *mcclient.ClientSession) error {
 	params := jsonutils.NewDict()
-	params.Add(jsonutils.NewString(apis.ContainerSchedtag), "name")
+	params.Add(jsonutils.NewString(api.ContainerSchedtag), "name")
 	params.Add(jsonutils.NewString("Allow run container"), "description")
 	_, err := cloudmod.Schedtags.Create(s, params)
 	if err != nil {
@@ -110,7 +110,7 @@ func addMachineToContainerSchedtag(s *mcclient.ClientSession, machine *models.SM
 	if err != nil {
 		return err
 	}
-	_, err = cloudmod.Schedtaghosts.Attach(s, apis.ContainerSchedtag, machine.ResourceId, nil)
+	_, err = cloudmod.Schedtaghosts.Attach(s, api.ContainerSchedtag, machine.ResourceId, nil)
 	if err != nil {
 		log.Errorf("Add node %s to container schedtag error: %v", machine.Name, err)
 	}
@@ -139,11 +139,11 @@ func removeCloudContainers(s *mcclient.ClientSession, machine *models.SMachine) 
 }
 
 func removeMachineFromContainerSchedtag(s *mcclient.ClientSession, machine *models.SMachine) error {
-	_, err := cloudmod.Schedtaghosts.Detach(s, apis.ContainerSchedtag, machine.ResourceId, nil)
+	_, err := cloudmod.Schedtaghosts.Detach(s, api.ContainerSchedtag, machine.ResourceId, nil)
 	return err
 }
 
-func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, machine *models.SMachine, data *apis.MachinePrepareInput) (jsonutils.JSONObject, error) {
+func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, machine *models.SMachine, data *api.MachinePrepareInput) (jsonutils.JSONObject, error) {
 	hostId := data.InstanceId
 	accessIP, err := d.GetPrivateIP(session, hostId)
 	if err != nil {

@@ -31,8 +31,8 @@ import (
 	"yunion.io/x/pkg/utils"
 	"yunion.io/x/sqlchemy"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
-	"yunion.io/x/yunion-kube/pkg/apis/constants"
+	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/api/constants"
 	"yunion.io/x/yunion-kube/pkg/clientv2"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -92,7 +92,7 @@ func (m *SClusterManager) InitializeData() error {
 	for _, cluster := range clusters {
 		tmp := &cluster
 		db.Update(tmp, func() error {
-			tmp.ResourceType = string(apis.ClusterResourceTypeHost)
+			tmp.ResourceType = string(api.ClusterResourceTypeHost)
 			return nil
 		})
 	}
@@ -101,7 +101,7 @@ func (m *SClusterManager) InitializeData() error {
 
 func (m *SClusterManager) GetSystemCluster() (*SCluster, error) {
 	clusters := m.Query().SubQuery()
-	q := clusters.Query().Filter(sqlchemy.Equals(clusters.Field("provider"), string(apis.ProviderTypeSystem)))
+	q := clusters.Query().Filter(sqlchemy.Equals(clusters.Field("provider"), string(api.ProviderTypeSystem)))
 	q = q.Filter(sqlchemy.IsTrue(q.Field("is_system")))
 	objs := make([]SCluster, 0)
 	err := db.FetchModelObjects(m, q, &objs)
@@ -152,13 +152,13 @@ func (m *SClusterManager) GetSystemClusterK8SInfo() (*k8sInfo, error) {
 	}, nil
 }
 
-func (m *SClusterManager) GetSystemClusterCreateData() (*apis.ClusterCreateInput, error) {
-	createData := &apis.ClusterCreateInput{
+func (m *SClusterManager) GetSystemClusterCreateData() (*api.ClusterCreateInput, error) {
+	createData := &api.ClusterCreateInput{
 		Name:        SystemClusterName,
-		ClusterType: string(apis.ClusterTypeDefault),
-		CloudType:   string(apis.CloudTypePrivate),
-		Mode:        string(apis.ModeTypeImport),
-		Provider:    string(apis.ProviderTypeSystem),
+		ClusterType: string(api.ClusterTypeDefault),
+		CloudType:   string(api.CloudTypePrivate),
+		Mode:        string(api.ModeTypeImport),
+		Provider:    string(api.ProviderTypeSystem),
 	}
 	k8sInfo, err := m.GetSystemClusterK8SInfo()
 	if err != nil {
@@ -222,11 +222,11 @@ func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
 	return GetAdminSession()
 }
 
-func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *apis.ClusterListInput) (*sqlchemy.SQuery, error) {
+func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterListInput) (*sqlchemy.SQuery, error) {
 	return m.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.SharableVirtualResourceListInput)
 }
 
-func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data apis.ClusterCreateInput) (manager.ICluster, error) {
+func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data api.ClusterCreateInput) (manager.ICluster, error) {
 	input := jsonutils.Marshal(data)
 	obj, err := db.DoCreate(m, ctx, userCred, nil, input, userCred)
 	if err != nil {
@@ -243,54 +243,54 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		providerType string
 	)
 
-	clusterType = SetJSONDataDefault(data, "cluster_type", string(apis.ClusterTypeDefault))
-	if !utils.IsInStringArray(clusterType, []string{string(apis.ClusterTypeDefault)}) {
+	clusterType = SetJSONDataDefault(data, "cluster_type", string(api.ClusterTypeDefault))
+	if !utils.IsInStringArray(clusterType, []string{string(api.ClusterTypeDefault)}) {
 		return nil, httperrors.NewInputParameterError("Invalid cluster type: %q", clusterType)
 	}
 
-	cloudType = SetJSONDataDefault(data, "cloud_type", string(apis.CloudTypePrivate))
-	if !utils.IsInStringArray(cloudType, []string{string(apis.CloudTypePrivate)}) {
+	cloudType = SetJSONDataDefault(data, "cloud_type", string(api.CloudTypePrivate))
+	if !utils.IsInStringArray(cloudType, []string{string(api.CloudTypePrivate)}) {
 		return nil, httperrors.NewInputParameterError("Invalid cloud type: %q", cloudType)
 	}
 
-	resType := SetJSONDataDefault(data, "resource_type", string(apis.ClusterResourceTypeHost))
+	resType := SetJSONDataDefault(data, "resource_type", string(api.ClusterResourceTypeHost))
 	if err := m.ValidateResourceType(resType); err != nil {
 		return nil, err
 	}
 
-	modeType = SetJSONDataDefault(data, "mode", string(apis.ModeTypeSelfBuild))
+	modeType = SetJSONDataDefault(data, "mode", string(api.ModeTypeSelfBuild))
 	if !utils.IsInStringArray(modeType, []string{
-		string(apis.ModeTypeSelfBuild),
-		string(apis.ModeTypeImport),
+		string(api.ModeTypeSelfBuild),
+		string(api.ModeTypeImport),
 	}) {
 		return nil, httperrors.NewInputParameterError("Invalid mode type: %q", modeType)
 	}
 
-	providerType = SetJSONDataDefault(data, "provider", string(apis.ProviderTypeOnecloud))
+	providerType = SetJSONDataDefault(data, "provider", string(api.ProviderTypeOnecloud))
 	if err := m.ValidateProviderType(providerType); err != nil {
 		return nil, err
 	}
 
 	driver, err := GetDriverWithError(
-		apis.ModeType(modeType),
-		apis.ProviderType(providerType),
-		apis.ClusterResourceType(resType),
+		api.ModeType(modeType),
+		api.ProviderType(providerType),
+		api.ClusterResourceType(resType),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceCidr := SetJSONDataDefault(data, "service_cidr", apis.DefaultServiceCIDR)
+	serviceCidr := SetJSONDataDefault(data, "service_cidr", api.DefaultServiceCIDR)
 	if _, err := netutils.NewIPV4Prefix(serviceCidr); err != nil {
 		return nil, httperrors.NewInputParameterError("Invalid service CIDR: %q", serviceCidr)
 	}
 
-	serviceDomain := SetJSONDataDefault(data, "service_domain", apis.DefaultServiceDomain)
+	serviceDomain := SetJSONDataDefault(data, "service_domain", api.DefaultServiceDomain)
 	if len(serviceDomain) == 0 {
 		return nil, httperrors.NewInputParameterError("service domain must provided")
 	}
 
-	podCidr := SetJSONDataDefault(data, "pod_cidr", apis.DefaultPodCIDR)
+	podCidr := SetJSONDataDefault(data, "pod_cidr", api.DefaultPodCIDR)
 	if _, err := netutils.NewIPV4Prefix(serviceCidr); err != nil {
 		return nil, httperrors.NewInputParameterError("Invalid pod CIDR: %q", podCidr)
 	}
@@ -301,22 +301,22 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		data.Set("ha", jsonutils.JSONFalse)
 	}
 
-	res := apis.ClusterCreateInput{}
+	res := api.ClusterCreateInput{}
 	if err := data.Unmarshal(&res); err != nil {
 		return nil, httperrors.NewInputParameterError("Unmarshal: %v", err)
 	}
 
-	if res.Provider != string(apis.ProviderTypeSystem) && driver.NeedCreateMachines() && len(res.Machines) == 0 {
+	if res.Provider != string(api.ProviderTypeSystem) && driver.NeedCreateMachines() && len(res.Machines) == 0 {
 		return nil, httperrors.NewInputParameterError("Machines desc not provider")
 	}
 
-	var machineResType apis.MachineResourceType
+	var machineResType api.MachineResourceType
 	for _, m := range res.Machines {
 		if len(m.ResourceType) == 0 {
 			return nil, httperrors.NewInputParameterError("Machine resource type is empty")
 		}
 		if len(machineResType) == 0 {
-			machineResType = apis.MachineResourceType(m.ResourceType)
+			machineResType = api.MachineResourceType(m.ResourceType)
 		}
 		if string(machineResType) != m.ResourceType {
 			return nil, httperrors.NewInputParameterError("Machine resource type must same")
@@ -363,9 +363,9 @@ func (m *SClusterManager) AllowGetPropertyK8sVersions(ctx context.Context, userC
 
 func (m *SClusterManager) ValidateProviderType(providerType string) error {
 	if !utils.IsInStringArray(providerType, []string{
-		string(apis.ProviderTypeOnecloud),
-		string(apis.ProviderTypeSystem),
-		string(apis.ProviderTypeExternal),
+		string(api.ProviderTypeOnecloud),
+		string(api.ProviderTypeSystem),
+		string(api.ProviderTypeExternal),
 	}) {
 		return httperrors.NewInputParameterError("Invalid provider type: %q", providerType)
 	}
@@ -374,9 +374,9 @@ func (m *SClusterManager) ValidateProviderType(providerType string) error {
 
 func (m *SClusterManager) ValidateResourceType(resType string) error {
 	if !utils.IsInStringArray(resType, []string{
-		string(apis.ClusterResourceTypeHost),
-		string(apis.ClusterResourceTypeGuest),
-		string(apis.ClusterResourceTypeUnknown),
+		string(api.ClusterResourceTypeHost),
+		string(api.ClusterResourceTypeGuest),
+		string(api.ClusterResourceTypeUnknown),
 	}) {
 		return httperrors.NewInputParameterError("Invalid cluster resource type: %q", resType)
 	}
@@ -391,20 +391,20 @@ func (m *SClusterManager) GetDriverByQuery(query jsonutils.JSONObject) (ICluster
 		return nil, err
 	}
 	if len(resType) == 0 {
-		resType = string(apis.ClusterResourceTypeHost)
+		resType = string(api.ClusterResourceTypeHost)
 	}
 	if err := m.ValidateResourceType(resType); err != nil {
 		return nil, err
 	}
 	driver := GetClusterDriver(
-		apis.ModeType(modeType),
-		apis.ProviderType(providerType),
-		apis.ClusterResourceType(resType))
+		api.ModeType(modeType),
+		api.ProviderType(providerType),
+		api.ClusterResourceType(resType))
 	return driver, nil
 }
 
 func (m *SClusterManager) GetPropertyK8sVersions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	SetJSONDataDefault(query.(*jsonutils.JSONDict), "mode", string(apis.ModeTypeSelfBuild))
+	SetJSONDataDefault(query.(*jsonutils.JSONDict), "mode", string(api.ModeTypeSelfBuild))
 	driver, err := m.GetDriverByQuery(query)
 	if err != nil {
 		return nil, err
@@ -429,7 +429,7 @@ func (m *SClusterManager) PerformCheckSystemReady(ctx context.Context, userCred 
 func (m *SClusterManager) IsSystemClusterReady() (bool, error) {
 	clusters := m.Query().SubQuery()
 	q := clusters.Query()
-	q = q.Filter(sqlchemy.Equals(clusters.Field("status"), apis.ClusterStatusRunning))
+	q = q.Filter(sqlchemy.Equals(clusters.Field("status"), api.ClusterStatusRunning))
 	cnt, err := q.CountWithError()
 	if err != nil {
 		return false, err
@@ -445,7 +445,7 @@ func (m *SClusterManager) AllowGetPropertyUsableInstances(ctx context.Context, u
 }
 
 func (m *SClusterManager) GetPropertyUsableInstances(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	SetJSONDataDefault(query.(*jsonutils.JSONDict), "mode", string(apis.ModeTypeSelfBuild))
+	SetJSONDataDefault(query.(*jsonutils.JSONDict), "mode", string(api.ModeTypeSelfBuild))
 	driver, err := m.GetDriverByQuery(query)
 	if err != nil {
 		return nil, err
@@ -489,7 +489,7 @@ func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id 
 }*/
 
 func (m *SClusterManager) GetRunningClusters() ([]manager.ICluster, error) {
-	return m.GetClustersByStatus(apis.ClusterStatusRunning)
+	return m.GetClustersByStatus(api.ClusterStatusRunning)
 }
 
 func (m *SClusterManager) GetClustersByStatus(status ...string) ([]manager.ICluster, error) {
@@ -529,8 +529,8 @@ func (m *SClusterManager) GetCluster(id string) (*SCluster, error) {
 
 func (m *SClusterManager) ClusterHealthCheckTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
 	clusters, err := m.GetClustersByStatus(
-		apis.ClusterStatusRunning,
-		apis.ClusterStatusLost,
+		api.ClusterStatusRunning,
+		api.ClusterStatusLost,
 		//types.ClusterStatusUnknown,
 	)
 	if err != nil {
@@ -540,21 +540,21 @@ func (m *SClusterManager) ClusterHealthCheckTask(ctx context.Context, userCred m
 	for _, obj := range clusters {
 		c := obj.(*SCluster)
 		if err := c.IsHealthy(); err == nil {
-			if c.Status != apis.ClusterStatusRunning {
-				c.SetStatus(userCred, apis.ClusterStatusRunning, "by health check cronjob")
+			if c.Status != api.ClusterStatusRunning {
+				c.SetStatus(userCred, api.ClusterStatusRunning, "by health check cronjob")
 			}
 			continue
 		} else {
-			c.SetStatus(userCred, apis.ClusterStatusLost, err.Error())
+			c.SetStatus(userCred, api.ClusterStatusLost, err.Error())
 		}
 	}
 }
 
 func (c *SCluster) GetDriver() IClusterDriver {
 	return GetClusterDriver(
-		apis.ModeType(c.Mode),
-		apis.ProviderType(c.Provider),
-		apis.ClusterResourceType(c.ResourceType))
+		api.ModeType(c.Mode),
+		api.ProviderType(c.Provider),
+		api.ClusterResourceType(c.ResourceType))
 }
 
 func (c *SCluster) GetMachinesCount() (int, error) {
@@ -565,8 +565,8 @@ func (c *SCluster) GetMachinesCount() (int, error) {
 	return len(ms), nil
 }
 
-func (man *SClusterManager) GetImageRepository(input *apis.ImageRepository) *apis.ImageRepository {
-	ret := &apis.ImageRepository{
+func (man *SClusterManager) GetImageRepository(input *api.ImageRepository) *api.ImageRepository {
+	ret := &api.ImageRepository{
 		Url: constants.DefaultRegistryMirror,
 	}
 	if input == nil {
@@ -579,8 +579,8 @@ func (man *SClusterManager) GetImageRepository(input *apis.ImageRepository) *api
 	return ret
 }
 
-func (c *SCluster) GetImageRepository() (*apis.ImageRepository, error) {
-	ret := new(apis.ImageRepository)
+func (c *SCluster) GetImageRepository() (*api.ImageRepository, error) {
+	ret := new(api.ImageRepository)
 	if c.ImageRepository == nil {
 		return ClusterManager.GetImageRepository(nil), nil
 	}
@@ -676,8 +676,8 @@ func (man *SClusterManager) GetRegistryUrlByRepoUrl(imageRepo string) (string, e
 	return rets[0], nil
 }
 
-func (c *SCluster) GetDefaultMachineDockerConfig(imageRepo *apis.ImageRepository) (*apis.DockerConfig, error) {
-	ret := new(apis.DockerConfig)
+func (c *SCluster) GetDefaultMachineDockerConfig(imageRepo *api.ImageRepository) (*api.DockerConfig, error) {
+	ret := new(api.DockerConfig)
 	if imageRepo.Insecure {
 		reg, err := ClusterManager.GetRegistryUrlByRepoUrl(imageRepo.Url)
 		if err != nil {
@@ -688,7 +688,7 @@ func (c *SCluster) GetDefaultMachineDockerConfig(imageRepo *apis.ImageRepository
 	return ret, nil
 }
 
-func (c *SCluster) FillMachinePrepareInput(input *apis.MachinePrepareInput) (*apis.MachinePrepareInput, error) {
+func (c *SCluster) FillMachinePrepareInput(input *api.MachinePrepareInput) (*api.MachinePrepareInput, error) {
 	cg, err := c.GetCertificatesGroup()
 	if err != nil {
 		return nil, errors.Wrap(err, "get certificates group")
@@ -779,27 +779,27 @@ func (c *SCluster) GenerateCertificates(ctx context.Context, userCred mcclient.T
 	if !c.GetDriver().NeedGenerateCertificate() {
 		return nil
 	}
-	clusterCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, apis.ClusterCA)
+	clusterCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, api.ClusterCA)
 	if err != nil {
-		return errors.Wrapf(err, "Generate %s certificate", apis.ClusterCA)
+		return errors.Wrapf(err, "Generate %s certificate", api.ClusterCA)
 	}
 	infof := func(kp *SX509KeyPair) {
 		log.Infof("Generate cluster %s %s certificate", c.GetName(), kp.GetName())
 	}
 	infof(clusterCAKeyPair)
-	etcdCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, apis.EtcdCA)
+	etcdCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, api.EtcdCA)
 	if err != nil {
-		return errors.Wrapf(err, "Generate %s certificate", apis.EtcdCA)
+		return errors.Wrapf(err, "Generate %s certificate", api.EtcdCA)
 	}
 	infof(etcdCAKeyPair)
-	fpCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, apis.FrontProxyCA)
+	fpCAKeyPair, err := X509KeyPairManager.GenerateCertificates(ctx, userCred, c, api.FrontProxyCA)
 	if err != nil {
-		return errors.Wrapf(err, "Generate %s certificate", apis.FrontProxyCA)
+		return errors.Wrapf(err, "Generate %s certificate", api.FrontProxyCA)
 	}
 	infof(fpCAKeyPair)
-	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, apis.ServiceAccountCA)
+	saKeyPair, err := X509KeyPairManager.GenerateServiceAccountKeys(ctx, userCred, c, api.ServiceAccountCA)
 	if err != nil {
-		return errors.Wrapf(err, "Generate ServiceAccount key %s", apis.ServiceAccountCA)
+		return errors.Wrapf(err, "Generate ServiceAccount key %s", api.ServiceAccountCA)
 	}
 	infof(saKeyPair)
 	return nil
@@ -813,7 +813,7 @@ func (c *SCluster) PostCreate(ctx context.Context, userCred mcclient.TokenCreden
 }
 
 func (c *SCluster) StartClusterCreateTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	c.SetStatus(userCred, apis.ClusterStatusCreating, "")
+	c.SetStatus(userCred, api.ClusterStatusCreating, "")
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterCreateTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
@@ -892,7 +892,7 @@ func (c *SCluster) CustomizeDelete(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (c *SCluster) StartClusterDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
-	if err := c.SetStatus(userCred, apis.ClusterStatusDeleting, ""); err != nil {
+	if err := c.SetStatus(userCred, api.ClusterStatusDeleting, ""); err != nil {
 		return err
 	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteTask", c, userCred, data, parentTaskId, "", nil)
@@ -994,19 +994,19 @@ func (c *SCluster) getKeyPairByUser(user string) (*SX509KeyPair, error) {
 }
 
 func (c *SCluster) GetCAKeyPair() (*SX509KeyPair, error) {
-	return c.getKeyPairByUser(apis.ClusterCA)
+	return c.getKeyPairByUser(api.ClusterCA)
 }
 
 func (c *SCluster) GetEtcdCAKeyPair() (*SX509KeyPair, error) {
-	return c.getKeyPairByUser(apis.EtcdCA)
+	return c.getKeyPairByUser(api.EtcdCA)
 }
 
 func (c *SCluster) GetFrontProxyCAKeyPair() (*SX509KeyPair, error) {
-	return c.getKeyPairByUser(apis.FrontProxyCA)
+	return c.getKeyPairByUser(api.FrontProxyCA)
 }
 
 func (c *SCluster) GetSAKeyPair() (*SX509KeyPair, error) {
-	return c.getKeyPairByUser(apis.ServiceAccountCA)
+	return c.getKeyPairByUser(api.ServiceAccountCA)
 }
 
 func (c *SCluster) GetKubeconfig() (string, error) {
@@ -1203,8 +1203,8 @@ func (c *SCluster) AllowPerformAddMachines(ctx context.Context, userCred mcclien
 	return c.allowPerformAction(userCred, "add-machines")
 }
 
-func (c *SCluster) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []apis.CreateMachineData) ([]*apis.CreateMachineData, error) {
-	machines := make([]*apis.CreateMachineData, len(ms))
+func (c *SCluster) ValidateAddMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []api.CreateMachineData) ([]*api.CreateMachineData, error) {
+	machines := make([]*api.CreateMachineData, len(ms))
 	for i := range ms {
 		machines[i] = &ms[i]
 	}
@@ -1220,11 +1220,11 @@ func (c *SCluster) ValidateAddMachines(ctx context.Context, userCred mcclient.To
 }
 
 func (c *SCluster) PerformAddMachines(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	ms := []apis.CreateMachineData{}
+	ms := []api.CreateMachineData{}
 	if err := data.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
 	}
-	if !utils.IsInStringArray(c.Status, []string{apis.ClusterStatusRunning, apis.ClusterStatusInit}) {
+	if !utils.IsInStringArray(c.Status, []string{api.ClusterStatusRunning, api.ClusterStatusInit}) {
 		return nil, httperrors.NewNotAcceptableError("Cluster status is %s", c.Status)
 	}
 
@@ -1247,7 +1247,7 @@ func (c *SCluster) NeedControlplane() (bool, error) {
 	return false, nil
 }
 
-func (c *SCluster) StartCreateMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, machines []*apis.CreateMachineData, parentTaskId string) error {
+func (c *SCluster) StartCreateMachinesTask(ctx context.Context, userCred mcclient.TokenCredential, machines []*api.CreateMachineData, parentTaskId string) error {
 	data := jsonutils.NewDict()
 	data.Add(jsonutils.Marshal(machines), "machines")
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterCreateMachinesTask", c, userCred, data, parentTaskId, "", nil)
@@ -1258,7 +1258,7 @@ func (c *SCluster) StartCreateMachinesTask(ctx context.Context, userCred mcclien
 	return nil
 }
 
-func (c *SCluster) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []*apis.CreateMachineData, task taskman.ITask) error {
+func (c *SCluster) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, ms []*api.CreateMachineData, task taskman.ITask) error {
 	drv := c.GetDriver()
 	machines, err := drv.CreateMachines(ctx, userCred, c, ms)
 	if err != nil {
@@ -1329,7 +1329,7 @@ func (c *SCluster) StartDeleteMachinesTask(ctx context.Context, userCred mcclien
 	}
 	mids := []jsonutils.JSONObject{}
 	for _, m := range ms {
-		m.SetStatus(userCred, apis.MachineStatusDeleting, "ClusterDeleteMachinesTask")
+		m.SetStatus(userCred, api.MachineStatusDeleting, "ClusterDeleteMachinesTask")
 		mids = append(mids, jsonutils.NewString(m.GetId()))
 	}
 	data.Set("machines", jsonutils.NewArray(mids...))
@@ -1452,7 +1452,7 @@ func (c *SCluster) GetComponentByType(cType string) (*SComponent, error) {
 func (c *SCluster) EnableComponent(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
-	input *apis.ComponentCreateInput) error {
+	input *api.ComponentCreateInput) error {
 	comp, err := c.GetComponentByTypeNoError(input.Type)
 	if err != nil {
 		return err
@@ -1475,12 +1475,12 @@ func (c *SCluster) AllowGetDetailsComponentsStatus(ctx context.Context, userCred
 	return db.IsProjectAllowGetSpec(userCred, c, "components-status")
 }
 
-func (c *SCluster) GetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*apis.ComponentsStatus, error) {
+func (c *SCluster) GetDetailsComponentsStatus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*api.ComponentsStatus, error) {
 	return c.GetComponentsStatus()
 }
 
-func (c *SCluster) GetComponentsStatus() (*apis.ComponentsStatus, error) {
-	status := new(apis.ComponentsStatus)
+func (c *SCluster) GetComponentsStatus() (*api.ComponentsStatus, error) {
+	status := new(api.ComponentsStatus)
 	drvs := ComponentManager.GetDrivers()
 	for _, drv := range drvs {
 		comp, err := c.GetComponentByTypeNoError(drv.GetType())
@@ -1521,7 +1521,7 @@ func (c *SCluster) AllowPerformEnableComponent(ctx context.Context, userCred mcc
 	return c.allowPerformAction(userCred, "enable-component")
 }
 
-func (c *SCluster) PerformEnableComponent(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *apis.ComponentCreateInput) (jsonutils.JSONObject, error) {
+func (c *SCluster) PerformEnableComponent(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.ComponentCreateInput) (jsonutils.JSONObject, error) {
 	if err := c.EnableComponent(ctx, userCred, input); err != nil {
 		log.Errorf("enable comp error: %v", err)
 		return nil, err
@@ -1541,7 +1541,7 @@ func (c *SCluster) AllowPerformDisableComponent(ctx context.Context, userCred mc
 	return c.allowPerformAction(userCred, "disable-component")
 }
 
-func (c *SCluster) PerformDisableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, input apis.ComponentDeleteInput) (jsonutils.JSONObject, error) {
+func (c *SCluster) PerformDisableComponent(ctx context.Context, userCred mcclient.TokenCredential, query, input api.ComponentDeleteInput) (jsonutils.JSONObject, error) {
 	comp, err := c.GetComponentByType(input.Type)
 	if err != nil {
 		return nil, err
@@ -1553,7 +1553,7 @@ func (c *SCluster) AllowPerformDeleteComponent(ctx context.Context, userCred mcc
 	return c.allowPerformAction(userCred, "delete-component")
 }
 
-func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient.TokenCredential, query, input *apis.ComponentDeleteInput) (jsonutils.JSONObject, error) {
+func (c *SCluster) PerformDeleteComponent(ctx context.Context, userCred mcclient.TokenCredential, query, input *api.ComponentDeleteInput) (jsonutils.JSONObject, error) {
 	comp, err := c.GetComponentByType(input.Type)
 	if err != nil {
 		return nil, err
@@ -1565,7 +1565,7 @@ func (c *SCluster) AllowPerformUpdateComponent(ctx context.Context, userCred mcc
 	return c.allowPerformAction(userCred, "update-component")
 }
 
-func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, input *apis.ComponentUpdateInput) (jsonutils.JSONObject, error) {
+func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient.TokenCredential, query, input *api.ComponentUpdateInput) (jsonutils.JSONObject, error) {
 	comp, err := c.GetComponentByType(input.Type)
 	if err != nil {
 		return nil, err
@@ -1588,7 +1588,7 @@ func (c *SCluster) GetProjectId() string {
 }
 
 func (c *SCluster) prepareStartSync() error {
-	if c.GetStatus() != apis.ClusterStatusRunning {
+	if c.GetStatus() != api.ClusterStatusRunning {
 		return errors.Errorf("Cluster status is %s", c.GetStatus())
 	}
 	return nil
@@ -1656,8 +1656,8 @@ func (m *SClusterManager) usageClusters(scope rbacutils.TRbacScope, ownerId mccl
 	return clusters, nil
 }
 
-func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider) (*apis.ClusterUsage, error) {
-	usage := new(apis.ClusterUsage)
+func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider) (*api.ClusterUsage, error) {
+	usage := new(api.ClusterUsage)
 	clusters, err := m.usageClusters(scope, ownerId)
 	if err != nil {
 		return nil, err

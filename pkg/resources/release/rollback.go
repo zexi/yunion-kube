@@ -3,7 +3,7 @@ package release
 import (
 	"helm.sh/helm/v3/pkg/action"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 
@@ -20,7 +20,7 @@ func (man *SReleaseManager) PerformRollback(req *common.Request, id string) (int
 	if err != nil {
 		return nil, err
 	}
-	input := new(apis.ReleaseRollbackInput)
+	input := new(api.ReleaseRollbackInput)
 	if err := req.DataUnmarshal(input); err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (man *SReleaseManager) PerformRollback(req *common.Request, id string) (int
 func (man *SReleaseManager) DoReleaseRollback(
 	cli *action.Rollback,
 	name string,
-	input *apis.ReleaseRollbackInput,
+	input *api.ReleaseRollbackInput,
 ) error {
 	cli.Version = input.Revision
 	cli.Recreate = input.Recreate

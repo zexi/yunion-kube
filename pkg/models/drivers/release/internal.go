@@ -7,7 +7,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
 
@@ -21,11 +21,11 @@ func newInternalDriver() models.IReleaseDriver {
 
 type internalDriver struct{}
 
-func (d *internalDriver) GetType() apis.RepoType {
-	return apis.RepoTypeInternal
+func (d *internalDriver) GetType() api.RepoType {
+	return api.RepoTypeInternal
 }
 
-func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *apis.ReleaseCreateInput) (*apis.ReleaseCreateInput, error) {
+func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *api.ReleaseCreateInput) (*api.ReleaseCreateInput, error) {
 	if data.Namespace != "" {
 		return nil, httperrors.NewNotAcceptableError("%s release can not specify namespace", d.GetType())
 	}
@@ -41,7 +41,7 @@ func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 		return nil, httperrors.NewNotFoundError("system cluster not found")
 	}
 	data.Cluster = sysCls.GetId()
-	nsData := new(apis.NamespaceCreateInputV2)
+	nsData := new(api.NamespaceCreateInputV2)
 	nsData.Name = ownerCred.GetProjectId()
 	nsData.Cluster = sysCls.GetId()
 	ns, err := models.NamespaceManager.EnsureNamespace(ctx, userCred, ownerCred, sysCls, nsData)
@@ -52,7 +52,7 @@ func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 	return data, nil
 }
 
-func (d *internalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *apis.ReleaseCreateInput) error {
+func (d *internalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *api.ReleaseCreateInput) error {
 	release.ClusterId = data.Cluster
 	release.NamespaceId = data.Namespace
 	return nil

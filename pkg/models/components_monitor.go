@@ -5,7 +5,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/embed"
 	"yunion.io/x/yunion-kube/pkg/templates/components"
 )
@@ -52,14 +52,14 @@ func newComponentDriverMonitor() IComponentDriver {
 }
 
 func (c componentDriverMonitor) GetType() string {
-	return apis.ClusterComponentMonitor
+	return api.ClusterComponentMonitor
 }
 
-func (c componentDriverMonitor) ValidateCreateData(input *apis.ComponentCreateInput) error {
+func (c componentDriverMonitor) ValidateCreateData(input *api.ComponentCreateInput) error {
 	return c.validateSetting(input.Monitor)
 }
 
-func (c componentDriverMonitor) validateSetting(conf *apis.ComponentSettingMonitor) error {
+func (c componentDriverMonitor) validateSetting(conf *api.ComponentSettingMonitor) error {
 	if conf == nil {
 		return httperrors.NewInputParameterError("monitor config is empty")
 	}
@@ -78,7 +78,7 @@ func (c componentDriverMonitor) validateSetting(conf *apis.ComponentSettingMonit
 	return nil
 }
 
-func (c componentDriverMonitor) validateGrafana(conf *apis.ComponentSettingMonitorGrafana) error {
+func (c componentDriverMonitor) validateGrafana(conf *api.ComponentSettingMonitorGrafana) error {
 	if conf.Storage.Enabled {
 		if err := c.validateStorage(conf.Storage); err != nil {
 			return err
@@ -87,7 +87,7 @@ func (c componentDriverMonitor) validateGrafana(conf *apis.ComponentSettingMonit
 	return nil
 }
 
-func (c componentDriverMonitor) validateLoki(conf *apis.ComponentSettingMonitorLoki) error {
+func (c componentDriverMonitor) validateLoki(conf *api.ComponentSettingMonitorLoki) error {
 	if conf.Storage.Enabled {
 		if err := c.validateStorage(conf.Storage); err != nil {
 			return err
@@ -96,7 +96,7 @@ func (c componentDriverMonitor) validateLoki(conf *apis.ComponentSettingMonitorL
 	return nil
 }
 
-func (c componentDriverMonitor) validateStorage(storage *apis.ComponentStorage) error {
+func (c componentDriverMonitor) validateStorage(storage *api.ComponentStorage) error {
 	if storage == nil {
 		return httperrors.NewInputParameterError("storage config is empty")
 	}
@@ -106,7 +106,7 @@ func (c componentDriverMonitor) validateStorage(storage *apis.ComponentStorage) 
 	return nil
 }
 
-func (c componentDriverMonitor) validatePrometheus(conf *apis.ComponentSettingMonitorPrometheus) error {
+func (c componentDriverMonitor) validatePrometheus(conf *api.ComponentSettingMonitorPrometheus) error {
 	if conf == nil {
 		return httperrors.NewInputParameterError("config is empty")
 	}
@@ -118,48 +118,48 @@ func (c componentDriverMonitor) validatePrometheus(conf *apis.ComponentSettingMo
 	return nil
 }
 
-func (c componentDriverMonitor) validatePromtail(conf *apis.ComponentSettingMonitorPromtail) error {
+func (c componentDriverMonitor) validatePromtail(conf *api.ComponentSettingMonitorPromtail) error {
 	// TODO
 	return nil
 }
 
-func (c componentDriverMonitor) ValidateUpdateData(input *apis.ComponentUpdateInput) error {
+func (c componentDriverMonitor) ValidateUpdateData(input *api.ComponentUpdateInput) error {
 	return c.validateSetting(input.Monitor)
 }
 
-func (c componentDriverMonitor) GetCreateSettings(input *apis.ComponentCreateInput) (*apis.ComponentSettings, error) {
+func (c componentDriverMonitor) GetCreateSettings(input *api.ComponentCreateInput) (*api.ComponentSettings, error) {
 	if input.ComponentSettings.Namespace == "" {
 		input.ComponentSettings.Namespace = MonitorNamespace
 	}
 	return &input.ComponentSettings, nil
 }
 
-func (c componentDriverMonitor) GetUpdateSettings(oldSetting *apis.ComponentSettings, input *apis.ComponentUpdateInput) (*apis.ComponentSettings, error) {
+func (c componentDriverMonitor) GetUpdateSettings(oldSetting *api.ComponentSettings, input *api.ComponentUpdateInput) (*api.ComponentSettings, error) {
 	oldSetting.Monitor = input.Monitor
 	return oldSetting, nil
 }
 
-func (c componentDriverMonitor) DoEnable(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (c componentDriverMonitor) DoEnable(cluster *SCluster, setting *api.ComponentSettings) error {
 	return MonitorComponentManager.CreateHelmResource(cluster, setting)
 }
 
-func (c componentDriverMonitor) DoDisable(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (c componentDriverMonitor) DoDisable(cluster *SCluster, setting *api.ComponentSettings) error {
 	return MonitorComponentManager.DeleteHelmResource(cluster, setting)
 }
 
-func (c componentDriverMonitor) DoUpdate(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (c componentDriverMonitor) DoUpdate(cluster *SCluster, setting *api.ComponentSettings) error {
 	return MonitorComponentManager.UpdateHelmResource(cluster, setting)
 }
 
-func (c componentDriverMonitor) FetchStatus(cluster *SCluster, comp *SComponent, status *apis.ComponentsStatus) error {
+func (c componentDriverMonitor) FetchStatus(cluster *SCluster, comp *SComponent, status *api.ComponentsStatus) error {
 	if status.Monitor == nil {
-		status.Monitor = new(apis.ComponentStatusMonitor)
+		status.Monitor = new(api.ComponentStatusMonitor)
 	}
 	c.InitStatus(comp, &status.Monitor.ComponentStatus)
 	return nil
 }
 
-func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *apis.ComponentSettings) (map[string]interface{}, error) {
+func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *api.ComponentSettings) (map[string]interface{}, error) {
 	imgRepo, err := cluster.GetImageRepository()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get cluster %s repo", cluster.GetName())
@@ -241,7 +241,7 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *apis
 	return components.GenerateHelmValues(conf), nil
 }
 
-func (m SMonitorComponentManager) CreateHelmResource(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (m SMonitorComponentManager) CreateHelmResource(cluster *SCluster, setting *api.ComponentSettings) error {
 	vals, err := m.getHelmValues(cluster, setting)
 	if err != nil {
 		return errors.Wrap(err, "get helm config values")
@@ -249,11 +249,11 @@ func (m SMonitorComponentManager) CreateHelmResource(cluster *SCluster, setting 
 	return m.HelmComponentManager.CreateHelmResource(cluster, vals)
 }
 
-func (m SMonitorComponentManager) DeleteHelmResource(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (m SMonitorComponentManager) DeleteHelmResource(cluster *SCluster, setting *api.ComponentSettings) error {
 	return m.HelmComponentManager.DeleteHelmResource(cluster)
 }
 
-func (m SMonitorComponentManager) UpdateHelmResource(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (m SMonitorComponentManager) UpdateHelmResource(cluster *SCluster, setting *api.ComponentSettings) error {
 	vals, err := m.getHelmValues(cluster, setting)
 	if err != nil {
 		return errors.Wrap(err, "get helm config values")

@@ -3,7 +3,7 @@ package tasks
 import (
 	"context"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
@@ -58,7 +58,7 @@ func (t *ClusterDeleteMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 
 func (t *ClusterDeleteMachinesTask) OnDeleteMachines(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, nil, t.UserCred, true)
-	if cluster.GetStatus() == apis.ClusterStatusDeleting {
+	if cluster.GetStatus() == api.ClusterStatusDeleting {
 		t.SetStageComplete(ctx, nil)
 		return
 	}
@@ -79,7 +79,7 @@ func (t *ClusterDeleteMachinesTask) OnSyncStatusFailed(ctx context.Context, clus
 }
 
 func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err string) {
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err)
+	cluster.SetStatus(t.UserCred, api.ClusterStatusError, err)
 	t.SetStageFailed(ctx, err)
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, err, t.UserCred, false)
 }

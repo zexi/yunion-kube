@@ -1,22 +1,22 @@
 package common
 
 import (
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/resources/dataselect"
 )
 
 type BaseList struct {
 	*dataselect.ListMeta
-	Cluster apis.ICluster
+	Cluster api.ICluster
 }
 
-func NewBaseList(cluster apis.ICluster) *BaseList {
+func NewBaseList(cluster api.ICluster) *BaseList {
 	return &BaseList{
 		ListMeta: dataselect.NewListMeta(),
 		Cluster:  cluster,
 	}
 }
 
-func (l *BaseList) GetCluster() apis.ICluster {
+func (l *BaseList) GetCluster() api.ICluster {
 	return l.Cluster
 }

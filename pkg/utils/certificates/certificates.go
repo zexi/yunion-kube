@@ -32,19 +32,19 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"k8s.io/client-go/tools/clientcmd/api"
+	kapi "k8s.io/client-go/tools/clientcmd/api"
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 const (
 	rsaKeySize     = 2048
 	duration100y   = time.Hour * 24 * 365 * 100
-	clusterCA      = apis.ClusterCA
-	etcdCA         = apis.EtcdCA
-	frontProxyCA   = apis.FrontProxyCA
-	serviceAccount = apis.ServiceAccountCA
+	clusterCA      = api.ClusterCA
+	etcdCA         = api.EtcdCA
+	frontProxyCA   = api.FrontProxyCA
+	serviceAccount = api.ServiceAccountCA
 )
 
 // NewPrivateKey creates an rSA private key
@@ -68,15 +68,15 @@ type Config struct {
 	Usages       []x509.ExtKeyUsage
 }
 
-func GetOrGenerateCACert(kp *apis.KeyPair, user string) (apis.KeyPair, error) {
+func GetOrGenerateCACert(kp *api.KeyPair, user string) (api.KeyPair, error) {
 	if kp == nil || !kp.HasCertAndKey() {
 		log.V(2).Infof("Generating keypair for %q", user)
 		x509Cert, privKey, err := NewCertificateAuthority()
 		if err != nil {
-			return apis.KeyPair{}, errors.Wrapf(err, "failed to generate CA cert for %q", user)
+			return api.KeyPair{}, errors.Wrapf(err, "failed to generate CA cert for %q", user)
 		}
 		if kp == nil {
-			return apis.KeyPair{
+			return api.KeyPair{
 				Cert: EncodeCertPEM(x509Cert),
 				Key:  EncodePrivateKeyPEM(privKey),
 			}, nil
@@ -87,19 +87,19 @@ func GetOrGenerateCACert(kp *apis.KeyPair, user string) (apis.KeyPair, error) {
 	return *kp, nil
 }
 
-func GetOrGenerateServiceAccountKeys(kp *apis.KeyPair, user string) (apis.KeyPair, error) {
+func GetOrGenerateServiceAccountKeys(kp *api.KeyPair, user string) (api.KeyPair, error) {
 	if kp == nil || !kp.HasCertAndKey() {
 		log.V(2).Infof("Generating service account keys for %q", user)
 		saCreds, err := NewPrivateKey()
 		if err != nil {
-			return apis.KeyPair{}, errors.Wrapf(err, "failed to create service account public and private keys")
+			return api.KeyPair{}, errors.Wrapf(err, "failed to create service account public and private keys")
 		}
 		saPub, err := EncodePublicKeyPEM(&saCreds.PublicKey)
 		if err != nil {
-			return apis.KeyPair{}, errors.Wrapf(err, "failed to encode service account public key to PEM")
+			return api.KeyPair{}, errors.Wrapf(err, "failed to encode service account public key to PEM")
 		}
 		if kp == nil {
-			return apis.KeyPair{
+			return api.KeyPair{
 				Cert: saPub,
 				Key:  EncodePrivateKeyPEM(saCreds),
 			}, nil
@@ -192,7 +192,7 @@ func NewSelfSignedCACert(key *rsa.PrivateKey) (*x509.Certificate, error) {
 }
 
 // NewKubeconfig creates a new Kubeconfig where endpoint is the ELB endpoint.
-func NewKubeconfig(clusterName, endpoint string, caCert *x509.Certificate, caKey *rsa.PrivateKey) (*api.Config, error) {
+func NewKubeconfig(clusterName, endpoint string, caCert *x509.Certificate, caKey *rsa.PrivateKey) (*kapi.Config, error) {
 	cfg := &Config{
 		CommonName:   "kubernetes-admin",
 		Organization: []string{"system:masters"},
@@ -212,20 +212,20 @@ func NewKubeconfig(clusterName, endpoint string, caCert *x509.Certificate, caKey
 	userName := "kubernetes-admin"
 	contextName := fmt.Sprintf("%s@%s", userName, clusterName)
 
-	return &api.Config{
-		Clusters: map[string]*api.Cluster{
+	return &kapi.Config{
+		Clusters: map[string]*kapi.Cluster{
 			clusterName: {
 				Server:                   endpoint,
 				CertificateAuthorityData: EncodeCertPEM(caCert),
 			},
 		},
-		Contexts: map[string]*api.Context{
+		Contexts: map[string]*kapi.Context{
 			contextName: {
 				Cluster:  clusterName,
 				AuthInfo: userName,
 			},
 		},
-		AuthInfos: map[string]*api.AuthInfo{
+		AuthInfos: map[string]*kapi.AuthInfo{
 			userName: {
 				ClientKeyData:         EncodePrivateKeyPEM(clientKey),
 				ClientCertificateData: EncodeCertPEM(clientCert),

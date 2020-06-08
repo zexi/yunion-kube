@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/templates/components"
 	"yunion.io/x/yunion-kube/pkg/utils/registry"
 )
@@ -56,14 +56,14 @@ func newComponentDriverCephCSI() IComponentDriver {
 }
 
 func (c componentDriverCephCSI) GetType() string {
-	return apis.ClusterComponentCephCSI
+	return api.ClusterComponentCephCSI
 }
 
-func (c componentDriverCephCSI) ValidateCreateData(input *apis.ComponentCreateInput) error {
+func (c componentDriverCephCSI) ValidateCreateData(input *api.ComponentCreateInput) error {
 	return c.validateSetting(input.CephCSI)
 }
 
-func (c componentDriverCephCSI) validateSetting(conf *apis.ComponentSettingCephCSI) error {
+func (c componentDriverCephCSI) validateSetting(conf *api.ComponentSettingCephCSI) error {
 	if conf == nil {
 		return httperrors.NewNotEmptyError("cephCSI config")
 	}
@@ -78,11 +78,11 @@ func (c componentDriverCephCSI) validateSetting(conf *apis.ComponentSettingCephC
 	return nil
 }
 
-func (c componentDriverCephCSI) ValidateUpdateData(input *apis.ComponentUpdateInput) error {
+func (c componentDriverCephCSI) ValidateUpdateData(input *api.ComponentUpdateInput) error {
 	return c.validateSetting(input.CephCSI)
 }
 
-func (c componentDriverCephCSI) validateCreateConfig(conf apis.ComponentCephCSIConfigCluster) error {
+func (c componentDriverCephCSI) validateCreateConfig(conf api.ComponentCephCSIConfigCluster) error {
 	if conf.ClsuterId == "" {
 		return httperrors.NewNotEmptyError("cluster id is empty")
 	}
@@ -109,36 +109,36 @@ func (c componentDriverCephCSI) validateMon(mon string) error {
 	return nil
 }
 
-func (c componentDriverCephCSI) GetCreateSettings(input *apis.ComponentCreateInput) (*apis.ComponentSettings, error) {
+func (c componentDriverCephCSI) GetCreateSettings(input *api.ComponentCreateInput) (*api.ComponentSettings, error) {
 	if input.ComponentSettings.Namespace == "" {
 		input.ComponentSettings.Namespace = CephCSINamespace
 	}
 	return &input.ComponentSettings, nil
 }
 
-func (c componentDriverCephCSI) GetUpdateSettings(oldSetting *apis.ComponentSettings, input *apis.ComponentUpdateInput) (*apis.ComponentSettings, error) {
+func (c componentDriverCephCSI) GetUpdateSettings(oldSetting *api.ComponentSettings, input *api.ComponentUpdateInput) (*api.ComponentSettings, error) {
 	oldSetting.CephCSI = input.CephCSI
 	return oldSetting, nil
 }
 
-func (c componentDriverCephCSI) DoEnable(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (c componentDriverCephCSI) DoEnable(cluster *SCluster, setting *api.ComponentSettings) error {
 	return CephCSIComponentManager.ApplyK8sResource(cluster, setting)
 }
 
-func (c componentDriverCephCSI) DoDisable(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (c componentDriverCephCSI) DoDisable(cluster *SCluster, setting *api.ComponentSettings) error {
 	return CephCSIComponentManager.DeleteK8sResource(cluster, setting)
 }
 
-func (c componentDriverCephCSI) DoUpdate(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (c componentDriverCephCSI) DoUpdate(cluster *SCluster, setting *api.ComponentSettings) error {
 	if err := CephCSIComponentManager.DeleteK8sResource(cluster, setting); err != nil {
 		return errors.Wrap(err, "delete ceph csi resource when update")
 	}
 	return CephCSIComponentManager.ApplyK8sResource(cluster, setting)
 }
 
-func (m componentDriverCephCSI) FetchStatus(cluster *SCluster, component *SComponent, status *apis.ComponentsStatus) error {
+func (m componentDriverCephCSI) FetchStatus(cluster *SCluster, component *SComponent, status *api.ComponentsStatus) error {
 	if status.CephCSI == nil {
-		status.CephCSI = new(apis.ComponentStatusCephCSI)
+		status.CephCSI = new(api.ComponentStatusCephCSI)
 	}
 	m.InitStatus(component, &status.CephCSI.ComponentStatus)
 	return nil
@@ -149,7 +149,7 @@ type CephCSIClusterConfig struct {
 	Monitors  []string `json:"monitors"`
 }
 
-func newCephCSIClusterConfigBySettings(settings *apis.ComponentSettingCephCSI) []CephCSIClusterConfig {
+func newCephCSIClusterConfigBySettings(settings *api.ComponentSettingCephCSI) []CephCSIClusterConfig {
 	ret := make([]CephCSIClusterConfig, 0)
 	for _, conf := range settings.Config {
 		ret = append(ret, CephCSIClusterConfig{
@@ -160,7 +160,7 @@ func newCephCSIClusterConfigBySettings(settings *apis.ComponentSettingCephCSI) [
 	return ret
 }
 
-func fetchCephCSIClusterConfig(cluster *SCluster, namespace string) (*apis.ComponentSettingCephCSI, error) {
+func fetchCephCSIClusterConfig(cluster *SCluster, namespace string) (*api.ComponentSettingCephCSI, error) {
 	cli, err := cluster.GetK8sClient()
 	if err != nil {
 		return nil, err
@@ -178,10 +178,10 @@ func fetchCephCSIClusterConfig(cluster *SCluster, namespace string) (*apis.Compo
 	if err := obj.Unmarshal(&config); err != nil {
 		return nil, errors.Wrapf(err, "")
 	}
-	ret := new(apis.ComponentSettingCephCSI)
-	ret.Config = make([]apis.ComponentCephCSIConfigCluster, 0)
+	ret := new(api.ComponentSettingCephCSI)
+	ret.Config = make([]api.ComponentCephCSIConfigCluster, 0)
 	for _, c := range config {
-		ret.Config = append(ret.Config, apis.ComponentCephCSIConfigCluster{
+		ret.Config = append(ret.Config, api.ComponentCephCSIConfigCluster{
 			ClsuterId: c.ClusterId,
 			Monitors:  c.Monitors,
 		})
@@ -189,7 +189,7 @@ func fetchCephCSIClusterConfig(cluster *SCluster, namespace string) (*apis.Compo
 	return ret, nil
 }
 
-func (m *SCephCSIComponentManager) getK8sResourceManifest(cluster *SCluster, setting *apis.ComponentSettings) (string, error) {
+func (m *SCephCSIComponentManager) getK8sResourceManifest(cluster *SCluster, setting *api.ComponentSettings) (string, error) {
 	imgRepo, err := cluster.GetImageRepository()
 	if err != nil {
 		return "", errors.Wrapf(err, "get cluster %s repo", cluster.GetName())
@@ -215,7 +215,7 @@ func (m *SCephCSIComponentManager) getK8sResourceManifest(cluster *SCluster, set
 	return manifest, nil
 }
 
-func (m *SCephCSIComponentManager) ApplyK8sResource(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (m *SCephCSIComponentManager) ApplyK8sResource(cluster *SCluster, setting *api.ComponentSettings) error {
 	if err := m.EnsureNamespace(cluster, setting.Namespace); err != nil {
 		return errors.Wrapf(err, "ceph csi ensure namespace %q", setting.Namespace)
 	}
@@ -226,7 +226,7 @@ func (m *SCephCSIComponentManager) ApplyK8sResource(cluster *SCluster, setting *
 	return m.KubectlApply(cluster, manifest)
 }
 
-func (m *SCephCSIComponentManager) DeleteK8sResource(cluster *SCluster, setting *apis.ComponentSettings) error {
+func (m *SCephCSIComponentManager) DeleteK8sResource(cluster *SCluster, setting *api.ComponentSettings) error {
 	manifest, err := m.getK8sResourceManifest(cluster, setting)
 	if err != nil {
 		return err

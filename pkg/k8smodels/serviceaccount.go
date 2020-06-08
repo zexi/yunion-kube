@@ -3,7 +3,7 @@ package k8smodels
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -29,9 +29,9 @@ type SServiceAccount struct {
 
 func (m *SServiceAccountManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameServiceAccount,
+		ResourceName: api.ResourceNameServiceAccount,
 		Object:       new(v1.ServiceAccount),
-		KindName:     apis.KindNameServiceAccount,
+		KindName:     api.KindNameServiceAccount,
 	}
 }
 
@@ -39,9 +39,9 @@ func (obj *SServiceAccount) GetRawServiceAccount() *v1.ServiceAccount {
 	return obj.GetK8SObject().(*v1.ServiceAccount)
 }
 
-func (obj *SServiceAccount) GetAPIObject() (*apis.ServiceAccount, error) {
+func (obj *SServiceAccount) GetAPIObject() (*api.ServiceAccount, error) {
 	sa := obj.GetRawServiceAccount()
-	return &apis.ServiceAccount{
+	return &api.ServiceAccount{
 		ObjectMeta:                   obj.GetObjectMeta(),
 		TypeMeta:                     obj.GetTypeMeta(),
 		Secrets:                      sa.Secrets,
@@ -50,6 +50,6 @@ func (obj *SServiceAccount) GetAPIObject() (*apis.ServiceAccount, error) {
 	}, nil
 }
 
-func (obj *SServiceAccount) GetAPIDetailObject() (*apis.ServiceAccount, error) {
+func (obj *SServiceAccount) GetAPIDetailObject() (*api.ServiceAccount, error) {
 	return obj.GetAPIObject()
 }

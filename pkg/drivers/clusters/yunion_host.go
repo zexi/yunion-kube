@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	kubeadmconfig "k8s.io/kubernetes/cmd/kubeadm/app/util/config"
-	//clusterv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	//clusterv1 "sigs.k8s.io/cluster-api/pkg/api/cluster/v1alpha1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -35,7 +35,7 @@ type SYunionHostDriver struct {
 
 func NewYunionHostDriver() models.IClusterDriver {
 	return &SYunionHostDriver{
-		sClusterAPIDriver: newClusterAPIDriver(apis.ModeTypeSelfBuild, apis.ProviderTypeOnecloud, apis.ClusterResourceTypeHost),
+		sClusterAPIDriver: newClusterAPIDriver(api.ModeTypeSelfBuild, api.ProviderTypeOnecloud, api.ClusterResourceTypeHost),
 	}
 }
 
@@ -56,7 +56,7 @@ func (d *SYunionHostDriver) ValidateCreateData(ctx context.Context, userCred mcc
 	return yunion_host.ValidateClusterCreateData(data)
 }
 
-func GetUsableCloudHosts(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
+func GetUsableCloudHosts(s *mcclient.ClientSession) ([]api.UsableInstance, error) {
 	params := jsonutils.NewDict()
 	filter := jsonutils.NewArray()
 	filter.Add(jsonutils.NewString(fmt.Sprintf("host_type.in(%s, %s)", "hypervisor", "kubelet")))
@@ -67,7 +67,7 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]apis.UsableInstance, erro
 	if err != nil {
 		return nil, err
 	}
-	ret := []apis.UsableInstance{}
+	ret := []api.UsableInstance{}
 	for _, host := range result.Data {
 		id, _ := host.GetString("id")
 		if len(id) == 0 {
@@ -81,16 +81,16 @@ func GetUsableCloudHosts(s *mcclient.ClientSession) ([]apis.UsableInstance, erro
 		if machine != nil {
 			continue
 		}
-		ret = append(ret, apis.UsableInstance{
+		ret = append(ret, api.UsableInstance{
 			Id:   id,
 			Name: name,
-			Type: apis.MachineResourceTypeBaremetal,
+			Type: api.MachineResourceTypeBaremetal,
 		})
 	}
 	return ret, nil
 }
 
-func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
+func (d *SYunionHostDriver) GetUsableInstances(s *mcclient.ClientSession) ([]api.UsableInstance, error) {
 	return GetUsableCloudHosts(s)
 }
 
@@ -119,15 +119,15 @@ func (d *SYunionHostDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *models.SCluster,
-	repo *apis.ImageRepository,
-	data []*apis.CreateMachineData) error {
+	repo *api.ImageRepository,
+	data []*api.CreateMachineData) error {
 	if _, _, err := d.sClusterAPIDriver.ValidateCreateMachines(ctx, userCred, cluster, data); err != nil {
 		return err
 	}
 	return yunion_host.ValidateCreateMachines(data)
 }
 
-func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SYunionHostDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*api.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 

@@ -7,7 +7,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -36,9 +36,9 @@ type SNode struct {
 
 func (m SNodeManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameNode,
+		ResourceName: api.ResourceNameNode,
 		Object:       &v1.Node{},
-		KindName:     apis.KindNameNode,
+		KindName:     api.KindNameNode,
 	}
 }
 
@@ -48,7 +48,7 @@ func (m SNodeManager) ValidateCreateData(
 	return nil, httperrors.NewUnsupportOperationError("kubernetes node not support create")
 }
 
-func (m SNodeManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.ListInputNode) (model.IQuery, error) {
+func (m SNodeManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.ListInputNode) (model.IQuery, error) {
 	q, err := m.SK8SClusterResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SClusterBase)
 	if err != nil {
 		return nil, err
@@ -80,10 +80,10 @@ func (obj *SNode) getContainerImages(node v1.Node) []string {
 	return containerImages
 }
 
-func (obj *SNode) getNodeConditions(node v1.Node) []*apis.Condition {
-	var conditions []*apis.Condition
+func (obj *SNode) getNodeConditions(node v1.Node) []*api.Condition {
+	var conditions []*api.Condition
 	for _, condition := range node.Status.Conditions {
-		conditions = append(conditions, &apis.Condition{
+		conditions = append(conditions, &api.Condition{
 			Type:               string(condition.Type),
 			Status:             condition.Status,
 			LastProbeTime:      condition.LastHeartbeatTime,
@@ -95,13 +95,13 @@ func (obj *SNode) getNodeConditions(node v1.Node) []*apis.Condition {
 	return SortConditions(conditions)
 }
 
-func (obj *SNode) getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (apis.NodeAllocatedResources, error) {
+func (obj *SNode) getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (api.NodeAllocatedResources, error) {
 	reqs, limits := map[v1.ResourceName]resource.Quantity{}, map[v1.ResourceName]resource.Quantity{}
 
 	for _, pod := range pods {
 		podReqs, podLimits, err := PodRequestsAndLimits(pod)
 		if err != nil {
-			return apis.NodeAllocatedResources{}, err
+			return api.NodeAllocatedResources{}, err
 		}
 		for podReqName, podReqValue := range podReqs {
 			if value, ok := reqs[podReqName]; !ok {
@@ -142,7 +142,7 @@ func (obj *SNode) getNodeAllocatedResources(node *v1.Node, pods []*v1.Pod) (apis
 		podFraction = float64(len(pods)) / float64(podCapacity) * 100
 	}
 
-	return apis.NodeAllocatedResources{
+	return api.NodeAllocatedResources{
 		CPURequests:            cpuRequests.MilliValue(),
 		CPURequestsFraction:    cpuRequestsFraction,
 		CPULimits:              cpuLimits.MilliValue(),
@@ -222,7 +222,7 @@ func (obj *SNode) GetRawPods() ([]*v1.Pod, error) {
 	return ret, nil
 }
 
-func (obj *SNode) GetAPIObject() (*apis.Node, error) {
+func (obj *SNode) GetAPIObject() (*api.Node, error) {
 	rNode := obj.GetRawNode()
 	pods, err := obj.GetRawPods()
 	if err != nil {
@@ -232,7 +232,7 @@ func (obj *SNode) GetAPIObject() (*apis.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.Node{
+	return &api.Node{
 		ObjectMeta:         obj.GetObjectMeta(),
 		TypeMeta:           obj.GetTypeMeta(),
 		Ready:              obj.getNodeConditionStatus(rNode, v1.NodeReady),
@@ -244,7 +244,7 @@ func (obj *SNode) GetAPIObject() (*apis.Node, error) {
 	}, nil
 }
 
-func (obj *SNode) GetAPIDetailObject() (*apis.NodeDetail, error) {
+func (obj *SNode) GetAPIDetailObject() (*api.NodeDetail, error) {
 	node, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (obj *SNode) GetAPIDetailObject() (*apis.NodeDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.NodeDetail{
+	return &api.NodeDetail{
 		Node:            *node,
 		Phase:           rNode.Status.Phase,
 		PodCIDR:         rNode.Spec.PodCIDR,
@@ -297,7 +297,7 @@ func (obj *SNode) SetNodeScheduleToggle(unschedule bool) error {
 			nodeObj.Spec.Taints[i] = taint
 		}
 	}
-	if _, err := cli.UpdateV2(apis.ResourceNameNode, nodeObj); err != nil {
+	if _, err := cli.UpdateV2(api.ResourceNameNode, nodeObj); err != nil {
 		return err
 	}
 	return nil

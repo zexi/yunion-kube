@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -35,7 +35,7 @@ func AddObjectMetaRunLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
 	return meta
 }
 
-func GetServicePortsByMapping(ps []apis.PortMapping) []v1.ServicePort {
+func GetServicePortsByMapping(ps []api.PortMapping) []v1.ServicePort {
 	ports := []v1.ServicePort{}
 	for _, p := range ps {
 		ports = append(ports, p.ToServicePort())
@@ -43,7 +43,7 @@ func GetServicePortsByMapping(ps []apis.PortMapping) []v1.ServicePort {
 	return ports
 }
 
-func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *apis.ServiceCreateOption) *v1.Service {
+func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) *v1.Service {
 	if opt == nil {
 		return nil
 	}
@@ -70,10 +70,10 @@ func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *apis.ServiceCreateOpt
 		svc.Annotations = map[string]string{}
 	}
 	if opt.LoadBalancerNetwork != "" {
-		svc.Annotations[apis.YUNION_LB_NETWORK_ANNOTATION] = opt.LoadBalancerNetwork
+		svc.Annotations[api.YUNION_LB_NETWORK_ANNOTATION] = opt.LoadBalancerNetwork
 	}
 	if opt.LoadBalancerCluster != "" {
-		svc.Annotations[apis.YUNION_LB_CLUSTER_ANNOTATION] = opt.LoadBalancerCluster
+		svc.Annotations[api.YUNION_LB_CLUSTER_ANNOTATION] = opt.LoadBalancerCluster
 	}
 	return svc
 }
@@ -86,7 +86,7 @@ func GetRawPodsByController(obj model.IK8SModel) ([]*v1.Pod, error) {
 	return FilterPodsByControllerRef(obj.GetK8SObject().(metav1.Object), pods), nil
 }
 
-func GetPodsByController(obj model.IK8SModel) ([]*apis.Pod, error) {
+func GetPodsByController(obj model.IK8SModel) ([]*api.Pod, error) {
 	pods, err := GetRawPodsByController(obj)
 	if err != nil {
 		return nil, err
@@ -131,10 +131,10 @@ func FilterPodsForJob(job *batch.Job, pods []*v1.Pod) []*v1.Pod {
 }
 
 // GetContainerImages returns container image strings from the given pod spec.
-func GetContainerImages(podTemplate *v1.PodSpec) []apis.ContainerImage {
-	containerImages := []apis.ContainerImage{}
+func GetContainerImages(podTemplate *v1.PodSpec) []api.ContainerImage {
+	containerImages := []api.ContainerImage{}
 	for _, container := range podTemplate.Containers {
-		containerImages = append(containerImages, apis.ContainerImage{
+		containerImages = append(containerImages, api.ContainerImage{
 			Name:  container.Name,
 			Image: container.Image,
 		})
@@ -143,10 +143,10 @@ func GetContainerImages(podTemplate *v1.PodSpec) []apis.ContainerImage {
 }
 
 // GetInitContainerImages returns init container image strings from the given pod spec.
-func GetInitContainerImages(podTemplate *v1.PodSpec) []apis.ContainerImage {
-	initContainerImages := []apis.ContainerImage{}
+func GetInitContainerImages(podTemplate *v1.PodSpec) []api.ContainerImage {
+	initContainerImages := []api.ContainerImage{}
 	for _, initContainer := range podTemplate.InitContainers {
-		initContainerImages = append(initContainerImages, apis.ContainerImage{
+		initContainerImages = append(initContainerImages, api.ContainerImage{
 			Name:  initContainer.Name,
 			Image: initContainer.Image})
 	}
@@ -192,13 +192,13 @@ func EqualIgnoreHash(template1, template2 v1.PodTemplateSpec) bool {
 	return equality.Semantic.DeepEqual(template1, template2)
 }
 
-func GetPodInfo(obj model.IK8SModel, current int32, desired *int32, pods []*v1.Pod) (*apis.PodInfo, error) {
+func GetPodInfo(obj model.IK8SModel, current int32, desired *int32, pods []*v1.Pod) (*api.PodInfo, error) {
 	podInfo := getPodInfo(current, desired, pods)
 	warnEvents, err := EventManager.GetWarningEventsByPods(obj.GetCluster(), pods)
 	if err != nil {
 		return nil, err
 	}
-	ws := make([]apis.Event, len(warnEvents))
+	ws := make([]api.Event, len(warnEvents))
 	for i := range warnEvents {
 		ws[i] = *warnEvents[i]
 	}
@@ -207,11 +207,11 @@ func GetPodInfo(obj model.IK8SModel, current int32, desired *int32, pods []*v1.P
 }
 
 // GetPodInfo returns aggregate information about a group of pods.
-func getPodInfo(current int32, desired *int32, pods []*v1.Pod) apis.PodInfo {
-	result := apis.PodInfo{
+func getPodInfo(current int32, desired *int32, pods []*v1.Pod) api.PodInfo {
+	result := api.PodInfo{
 		Current:  current,
 		Desired:  desired,
-		Warnings: make([]apis.Event, 0),
+		Warnings: make([]api.Event, 0),
 	}
 
 	for _, pod := range pods {
@@ -257,8 +257,8 @@ func GetNewReplicaSetTemplate(deployment *apps.Deployment) v1.PodTemplateSpec {
 }
 
 // GetExternalEndpoints returns endpoints that are externally reachable for a service.
-func GetExternalEndpoints(service *v1.Service) []apis.Endpoint {
-	var externalEndpoints []apis.Endpoint
+func GetExternalEndpoints(service *v1.Service) []api.Endpoint {
+	var externalEndpoints []api.Endpoint
 	if service.Spec.Type == v1.ServiceTypeLoadBalancer {
 		for _, ingress := range service.Status.LoadBalancer.Ingress {
 			externalEndpoints = append(externalEndpoints, getExternalEndpoint(ingress, service.Spec.Ports))
@@ -266,7 +266,7 @@ func GetExternalEndpoints(service *v1.Service) []apis.Endpoint {
 	}
 
 	for _, ip := range service.Spec.ExternalIPs {
-		externalEndpoints = append(externalEndpoints, apis.Endpoint{
+		externalEndpoints = append(externalEndpoints, api.Endpoint{
 			Host:  ip,
 			Ports: GetServicePorts(service.Spec.Ports),
 		})
@@ -277,7 +277,7 @@ func GetExternalEndpoints(service *v1.Service) []apis.Endpoint {
 
 // GetInternalEndpoint returns internal endpoint name for the given service properties, e.g.,
 // "my-service.namespace 80/TCP" or "my-service 53/TCP,53/UDP".
-func GetInternalEndpoint(serviceName, namespace string, ports []v1.ServicePort) apis.Endpoint {
+func GetInternalEndpoint(serviceName, namespace string, ports []v1.ServicePort) api.Endpoint {
 	name := serviceName
 
 	if namespace != v1.NamespaceDefault && len(namespace) > 0 && len(serviceName) > 0 {
@@ -287,36 +287,36 @@ func GetInternalEndpoint(serviceName, namespace string, ports []v1.ServicePort) 
 		name = bufferName.String()
 	}
 
-	return apis.Endpoint{
+	return api.Endpoint{
 		Host:  name,
 		Ports: GetServicePorts(ports),
 	}
 }
 
 // Returns external endpoint name for the given service properties.
-func getExternalEndpoint(ingress v1.LoadBalancerIngress, ports []v1.ServicePort) apis.Endpoint {
+func getExternalEndpoint(ingress v1.LoadBalancerIngress, ports []v1.ServicePort) api.Endpoint {
 	var host string
 	if ingress.Hostname != "" {
 		host = ingress.Hostname
 	} else {
 		host = ingress.IP
 	}
-	return apis.Endpoint{
+	return api.Endpoint{
 		Host:  host,
 		Ports: GetServicePorts(ports),
 	}
 }
 
 // GetServicePorts returns human readable name for the given service ports list.
-func GetServicePorts(apiPorts []v1.ServicePort) []apis.ServicePort {
-	var ports []apis.ServicePort
+func GetServicePorts(apiPorts []v1.ServicePort) []api.ServicePort {
+	var ports []api.ServicePort
 	for _, port := range apiPorts {
-		ports = append(ports, apis.ServicePort{port.Port, port.Protocol, port.NodePort})
+		ports = append(ports, api.ServicePort{port.Port, port.Protocol, port.NodePort})
 	}
 	return ports
 }
 
-func CreateServiceIfNotExist(ctx *model.RequestContext, objMeta *metav1.ObjectMeta, opt *apis.ServiceCreateOption) (*v1.Service, error) {
+func CreateServiceIfNotExist(ctx *model.RequestContext, objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) (*v1.Service, error) {
 	svc, err := ctx.Cluster().GetHandler().GetIndexer().ServiceLister().Services(objMeta.GetNamespace()).Get(objMeta.GetName())
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -327,7 +327,7 @@ func CreateServiceIfNotExist(ctx *model.RequestContext, objMeta *metav1.ObjectMe
 	return svc, nil
 }
 
-func CreateServiceByOption(ctx *model.RequestContext, objMeta *metav1.ObjectMeta, opt *apis.ServiceCreateOption) (*v1.Service, error) {
+func CreateServiceByOption(ctx *model.RequestContext, objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) (*v1.Service, error) {
 	svc := GetServiceFromOption(objMeta, opt)
 	if svc == nil {
 		return nil, nil
@@ -402,7 +402,7 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 }
 
 // objs is: []*objs, e.g.: []*v1.Pod{}
-// targets is: the pointer of []*v, e.g.: &[]*apis.Pod{}
+// targets is: the pointer of []*v, e.g.: &[]*api.Pod{}
 func ConvertRawToAPIObjects(
 	man model.IK8SModelManager,
 	cluster model.ICluster,
@@ -453,7 +453,7 @@ func ConvertRawToAPIObject(
 	return nil
 }
 
-type condtionSorter []*apis.Condition
+type condtionSorter []*api.Condition
 
 func (s condtionSorter) Len() int {
 	return len(s)
@@ -469,7 +469,7 @@ func (s condtionSorter) Less(i, j int) bool {
 	return c1.LastTransitionTime.Before(&c2.LastTransitionTime)
 }
 
-func SortConditions(conds []*apis.Condition) []*apis.Condition {
+func SortConditions(conds []*api.Condition) []*api.Condition {
 	sort.Sort(condtionSorter(conds))
 	return conds
 }

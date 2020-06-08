@@ -10,7 +10,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers/machines/kubeadm"
 )
 
@@ -105,7 +105,7 @@ func (c InitScriptConfig) ToScript() (string, error) {
 }
 
 type InitNodeConfig struct {
-	DockerConfiguration    *apis.DockerConfig
+	DockerConfiguration    *api.DockerConfig
 	InitConfiguration      *kubeadmv1beta1.InitConfiguration
 	ClusterConfiguration   *kubeadmv1beta1.ClusterConfiguration
 	KubeProxyConfiguration *kubeproxyconfigv1alpha1.KubeProxyConfiguration
@@ -149,7 +149,7 @@ func (c InitNodeConfig) ToScript() (string, error) {
 }
 
 type JoinControlplaneConfig struct {
-	DockerConfiguration *apis.DockerConfig
+	DockerConfiguration *api.DockerConfig
 	JoinConfiguration   *kubeadmv1beta1.JoinConfiguration
 
 	CACert           string
@@ -184,7 +184,7 @@ func (c JoinControlplaneConfig) ToScript() (string, error) {
 }
 
 type JoinNodeConfig struct {
-	DockerConfiguration *apis.DockerConfig
+	DockerConfiguration *api.DockerConfig
 	JoinConfiguration   *kubeadmv1beta1.JoinConfiguration
 }
 

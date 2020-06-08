@@ -14,7 +14,7 @@ import (
 	"yunion.io/x/onecloud/pkg/util/ssh"
 	"yunion.io/x/pkg/utils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	onecloudcli "yunion.io/x/yunion-kube/pkg/utils/onecloud/client"
 )
@@ -25,7 +25,7 @@ const (
 )
 
 func ValidateResourceType(resType string) error {
-	if resType != apis.MachineResourceTypeBaremetal {
+	if resType != api.MachineResourceTypeBaremetal {
 		return httperrors.NewInputParameterError("Invalid resource type: %q", resType)
 	}
 	return nil
@@ -53,7 +53,7 @@ func ValidateHostId(s *mcclient.ClientSession, privateKey string, hostId string)
 	return ret, nil
 }
 
-func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis.CreateMachineData) error {
+func validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *api.CreateMachineData) error {
 	if err := models.ValidateRole(m.Role); err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func CheckControlplaneExists(cluster *models.SCluster) error {
 	return nil
 }
 
-func ValidateCreateMachines(ms []*apis.CreateMachineData) error {
+func ValidateCreateMachines(ms []*api.CreateMachineData) error {
 	session, err := models.ClusterManager.GetSession()
 	if err != nil {
 		return err
@@ -115,13 +115,13 @@ func ValidateCreateMachines(ms []*apis.CreateMachineData) error {
 }
 
 func ValidateClusterCreateData(data *jsonutils.JSONDict) error {
-	createData := apis.ClusterCreateInput{}
+	createData := api.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	ms := createData.Machines
 	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 && createData.Provider != string(apis.ProviderTypeSystem) {
+	if len(controls) == 0 && createData.Provider != string(api.ProviderTypeSystem) {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
 	session, err := models.ClusterManager.GetSession()

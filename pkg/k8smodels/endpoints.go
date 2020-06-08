@@ -3,7 +3,7 @@ package k8smodels
 import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -48,7 +48,7 @@ func (m SEndpointManager) GetRawEndpointsByService(cluster model.ICluster, svc *
 	return ret, nil
 }
 
-func (m SEndpointManager) GetAPIEndpointsByService(cluster model.ICluster, svc *v1.Service) ([]*apis.EndpointDetail, error) {
+func (m SEndpointManager) GetAPIEndpointsByService(cluster model.ICluster, svc *v1.Service) ([]*api.EndpointDetail, error) {
 	eps, err := m.GetRawEndpointsByService(cluster, svc)
 	if err != nil {
 		return nil, err
@@ -56,8 +56,8 @@ func (m SEndpointManager) GetAPIEndpointsByService(cluster model.ICluster, svc *
 	return m.GetAPIEndpoints(cluster, eps), nil
 }
 
-func (m SEndpointManager) GetAPIEndpoints(cluster model.ICluster, eps []*v1.Endpoints) []*apis.EndpointDetail {
-	ret := make([]*apis.EndpointDetail, 0)
+func (m SEndpointManager) GetAPIEndpoints(cluster model.ICluster, eps []*v1.Endpoints) []*api.EndpointDetail {
+	ret := make([]*api.EndpointDetail, 0)
 	for _, ep := range eps {
 		ret = append(ret, m.GetAPIEndpoint(cluster, ep)...)
 	}
@@ -69,10 +69,10 @@ func (m SEndpointManager) toEndpoint(
 	ep *v1.Endpoints,
 	address v1.EndpointAddress,
 	ports []v1.EndpointPort,
-	ready bool) *apis.EndpointDetail {
-	return &apis.EndpointDetail{
-		ObjectMeta: apis.NewObjectMeta(ep.ObjectMeta, cluster),
-		TypeMeta:   apis.NewTypeMeta(ep.TypeMeta),
+	ready bool) *api.EndpointDetail {
+	return &api.EndpointDetail{
+		ObjectMeta: api.NewObjectMeta(ep.ObjectMeta, cluster),
+		TypeMeta:   api.NewTypeMeta(ep.TypeMeta),
 		Host:       address.IP,
 		Ports:      ports,
 		Ready:      ready,
@@ -80,8 +80,8 @@ func (m SEndpointManager) toEndpoint(
 	}
 }
 
-func (m SEndpointManager) GetAPIEndpoint(cluster model.ICluster, ep *v1.Endpoints) []*apis.EndpointDetail {
-	ret := make([]*apis.EndpointDetail, 0)
+func (m SEndpointManager) GetAPIEndpoint(cluster model.ICluster, ep *v1.Endpoints) []*api.EndpointDetail {
+	ret := make([]*api.EndpointDetail, 0)
 	for _, subSets := range ep.Subsets {
 		for _, address := range subSets.Addresses {
 			ret = append(ret, m.toEndpoint(cluster, ep, address, subSets.Ports, true))

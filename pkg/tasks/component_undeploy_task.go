@@ -8,7 +8,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 func init() {
@@ -40,13 +40,13 @@ func (t *ComponentUndeployTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		t.onError(ctx, comp, err)
 		return
 	}
-	comp.SetStatus(t.UserCred, apis.ComponentStatusInit, "")
+	comp.SetStatus(t.UserCred, api.ComponentStatusInit, "")
 	comp.SetEnabled(false)
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ComponentUndeployTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
-	obj.SetStatus(t.UserCred, apis.ComponentStatusUndeployFail, reason)
+	obj.SetStatus(t.UserCred, api.ComponentStatusUndeployFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
 }

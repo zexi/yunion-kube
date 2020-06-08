@@ -7,7 +7,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -36,9 +36,9 @@ type SNamespace struct {
 
 func (m SNamespaceManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameNamespace,
+		ResourceName: api.ResourceNameNamespace,
 		Object:       &v1.Namespace{},
-		KindName:     apis.KindNameNamespace,
+		KindName:     api.KindNameNamespace,
 	}
 }
 
@@ -50,7 +50,7 @@ func (m SNamespaceManager) GetRawNamespaces(cluster model.ICluster) ([]*v1.Names
 func (man *SNamespaceManager) ValidateCreateData(
 	ctx *model.RequestContext,
 	query *jsonutils.JSONDict,
-	input *apis.NamespaceCreateInput) (*apis.NamespaceCreateInput, error) {
+	input *api.NamespaceCreateInput) (*api.NamespaceCreateInput, error) {
 	if _, err := man.SK8SClusterResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sClusterResourceCreateInput); err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (man *SNamespaceManager) ValidateCreateData(
 
 func (man *SNamespaceManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.NamespaceCreateInput) (runtime.Object, error) {
+	input api.NamespaceCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	ns := &v1.Namespace{
 		ObjectMeta: objMeta,
@@ -71,28 +71,28 @@ func (obj *SNamespace) GetRawNamespace() *v1.Namespace {
 	return obj.GetK8SObject().(*v1.Namespace)
 }
 
-func (obj *SNamespace) GetAPIObject() (*apis.Namespace, error) {
+func (obj *SNamespace) GetAPIObject() (*api.Namespace, error) {
 	ns := obj.GetRawNamespace()
-	return &apis.Namespace{
+	return &api.Namespace{
 		ObjectMeta: obj.GetObjectMeta(),
 		TypeMeta:   obj.GetTypeMeta(),
 		Phase:      ns.Status.Phase,
 	}, nil
 }
 
-func (obj *SNamespace) GetEvents() ([]*apis.Event, error) {
+func (obj *SNamespace) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetNamespaceEvents(obj.GetCluster(), obj.GetName())
 }
 
-func (obj *SNamespace) GetResourceQuotas() ([]*apis.ResourceQuotaDetail, error) {
+func (obj *SNamespace) GetResourceQuotas() ([]*api.ResourceQuotaDetail, error) {
 	return ResourceQuotaManager.GetResourceQuotaDetails(obj.GetCluster(), obj.GetName())
 }
 
-func (obj *SNamespace) GetResourceLimits() ([]*apis.LimitRange, error) {
+func (obj *SNamespace) GetResourceLimits() ([]*api.LimitRange, error) {
 	return LimitRangeManager.GetLimitRanges(obj.GetCluster(), obj.GetName())
 }
 
-func (obj *SNamespace) GetAPIDetailObject() (*apis.NamespaceDetail, error) {
+func (obj *SNamespace) GetAPIDetailObject() (*api.NamespaceDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (obj *SNamespace) GetAPIDetailObject() (*apis.NamespaceDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.NamespaceDetail{
+	return &api.NamespaceDetail{
 		Namespace:      *apiObj,
 		Events:         events,
 		ResourceQuotas: rsQuotas,

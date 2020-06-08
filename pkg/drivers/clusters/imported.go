@@ -14,7 +14,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
@@ -26,7 +26,7 @@ type SDefaultImportDriver struct {
 
 func NewDefaultImportDriver() *SDefaultImportDriver {
 	return &SDefaultImportDriver{
-		SBaseDriver: newBaseDriver(apis.ModeTypeImport, apis.ProviderTypeExternal, apis.ClusterResourceTypeUnknown),
+		SBaseDriver: newBaseDriver(api.ModeTypeImport, api.ProviderTypeExternal, api.ClusterResourceTypeUnknown),
 	}
 }
 
@@ -40,7 +40,7 @@ func (d *SDefaultImportDriver) GetK8sVersions() []string {
 
 func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	// test kubeconfig is work
-	createData := apis.ClusterCreateInput{}
+	createData := api.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
@@ -110,7 +110,7 @@ func (d *SDefaultImportDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	c *models.SCluster,
-	imageRepo *apis.ImageRepository,
-	data []*apis.CreateMachineData) error {
+	imageRepo *api.ImageRepository,
+	data []*api.CreateMachineData) error {
 	return httperrors.NewBadRequestError("Not support add machines")
 }

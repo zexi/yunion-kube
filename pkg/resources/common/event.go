@@ -3,21 +3,21 @@ package common
 import (
 	"k8s.io/api/core/v1"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 // EventList is an events response structure.
 type EventList struct {
 	*BaseList
 	// List of events from given namespace.
-	Events []apis.Event `json:"events"`
+	Events []api.Event `json:"events"`
 }
 
 func (l *EventList) Append(obj interface{}) {
 	event := obj.(*v1.Event)
-	l.Events = append(l.Events, apis.Event{
-		ObjectMeta:      apis.NewObjectMeta(event.ObjectMeta, l.GetCluster()),
-		TypeMeta:        apis.NewTypeMeta(event.TypeMeta),
+	l.Events = append(l.Events, api.Event{
+		ObjectMeta:      api.NewObjectMeta(event.ObjectMeta, l.GetCluster()),
+		TypeMeta:        api.NewTypeMeta(event.TypeMeta),
 		Message:         event.Message,
 		SourceComponent: event.Source.Component,
 		SourceHost:      event.Source.Host,

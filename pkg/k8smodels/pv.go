@@ -3,7 +3,7 @@ package k8smodels
 import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -29,9 +29,9 @@ type SPV struct {
 
 func (m *SPVManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNamePersistentVolume,
+		ResourceName: api.ResourceNamePersistentVolume,
 		Object:       new(v1.PersistentVolume),
-		KindName:     apis.KindNamePersistentVolume,
+		KindName:     api.KindNamePersistentVolume,
 	}
 }
 
@@ -39,8 +39,8 @@ func (m *SPVManager) GetRawPVs(cluster model.ICluster) ([]*v1.PersistentVolume, 
 	return cluster.GetHandler().GetIndexer().PVLister().List(labels.Everything())
 }
 
-func (m *SPVManager) GetAPIPVs(cluster model.ICluster, pvs []*v1.PersistentVolume) ([]*apis.PersistentVolume, error) {
-	ret := make([]*apis.PersistentVolume, 0)
+func (m *SPVManager) GetAPIPVs(cluster model.ICluster, pvs []*v1.PersistentVolume) ([]*api.PersistentVolume, error) {
+	ret := make([]*api.PersistentVolume, 0)
 	err := ConvertRawToAPIObjects(m, cluster, pvs, &ret)
 	return ret, err
 }
@@ -70,9 +70,9 @@ func (obj *SPV) GetPVC() (*SPVC, error) {
 	return pvcObj.(*SPVC), nil
 }
 
-func (obj *SPV) GetAPIObject() (*apis.PersistentVolume, error) {
+func (obj *SPV) GetAPIObject() (*api.PersistentVolume, error) {
 	pv := obj.GetRawPV()
-	return &apis.PersistentVolume{
+	return &api.PersistentVolume{
 		ObjectMeta:    obj.GetObjectMeta(),
 		TypeMeta:      obj.GetTypeMeta(),
 		Capacity:      pv.Spec.Capacity,
@@ -86,7 +86,7 @@ func (obj *SPV) GetAPIObject() (*apis.PersistentVolume, error) {
 	}, nil
 }
 
-func (obj *SPV) GetAPIDetailObject() (*apis.PersistentVolumeDetail, error) {
+func (obj *SPV) GetAPIDetailObject() (*api.PersistentVolumeDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -95,14 +95,14 @@ func (obj *SPV) GetAPIDetailObject() (*apis.PersistentVolumeDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	var apiPvc *apis.PersistentVolumeClaim
+	var apiPvc *api.PersistentVolumeClaim
 	if pvc != nil {
 		apiPvc, err = pvc.GetAPIObject()
 		if err != nil {
 			return nil, err
 		}
 	}
-	return &apis.PersistentVolumeDetail{
+	return &api.PersistentVolumeDetail{
 		PersistentVolume:       *apiObj,
 		PersistentVolumeSource: obj.GetRawPV().Spec.PersistentVolumeSource,
 		PersistentVolumeClaim:  apiPvc,

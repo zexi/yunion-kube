@@ -7,7 +7,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -39,16 +39,16 @@ type SDaemonSet struct {
 
 func (m SDaemonSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameDaemonSet,
+		ResourceName: api.ResourceNameDaemonSet,
 		Object:       &apps.DaemonSet{},
-		KindName:     apis.KindNameDaemonSet,
+		KindName:     api.KindNameDaemonSet,
 	}
 }
 
 func (m SDaemonSetManager) ValidateCreateData(
 	ctx *model.RequestContext,
 	query *jsonutils.JSONDict,
-	input *apis.DaemonSetCreateInput) (*apis.DaemonSetCreateInput, error) {
+	input *api.DaemonSetCreateInput) (*api.DaemonSetCreateInput, error) {
 	if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
 		return input, err
 	}
@@ -57,7 +57,7 @@ func (m SDaemonSetManager) ValidateCreateData(
 
 func (m SDaemonSetManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input *apis.DaemonSetCreateInput) (runtime.Object, error) {
+	input *api.DaemonSetCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
@@ -72,13 +72,13 @@ func (m SDaemonSetManager) NewK8SRawObjectForCreate(
 	return ds, nil
 }
 
-func (obj *SDaemonSet) GetAPIObject() (*apis.DaemonSet, error) {
+func (obj *SDaemonSet) GetAPIObject() (*api.DaemonSet, error) {
 	ds := obj.GetRawDaemonSet()
 	podInfo, err := obj.GetPodInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "get pod info")
 	}
-	return &apis.DaemonSet{
+	return &api.DaemonSet{
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		PodInfo:             *podInfo,
@@ -89,7 +89,7 @@ func (obj *SDaemonSet) GetAPIObject() (*apis.DaemonSet, error) {
 	}, nil
 }
 
-func (obj *SDaemonSet) GetAPIDetailObject() (*apis.DaemonSetDetail, error) {
+func (obj *SDaemonSet) GetAPIDetailObject() (*api.DaemonSetDetail, error) {
 	events, err := EventManager.GetEventsByObject(obj)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (obj *SDaemonSet) GetAPIDetailObject() (*apis.DaemonSetDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.DaemonSetDetail{
+	return &api.DaemonSetDetail{
 		DaemonSet: *apiObj,
 		Events:    events,
 	}, nil
@@ -112,7 +112,7 @@ func (obj *SDaemonSet) GetRawDaemonSet() *apps.DaemonSet {
 	return obj.GetK8SObject().(*apps.DaemonSet)
 }
 
-func (obj *SDaemonSet) GetPodInfo() (*apis.PodInfo, error) {
+func (obj *SDaemonSet) GetPodInfo() (*api.PodInfo, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -125,11 +125,11 @@ func (obj *SDaemonSet) GetPodInfo() (*apis.PodInfo, error) {
 	return podInfo, nil
 }
 
-func (obj *SDaemonSet) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.DaemonSetUpdateInput) (*apis.DaemonSetUpdateInput, error) {
+func (obj *SDaemonSet) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *api.DaemonSetUpdateInput) (*api.DaemonSetUpdateInput, error) {
 	return input, nil
 }
 
-func (obj *SDaemonSet) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *apis.DaemonSetUpdateInput) (runtime.Object, error) {
+func (obj *SDaemonSet) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *api.DaemonSetUpdateInput) (runtime.Object, error) {
 	newObj := obj.GetRawDaemonSet().DeepCopy()
 	template := &newObj.Spec.Template
 	if err := obj.UpdatePodTemplate(template, input.PodTemplateUpdateInput); err != nil {

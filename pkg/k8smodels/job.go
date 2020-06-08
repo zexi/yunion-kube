@@ -8,7 +8,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -38,9 +38,9 @@ type SJob struct {
 
 func (m SJobManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameJob,
+		ResourceName: api.ResourceNameJob,
 		Object:       &batch.Job{},
-		KindName:     apis.KindNameJob,
+		KindName:     api.KindNameJob,
 	}
 }
 
@@ -49,7 +49,7 @@ func (m SJobManager) GetRawJobs(cluster model.ICluster, ns string) ([]*batch.Job
 	return indexer.JobLister().Jobs(ns).List(labels.Everything())
 }
 
-func (m SJobManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.JobListInput) (model.IQuery, error) {
+func (m SJobManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.JobListInput) (model.IQuery, error) {
 	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
 	if err != nil {
 		return q, err
@@ -87,7 +87,7 @@ func (obj *SJob) GetRawPods() ([]*v1.Pod, error) {
 	return indexer.PodLister().Pods(job.GetNamespace()).List(labelSelector)
 }
 
-func (obj *SJob) GetPods() ([]*apis.Pod, error) {
+func (obj *SJob) GetPods() ([]*api.Pod, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (obj *SJob) GetPods() ([]*apis.Pod, error) {
 	return PodManager.GetAPIPods(obj.GetCluster(), pods)
 }
 
-func (obj *SJob) GetPodInfo(pods []*v1.Pod) (*apis.PodInfo, error) {
+func (obj *SJob) GetPodInfo(pods []*v1.Pod) (*api.PodInfo, error) {
 	job := obj.GetRawJob()
 	podInfo := common.GetPodInfo(job.Status.Active, job.Spec.Completions, pods)
 	// This pod info for jobs should be get from job status, similar to kubectl describe logic.
@@ -105,19 +105,19 @@ func (obj *SJob) GetPodInfo(pods []*v1.Pod) (*apis.PodInfo, error) {
 	return &podInfo, nil
 }
 
-func (obj *SJob) GetEvents() ([]*apis.Event, error) {
+func (obj *SJob) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
-func (obj *SJob) GetAPIObject() (*apis.Job, error) {
+func (obj *SJob) GetAPIObject() (*api.Job, error) {
 	job := obj.GetRawJob()
-	jobStatus := apis.JobStatus{Status: apis.JobStatusRunning}
+	jobStatus := api.JobStatus{Status: api.JobStatusRunning}
 	for _, condition := range job.Status.Conditions {
 		if condition.Type == batch.JobComplete && condition.Status == v1.ConditionTrue {
-			jobStatus.Status = apis.JobStatusComplete
+			jobStatus.Status = api.JobStatusComplete
 			break
 		} else if condition.Type == batch.JobFailed && condition.Status == v1.ConditionTrue {
-			jobStatus.Status = apis.JobStatusFailed
+			jobStatus.Status = api.JobStatusFailed
 			jobStatus.Message = condition.Message
 			break
 		}
@@ -127,7 +127,7 @@ func (obj *SJob) GetAPIObject() (*apis.Job, error) {
 		return nil, err
 	}
 	podInfo, err := obj.GetPodInfo(pods)
-	return &apis.Job{
+	return &api.Job{
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		Pods:                podInfo,
@@ -140,7 +140,7 @@ func (obj *SJob) GetAPIObject() (*apis.Job, error) {
 	}, nil
 }
 
-func (obj *SJob) GetAPIDetailObject() (*apis.JobDetail, error) {
+func (obj *SJob) GetAPIDetailObject() (*api.JobDetail, error) {
 	job, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -153,14 +153,14 @@ func (obj *SJob) GetAPIDetailObject() (*apis.JobDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.JobDetail{
+	return &api.JobDetail{
 		Job:       *job,
 		PodList:   pods,
 		EventList: events,
 	}, nil
 }
 
-func (m *SJobManager) ValidateCreateData(ctx *model.RequestContext, query *jsonutils.JSONDict, input *apis.JobCreateInput) (*apis.JobCreateInput, error) {
+func (m *SJobManager) ValidateCreateData(ctx *model.RequestContext, query *jsonutils.JSONDict, input *api.JobCreateInput) (*api.JobCreateInput, error) {
 	if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (m *SJobManager) ValidateCreateData(ctx *model.RequestContext, query *jsonu
 
 func (m *SJobManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.JobCreateInput) (runtime.Object, error) {
+	input api.JobCreateInput) (runtime.Object, error) {
 	if len(input.Template.Spec.RestartPolicy) == 0 {
 		input.Template.Spec.RestartPolicy = v1.RestartPolicyOnFailure
 	}
@@ -180,8 +180,8 @@ func (m *SJobManager) NewK8SRawObjectForCreate(
 	return job, nil
 }
 
-func (m *SJobManager) GetAPIJobs(cluster model.ICluster, jobs []*batch.Job) ([]*apis.Job, error) {
-	ret := make([]*apis.Job, 0)
+func (m *SJobManager) GetAPIJobs(cluster model.ICluster, jobs []*batch.Job) ([]*api.Job, error) {
+	ret := make([]*api.Job, 0)
 	err := ConvertRawToAPIObjects(m, cluster, jobs, &ret)
 	return ret, err
 }

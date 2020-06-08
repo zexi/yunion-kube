@@ -8,7 +8,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -35,8 +35,8 @@ func init() {
 }
 
 type ISecretDriver interface {
-	ValidateCreateData(input *apis.SecretCreateInput) error
-	ToData(input *apis.SecretCreateInput) (map[string]string, error)
+	ValidateCreateData(input *api.SecretCreateInput) error
+	ToData(input *api.SecretCreateInput) (map[string]string, error)
 }
 
 type SSecret struct {
@@ -45,9 +45,9 @@ type SSecret struct {
 
 func (m SSecretManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameSecret,
+		ResourceName: api.ResourceNameSecret,
 		Object:       &v1.Secret{},
-		KindName:     apis.KindNameSecret,
+		KindName:     api.KindNameSecret,
 	}
 }
 
@@ -70,7 +70,7 @@ func (m *SSecretManager) RegisterDriver(typ v1.SecretType, driver ISecretDriver)
 
 func (m SSecretManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.SecretCreateInput) (runtime.Object, error) {
+	input api.SecretCreateInput) (runtime.Object, error) {
 	if input.Type == "" {
 		return nil, httperrors.NewNotEmptyError("type is empty")
 	}
@@ -95,7 +95,7 @@ func (m SSecretManager) NewK8SRawObjectForCreate(
 
 func (m SSecretManager) ValidateCreateData(
 	ctx *model.RequestContext,
-	query *jsonutils.JSONDict, input *apis.SecretCreateInput) (*apis.SecretCreateInput, error) {
+	query *jsonutils.JSONDict, input *api.SecretCreateInput) (*api.SecretCreateInput, error) {
 	if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (m SSecretManager) ValidateCreateData(
 	return input, drv.ValidateCreateData(input)
 }
 
-func (m SSecretManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.ListInputSecret) (model.IQuery, error) {
+func (m SSecretManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.ListInputSecret) (model.IQuery, error) {
 	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
 	if err != nil {
 		return q, err
@@ -129,8 +129,8 @@ func (m SSecretManager) GetAllRawSecrets(cluster model.ICluster) ([]*v1.Secret, 
 	return m.GetRawSecrets(cluster, v1.NamespaceAll)
 }
 
-func (m *SSecretManager) GetAPISecrets(cluster model.ICluster, ss []*v1.Secret) ([]*apis.Secret, error) {
-	ret := make([]*apis.Secret, 0)
+func (m *SSecretManager) GetAPISecrets(cluster model.ICluster, ss []*v1.Secret) ([]*api.Secret, error) {
+	ret := make([]*api.Secret, 0)
 	err := ConvertRawToAPIObjects(m, cluster, ss, &ret)
 	return ret, err
 }
@@ -139,22 +139,22 @@ func (obj *SSecret) GetRawSecret() *v1.Secret {
 	return obj.GetK8SObject().(*v1.Secret)
 }
 
-func (obj *SSecret) GetAPIObject() (*apis.Secret, error) {
+func (obj *SSecret) GetAPIObject() (*api.Secret, error) {
 	rs := obj.GetRawSecret()
-	return &apis.Secret{
+	return &api.Secret{
 		ObjectMeta: obj.GetObjectMeta(),
 		TypeMeta:   obj.GetTypeMeta(),
 		Type:       rs.Type,
 	}, nil
 }
 
-func (obj *SSecret) GetAPIDetailObject() (*apis.SecretDetail, error) {
+func (obj *SSecret) GetAPIDetailObject() (*api.SecretDetail, error) {
 	rs := obj.GetRawSecret()
 	secret, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
 	}
-	return &apis.SecretDetail{
+	return &api.SecretDetail{
 		Secret: *secret,
 		Data:   rs.Data,
 	}, nil

@@ -10,7 +10,7 @@ import (
 
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/k8smodels"
 )
@@ -21,7 +21,7 @@ const (
 
 func init() {
 	k8smodels.StorageClassManager.RegisterDriver(
-		apis.StorageClassProvisionerCephCSIRBD,
+		api.StorageClassProvisionerCephCSIRBD,
 		newCephCSIRBD(),
 	)
 }
@@ -41,8 +41,8 @@ func (drv *CephCSIRBD) getUserKeyFromSecret(ctx *model.RequestContext, name, nam
 	secret, err := cli.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", "", err
-	} else if secret.Type != apis.SecretTypeCephCSI {
-		return "", "", httperrors.NewInputParameterError("%s/%s secret type is not %s", namespace, name, apis.SecretTypeCephCSI)
+	} else if secret.Type != api.SecretTypeCephCSI {
+		return "", "", httperrors.NewInputParameterError("%s/%s secret type is not %s", namespace, name, api.SecretTypeCephCSI)
 	}
 	uId := string(secret.Data["userID"])
 	key := string(secret.Data["userKey"])
@@ -53,12 +53,12 @@ func (drv *CephCSIRBD) getUserKeyFromSecret(ctx *model.RequestContext, name, nam
 }
 
 type cephConfig struct {
-	apis.ComponentCephCSIConfigCluster
+	api.ComponentCephCSIConfigCluster
 	User string
 	Key  string
 }
 
-func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *apis.StorageClassCreateInput) (*cephConfig, error) {
+func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *api.StorageClassCreateInput) (*cephConfig, error) {
 	input := data.CephCSIRBD
 	if input == nil {
 		return nil, httperrors.NewInputParameterError("cephCSIRBD config is empty")
@@ -79,10 +79,10 @@ func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *apis.Stora
 
 	cluster := ctx.Cluster().GetClusterObject().(*models.SCluster)
 	// check clusterId
-	component, err := cluster.GetComponentByType(apis.ClusterComponentCephCSI)
+	component, err := cluster.GetComponentByType(api.ClusterComponentCephCSI)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
-			return nil, httperrors.NewNotFoundError("not found cluster %s component %s", cluster.GetName(), apis.ClusterComponentCephCSI)
+			return nil, httperrors.NewNotFoundError("not found cluster %s component %s", cluster.GetName(), api.ClusterComponentCephCSI)
 		}
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *apis.Stora
 	}, nil
 }
 
-func (drv *CephCSIRBD) ValidateCreateData(ctx *model.RequestContext, data *apis.StorageClassCreateInput) (*apis.StorageClassCreateInput, error) {
+func (drv *CephCSIRBD) ValidateCreateData(ctx *model.RequestContext, data *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error) {
 	cephConf, err := drv.getCephConfig(ctx, data)
 	if err != nil {
 		return nil, err
@@ -141,13 +141,13 @@ func (drv *CephCSIRBD) listPools(monitors []string, user string, key string) ([]
 	return cephCli.ListPoolsNoDefault()
 }
 
-func (drv *CephCSIRBD) validateClusterId(cId string, conf *apis.ComponentSettingCephCSI) (apis.ComponentCephCSIConfigCluster, error) {
+func (drv *CephCSIRBD) validateClusterId(cId string, conf *api.ComponentSettingCephCSI) (api.ComponentCephCSIConfigCluster, error) {
 	for _, c := range conf.Config {
 		if c.ClsuterId == cId {
 			return c, nil
 		}
 	}
-	return apis.ComponentCephCSIConfigCluster{}, httperrors.NewNotFoundError("Not found clusterId %s in component config", cId)
+	return api.ComponentCephCSIConfigCluster{}, httperrors.NewNotFoundError("Not found clusterId %s in component config", cId)
 }
 
 func (drv *CephCSIRBD) validatePool(monitors []string, user string, key string, pool string) error {
@@ -161,7 +161,7 @@ func (drv *CephCSIRBD) validatePool(monitors []string, user string, key string, 
 	return nil
 }
 
-func (drv *CephCSIRBD) ConnectionTest(ctx *model.RequestContext, data *apis.StorageClassCreateInput) (*apis.StorageClassTestResult, error) {
+func (drv *CephCSIRBD) ConnectionTest(ctx *model.RequestContext, data *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
 	cephConf, err := drv.getCephConfig(ctx, data)
 	if err != nil {
 		return nil, err
@@ -170,12 +170,12 @@ func (drv *CephCSIRBD) ConnectionTest(ctx *model.RequestContext, data *apis.Stor
 	if err != nil {
 		return nil, err
 	}
-	ret := new(apis.StorageClassTestResult)
-	ret.CephCSIRBD = &apis.StorageClassTestResultCephCSIRBD{Pools: pools}
+	ret := new(api.StorageClassTestResult)
+	ret.CephCSIRBD = &api.StorageClassTestResultCephCSIRBD{Pools: pools}
 	return ret, nil
 }
 
-func (drv *CephCSIRBD) ToStorageClassParams(input *apis.StorageClassCreateInput) (map[string]string, error) {
+func (drv *CephCSIRBD) ToStorageClassParams(input *api.StorageClassCreateInput) (map[string]string, error) {
 	config := input.CephCSIRBD
 	params := map[string]string{
 		"clusterID":     config.ClusterId,

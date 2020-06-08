@@ -12,7 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 func init() {
@@ -27,7 +27,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	machine := obj.(*models.SMachine)
 	param := t.GetParams()
 
-	prepareData := new(apis.MachinePrepareInput)
+	prepareData := new(api.MachinePrepareInput)
 	if err := param.Unmarshal(prepareData); err != nil {
 		t.OnError(ctx, machine, err)
 		return
@@ -66,7 +66,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 		t.OnError(ctx, machine, errors.Wrapf(err, "Set machine private ip %s", ip))
 		return
 	}
-	machine.SetStatus(t.UserCred, apis.MachineStatusRunning, "")
+	machine.SetStatus(t.UserCred, api.MachineStatusRunning, "")
 
 	log.Infof("Prepare machine complete")
 	//cluster, err := machine.GetCluster()
@@ -80,7 +80,7 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 }
 
 func (t *MachinePrepareTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
-	machine.SetStatus(t.UserCred, apis.MachineStatusPrepareFail, err.Error())
+	machine.SetStatus(t.UserCred, api.MachineStatusPrepareFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, err.Error(), t.UserCred, false)
 }
