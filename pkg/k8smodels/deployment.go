@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"yunion.io/x/jsonutils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -39,8 +39,8 @@ type SDeployment struct {
 
 func (_ SDeploymentManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameDeployment,
-		KindName:     apis.KindNameDeployment,
+		ResourceName: api.ResourceNameDeployment,
+		KindName:     api.KindNameDeployment,
 		Object:       &apps.Deployment{},
 	}
 }
@@ -48,7 +48,7 @@ func (_ SDeploymentManager) GetK8SResourceInfo() model.K8SResourceInfo {
 func (m SDeploymentManager) ValidateCreateData(
 	ctx *model.RequestContext,
 	query *jsonutils.JSONDict,
-	input *apis.DeploymentCreateInput) (*apis.DeploymentCreateInput, error) {
+	input *api.DeploymentCreateInput) (*api.DeploymentCreateInput, error) {
 	if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
 		return input, err
 	}
@@ -57,7 +57,7 @@ func (m SDeploymentManager) ValidateCreateData(
 
 func (m SDeploymentManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.DeploymentCreateInput) (runtime.Object, error) {
+	input api.DeploymentCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
@@ -89,7 +89,7 @@ func (obj *SDeployment) GetRawPods() ([]*v1.Pod, error) {
 	return pods, nil
 }
 
-func (obj *SDeployment) GetPods() ([]*apis.Pod, error) {
+func (obj *SDeployment) GetPods() ([]*api.Pod, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (obj *SDeployment) GetPods() ([]*apis.Pod, error) {
 	return PodManager.GetAPIPods(obj.GetCluster(), pods)
 }
 
-func (obj *SDeployment) GetPodInfo() (*apis.PodInfo, error) {
+func (obj *SDeployment) GetPodInfo() (*api.PodInfo, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -106,13 +106,13 @@ func (obj *SDeployment) GetPodInfo() (*apis.PodInfo, error) {
 	return GetPodInfo(obj, deploy.Status.Replicas, deploy.Spec.Replicas, pods)
 }
 
-func (obj *SDeployment) GetAPIObject() (*apis.Deployment, error) {
+func (obj *SDeployment) GetAPIObject() (*api.Deployment, error) {
 	podInfo, err := obj.GetPodInfo()
 	if err != nil {
 		return nil, err
 	}
 	deploy := obj.GetRawDeployment()
-	return &apis.Deployment{
+	return &api.Deployment{
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		Pods:                *podInfo,
@@ -124,7 +124,7 @@ func (obj *SDeployment) GetAPIObject() (*apis.Deployment, error) {
 	}, nil
 }
 
-func (obj *SDeployment) GetEvents() ([]*apis.Event, error) {
+func (obj *SDeployment) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
@@ -134,7 +134,7 @@ func (obj *SDeployment) GetRawServices() ([]*v1.Service, error) {
 	return svcs, err
 }
 
-func (obj *SDeployment) GetServices() ([]*apis.Service, error) {
+func (obj *SDeployment) GetServices() ([]*api.Service, error) {
 	svcs, err := obj.GetRawServices()
 	if err != nil {
 		return nil, err
@@ -142,8 +142,8 @@ func (obj *SDeployment) GetServices() ([]*apis.Service, error) {
 	return ServiceManager.GetAPIServices(obj.GetCluster(), svcs)
 }
 
-func (obj *SDeployment) GetStatusInfo(status *apps.DeploymentStatus) apis.StatusInfo {
-	return apis.StatusInfo{
+func (obj *SDeployment) GetStatusInfo(status *apps.DeploymentStatus) api.StatusInfo {
+	return api.StatusInfo{
 		Replicas:    status.Replicas,
 		Updated:     status.UpdatedReplicas,
 		Available:   status.AvailableReplicas,
@@ -184,7 +184,7 @@ func (obj *SDeployment) GetRawReplicaSets() ([]*apps.ReplicaSet, error) {
 		selector)
 }
 
-func (obj *SDeployment) GetOldReplicaSets() ([]*apis.ReplicaSet, error) {
+func (obj *SDeployment) GetOldReplicaSets() ([]*api.ReplicaSet, error) {
 	deploy := obj.GetRawDeployment()
 	rss, err := obj.GetRawReplicaSets()
 	if err != nil {
@@ -197,7 +197,7 @@ func (obj *SDeployment) GetOldReplicaSets() ([]*apis.ReplicaSet, error) {
 	return ReplicaSetManager.GetAPIReplicaSets(obj.GetCluster(), oldRs)
 }
 
-func (obj *SDeployment) GetNewReplicaSet() (*apis.ReplicaSet, error) {
+func (obj *SDeployment) GetNewReplicaSet() (*api.ReplicaSet, error) {
 	rss, err := obj.GetRawReplicaSets()
 	if err != nil {
 		return nil, err
@@ -212,7 +212,7 @@ func (obj *SDeployment) GetNewReplicaSet() (*apis.ReplicaSet, error) {
 	return ReplicaSetManager.GetAPIReplicaSet(obj.GetCluster(), rs)
 }
 
-func (obj *SDeployment) GetAPIDetailObject() (*apis.DeploymentDetail, error) {
+func (obj *SDeployment) GetAPIDetailObject() (*api.DeploymentDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -232,9 +232,9 @@ func (obj *SDeployment) GetAPIDetailObject() (*apis.DeploymentDetail, error) {
 
 	deploy := obj.GetRawDeployment()
 	// Extra Info
-	var rollingUpdateStrategy *apis.RollingUpdateStrategy
+	var rollingUpdateStrategy *api.RollingUpdateStrategy
 	if deploy.Spec.Strategy.RollingUpdate != nil {
-		rollingUpdateStrategy = &apis.RollingUpdateStrategy{
+		rollingUpdateStrategy = &api.RollingUpdateStrategy{
 			MaxSurge:       deploy.Spec.Strategy.RollingUpdate.MaxSurge,
 			MaxUnavailable: deploy.Spec.Strategy.RollingUpdate.MaxUnavailable,
 		}
@@ -247,7 +247,7 @@ func (obj *SDeployment) GetAPIDetailObject() (*apis.DeploymentDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.DeploymentDetail{
+	return &api.DeploymentDetail{
 		Deployment:            *apiObj,
 		Pods:                  pods,
 		Services:              services,
@@ -262,14 +262,14 @@ func (obj *SDeployment) GetAPIDetailObject() (*apis.DeploymentDetail, error) {
 	}, nil
 }
 
-func (obj *SDeployment) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.DeploymentUpdateInput) (*apis.DeploymentUpdateInput, error) {
+func (obj *SDeployment) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *api.DeploymentUpdateInput) (*api.DeploymentUpdateInput, error) {
 	if err := obj.ReplicaResourceBase.ValidateUpdateData(input.Replicas); err != nil {
 		return nil, err
 	}
 	return input, nil
 }
 
-func (obj *SDeployment) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *apis.DeploymentUpdateInput) (runtime.Object, error) {
+func (obj *SDeployment) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *api.DeploymentUpdateInput) (runtime.Object, error) {
 	deploy := obj.GetRawDeployment().DeepCopy()
 	if input.Replicas != nil {
 		deploy.Spec.Replicas = input.Replicas

@@ -1,13 +1,17 @@
-package main
+package generators
 
 import (
-	"os"
+	"fmt"
 	"path/filepath"
+	"strings"
 
 	"k8s.io/gengo/args"
+	"k8s.io/gengo/generator"
+	"k8s.io/gengo/types"
 
 	"yunion.io/x/code-generator/pkg/swagger-gen/generators"
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/util/sets"
 )
 
 func Packages(ctx *generator.Context, arguments *args.GeneratorArgs) generator.Packages {
@@ -22,7 +26,7 @@ func Packages(ctx *generator.Context, arguments *args.GeneratorArgs) generator.P
 	outPkgName := strings.Split(filepath.Base(arguments.OutputPackagePath), ".")[0]
 	pkgPath := arguments.OutputPackagePath
 	svcName := outPkgName
-	pkgs = append(pkgs, NewDocPackage(outPkgName, pkgPath, header, svcName))
+	pkgs = append(pkgs, generators.NewDocPackage(outPkgName, pkgPath, header, svcName))
 	for i := range inputs {
 		pkg := ctx.Universe[i]
 		if pkg == nil {
@@ -37,7 +41,7 @@ func Packages(ctx *generator.Context, arguments *args.GeneratorArgs) generator.P
 				GeneratorFunc: func(c *generator.Context) []generator.Generator {
 					return []generator.Generator{
 						// Generate swagger code by model.
-						generators.NewSwaggerGen(arguments.OutputFileBaseName, pkg.Path, ctx.Order),
+						NewGenerator(generators.NewSwaggerGen(arguments.OutputFileBaseName, pkg.Path, ctx.Order)),
 					}
 				},
 				FilterFunc: func(c *generator.Context, t *types.Type) bool {
@@ -49,18 +53,18 @@ func Packages(ctx *generator.Context, arguments *args.GeneratorArgs) generator.P
 	return pkgs
 }
 
-type generator struct {
+type Generator struct {
 	generator.Generator
 }
 
 func NewGenerator(gen generator.Generator) generator.Generator {
-	return &generator{
+	return &Generator{
 		Generator: gen,
 	}
 }
 
-func (g *generator) Imports(c *generator.Context) []string {
+func (g *Generator) Imports(c *generator.Context) []string {
 	return []string{
-		"yunion.io/x/yunion-kube/pkg/apis",
+		"yunion.io/x/yunion-kube/pkg/api",
 	}
 }

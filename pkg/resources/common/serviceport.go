@@ -3,7 +3,7 @@ package common
 import (
 	"k8s.io/api/core/v1"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 )
 
 // GetServicePorts returns human readable name for the given service ports list.

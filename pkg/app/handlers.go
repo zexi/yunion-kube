@@ -19,12 +19,14 @@ import (
 	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/secret"
 	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/storageclass"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/release"
+	"yunion.io/x/yunion-kube/pkg/usages"
 )
 
 func InitHandlers(app *appsrv.Application) {
 	db.InitAllManagers()
 	apiPrefix := "/api"
 	taskman.AddTaskHandler(apiPrefix, app)
+	usages.AddUsageHandler(apiPrefix, app)
 
 	for _, man := range []db.IModelManager{
 		taskman.TaskManager,
@@ -34,6 +36,10 @@ func InitHandlers(app *appsrv.Application) {
 		db.TenantCacheManager,
 		db.SharedResourceManager,
 		db.Metadata,
+
+		// only register this k8s model manager, not provides http handler
+		models.NodeManager,
+		models.PodManager,
 	} {
 		db.RegisterModelManager(man)
 	}

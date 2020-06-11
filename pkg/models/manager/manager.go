@@ -3,10 +3,12 @@ package manager
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type ICluster interface {
@@ -19,12 +21,20 @@ type ICluster interface {
 	GetKubeconfig() (string, error)
 	GetStatus() string
 	GetProjectId() string
+	GetK8sResourceManager(kindName string) IK8sResourceManager
+}
+
+// bidirect sync callback
+type IK8sResourceManager interface {
+	OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
+	OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, oldObj, newObj runtime.Object)
+	OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
 }
 
 type IClusterManager interface {
 	IsClusterExists(userCred mcclient.TokenCredential, id string) (ICluster, bool, error)
 	FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (ICluster, error)
-	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data apis.ClusterCreateInput) (ICluster, error)
+	CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data api.ClusterCreateInput) (ICluster, error)
 	//GetNonSystemClusters() ([]ICluster, error)
 	GetRunningClusters() ([]ICluster, error)
 }
@@ -48,7 +58,7 @@ type IMachineManager interface {
 	FetchMachineByIdOrName(userCred mcclient.TokenCredential, id string) (IMachine, error)
 	GetMachines(clusterId string) ([]IMachine, error)
 	IsMachineExists(userCred mcclient.TokenCredential, id string) (IMachine, bool, error)
-	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *apis.CreateMachineData) (IMachine, error)
+	CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *api.CreateMachineData) (IMachine, error)
 }
 
 var (

@@ -5,7 +5,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -31,14 +31,14 @@ type SVirtualMachine struct {
 
 func (m *SVirtualMachineManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameVirtualMachine,
-		KindName:     apis.KindNameVirtualMachine,
+		ResourceName: api.ResourceNameVirtualMachine,
+		KindName:     api.KindNameVirtualMachine,
 		Object:       &unstructured.Unstructured{},
 	}
 }
 
-func (obj *SVirtualMachine) GetAPIObject() (*apis.VirtualMachine, error) {
-	vm := new(apis.VirtualMachine)
+func (obj *SVirtualMachine) GetAPIObject() (*api.VirtualMachine, error) {
+	vm := new(api.VirtualMachine)
 	if err := obj.ConvertToAPIObject(obj, vm); err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (obj *SVirtualMachine) GetAPIObject() (*apis.VirtualMachine, error) {
 }
 
 func (obj *SVirtualMachine) FillAPIObjectBySpec(specObj jsonutils.JSONObject, output IUnstructuredOutput) error {
-	vm := output.(*apis.VirtualMachine)
+	vm := output.(*api.VirtualMachine)
 	vm.Hypervisor, _ = specObj.GetString("vmConfig", "hypervisor")
 	if cpuCount, _ := specObj.Int("vmConfig", "vcpuCount"); cpuCount != 0 {
 		vm.VcpuCount = &cpuCount
@@ -60,7 +60,7 @@ func (obj *SVirtualMachine) FillAPIObjectBySpec(specObj jsonutils.JSONObject, ou
 }
 
 func (obj *SVirtualMachine) FillAPIObjectByStatus(statusObj jsonutils.JSONObject, output IUnstructuredOutput) error {
-	vm := output.(*apis.VirtualMachine)
+	vm := output.(*api.VirtualMachine)
 	phase, _ := statusObj.GetString("phase")
 	vm.VirtualMachineStatus.Status = phase
 	createTimes, _ := statusObj.Int("createTimes")

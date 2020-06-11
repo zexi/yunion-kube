@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 )
 
@@ -47,12 +47,12 @@ func (m *SX509KeyPairManager) generateName(cluster *SCluster, ownerId mcclient.I
 	return db.GenerateName(X509KeyPairManager, ownerId, hint)
 }
 
-func (m *SX509KeyPairManager) createKeyPair(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, kp apis.KeyPair, user string) (*SX509KeyPair, error) {
+func (m *SX509KeyPairManager) createKeyPair(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, kp api.KeyPair, user string) (*SX509KeyPair, error) {
 	name, err := m.generateName(cluster, userCred, user)
 	if err != nil {
 		return nil, err
 	}
-	input := &apis.X509KeyPairCreateInput{
+	input := &api.X509KeyPairCreateInput{
 		Name:        name,
 		User:        user,
 		Certificate: string(kp.Cert),
@@ -91,12 +91,12 @@ func (m *SX509KeyPairManager) GenerateServiceAccountKeys(ctx context.Context, us
 }
 
 func (m *SX509KeyPairManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	input := new(apis.X509KeyPairCreateInput)
+	input := new(api.X509KeyPairCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return nil, httperrors.NewInputParameterError("Unmarshal create input: %v", err)
 	}
 	cert := []byte(input.Certificate)
-	if input.User != apis.ServiceAccountCA {
+	if input.User != api.ServiceAccountCA {
 		if _, err := certificates.DecodeCertPEM(cert); err != nil {
 			return nil, httperrors.NewInputParameterError("Invalid Certificate: %v", err)
 		}
@@ -164,8 +164,8 @@ func (kp *SX509KeyPair) HasCertAndKey() bool {
 	return len(kp.Certificate) != 0 && len(kp.PrivateKey) != 0
 }
 
-func (kp *SX509KeyPair) ToKeyPair() *apis.KeyPair {
-	return &apis.KeyPair{
+func (kp *SX509KeyPair) ToKeyPair() *api.KeyPair {
+	return &api.KeyPair{
 		Cert: []byte(kp.Certificate),
 		Key:  []byte(kp.PrivateKey),
 	}

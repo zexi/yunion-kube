@@ -24,7 +24,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -36,7 +36,7 @@ type sClusterAPIDriver struct {
 	*SBaseDriver
 }
 
-func newClusterAPIDriver(mt apis.ModeType, pt apis.ProviderType, ct apis.ClusterResourceType) *sClusterAPIDriver {
+func newClusterAPIDriver(mt api.ModeType, pt api.ProviderType, ct api.ClusterResourceType) *sClusterAPIDriver {
 	return &sClusterAPIDriver{
 		SBaseDriver: newBaseDriver(mt, pt, ct),
 	}
@@ -62,7 +62,7 @@ func (d *sClusterAPIDriver) CreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *models.SCluster,
-	data []*apis.CreateMachineData,
+	data []*api.CreateMachineData,
 ) ([]manager.IMachine, error) {
 	needControlplane, err := cluster.NeedControlplane()
 	if err != nil {
@@ -93,17 +93,17 @@ type machineData struct {
 	data    *jsonutils.JSONDict
 }
 
-func newMachineData(machine *models.SMachine, input *apis.CreateMachineData) *machineData {
+func newMachineData(machine *models.SMachine, input *api.CreateMachineData) *machineData {
 	return &machineData{
 		machine: machine,
 		data:    jsonutils.Marshal(input).(*jsonutils.JSONDict),
 	}
 }
 
-func createMachines(ctx context.Context, userCred mcclient.TokenCredential, controls, nodes []*apis.CreateMachineData) ([]*machineData, []*machineData, error) {
+func createMachines(ctx context.Context, userCred mcclient.TokenCredential, controls, nodes []*api.CreateMachineData) ([]*machineData, []*machineData, error) {
 	cms := make([]*machineData, 0)
 	nms := make([]*machineData, 0)
-	cf := func(data []*apis.CreateMachineData) ([]*machineData, error) {
+	cf := func(data []*api.CreateMachineData) ([]*machineData, error) {
 		ret := make([]*machineData, 0)
 		for _, m := range data {
 			obj, err := models.MachineManager.CreateMachineNoHook(ctx, userCred, m)

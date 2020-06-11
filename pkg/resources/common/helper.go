@@ -11,7 +11,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 )
 
 func JsonDecode(data jsonutils.JSONObject, obj interface{}) error {

@@ -22,7 +22,7 @@ import (
 	"yunion.io/x/pkg/util/regutils"
 	"yunion.io/x/pkg/util/sets"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
 

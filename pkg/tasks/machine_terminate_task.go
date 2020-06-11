@@ -2,7 +2,7 @@ package tasks
 
 import (
 	"context"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
@@ -36,6 +36,6 @@ func (t *MachineTerminateTask) OnInit(ctx context.Context, obj db.IStandaloneMod
 }
 
 func (t *MachineTerminateTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
-	machine.SetStatus(t.UserCred, apis.MachineStatusTerminateFail, err.Error())
+	machine.SetStatus(t.UserCred, api.MachineStatusTerminateFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 }

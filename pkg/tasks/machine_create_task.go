@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
@@ -51,7 +51,7 @@ func (t *MachineCreateTask) OnMachinePreparedFailed(ctx context.Context, obj db.
 }
 
 func (t *MachineCreateTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
-	machine.SetStatus(t.UserCred, apis.MachineStatusCreateFail, err.Error())
+	machine.SetStatus(t.UserCred, api.MachineStatusCreateFail, err.Error())
 	t.SetStageFailed(ctx, err.Error())
 	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachineCreate, err.Error(), t.UserCred, false)
 }

@@ -18,7 +18,7 @@ import (
 
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/options"
 )
 
@@ -38,8 +38,8 @@ type IRepo interface {
 
 type IRelease interface {
 	List() *action.List
-	Create(*apis.ReleaseCreateInput) (*release.Release, error)
-	Update(*apis.ReleaseUpdateInput) (*release.Release, error)
+	Create(*api.ReleaseCreateInput) (*release.Release, error)
+	Update(*api.ReleaseUpdateInput) (*release.Release, error)
 	Install() *action.Install
 	UnInstall() *action.Uninstall
 	Upgrade() *action.Upgrade
@@ -203,7 +203,7 @@ func (r releaseClient) getValueOptions(valueStr string, sets map[string]string) 
 	return ret.MergeValues(p)
 }
 
-func (r releaseClient) Create(input *apis.ReleaseCreateInput) (*release.Release, error) {
+func (r releaseClient) Create(input *api.ReleaseCreateInput) (*release.Release, error) {
 	if input.Version == "" {
 		input.Version = ">0.0.0-0"
 	}
@@ -251,7 +251,7 @@ func isChartInstallable(ch *chart.Chart) (bool, error) {
 	return false, errors.Errorf("%s charts are not installable", ch.Metadata.Type)
 }
 
-func (r releaseClient) Update(input *apis.ReleaseUpdateInput) (*release.Release, error) {
+func (r releaseClient) Update(input *api.ReleaseUpdateInput) (*release.Release, error) {
 	if input.Version == "" {
 		input.Version = ">0.0.0-0"
 	}

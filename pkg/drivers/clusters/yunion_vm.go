@@ -16,7 +16,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/drivers/clusters/addons"
 	"yunion.io/x/yunion-kube/pkg/models"
@@ -34,7 +34,7 @@ type SYunionVMDriver struct {
 
 func NewYunionVMDriver() *SYunionVMDriver {
 	return &SYunionVMDriver{
-		sClusterAPIDriver: newClusterAPIDriver(apis.ModeTypeSelfBuild, apis.ProviderTypeOnecloud, apis.ClusterResourceTypeGuest),
+		sClusterAPIDriver: newClusterAPIDriver(api.ModeTypeSelfBuild, api.ProviderTypeOnecloud, api.ClusterResourceTypeGuest),
 	}
 }
 
@@ -42,16 +42,16 @@ func init() {
 	models.RegisterClusterDriver(NewYunionVMDriver())
 }
 
-func (d *SYunionVMDriver) GetMode() apis.ModeType {
-	return apis.ModeTypeSelfBuild
+func (d *SYunionVMDriver) GetMode() api.ModeType {
+	return api.ModeTypeSelfBuild
 }
 
-func (d *SYunionVMDriver) GetProvider() apis.ProviderType {
-	return apis.ProviderTypeOnecloud
+func (d *SYunionVMDriver) GetProvider() api.ProviderType {
+	return api.ProviderTypeOnecloud
 }
 
-func (d *SYunionVMDriver) GetResourceType() apis.ClusterResourceType {
-	return apis.ClusterResourceTypeGuest
+func (d *SYunionVMDriver) GetResourceType() api.ClusterResourceType {
+	return api.ClusterResourceTypeGuest
 }
 
 func (d *SYunionVMDriver) GetK8sVersions() []string {
@@ -138,8 +138,8 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *models.SCluster,
-	imageRepo *apis.ImageRepository,
-	data []*apis.CreateMachineData,
+	imageRepo *api.ImageRepository,
+	data []*api.CreateMachineData,
 ) error {
 	controls, nodes, err := d.sClusterAPIDriver.ValidateCreateMachines(ctx, userCred, cluster, data)
 	if err != nil {
@@ -171,7 +171,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 		return httperrors.NewInputParameterError("Invalid kubernetes image: %v", err)
 	}
 	randStr := rand.String(4)
-	controlIdxs, err := getClusterMachineIndexs(cluster, apis.RoleTypeControlplane, len(controls))
+	controlIdxs, err := getClusterMachineIndexs(cluster, api.RoleTypeControlplane, len(controls))
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Generate controlplane machines name: %v", err)
 	}
@@ -183,7 +183,7 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 			return httperrors.NewInputParameterError("Apply controlplane vm config: %v", err)
 		}
 	}
-	nodeIdxs, err := getClusterMachineIndexs(cluster, apis.RoleTypeNode, len(nodes))
+	nodeIdxs, err := getClusterMachineIndexs(cluster, api.RoleTypeNode, len(nodes))
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Generate node machines name: %v", err)
 	}
@@ -219,13 +219,13 @@ func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mccli
 	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
-	createData := apis.ClusterCreateInput{}
+	createData := api.ClusterCreateInput{}
 	if err := data.Unmarshal(&createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	ms := createData.Machines
 	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 && createData.Provider != string(apis.ProviderTypeOnecloud) {
+	if len(controls) == 0 && createData.Provider != string(api.ProviderTypeOnecloud) {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
 
@@ -239,28 +239,28 @@ func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mccli
 	return nil
 }
 
-func (d *SYunionVMDriver) applyMachineCreateConfig(m *apis.CreateMachineData, imageId string) error {
+func (d *SYunionVMDriver) applyMachineCreateConfig(m *api.CreateMachineData, imageId string) error {
 	if m.Config == nil {
-		m.Config = new(apis.MachineCreateConfig)
+		m.Config = new(api.MachineCreateConfig)
 	}
 	if m.Config.Vm == nil {
-		m.Config.Vm = new(apis.MachineCreateVMConfig)
+		m.Config.Vm = new(api.MachineCreateVMConfig)
 	}
 	config := m.Config.Vm
 	if config.Hypervisor == "" {
 		config.Hypervisor = computeapi.HYPERVISOR_KVM
 	}
 	if config.VmemSize <= 0 {
-		config.VmemSize = apis.DefaultVMMemSize
+		config.VmemSize = api.DefaultVMMemSize
 	}
 	if config.VcpuCount <= 0 {
-		config.VcpuCount = apis.DefaultVMCPUCount
+		config.VcpuCount = api.DefaultVMCPUCount
 	}
-	if config.VcpuCount < apis.DefaultVMCPUCount {
-		return errors.Errorf("cpu count less than %d", apis.DefaultVMCPUCount)
+	if config.VcpuCount < api.DefaultVMCPUCount {
+		return errors.Errorf("cpu count less than %d", api.DefaultVMCPUCount)
 	}
 	rootDisk := &computeapi.DiskConfig{
-		SizeMb: apis.DefaultVMRootDiskSize,
+		SizeMb: api.DefaultVMRootDiskSize,
 	}
 	restDisks := []*computeapi.DiskConfig{}
 	if len(config.Disks) >= 1 {
@@ -273,24 +273,24 @@ func (d *SYunionVMDriver) applyMachineCreateConfig(m *apis.CreateMachineData, im
 	return nil
 }
 
-func (d *SYunionVMDriver) validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *apis.CreateMachineData) error {
+func (d *SYunionVMDriver) validateCreateMachine(s *mcclient.ClientSession, privateKey string, m *api.CreateMachineData) error {
 	if err := models.ValidateRole(m.Role); err != nil {
 		return err
 	}
-	if m.ResourceType != apis.MachineResourceTypeVm {
+	if m.ResourceType != api.MachineResourceTypeVm {
 		return httperrors.NewInputParameterError("Invalid resource type: %q", m.ResourceType)
 	}
 	if len(m.ResourceId) != 0 {
 		return httperrors.NewInputParameterError("ResourceId can't be specify")
 	}
-	mDrv := d.GetMachineDriver(apis.MachineResourceType(m.ResourceType))
+	mDrv := d.GetMachineDriver(api.MachineResourceType(m.ResourceType))
 	if err := mDrv.ValidateCreateData(s, m); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *SYunionVMDriver) GetUsableInstances(s *mcclient.ClientSession) ([]apis.UsableInstance, error) {
+func (d *SYunionVMDriver) GetUsableInstances(s *mcclient.ClientSession) ([]api.UsableInstance, error) {
 	return nil, httperrors.NewInputParameterError("Can't get UsableInstances")
 }
 
@@ -323,11 +323,11 @@ func (d *SYunionVMDriver) GetKubeconfig(cluster *models.SCluster) (string, error
 	return out, err
 }
 
-func (d *SYunionVMDriver) CreateClusterResource(man *models.SClusterManager, data *apis.ClusterCreateInput) error {
+func (d *SYunionVMDriver) CreateClusterResource(man *models.SClusterManager, data *api.ClusterCreateInput) error {
 	return d.sClusterAPIDriver.CreateClusterResource(man, data)
 }
 
-func (d *SYunionVMDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*apis.CreateMachineData) ([]manager.IMachine, error) {
+func (d *SYunionVMDriver) CreateMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, data []*api.CreateMachineData) ([]manager.IMachine, error) {
 	return d.sClusterAPIDriver.CreateMachines(d, ctx, userCred, cluster, data)
 }
 

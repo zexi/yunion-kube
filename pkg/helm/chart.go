@@ -18,7 +18,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/utils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 // SearchMaxScore suggests that any score higher than this is not considered a match
@@ -43,7 +43,7 @@ func (c ChartClient) setupSearchedVersion(devel bool) string {
 	return ">0.0.0"
 }
 
-func (c ChartClient) SearchRepo(query apis.ChartListInput, version string) ([]*apis.ChartResult, error) {
+func (c ChartClient) SearchRepo(query api.ChartListInput, version string) ([]*api.ChartResult, error) {
 	index, err := c.buildIndex(query.Repo)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (c ChartClient) getSearchResultRepo(r *search.Result) string {
 	return parts[0]
 }
 
-func (c ChartClient) applyFilter(q apis.ChartListInput, res []*search.Result) []*search.Result {
+func (c ChartClient) applyFilter(q api.ChartListInput, res []*search.Result) []*search.Result {
 	filterF := func(r *search.Result) bool {
 		if q.Repo != "" {
 			if c.getSearchResultRepo(r) != q.Repo {
@@ -109,10 +109,10 @@ func (c ChartClient) applyFilter(q apis.ChartListInput, res []*search.Result) []
 	return ret
 }
 
-func (c ChartClient) applyConstraint(version string, allVersion bool, results []*search.Result) ([]*apis.ChartResult, error) {
-	res := make([]*apis.ChartResult, 0)
+func (c ChartClient) applyConstraint(version string, allVersion bool, results []*search.Result) ([]*api.ChartResult, error) {
+	res := make([]*api.ChartResult, 0)
 	for _, chart := range results {
-		res = append(res, &apis.ChartResult{
+		res = append(res, &api.ChartResult{
 			ChartVersion: chart.Chart,
 			Metadata:     chart.Chart.Metadata,
 			Repo:         c.getSearchResultRepo(chart),

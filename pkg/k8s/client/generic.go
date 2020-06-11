@@ -11,7 +11,7 @@ package client
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/api/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +21,7 @@ package client
 	//"k8s.io/helm/pkg/kube"
 
 	"yunion.io/x/log"
-	"yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/types/api"
 )
 
 type GenericClient struct {
@@ -150,7 +150,7 @@ func (c *GenericClient) getSelectRelationPod(info *resource.Info, objPods map[st
 		}
 
 		if pod.Kind == "" {
-			pod.Kind = apis.ResourceKindPod
+			pod.Kind = api.ResourceKindPod
 		}
 		//vk := pod.GroupVersionKind().Version + "/" + pod.GroupVersionKind().Kind
 

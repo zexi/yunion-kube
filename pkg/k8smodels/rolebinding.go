@@ -5,7 +5,7 @@ import (
 
 	rbac "k8s.io/api/rbac/v1"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -33,9 +33,9 @@ type SRoleBinding struct {
 
 func (m *SRoleBindingManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameRoleBinding,
+		ResourceName: api.ResourceNameRoleBinding,
 		Object:       &rbac.RoleBinding{},
-		KindName:     apis.KindNameRoleBinding,
+		KindName:     api.KindNameRoleBinding,
 	}
 }
 
@@ -44,12 +44,12 @@ func (obj *SRoleBinding) GetRawRoleBinding() *rbac.RoleBinding {
 }
 
 func (obj *SRoleBinding) GetType() string {
-	return strings.ToLower(apis.KindNameRoleBinding)
+	return strings.ToLower(api.KindNameRoleBinding)
 }
 
-func (obj *SRoleBinding) GetAPIObject() (*apis.RbacRoleBinding, error) {
+func (obj *SRoleBinding) GetAPIObject() (*api.RbacRoleBinding, error) {
 	rb := obj.GetRawRoleBinding()
-	return &apis.RbacRoleBinding{
+	return &api.RbacRoleBinding{
 		ObjectMeta: obj.GetObjectMeta(),
 		TypeMeta:   obj.GetTypeMeta(),
 		Type:       obj.GetType(),
@@ -58,6 +58,6 @@ func (obj *SRoleBinding) GetAPIObject() (*apis.RbacRoleBinding, error) {
 	}, nil
 }
 
-func (obj *SRoleBinding) GetAPIDetailObject() (*apis.RbacRoleBinding, error) {
+func (obj *SRoleBinding) GetAPIDetailObject() (*api.RbacRoleBinding, error) {
 	return obj.GetAPIObject()
 }

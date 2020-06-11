@@ -12,7 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/resources/chart"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
@@ -78,10 +78,10 @@ func AddHelmDispatcher(prefix string, app *appsrv.Application) {
 	w.WriteHeader(http.StatusCreated)
 }*/
 
-func getQuery(ctx context.Context, w http.ResponseWriter, r *http.Request) (*apis.ChartListInput, *dataselect.DataSelectQuery, error) {
+func getQuery(ctx context.Context, w http.ResponseWriter, r *http.Request) (*api.ChartListInput, *dataselect.DataSelectQuery, error) {
 	_, query, _ := _fetchEnv(ctx, w, r)
 	dsq := common.NewDataSelectQuery(query)
-	var cq apis.ChartListInput
+	var cq api.ChartListInput
 	err := query.Unmarshal(&cq)
 	if err != nil {
 		return nil, nil, err

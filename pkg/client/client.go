@@ -19,7 +19,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/clientv2"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
@@ -279,7 +279,7 @@ func GetManager(cluster string) (*ClusterManager, error) {
 	}
 	man := manInterface.(*ClusterManager)
 	status := man.Cluster.GetStatus()
-	if status != apis.ClusterStatusRunning {
+	if status != api.ClusterStatusRunning {
 		return nil, errors.Wrapf(ErrStatus, "cluster %s status %s", cluster, status)
 	}
 	return man, nil

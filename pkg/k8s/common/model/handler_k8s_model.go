@@ -26,7 +26,7 @@ import (
 	"yunion.io/x/pkg/gotypes"
 	"yunion.io/x/pkg/utils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/clientv2"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -100,7 +100,7 @@ func (c *RequestContext) GetData() *jsonutils.JSONDict {
 }
 
 type ICluster interface {
-	apis.ICluster
+	api.ICluster
 
 	GetHandler() client.ResourceHandler
 	GetClientset() kubernetes.Interface
@@ -138,7 +138,7 @@ func (h *K8SModelHandler) List(ctx *RequestContext, query *jsonutils.JSONDict) (
 func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.JSONDict) (*modulebase.ListResult, error) {
 	var err error
 	//var maxLimit int64 = consts.GetMaxPagingLimit()
-	baseInput := new(apis.ListInputK8SBase)
+	baseInput := new(api.ListInputK8SBase)
 	if err := query.Unmarshal(baseInput); err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.J
 		return nil, err
 	}
 
-	listInput := new(apis.ListInputK8SBase)
+	listInput := new(api.ListInputK8SBase)
 	query.Unmarshal(listInput)
 
 	// process order by

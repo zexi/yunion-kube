@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -37,15 +37,15 @@ type SService struct {
 
 func (m SServiceManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameService,
+		ResourceName: api.ResourceNameService,
 		Object:       &v1.Service{},
-		KindName:     apis.KindNameService,
+		KindName:     api.KindNameService,
 	}
 }
 
 func (m SServiceManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.ServiceCreateInput) (runtime.Object, error) {
+	input api.ServiceCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	return GetServiceFromOption(&objMeta, &input.ServiceCreateOption), nil
 }
@@ -70,13 +70,13 @@ func (m SServiceManager) GetRawServicesByMatchLabels(cluster model.ICluster, ns 
 	return ret, nil
 }
 
-func (m *SServiceManager) GetAPIServices(cluster model.ICluster, svcs []*v1.Service) ([]*apis.Service, error) {
-	rets := make([]*apis.Service, 0)
+func (m *SServiceManager) GetAPIServices(cluster model.ICluster, svcs []*v1.Service) ([]*api.Service, error) {
+	rets := make([]*api.Service, 0)
 	err := ConvertRawToAPIObjects(m, cluster, svcs, &rets)
 	return rets, err
 }
 
-func (m *SServiceManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.ServiceListInput) (model.IQuery, error) {
+func (m *SServiceManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.ServiceListInput) (model.IQuery, error) {
 	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
 	if err != nil {
 		return nil, err
@@ -96,9 +96,9 @@ func (obj *SService) GetRawService() *v1.Service {
 	return obj.GetK8SObject().(*v1.Service)
 }
 
-func (obj *SService) GetAPIObject() (*apis.Service, error) {
+func (obj *SService) GetAPIObject() (*api.Service, error) {
 	svc := obj.GetRawService()
-	return &apis.Service{
+	return &api.Service{
 		ObjectMeta:        obj.GetObjectMeta(),
 		TypeMeta:          obj.GetTypeMeta(),
 		InternalEndpoint:  GetInternalEndpoint(svc.Name, svc.Namespace, svc.Spec.Ports),
@@ -115,7 +115,7 @@ func (obj *SService) GetRawPods() ([]*v1.Pod, error) {
 	return PodManager.GetRawPodsBySelector(obj.GetCluster(), obj.GetNamespace(), selector)
 }
 
-func (obj *SService) GetPods() ([]*apis.Pod, error) {
+func (obj *SService) GetPods() ([]*api.Pod, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -123,11 +123,11 @@ func (obj *SService) GetPods() ([]*apis.Pod, error) {
 	return PodManager.GetAPIPods(obj.GetCluster(), pods)
 }
 
-func (obj *SService) GetEvents() ([]*apis.Event, error) {
+func (obj *SService) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
-func (obj *SService) GetAPIDetailObject() (*apis.ServiceDetail, error) {
+func (obj *SService) GetAPIDetailObject() (*api.ServiceDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ func (obj *SService) GetAPIDetailObject() (*apis.ServiceDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.ServiceDetail{
+	return &api.ServiceDetail{
 		Service:         *apiObj,
 		Endpoints:       eps,
 		Events:          events,

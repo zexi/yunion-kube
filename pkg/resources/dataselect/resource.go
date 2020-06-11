@@ -8,24 +8,24 @@ import (
 	"k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
-	api "yunion.io/x/yunion-kube/pkg/types/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
+	tapi "yunion.io/x/yunion-kube/pkg/types/apis"
 )
 
 type IList interface {
 	Append(obj interface{})
-	SetMeta(meta api.ListMeta)
+	SetMeta(meta tapi.ListMeta)
 }
 
 type ListMeta struct {
-	api.ListMeta
+	tapi.ListMeta
 }
 
 func NewListMeta() *ListMeta {
 	return &ListMeta{}
 }
 
-func (l *ListMeta) SetMeta(meta api.ListMeta) {
+func (l *ListMeta) SetMeta(meta tapi.ListMeta) {
 	l.ListMeta = meta
 }
 
@@ -73,7 +73,7 @@ func getObjectMeta(obj interface{}) (metaV1.ObjectMeta, error) {
 	}
 	meta, ok := f.Interface().(metaV1.ObjectMeta)
 	if !ok {
-		apiMeta := f.Interface().(apis.ObjectMeta)
+		apiMeta := f.Interface().(api.ObjectMeta)
 		meta = metaV1.ObjectMeta{
 			Name:              apiMeta.Name,
 			Namespace:         apiMeta.Namespace,
@@ -203,11 +203,11 @@ func (cell HelmReleaseDataCell) GetProperty(name PropertyName) ComparableValue {
 }
 
 type ChartDataCell struct {
-	Chart *apis.ChartResult
+	Chart *api.ChartResult
 }
 
 func NewChartDataCell(obj interface{}) (DataCell, error) {
-	chart, ok := obj.(*apis.ChartResult)
+	chart, ok := obj.(*api.ChartResult)
 	if !ok {
 		return nil, fmt.Errorf("Object %#v not *data.ChartResult", obj)
 	}

@@ -3,7 +3,7 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
@@ -61,7 +61,7 @@ func (t *ClusterDeleteTask) onError(ctx context.Context, cluster db.IStandaloneM
 
 func (t *ClusterDeleteTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*models.SCluster)
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusDeleteFail, "")
+	cluster.SetStatus(t.UserCred, api.ClusterStatusDeleteFail, "")
 	t.STask.SetStageFailed(ctx, reason)
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterDelete, reason, t.UserCred, false)
 }

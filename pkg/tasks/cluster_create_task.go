@@ -3,7 +3,7 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
@@ -20,13 +20,13 @@ type ClusterCreateTask struct {
 	taskman.STask
 }
 
-func (t *ClusterCreateTask) getMachines(cluster *models.SCluster) ([]*apis.CreateMachineData, error) {
+func (t *ClusterCreateTask) getMachines(cluster *models.SCluster) ([]*api.CreateMachineData, error) {
 	if !cluster.GetDriver().NeedCreateMachines() {
 		return nil, nil
 	}
 	params := t.GetParams()
-	ret := []*apis.CreateMachineData{}
-	ms := []apis.CreateMachineData{}
+	ret := []*api.CreateMachineData{}
+	ms := []api.CreateMachineData{}
 	if err := params.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (t *ClusterCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 		t.OnApplyAddonsComplete(ctx, obj, data)
 		return
 	}
-	res := apis.ClusterCreateInput{}
+	res := api.ClusterCreateInput{}
 	if err := t.GetParams().Unmarshal(&res); err != nil {
 		t.onError(ctx, obj, fmt.Errorf("Unmarshal: %v", err))
 		return
@@ -108,7 +108,7 @@ func (t *ClusterCreateTask) onError(ctx context.Context, cluster db.IStandaloneM
 
 func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
 	cluster := obj.(*models.SCluster)
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusCreateFail, reason)
+	cluster.SetStatus(t.UserCred, api.ClusterStatusCreateFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterCreate, reason, t.UserCred, false)
 }

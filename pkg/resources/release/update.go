@@ -5,7 +5,7 @@ import (
 
 	"yunion.io/x/log"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )

@@ -18,7 +18,7 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -50,9 +50,9 @@ type SPod struct {
 
 func (m SPodManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNamePod,
+		ResourceName: api.ResourceNamePod,
 		Object:       &v1.Pod{},
-		KindName:     apis.KindNamePod,
+		KindName:     api.KindNamePod,
 	}
 }
 
@@ -62,7 +62,7 @@ func (p SPodManager) ValidateCreateData(
 	return nil, httperrors.NewUnsupportOperationError("kubernetes pod not support create")
 }
 
-func (p SPodManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.PodListInput) (model.IQuery, error) {
+func (p SPodManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.PodListInput) (model.IQuery, error) {
 	q, err := p.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
 	if err != nil {
 		return nil, err
@@ -91,8 +91,8 @@ func (p SPodManager) GetAllRawPods(cluster model.ICluster) ([]*v1.Pod, error) {
 	return p.GetRawPods(cluster, v1.NamespaceAll)
 }
 
-func (p *SPodManager) GetAPIPods(cluster model.ICluster, pods []*v1.Pod) ([]*apis.Pod, error) {
-	ret := make([]*apis.Pod, 0)
+func (p *SPodManager) GetAPIPods(cluster model.ICluster, pods []*v1.Pod) ([]*api.Pod, error) {
+	ret := make([]*api.Pod, 0)
 	err := ConvertRawToAPIObjects(p, cluster, pods, &ret)
 	return ret, err
 }
@@ -110,7 +110,7 @@ func (obj *SPod) GetRawConfigMaps() ([]*v1.ConfigMap, error) {
 	return cfgs, nil
 }
 
-func (obj *SPod) GetAPIConfigMaps() ([]*apis.ConfigMap, error) {
+func (obj *SPod) GetAPIConfigMaps() ([]*api.ConfigMap, error) {
 	cfgs, err := obj.GetRawConfigMaps()
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (obj *SPod) GetRawSecrets() ([]*v1.Secret, error) {
 	return ss, nil
 }
 
-func (obj *SPod) GetAPISecrets() ([]*apis.Secret, error) {
+func (obj *SPod) GetAPISecrets() ([]*api.Secret, error) {
 	ss, err := obj.GetRawSecrets()
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (obj *SPod) GetAPISecrets() ([]*apis.Secret, error) {
 	return SecretManager.GetAPISecrets(obj.GetCluster(), ss)
 }
 
-func (obj *SPod) GetAPIObject() (*apis.Pod, error) {
+func (obj *SPod) GetAPIObject() (*api.Pod, error) {
 	pod := obj.GetRawPod()
 	cluster := obj.GetCluster()
 	warnings, err := EventManager.GetWarningEventsByPods(cluster, []*v1.Pod{pod})
@@ -147,9 +147,9 @@ func (obj *SPod) GetAPIObject() (*apis.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.Pod{
-		ObjectMeta:          apis.NewObjectMeta(pod.ObjectMeta, cluster),
-		TypeMeta:            apis.NewTypeMeta(pod.TypeMeta),
+	return &api.Pod{
+		ObjectMeta:          api.NewObjectMeta(pod.ObjectMeta, cluster),
+		TypeMeta:            api.NewTypeMeta(pod.TypeMeta),
 		Warnings:            warnings,
 		PodStatus:           PodManager.getPodStatus(pod),
 		RestartCount:        PodManager.getRestartCount(pod),
@@ -162,19 +162,19 @@ func (obj *SPod) GetAPIObject() (*apis.Pod, error) {
 	}, nil
 }
 
-func (obj *SPod) GetPVCs() ([]*apis.PersistentVolumeClaim, error) {
+func (obj *SPod) GetPVCs() ([]*api.PersistentVolumeClaim, error) {
 	return PVCManager.GetPodAPIPVCs(obj.GetCluster(), obj.GetRawPod())
 }
 
-func (obj *SPod) GetEvents() ([]*apis.Event, error) {
+func (obj *SPod) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
-func (obj *SPod) getConditions() []*apis.Condition {
-	var conds []*apis.Condition
+func (obj *SPod) getConditions() []*api.Condition {
+	var conds []*api.Condition
 	pod := obj.GetRawPod()
 	for _, cond := range pod.Status.Conditions {
-		conds = append(conds, &apis.Condition{
+		conds = append(conds, &api.Condition{
 			Type:               string(cond.Type),
 			Status:             cond.Status,
 			LastProbeTime:      cond.LastProbeTime,
@@ -186,7 +186,7 @@ func (obj *SPod) getConditions() []*apis.Condition {
 	return SortConditions(conds)
 }
 
-func (obj *SPod) GetAPIDetailObject() (*apis.PodDetail, error) {
+func (obj *SPod) GetAPIDetailObject() (*api.PodDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (obj *SPod) GetAPIDetailObject() (*apis.PodDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.PodDetail{
+	return &api.PodDetail{
 		Pod:                    *apiObj,
 		Conditions:             obj.getConditions(),
 		Events:                 events,
@@ -217,22 +217,22 @@ func (obj *SPod) GetAPIDetailObject() (*apis.PodDetail, error) {
 	}, nil
 }
 
-func (p SPodManager) getPodStatus(pod *v1.Pod) apis.PodStatus {
+func (p SPodManager) getPodStatus(pod *v1.Pod) api.PodStatus {
 	var states []v1.ContainerState
 	for _, containerStatus := range pod.Status.ContainerStatuses {
 		states = append(states, containerStatus.State)
 	}
-	return apis.PodStatus{
+	return api.PodStatus{
 		PodStatusV2:     *getters.GetPodStatus(pod),
 		PodPhase:        pod.Status.Phase,
 		ContainerStates: states,
 	}
 }
 
-func (p SPodManager) getPodConditions(pod *v1.Pod) []apis.Condition {
-	var conditions []apis.Condition
+func (p SPodManager) getPodConditions(pod *v1.Pod) []api.Condition {
+	var conditions []api.Condition
 	for _, condition := range pod.Status.Conditions {
-		conditions = append(conditions, apis.Condition{
+		conditions = append(conditions, api.Condition{
 			Type:               string(condition.Type),
 			Status:             condition.Status,
 			LastProbeTime:      condition.LastProbeTime,
@@ -365,12 +365,12 @@ func ExtractFieldPathAsString(obj interface{}, fieldPath string) (string, error)
 	return "", fmt.Errorf("unsupported fieldPath: %v", fieldPath)
 }
 
-func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []apis.Container {
-	containers := make([]apis.Container, 0)
+func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []api.Container {
+	containers := make([]api.Container, 0)
 	for _, container := range containerList {
-		vars := make([]apis.EnvVar, 0)
+		vars := make([]api.EnvVar, 0)
 		for _, envVar := range container.Env {
-			variable := apis.EnvVar{
+			variable := api.EnvVar{
 				Name:      envVar.Name,
 				Value:     envVar.Value,
 				ValueFrom: envVar.ValueFrom,
@@ -383,7 +383,7 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 		}
 		vars = append(vars, evalEnvFrom(container, configMaps, secrets)...)
 
-		containers = append(containers, apis.Container{
+		containers = append(containers, api.Container{
 			Name:     container.Name,
 			Image:    container.Image,
 			Env:      vars,
@@ -394,8 +394,8 @@ func extractContainerInfo(containerList []v1.Container, pod *v1.Pod, configMaps 
 	return containers
 }
 
-func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []apis.EnvVar {
-	vars := make([]apis.EnvVar, 0)
+func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*v1.Secret) []api.EnvVar {
+	vars := make([]api.EnvVar, 0)
 	for _, envFromVar := range container.EnvFrom {
 		switch {
 		case envFromVar.ConfigMapRef != nil:
@@ -411,7 +411,7 @@ func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*
 								Key: key,
 							},
 						}
-						variable := apis.EnvVar{
+						variable := api.EnvVar{
 							Name:      envFromVar.Prefix + key,
 							Value:     value,
 							ValueFrom: valueFrom,
@@ -434,7 +434,7 @@ func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*
 								Key: key,
 							},
 						}
-						variable := apis.EnvVar{
+						variable := api.EnvVar{
 							Name:      envFromVar.Prefix + key,
 							Value:     base64.StdEncoding.EncodeToString(value),
 							ValueFrom: valueFrom,

@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/resources/common"
 )
@@ -38,9 +38,9 @@ type SCronJob struct {
 
 func (m SCronJobManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameCronJob,
+		ResourceName: api.ResourceNameCronJob,
 		Object:       &batch2.CronJob{},
-		KindName:     apis.KindNameCronJob,
+		KindName:     api.KindNameCronJob,
 	}
 }
 
@@ -48,9 +48,9 @@ func (obj *SCronJob) GetRawCronJob() *batch2.CronJob {
 	return obj.GetK8SObject().(*batch2.CronJob)
 }
 
-func (obj *SCronJob) GetAPIObject() (*apis.CronJob, error) {
+func (obj *SCronJob) GetAPIObject() (*api.CronJob, error) {
 	cj := obj.GetRawCronJob()
-	return &apis.CronJob{
+	return &api.CronJob{
 		ObjectMeta:   obj.GetObjectMeta(),
 		TypeMeta:     obj.GetTypeMeta(),
 		Schedule:     cj.Spec.Schedule,
@@ -60,7 +60,7 @@ func (obj *SCronJob) GetAPIObject() (*apis.CronJob, error) {
 	}, nil
 }
 
-func (obj *SCronJob) GetEvents() ([]*apis.Event, error) {
+func (obj *SCronJob) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
@@ -97,7 +97,7 @@ func (obj *SCronJob) GetRawJobs() ([]*batch.Job, error) {
 	return filterJobsByOwnerUID(obj.GetMetaObject().GetUID(), jobs), nil
 }
 
-func (obj *SCronJob) GetJobsByState(active bool) ([]*apis.Job, error) {
+func (obj *SCronJob) GetJobsByState(active bool) ([]*api.Job, error) {
 	jobs, err := obj.GetRawJobs()
 	if err != nil {
 		return nil, err
@@ -106,16 +106,16 @@ func (obj *SCronJob) GetJobsByState(active bool) ([]*apis.Job, error) {
 	return JobManager.GetAPIJobs(obj.GetCluster(), jobs)
 }
 
-func (obj *SCronJob) GetActiveJobs() ([]*apis.Job, error) {
+func (obj *SCronJob) GetActiveJobs() ([]*api.Job, error) {
 	return obj.GetJobsByState(true)
 }
 
-func (obj *SCronJob) GetInActiveJobs() ([]*apis.Job, error) {
+func (obj *SCronJob) GetInActiveJobs() ([]*api.Job, error) {
 
 	return obj.GetJobsByState(false)
 }
 
-func (obj *SCronJob) GetAPIDetailObject() (*apis.CronJobDetail, error) {
+func (obj *SCronJob) GetAPIDetailObject() (*api.CronJobDetail, error) {
 	cj := obj.GetRawCronJob()
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
@@ -133,7 +133,7 @@ func (obj *SCronJob) GetAPIDetailObject() (*apis.CronJobDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.CronJobDetail{
+	return &api.CronJobDetail{
 		CronJob:                 *apiObj,
 		ConcurrencyPolicy:       string(cj.Spec.ConcurrencyPolicy),
 		StartingDeadLineSeconds: cj.Spec.StartingDeadlineSeconds,
@@ -174,7 +174,7 @@ func (obj *SCronJob) TriggerCronJob() error {
 	}
 
 	cli := obj.GetCluster().GetHandler()
-	_, err := cli.CreateV2(apis.ResourceNameJob, obj.GetNamespace(), jobToCreate)
+	_, err := cli.CreateV2(api.ResourceNameJob, obj.GetNamespace(), jobToCreate)
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (obj *SCronJob) TriggerCronJob() error {
 
 func (m *SCronJobManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.CronJobCreateInput) (runtime.Object, error) {
+	input api.CronJobCreateInput) (runtime.Object, error) {
 	if len(input.JobTemplate.Spec.Template.Spec.RestartPolicy) == 0 {
 		input.JobTemplate.Spec.Template.Spec.RestartPolicy = v1.RestartPolicyOnFailure
 	}

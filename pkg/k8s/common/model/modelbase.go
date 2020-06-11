@@ -10,7 +10,7 @@ import (
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/object"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type SK8SObjectFactory struct {
@@ -94,7 +94,7 @@ func (m *SK8SModelBase) GetNamespace() string {
 	return ""
 }
 
-func (m *SK8SModelBase) GetObjectMeta() apis.ObjectMeta {
+func (m *SK8SModelBase) GetObjectMeta() api.ObjectMeta {
 	kObj := m.GetK8SObject()
 	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
 	meta := metav1.ObjectMeta{}
@@ -118,13 +118,13 @@ func (m *SK8SModelBase) GetObjectMeta() apis.ObjectMeta {
 		}
 		meta = f.Interface().(metav1.ObjectMeta)
 	}
-	return apis.ObjectMeta{
+	return api.ObjectMeta{
 		ObjectMeta:  meta,
-		ClusterMeta: apis.NewClusterMeta(m.GetCluster()),
+		ClusterMeta: api.NewClusterMeta(m.GetCluster()),
 	}
 }
 
-func (m *SK8SModelBase) GetTypeMeta() apis.TypeMeta {
+func (m *SK8SModelBase) GetTypeMeta() api.TypeMeta {
 	kObj := m.GetK8SObject()
 	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
 	meta := metav1.TypeMeta{}
@@ -145,7 +145,7 @@ func (m *SK8SModelBase) GetTypeMeta() apis.TypeMeta {
 		}
 		meta = f.Interface().(metav1.TypeMeta)
 	}
-	return apis.TypeMeta{
+	return api.TypeMeta{
 		TypeMeta: meta,
 	}
 }
@@ -215,6 +215,6 @@ func (m *SK8SModelBaseManager) RegisterOrderFields(fields ...IOrderField) {
 	m.orderFields.Set(fields...)
 }
 
-func (m *SK8SModelBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query apis.ListInputK8SBase) (IQuery, error) {
+func (m *SK8SModelBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SBase) (IQuery, error) {
 	return q, nil
 }

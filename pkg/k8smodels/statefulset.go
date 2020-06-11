@@ -7,7 +7,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/getters"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
@@ -39,15 +39,15 @@ type SStatefulSet struct {
 
 func (m *SStatefulSetManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameStatefulSet,
+		ResourceName: api.ResourceNameStatefulSet,
 		Object:       &apps.StatefulSet{},
-		KindName:     apis.KindNameStatefulSet,
+		KindName:     api.KindNameStatefulSet,
 	}
 }
 
 func (m *SStatefulSetManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.StatefulsetCreateInput) (runtime.Object, error) {
+	input api.StatefulsetCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
@@ -86,7 +86,7 @@ func (obj *SStatefulSet) GetRawPods() ([]*v1.Pod, error) {
 	return FilterPodsByControllerRef(ss, pods), nil
 }
 
-func (obj *SStatefulSet) GetPods() ([]*apis.Pod, error) {
+func (obj *SStatefulSet) GetPods() ([]*api.Pod, error) {
 	pods, err := obj.GetRawPods()
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (obj *SStatefulSet) GetPods() ([]*apis.Pod, error) {
 	return PodManager.GetAPIPods(obj.GetCluster(), pods)
 }
 
-func (obj *SStatefulSet) GetPodInfo() (*apis.PodInfo, error) {
+func (obj *SStatefulSet) GetPodInfo() (*api.PodInfo, error) {
 	ss := obj.GetRawStatefulSet()
 	pods, err := obj.GetRawPods()
 	if err != nil {
@@ -103,13 +103,13 @@ func (obj *SStatefulSet) GetPodInfo() (*apis.PodInfo, error) {
 	return GetPodInfo(obj, ss.Status.Replicas, ss.Spec.Replicas, pods)
 }
 
-func (obj *SStatefulSet) GetAPIObject() (*apis.StatefulSet, error) {
+func (obj *SStatefulSet) GetAPIObject() (*api.StatefulSet, error) {
 	ss := obj.GetRawStatefulSet()
 	podInfo, err := obj.GetPodInfo()
 	if err != nil {
 		return nil, err
 	}
-	return &apis.StatefulSet{
+	return &api.StatefulSet{
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
 		ContainerImages:     GetContainerImages(&ss.Spec.Template.Spec),
@@ -121,7 +121,7 @@ func (obj *SStatefulSet) GetAPIObject() (*apis.StatefulSet, error) {
 	}, nil
 }
 
-func (obj *SStatefulSet) GetEvents() ([]*apis.Event, error) {
+func (obj *SStatefulSet) GetEvents() ([]*api.Event, error) {
 	return EventManager.GetEventsByObject(obj)
 }
 
@@ -130,7 +130,7 @@ func (obj *SStatefulSet) GetRawServices() ([]*v1.Service, error) {
 	return ServiceManager.GetRawServicesByMatchLabels(obj.GetCluster(), obj.GetNamespace(), ss.Spec.Selector.MatchLabels)
 }
 
-func (obj *SStatefulSet) GetServices() ([]*apis.Service, error) {
+func (obj *SStatefulSet) GetServices() ([]*api.Service, error) {
 	svcs, err := obj.GetRawServices()
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (obj *SStatefulSet) GetServices() ([]*apis.Service, error) {
 	return ServiceManager.GetAPIServices(obj.GetCluster(), svcs)
 }
 
-func (obj *SStatefulSet) GetAPIDetailObject() (*apis.StatefulSetDetail, error) {
+func (obj *SStatefulSet) GetAPIDetailObject() (*api.StatefulSetDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -155,7 +155,7 @@ func (obj *SStatefulSet) GetAPIDetailObject() (*apis.StatefulSetDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &apis.StatefulSetDetail{
+	return &api.StatefulSetDetail{
 		StatefulSet: *apiObj,
 		PodList:     pods,
 		Events:      events,
@@ -163,14 +163,14 @@ func (obj *SStatefulSet) GetAPIDetailObject() (*apis.StatefulSetDetail, error) {
 	}, nil
 }
 
-func (obj *SStatefulSet) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *apis.StatefulsetUpdateInput) (*apis.StatefulsetUpdateInput, error) {
+func (obj *SStatefulSet) ValidateUpdateData(ctx *model.RequestContext, _ *jsonutils.JSONDict, input *api.StatefulsetUpdateInput) (*api.StatefulsetUpdateInput, error) {
 	if err := obj.ReplicaResourceBase.ValidateUpdateData(input.Replicas); err != nil {
 		return nil, err
 	}
 	return input, nil
 }
 
-func (obj *SStatefulSet) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *apis.StatefulsetUpdateInput) (*apps.StatefulSet, error) {
+func (obj *SStatefulSet) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input *api.StatefulsetUpdateInput) (*apps.StatefulSet, error) {
 	newObj := obj.GetRawStatefulSet().DeepCopy()
 	if input.Replicas != nil {
 		newObj.Spec.Replicas = input.Replicas

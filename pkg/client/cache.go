@@ -1,7 +1,10 @@
 package client
 
 import (
+	"context"
+
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -16,6 +19,7 @@ import (
 	storage "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/client/api"
@@ -48,12 +52,11 @@ func buildCacheController(
 			return nil, err
 		}
 		informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
-		genericInformer.Informer().AddEventHandler(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    nil,
-				UpdateFunc: nil,
-				DeleteFunc: nil,
-			})
+		resMan := cluster.GetK8sResourceManager(value.GroupVersionResourceKind.Kind)
+		if resMan != nil {
+			// register informer event handler
+			genericInformer.Informer().AddEventHandler(newEventHandler(cluster, resMan))
+		}
 		// go genericInformer.Informer().Run(stop)
 	}
 
@@ -190,4 +193,34 @@ func (c *CacheFactory) ClusterRoleBindingLister() rbac.ClusterRoleBindingLister 
 
 func (c *CacheFactory) ServiceAccountLister() v1.ServiceAccountLister {
 	return c.sharedInformerFactory.Core().V1().ServiceAccounts().Lister()
+}
+
+type eventHandler struct {
+	cluster manager.ICluster
+	manager manager.IK8sResourceManager
+}
+
+func newEventHandler(cluster manager.ICluster, man manager.IK8sResourceManager) cache.ResourceEventHandler {
+	return &eventHandler{
+		cluster: cluster,
+		manager: man,
+	}
+}
+
+func (h eventHandler) OnAdd(obj interface{}) {
+	adminCred := auth.AdminCredential()
+	ctx := context.Background()
+	h.manager.OnRemoteObjectCreate(ctx, adminCred, h.cluster, obj.(runtime.Object))
+}
+
+func (h eventHandler) OnUpdate(oldObj, newObj interface{}) {
+	adminCred := auth.AdminCredential()
+	ctx := context.Background()
+	h.manager.OnRemoteObjectUpdate(ctx, adminCred, h.cluster, oldObj.(runtime.Object), newObj.(runtime.Object))
+}
+
+func (h eventHandler) OnDelete(obj interface{}) {
+	adminCred := auth.AdminCredential()
+	ctx := context.Background()
+	h.manager.OnRemoteObjectDelete(ctx, adminCred, h.cluster, obj.(runtime.Object))
 }

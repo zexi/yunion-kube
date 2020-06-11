@@ -7,7 +7,8 @@ import (
 	"k8s.io/gengo/args"
 	"k8s.io/klog"
 
-	"yunion.io/x/code-generator/pkg/swagger-gen/generators"
+	cgenerators "yunion.io/x/code-generator/pkg/swagger-gen/generators"
+	"yunion.io/x/yunion-kube/pkg/kube-swagger-gen/generators"
 )
 
 func main() {
@@ -19,8 +20,8 @@ func main() {
 	arguments.GoHeaderFilePath = filepath.Join(args.DefaultSourceTree(), "yunion.io/x/onecloud/scripts/copyright.txt")
 
 	if err := arguments.Execute(
-		generators.NameSystems(),
-		generators.DefaultNameSystem(),
+		cgenerators.NameSystems(),
+		cgenerators.DefaultNameSystem(),
 		generators.Packages,
 	); err != nil {
 		klog.Errorf("Error: %v", err)

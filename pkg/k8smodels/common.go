@@ -10,19 +10,19 @@ import (
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type PodTemplateResourceBase struct{}
 
-func (_ PodTemplateResourceBase) UpdatePodTemplate(temp *v1.PodTemplateSpec, input apis.PodTemplateUpdateInput) error {
+func (_ PodTemplateResourceBase) UpdatePodTemplate(temp *v1.PodTemplateSpec, input api.PodTemplateUpdateInput) error {
 	if len(input.RestartPolicy) != 0 {
 		temp.Spec.RestartPolicy = input.RestartPolicy
 	}
 	if len(input.DNSPolicy) != 0 {
 		temp.Spec.DNSPolicy = input.DNSPolicy
 	}
-	cf := func(container *v1.Container, cs []apis.ContainerUpdateInput) error {
+	cf := func(container *v1.Container, cs []api.ContainerUpdateInput) error {
 		if len(cs) == 0 {
 			return nil
 		}
@@ -79,8 +79,8 @@ func (res UnstructuredResourceBase) GetRawJSONObject(m model.IK8SModel) (jsonuti
 }
 
 type IUnstructuredOutput interface {
-	SetObjectMeta(meta apis.ObjectMeta) *apis.ObjectTypeMeta
-	SetTypeMeta(meta apis.TypeMeta) *apis.ObjectTypeMeta
+	SetObjectMeta(meta api.ObjectMeta) *api.ObjectTypeMeta
+	SetTypeMeta(meta api.TypeMeta) *api.ObjectTypeMeta
 }
 
 type IK8SUnstructuredModel interface {

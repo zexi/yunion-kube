@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 func init() {
@@ -45,7 +45,7 @@ func (t *ComponentUpdateTask) OnInit(ctx context.Context, obj db.IStandaloneMode
 }
 
 func (t *ComponentUpdateTask) OnUpdateComplete(ctx context.Context, obj *models.SComponent, data jsonutils.JSONObject) {
-	obj.SetStatus(t.UserCred, apis.ComponentStatusDeployed, "")
+	obj.SetStatus(t.UserCred, api.ComponentStatusDeployed, "")
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -55,6 +55,6 @@ func (t *ComponentUpdateTask) OnUpdateCompleteFailed(ctx context.Context, obj *m
 
 func (t *ComponentUpdateTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
-	obj.SetStatus(t.UserCred, apis.ComponentStatusUpdateFail, reason)
+	obj.SetStatus(t.UserCred, api.ComponentStatusUpdateFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
 }

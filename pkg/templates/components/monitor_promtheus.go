@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type Image struct {
@@ -53,7 +53,7 @@ type PrometheusStorageSpec struct {
 	Template PersistentVolumeClaim `json:"volumeClaimTemplate"`
 }
 
-func NewPrometheusStorageSpec(storage apis.ComponentStorage) (*PrometheusStorageSpec, error) {
+func NewPrometheusStorageSpec(storage api.ComponentStorage) (*PrometheusStorageSpec, error) {
 	sizeGB := storage.SizeMB / 1024
 	if sizeGB <= 0 {
 		return nil, httperrors.NewInputParameterError("size must large than 1GB")
@@ -114,7 +114,7 @@ type Storage struct {
 	Size             string   `json:"size"`
 }
 
-func NewPVCStorage(storage *apis.ComponentStorage) (*Storage, error) {
+func NewPVCStorage(storage *api.ComponentStorage) (*Storage, error) {
 	sizeMB := storage.SizeMB
 	sizeGB := sizeMB / 1024
 	if sizeGB <= 0 {

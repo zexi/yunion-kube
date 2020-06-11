@@ -7,7 +7,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/object"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 )
 
 type K8SResourceInfo struct {
@@ -45,8 +45,8 @@ type IK8SModel interface {
 	SetK8SObject(runtime.Object) IK8SModel
 	GetK8SObject() runtime.Object
 
-	GetObjectMeta() apis.ObjectMeta
-	GetTypeMeta() apis.TypeMeta
+	GetObjectMeta() api.ObjectMeta
+	GetTypeMeta() api.TypeMeta
 }
 
 type IPodOwnerModel interface {

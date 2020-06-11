@@ -7,7 +7,7 @@ import (
 
 	"helm.sh/helm/v3/pkg/chart"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/options"
 )
@@ -27,7 +27,7 @@ func GetChartRawFiles(chObj *chart.Chart) []*chart.File {
 	return files
 }
 
-func (man *SChartManager) GetDetails(repoName, chartName, version string) (*apis.ChartDetail, error) {
+func (man *SChartManager) GetDetails(repoName, chartName, version string) (*api.ChartDetail, error) {
 	chObj, err := helm.NewChartClient(options.Options.HelmDataDir).Show(repoName, chartName, version)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (man *SChartManager) GetDetails(repoName, chartName, version string) (*apis
 	if readmeFile != nil {
 		readmeStr = base64.StdEncoding.EncodeToString(readmeFile.Data)
 	}
-	return &apis.ChartDetail{
+	return &api.ChartDetail{
 		Repo:   repoName,
 		Name:   chObj.Name(),
 		Chart:  chObj,

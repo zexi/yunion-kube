@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/pkg/errors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
 
@@ -38,7 +38,7 @@ type ClusterResourceCreateTask struct {
 
 func (t *ClusterResourceCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	resObj, resMan := t.getModelManager(obj)
-	resObj.SetStatus(t.UserCred, apis.ClusterResourceStatusCreating, "create resource")
+	resObj.SetStatus(t.UserCred, api.ClusterResourceStatusCreating, "create resource")
 	t.SetStage("OnCreateComplete", nil)
 	taskman.LocalTaskRun(t, func() (jsonutils.JSONObject, error) {
 		obj, err := models.CreateRemoteObject(ctx, t.UserCred, resMan, resObj, t.GetParams())
@@ -51,12 +51,12 @@ func (t *ClusterResourceCreateTask) OnInit(ctx context.Context, obj db.IStandalo
 }
 
 func (t *ClusterResourceCreateTask) OnCreateComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
-	obj.SetStatus(t.UserCred, apis.ClusterResourceStatusCreated, "create resource")
+	obj.SetStatus(t.UserCred, api.ClusterResourceStatusCreated, "create resource")
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterResourceCreateTask) OnCreateComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
-	SetObjectTaskFailed(ctx, t, obj, apis.ClusterResourceStatusCreateFail, reason.String())
+	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusCreateFail, reason.String())
 }
 
 type ClusterResourceDeleteTask struct {
@@ -65,7 +65,7 @@ type ClusterResourceDeleteTask struct {
 
 func (t *ClusterResourceDeleteTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	resObj, resMan := t.getModelManager(obj)
-	resObj.SetStatus(t.UserCred, apis.ClusterResourceStatusDeleting, "delete resource")
+	resObj.SetStatus(t.UserCred, api.ClusterResourceStatusDeleting, "delete resource")
 	t.SetStage("OnDeleteComplete", nil)
 	taskman.LocalTaskRun(t, func() (jsonutils.JSONObject, error) {
 		err := models.DeleteRemoteObject(ctx, t.UserCred, resMan, resObj, t.Params)
@@ -73,17 +73,17 @@ func (t *ClusterResourceDeleteTask) OnInit(ctx context.Context, obj db.IStandalo
 			log.Errorf("DeleteRemoteObject error: %v", err)
 			return nil, errors.Wrap(err, "DeleteRemoteObject")
 		}
-		if err := resObj.RealDelete(ctx, t.UserCred); err != nil {
-			return nil, errors.Wrap(err, "RealDelete")
-		}
 		return jsonutils.Marshal(obj), nil
 	})
 }
 
 func (t *ClusterResourceDeleteTask) OnDeleteComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
+	if err := obj.RealDelete(ctx, t.UserCred); err != nil {
+		SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusDeleteFail, err.Error())
+	}
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterResourceDeleteTask) OnDeleteComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
-	SetObjectTaskFailed(ctx, t, obj, apis.ClusterResourceStatusDeleteFail, reason.String())
+	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusDeleteFail, reason.String())
 }

@@ -8,7 +8,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 )
 
@@ -40,6 +40,6 @@ func (t *ComponentDeleteTask) OnUndeployCompleteFailed(ctx context.Context, obj 
 
 func (t *ComponentDeleteTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
-	obj.SetStatus(t.UserCred, apis.ComponentStatusDeleteFail, reason)
+	obj.SetStatus(t.UserCred, api.ComponentStatusDeleteFail, reason)
 	t.STask.SetStageFailed(ctx, reason)
 }

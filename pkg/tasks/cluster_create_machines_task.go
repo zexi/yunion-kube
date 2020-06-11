@@ -3,7 +3,7 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 
@@ -20,10 +20,10 @@ func init() {
 	taskman.RegisterTask(ClusterCreateMachinesTask{})
 }
 
-func (t *ClusterCreateMachinesTask) getMachines(cluster *models.SCluster) ([]*apis.CreateMachineData, error) {
+func (t *ClusterCreateMachinesTask) getMachines(cluster *models.SCluster) ([]*api.CreateMachineData, error) {
 	params := t.GetParams()
-	ret := []*apis.CreateMachineData{}
-	ms := []apis.CreateMachineData{}
+	ret := []*api.CreateMachineData{}
+	ms := []api.CreateMachineData{}
 	if err := params.Unmarshal(&ms, "machines"); err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (t *ClusterCreateMachinesTask) OnInit(ctx context.Context, obj db.IStandalo
 	}
 }
 
-func (t *ClusterCreateMachinesTask) createMachines(ctx context.Context, cluster *models.SCluster, ms []*apis.CreateMachineData) error {
+func (t *ClusterCreateMachinesTask) createMachines(ctx context.Context, cluster *models.SCluster, ms []*api.CreateMachineData) error {
 	return cluster.CreateMachines(ctx, t.GetUserCred(), ms, t)
 }
 
@@ -63,6 +63,6 @@ func (t *ClusterCreateMachinesTask) OnMachinesCreatedFailed(ctx context.Context,
 }
 
 func (t *ClusterCreateMachinesTask) onError(ctx context.Context, cluster *models.SCluster, err error) {
-	SetObjectTaskFailed(ctx, t, cluster, apis.ClusterStatusCreateMachineFail, err.Error())
+	SetObjectTaskFailed(ctx, t, cluster, api.ClusterStatusCreateMachineFail, err.Error())
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, err.Error(), t.UserCred, false)
 }

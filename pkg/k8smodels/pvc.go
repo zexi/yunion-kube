@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -37,13 +37,13 @@ type SPVC struct {
 
 func (m *SPVCManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNamePersistentVolumeClaim,
+		ResourceName: api.ResourceNamePersistentVolumeClaim,
 		Object:       &v1.PersistentVolumeClaim{},
-		KindName:     apis.KindNamePersistentVolumeClaim,
+		KindName:     api.KindNamePersistentVolumeClaim,
 	}
 }
 
-func (m *SPVCManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.PersistentVolumeClaimListInput) (model.IQuery, error) {
+func (m *SPVCManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.PersistentVolumeClaimListInput) (model.IQuery, error) {
 	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
 	if err != nil {
 		return q, err
@@ -67,7 +67,7 @@ func (m *SPVCManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, 
 
 func (m *SPVCManager) NewK8SRawObjectForCreate(
 	ctx *model.RequestContext,
-	input apis.PersistentVolumeClaimCreateInput) (runtime.Object, error) {
+	input api.PersistentVolumeClaimCreateInput) (runtime.Object, error) {
 	objMeta := input.ToObjectMeta()
 	size := input.Size
 	storageSize, err := resource.ParseQuantity(size)
@@ -121,7 +121,7 @@ func (obj *SPVC) getMountRawPods() ([]*v1.Pod, error) {
 	return mPods, nil
 }
 
-func (obj *SPVC) GetMountPods() ([]*apis.Pod, error) {
+func (obj *SPVC) GetMountPods() ([]*api.Pod, error) {
 	rawPods, err := obj.getMountRawPods()
 	if err != nil {
 		return nil, err
@@ -141,13 +141,13 @@ func (obj *SPVC) GetMountPodNames() ([]string, error) {
 	return names, nil
 }
 
-func (obj *SPVC) GetAPIObject() (*apis.PersistentVolumeClaim, error) {
+func (obj *SPVC) GetAPIObject() (*api.PersistentVolumeClaim, error) {
 	pvc := obj.GetRawPVC()
 	podNames, err := obj.GetMountPodNames()
 	if err != nil {
 		return nil, err
 	}
-	return &apis.PersistentVolumeClaim{
+	return &api.PersistentVolumeClaim{
 		ObjectMeta:   obj.GetObjectMeta(),
 		TypeMeta:     obj.GetTypeMeta(),
 		Status:       string(pvc.Status.Phase),
@@ -159,7 +159,7 @@ func (obj *SPVC) GetAPIObject() (*apis.PersistentVolumeClaim, error) {
 	}, nil
 }
 
-func (obj *SPVC) GetAPIDetailObject() (*apis.PersistentVolumeClaimDetail, error) {
+func (obj *SPVC) GetAPIDetailObject() (*api.PersistentVolumeClaimDetail, error) {
 	apiObj, err := obj.GetAPIObject()
 	if err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ func (obj *SPVC) GetAPIDetailObject() (*apis.PersistentVolumeClaimDetail, error)
 	if err != nil {
 		return nil, err
 	}
-	return &apis.PersistentVolumeClaimDetail{
+	return &api.PersistentVolumeClaimDetail{
 		PersistentVolumeClaim: *apiObj,
 		Pods:                  pods,
 	}, nil
@@ -178,7 +178,7 @@ func (m *SPVCManager) GetRawPVCs(cluster model.ICluster, ns string) ([]*v1.Persi
 	return cluster.GetHandler().GetIndexer().PVCLister().PersistentVolumeClaims(ns).List(labels.Everything())
 }
 
-func (m *SPVCManager) GetPodAPIPVCs(cluster model.ICluster, pod *v1.Pod) ([]*apis.PersistentVolumeClaim, error) {
+func (m *SPVCManager) GetPodAPIPVCs(cluster model.ICluster, pod *v1.Pod) ([]*api.PersistentVolumeClaim, error) {
 	claimNames := make([]string, 0)
 	if pod.Spec.Volumes != nil && len(pod.Spec.Volumes) > 0 {
 		for _, v := range pod.Spec.Volumes {
@@ -207,8 +207,8 @@ func (m *SPVCManager) GetPodAPIPVCs(cluster model.ICluster, pod *v1.Pod) ([]*api
 	return m.GetAPIPVCs(cluster, pvcs)
 }
 
-func (m *SPVCManager) GetAPIPVCs(cluster model.ICluster, pvcs []*v1.PersistentVolumeClaim) ([]*apis.PersistentVolumeClaim, error) {
-	ret := make([]*apis.PersistentVolumeClaim, 0)
+func (m *SPVCManager) GetAPIPVCs(cluster model.ICluster, pvcs []*v1.PersistentVolumeClaim) ([]*api.PersistentVolumeClaim, error) {
+	ret := make([]*api.PersistentVolumeClaim, 0)
 	if err := ConvertRawToAPIObjects(m, cluster, pvcs, &ret); err != nil {
 		return nil, err
 	}

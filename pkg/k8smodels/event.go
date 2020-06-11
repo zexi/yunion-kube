@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 )
 
@@ -48,9 +48,9 @@ type SEvent struct {
 
 func (m SEventManager) GetK8SResourceInfo() model.K8SResourceInfo {
 	return model.K8SResourceInfo{
-		ResourceName: apis.ResourceNameEvent,
+		ResourceName: api.ResourceNameEvent,
 		Object:       &v1.Event{},
-		KindName:     apis.KindNameEvent,
+		KindName:     api.KindNameEvent,
 	}
 }
 
@@ -107,7 +107,7 @@ func (m SEventManager) GetRawEventsByObject(cluster model.ICluster, obj runtime.
 	return m.GetRawEventsByUID(cluster, obj.(metav1.Object).GetUID())
 }
 
-func (m SEventManager) GetEventsByObject(obj model.IK8SModel) ([]*apis.Event, error) {
+func (m SEventManager) GetEventsByObject(obj model.IK8SModel) ([]*api.Event, error) {
 	res, err := m.GetRawEventsByObject(obj.GetCluster(), obj.GetK8SObject())
 	if err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func (m SEventManager) GetEventsByObject(obj model.IK8SModel) ([]*apis.Event, er
 	return m.GetAPIEvents(obj.GetCluster(), res)
 }
 
-func (m SEventManager) GetNamespaceEvents(cluster model.ICluster, ns string) ([]*apis.Event, error) {
+func (m SEventManager) GetNamespaceEvents(cluster model.ICluster, ns string) ([]*api.Event, error) {
 	events, err := m.GetRawEvents(cluster, ns)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func (m SEventManager) GetRawEventsByKindName(cluster model.ICluster, kind, name
 	return m.FilterEventsByKindName(events, kind, namespace, name), nil
 }
 
-func (m SEventManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *apis.EventListInput) (model.IQuery, error) {
+func (m SEventManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.EventListInput) (model.IQuery, error) {
 	q, err := m.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
 	if err != nil {
 		return q, err
@@ -261,7 +261,7 @@ func (m SEventManager) GetRawWarningEventsByPods(cluster model.ICluster, pods []
 	return events, nil
 }
 
-func (m SEventManager) GetWarningEventsByPods(cluster model.ICluster, pods []*v1.Pod) ([]*apis.Event, error) {
+func (m SEventManager) GetWarningEventsByPods(cluster model.ICluster, pods []*v1.Pod) ([]*api.Event, error) {
 	es, err := m.GetRawWarningEventsByPods(cluster, pods)
 	if err != nil {
 		return nil, err
@@ -269,7 +269,7 @@ func (m SEventManager) GetWarningEventsByPods(cluster model.ICluster, pods []*v1
 	return m.GetAPIEvents(cluster, es)
 }
 
-func (m SEventManager) GetEventsByUID(cluster model.ICluster, uId types.UID) ([]*apis.Event, error) {
+func (m SEventManager) GetEventsByUID(cluster model.ICluster, uId types.UID) ([]*api.Event, error) {
 	res, err := m.GetRawEventsByUID(cluster, uId)
 	if err != nil {
 		return nil, err
@@ -312,8 +312,8 @@ func (m SEventManager) FilterEventsByType(events []*v1.Event, eventType string) 
 	return result
 }
 
-func (m *SEventManager) GetAPIEvents(cluster model.ICluster, events []*v1.Event) ([]*apis.Event, error) {
-	ret := make([]*apis.Event, 0)
+func (m *SEventManager) GetAPIEvents(cluster model.ICluster, events []*v1.Event) ([]*api.Event, error) {
+	ret := make([]*api.Event, 0)
 	if err := ConvertRawToAPIObjects(m, cluster, events, &ret); err != nil {
 		return nil, err
 	}
@@ -325,7 +325,7 @@ func (m *SEventManager) GetAPIEvents(cluster model.ICluster, events []*v1.Event)
 }
 
 type eventLastTimestampSorter struct {
-	events []*apis.Event
+	events []*api.Event
 }
 
 func (s *eventLastTimestampSorter) Less(i, j int) bool {
@@ -346,9 +346,9 @@ func (obj SEvent) GetRawEvent() *v1.Event {
 	return obj.GetK8SObject().(*v1.Event)
 }
 
-func (obj SEvent) GetAPIObject() (*apis.Event, error) {
+func (obj SEvent) GetAPIObject() (*api.Event, error) {
 	e := obj.GetRawEvent()
-	return &apis.Event{
+	return &api.Event{
 		DepObjectMeta:       obj.GetObjectMeta(),
 		ObjectMeta:          obj.GetObjectMeta(),
 		TypeMeta:            obj.GetTypeMeta(),
@@ -371,6 +371,6 @@ func (obj SEvent) GetAPIObject() (*apis.Event, error) {
 	}, nil
 }
 
-func (obj SEvent) GetAPIDetailObject() (*apis.Event, error) {
+func (obj SEvent) GetAPIDetailObject() (*api.Event, error) {
 	return obj.GetAPIObject()
 }

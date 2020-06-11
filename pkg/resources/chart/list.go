@@ -3,7 +3,7 @@ package chart
 import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
@@ -12,10 +12,10 @@ import (
 )
 
 type Chart struct {
-	*apis.ChartResult
+	*api.ChartResult
 }
 
-func ToChart(repo *models.SRepo, ret *apis.ChartResult) Chart {
+func ToChart(repo *models.SRepo, ret *api.ChartResult) Chart {
 	ret.Type = repo.GetType()
 	return Chart{ret}
 }
@@ -31,10 +31,10 @@ func (l *ChartList) GetResponseData() interface{} {
 }
 
 func (l *ChartList) Append(obj interface{}) {
-	l.Charts = append(l.Charts, ToChart(l.Repo, obj.(*apis.ChartResult)))
+	l.Charts = append(l.Charts, ToChart(l.Repo, obj.(*api.ChartResult)))
 }
 
-func (man *SChartManager) List(userCred mcclient.TokenCredential, query *apis.ChartListInput, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
+func (man *SChartManager) List(userCred mcclient.TokenCredential, query *api.ChartListInput, dsQuery *dataselect.DataSelectQuery) (common.ListResource, error) {
 	cli := helm.NewChartClient(options.Options.HelmDataDir)
 	repo := query.Repo
 	if repo == "" {

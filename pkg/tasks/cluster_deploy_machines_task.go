@@ -9,7 +9,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -62,6 +62,6 @@ func (t *ClusterDeployMachinesTask) OnDeployMachinesFailed(ctx context.Context, 
 }
 
 func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err string) {
-	cluster.SetStatus(t.UserCred, apis.ClusterStatusError, err)
+	cluster.SetStatus(t.UserCred, api.ClusterStatusError, err)
 	t.SetStageFailed(ctx, err)
 }

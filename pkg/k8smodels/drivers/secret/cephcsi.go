@@ -3,20 +3,20 @@ package secret
 import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 
-	"yunion.io/x/yunion-kube/pkg/apis"
+	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/k8smodels"
 )
 
 func init() {
 	k8smodels.SecretManager.RegisterDriver(
-		apis.SecretTypeCephCSI,
+		api.SecretTypeCephCSI,
 		newCephCSI(),
 	)
 }
 
 type cephCSI struct{}
 
-func (c cephCSI) ValidateCreateData(input *apis.SecretCreateInput) error {
+func (c cephCSI) ValidateCreateData(input *api.SecretCreateInput) error {
 	conf := input.CephCSI
 	if conf == nil {
 		return httperrors.NewInputParameterError("ceph csi config is empty")
@@ -30,7 +30,7 @@ func (c cephCSI) ValidateCreateData(input *apis.SecretCreateInput) error {
 	return nil
 }
 
-func (c cephCSI) ToData(input *apis.SecretCreateInput) (map[string]string, error) {
+func (c cephCSI) ToData(input *api.SecretCreateInput) (map[string]string, error) {
 	conf := input.CephCSI
 	ret := map[string]string{
 		"userID":  conf.UserId,

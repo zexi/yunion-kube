@@ -13,7 +13,7 @@ import (
 
 	"yunion.io/x/pkg/util/sets"
 
-	api "yunion.io/x/yunion-kube/pkg/apis"
+	api "yunion.io/x/yunion-kube/pkg/api"
 )
 
 type KindName = string
