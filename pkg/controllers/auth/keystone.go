@@ -111,7 +111,7 @@ func getRoleAssignmentsFromKeystone(userId string) (RoleAssignments, error) {
 
 // AuthenticateToken checks the token via Keystone call
 func (k *KeystoneAuthenticator) AuthenticateToken(token string) (user.Info, bool, error) {
-	cred, err := auth.Verify(token)
+	cred, err := auth.Verify(context.Background(), token)
 	if err != nil {
 		err = fmt.Errorf("Failed to verify token %q: %v", token, err)
 		log.Errorf("%v", err)

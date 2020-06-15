@@ -22,7 +22,6 @@ import (
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/netutils"
-	"yunion.io/x/pkg/utils"
 )
 
 type TRbacResult string
@@ -229,15 +228,22 @@ func (policy *SRbacPolicy) GetMatchRule(service string, resource string, action 
 	return GetMatchRule(policy.Rules, service, resource, action, extra...)
 }
 
+var (
+	ShowMatchRuleDebug = false
+)
+
 func GetMatchRule(rules []SRbacRule, service string, resource string, action string, extra ...string) *SRbacRule {
 	maxMatchCnt := 0
 	minWeight := 1000000
 	var matchRule *SRbacRule
 	for i := 0; i < len(rules); i += 1 {
 		match, matchCnt, weight := rules[i].match(service, resource, action, extra...)
+		if match && ShowMatchRuleDebug {
+			log.Debugf("rule %s match cnt %d weight %d", rules[i], matchCnt, weight)
+		}
 		if match && (maxMatchCnt < matchCnt ||
 			(maxMatchCnt == matchCnt && minWeight > weight) ||
-			(maxMatchCnt == matchCnt && minWeight == weight && matchRule.looserThan(&rules[i]))) {
+			(maxMatchCnt == matchCnt && minWeight == weight && matchRule.stricterThan(&rules[i]))) {
 			maxMatchCnt = matchCnt
 			minWeight = weight
 			matchRule = &rules[i]
@@ -583,6 +589,7 @@ type IRbacIdentity interface {
 	GetProjectName() string
 	GetRoles() []string
 	GetLoginIp() string
+	GetTokenString() string
 }
 
 func (policy *SRbacPolicy) IsSystemWidePolicy() bool {
@@ -590,7 +597,7 @@ func (policy *SRbacPolicy) IsSystemWidePolicy() bool {
 }
 
 func (policy *SRbacPolicy) MatchDomain(domainId string) bool {
-	if len(policy.DomainId) == 0 {
+	if len(policy.DomainId) == 0 || len(domainId) == 0 {
 		return true
 	}
 	if policy.DomainId == domainId {
@@ -600,7 +607,7 @@ func (policy *SRbacPolicy) MatchDomain(domainId string) bool {
 		if policy.PublicScope == ScopeSystem {
 			return true
 		}
-		if utils.IsInStringArray(domainId, policy.SharedDomainIds) {
+		if contains(policy.SharedDomainIds, domainId) {
 			return true
 		}
 	}
@@ -608,7 +615,7 @@ func (policy *SRbacPolicy) MatchDomain(domainId string) bool {
 }
 
 func (policy *SRbacPolicy) MatchProject(projectName string) bool {
-	if len(policy.Projects) == 0 {
+	if len(policy.Projects) == 0 || len(projectName) == 0 {
 		return true
 	}
 	if contains(policy.Projects, projectName) {
@@ -636,19 +643,20 @@ func (policy *SRbacPolicy) Match(userCred IRbacIdentity) (bool, int) {
 	if !policy.Auth && len(policy.Roles) == 0 && len(policy.Projects) == 0 && len(policy.Ips) == 0 {
 		return true, 1
 	}
-	if userCred == nil {
+	if userCred == nil || len(userCred.GetTokenString()) == 0 {
 		return false, 0
 	}
 	weight := 0
 	if policy.MatchDomain(userCred.GetProjectDomainId()) {
 		if len(policy.DomainId) > 0 {
-			weight += 10
+			if policy.DomainId == userCred.GetProjectDomainId() {
+				weight += 30 // exact domain match
+			} else if len(policy.SharedDomainIds) > 0 {
+				weight += 20 // shared domain match
+			} else {
+				weight += 10 // else, system scope match
+			}
 		}
-		if !policy.IsPublic {
-			weight += 30 // exact domain match
-		} else if len(policy.SharedDomainIds) > 0 {
-			weight += 20 // shared domain match
-		} // else, system scope match
 		if policy.MatchRoles(userCred.GetRoles()) {
 			if len(policy.Roles) != 0 {
 				weight += 100
@@ -689,6 +697,10 @@ func (id sSimpleRbacIdentity) GetProjectName() string {
 
 func (id sSimpleRbacIdentity) GetLoginIp() string {
 	return ""
+}
+
+func (id sSimpleRbacIdentity) GetTokenString() string {
+	return "faketoken"
 }
 
 func NewRbacIdentity(domainId, projectName string, roleNames []string) IRbacIdentity {

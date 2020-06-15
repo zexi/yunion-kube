@@ -16,7 +16,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -461,10 +460,10 @@ func (manager *SOpsLogManager) ListItemFilter(
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
 ) (*sqlchemy.SQuery, error) {
-	userStrs := jsonutils.GetQueryStringArray(query, "user")
+	/*userStrs := jsonutils.GetQueryStringArray(query, "user")
 	if len(userStrs) > 0 {
 		for i := range userStrs {
-			usrObj, err := UserCacheManager.FetchUserByIdOrName(ctx, userStrs[i])
+			usrObj, err := DefaultUserFetcher(ctx, userStrs[i])
 			if err != nil {
 				if err == sql.ErrNoRows {
 					return nil, httperrors.NewResourceNotFoundError2("user", userStrs[i])
@@ -500,7 +499,7 @@ func (manager *SOpsLogManager) ListItemFilter(
 		} else {
 			q = q.Filter(sqlchemy.In(q.Field("owner_tenant_id"), projStrs))
 		}
-	}
+	}*/
 	objTypes := jsonutils.GetQueryStringArray(query, "obj_type")
 	if len(objTypes) > 0 {
 		if len(objTypes) == 1 {
@@ -562,9 +561,10 @@ func (manager *SOpsLogManager) ListItemFilter(
 
 func (manager *SOpsLogManager) SyncOwner(m IModel, former *STenant, userCred mcclient.TokenCredential) {
 	notes := jsonutils.NewDict()
-	notes.Add(jsonutils.NewString(former.GetDomain()), "former_domain_id")
-	notes.Add(jsonutils.NewString(former.GetId()), "former_project_id")
-	notes.Add(jsonutils.NewString(former.GetName()), "former_project")
+	notes.Add(jsonutils.NewString(former.GetProjectDomainId()), "former_domain_id")
+	notes.Add(jsonutils.NewString(former.GetProjectDomain()), "former_domain")
+	notes.Add(jsonutils.NewString(former.GetProjectId()), "former_project_id")
+	notes.Add(jsonutils.NewString(former.GetProjectName()), "former_project")
 	manager.LogEvent(m, ACT_CHANGE_OWNER, notes, userCred)
 }
 
