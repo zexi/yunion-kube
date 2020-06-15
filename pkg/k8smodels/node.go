@@ -60,13 +60,13 @@ func (obj *SNode) GetRawNode() *v1.Node {
 	return obj.GetK8SObject().(*v1.Node)
 }
 
-func (obj *SNode) getNodeConditionStatus(node *v1.Node, conditionType v1.NodeConditionType) bool {
+func (obj *SNode) getNodeConditionStatus(node *v1.Node, conditionType v1.NodeConditionType) v1.ConditionStatus {
 	for _, condition := range node.Status.Conditions {
 		if condition.Type == conditionType {
-			return true
+			return condition.Status
 		}
 	}
-	return false
+	return v1.ConditionUnknown
 }
 
 // getContainerImages returns container image strings from the given node.
@@ -235,7 +235,7 @@ func (obj *SNode) GetAPIObject() (*apis.Node, error) {
 	return &apis.Node{
 		ObjectMeta:         obj.GetObjectMeta(),
 		TypeMeta:           obj.GetTypeMeta(),
-		Ready:              obj.getNodeConditionStatus(rNode, v1.NodeReady),
+		Ready:              obj.getNodeConditionStatus(rNode, v1.NodeReady) == v1.ConditionTrue,
 		AllocatedResources: allocatedResources,
 		Address:            rNode.Status.Addresses,
 		NodeInfo:           rNode.Status.NodeInfo,
