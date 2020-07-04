@@ -281,7 +281,11 @@ func (r *SRelease) CustomizeCreate(ctx context.Context, userCred mcclient.TokenC
 	if err != nil {
 		return errors.Wrap(err, "generate config")
 	}
-	r.Config = jsonutils.Marshal(config)
+	valsConfig := jsonutils.Marshal(config).(*jsonutils.JSONDict)
+	if input.ValuesJson != nil {
+		valsConfig.Update(input.ValuesJson)
+	}
+	r.Config = valsConfig
 	r.RepoId = input.Repo
 	r.Chart = input.Chart
 	r.ChartVersion = input.Version
