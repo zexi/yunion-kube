@@ -4,6 +4,8 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/time"
+
+	"yunion.io/x/jsonutils"
 )
 
 const (
@@ -26,8 +28,9 @@ type ReleaseCreateInput struct {
 	ReleaseName string `json:"release_name"`
 	Version     string `json:"version"`
 	// Values is yaml config content
-	Values string            `json:"values"`
-	Sets   map[string]string `json:"sets"`
+	Values     string               `json:"values"`
+	Sets       map[string]string    `json:"sets"`
+	ValuesJson jsonutils.JSONObject `json:"values_json"`
 }
 
 type ReleaseUpdateInput struct {
@@ -110,7 +113,7 @@ type ReleaseV2 struct {
 
 type ReleaseDetailV2 struct {
 	ReleaseV2
-	Type RepoType `json:"type"`
+	Type      RepoType                 `json:"type"`
 	Resources map[string][]interface{} `json:"resources"`
 	Files     []*chart.File            `json:"files"`
 }
