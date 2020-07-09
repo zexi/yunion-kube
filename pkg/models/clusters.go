@@ -784,7 +784,7 @@ func (c *SCluster) AttachKeypair(ctx context.Context, userCred mcclient.TokenCre
 	clusterKeypair.ClusterId = c.GetId()
 	clusterKeypair.KeypairId = keypair.GetId()
 	clusterKeypair.User = keypair.User
-	return ClusterX509KeyPairManager.TableSpec().Insert(clusterKeypair)
+	return ClusterX509KeyPairManager.TableSpec().Insert(ctx, clusterKeypair)
 }
 
 func (c *SCluster) IsAttachKeypair(kp *SX509KeyPair) (bool, error) {
@@ -1087,8 +1087,8 @@ func (c *SCluster) GetKubeconfigByCerts() (string, error) {
 	return string(yaml), nil
 }
 
-func (c *SCluster) SetK8sVersion(version string) error {
-	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+func (c *SCluster) SetK8sVersion(ctx context.Context, version string) error {
+	_, err := db.Update(c, func() error {
 		c.Version = version
 		return nil
 	})
@@ -1096,7 +1096,7 @@ func (c *SCluster) SetK8sVersion(version string) error {
 }
 
 func (c *SCluster) SetKubeconfig(kubeconfig string) error {
-	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+	_, err := db.Update(c, func() error {
 		c.Kubeconfig = kubeconfig
 		return nil
 	})
@@ -1383,7 +1383,7 @@ func (c *SCluster) GetAPIServer() (string, error) {
 }
 
 func (c *SCluster) SetAPIServer(apiServer string) error {
-	_, err := c.GetModelManager().TableSpec().Update(c, func() error {
+	_, err := db.Update(c, func() error {
 		c.ApiServer = apiServer
 		return nil
 	})

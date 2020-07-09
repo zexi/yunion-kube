@@ -46,7 +46,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 			return nil, err
 		}
 		log.Infof("Get %s cluster k8s version: %#v", cluster.GetName(), info)
-		cluster.SetK8sVersion(info.String())
+		cluster.SetK8sVersion(ctx, info.String())
 		return nil, nil
 	})
 }

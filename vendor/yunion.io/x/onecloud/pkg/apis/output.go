@@ -116,11 +116,29 @@ type StatusStandaloneResourceDetails struct {
 	StandaloneResourceDetails
 }
 
+type MetadataResourceInfo struct {
+	// 标签
+	Metadata map[string]string `json:"metadata"`
+}
+
+type StatusDomainLevelUserResourceDetails struct {
+	StatusDomainLevelResourceDetails
+
+	// 用户名称
+	OwnerName string `json:"owner_name"`
+}
+
+type UserResourceDetails struct {
+	StandaloneResourceDetails
+
+	// 用户名称
+	OwnerName string `json:"owner_name"`
+}
+
 type StandaloneResourceDetails struct {
 	ResourceBaseDetails
 
-	// 标签
-	Metadata map[string]string `json:"metadata"`
+	MetadataResourceInfo
 }
 
 type DomainizedResourceInfo struct {
@@ -146,6 +164,7 @@ type ProjectizedResourceInfo struct {
 
 type ScopedResourceBaseInfo struct {
 	ProjectizedResourceInfo
+	Scope string `json:"scope"`
 }
 
 type InfrasResourceBaseDetails struct {

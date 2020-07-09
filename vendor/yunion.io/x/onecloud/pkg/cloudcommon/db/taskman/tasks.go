@@ -255,7 +255,7 @@ func (manager *STaskManager) NewTask(
 	defer lockman.ReleaseObject(ctx, obj)
 
 	data := fetchTaskParams(ctx, taskName, taskData, parentTaskId, parentTaskNotifyUrl, pendingUsage)
-	task := STask{
+	task := &STask{
 		ObjName:  obj.Keyword(),
 		ObjId:    obj.GetId(),
 		TaskName: taskName,
@@ -263,7 +263,8 @@ func (manager *STaskManager) NewTask(
 		Params:   data,
 		Stage:    TASK_INIT_STAGE,
 	}
-	err := manager.TableSpec().Insert(&task)
+	task.SetModelManager(manager, task)
+	err := manager.TableSpec().Insert(ctx, task)
 	if err != nil {
 		log.Errorf("Task insert error %s", err)
 		return nil, err
@@ -271,13 +272,13 @@ func (manager *STaskManager) NewTask(
 	parentTask := task.GetParentTask()
 	if parentTask != nil {
 		st := SSubTask{TaskId: parentTask.Id, Stage: parentTask.Stage, SubtaskId: task.Id}
-		err := SubTaskManager.TableSpec().Insert(&st)
+		err := SubTaskManager.TableSpec().Insert(ctx, &st)
 		if err != nil {
 			log.Errorf("Subtask insert error %s", err)
 			return nil, err
 		}
 	}
-	return &task, nil
+	return task, nil
 }
 
 func (manager *STaskManager) NewParallelTask(
@@ -303,7 +304,7 @@ func (manager *STaskManager) NewParallelTask(
 	defer lockman.ReleaseClass(ctx, objs[0].GetModelManager(), userCred.GetProjectId())
 
 	data := fetchTaskParams(ctx, taskName, taskData, parentTaskId, parentTaskNotifyUrl, pendingUsage)
-	task := STask{
+	task := &STask{
 		ObjName:  objs[0].Keyword(),
 		ObjId:    MULTI_OBJECTS_ID,
 		TaskName: taskName,
@@ -311,14 +312,15 @@ func (manager *STaskManager) NewParallelTask(
 		Params:   data,
 		Stage:    TASK_INIT_STAGE,
 	}
-	err := manager.TableSpec().Insert(&task)
+	task.SetModelManager(manager, task)
+	err := manager.TableSpec().Insert(ctx, task)
 	if err != nil {
 		log.Errorf("Task insert error %s", err)
 		return nil, err
 	}
 	for _, obj := range objs {
 		to := STaskObject{TaskId: task.Id, ObjId: obj.GetId()}
-		err := TaskObjectManager.TableSpec().Insert(&to)
+		err := TaskObjectManager.TableSpec().Insert(ctx, &to)
 		if err != nil {
 			log.Errorf("Taskobject insert error %s", err)
 			return nil, err
@@ -327,13 +329,13 @@ func (manager *STaskManager) NewParallelTask(
 	parentTask := task.GetParentTask()
 	if parentTask != nil {
 		st := SSubTask{TaskId: parentTask.Id, Stage: parentTask.Stage, SubtaskId: task.Id}
-		err := SubTaskManager.TableSpec().Insert(&st)
+		err := SubTaskManager.TableSpec().Insert(ctx, &st)
 		if err != nil {
 			log.Errorf("Subtask insert error %s", err)
 			return nil, err
 		}
 	}
-	return &task, nil
+	return task, nil
 }
 
 func (manager *STaskManager) fetchTask(idStr string) *STask {
