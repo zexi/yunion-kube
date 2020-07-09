@@ -9,6 +9,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	cloudmod "yunion.io/x/onecloud/pkg/mcclient/modules"
@@ -159,7 +160,7 @@ func (d *SYunionHostDriver) PrepareResource(session *mcclient.ClientSession, mac
 		return nil, errors.Wrapf(err, "Get cluster %s apiServerEndpoint", cluster.GetName())
 	}
 	data.ELBAddress = apiServerEndpoint
-	_, err = machine.GetModelManager().TableSpec().Update(machine, func() error {
+	_, err = db.Update(machine, func() error {
 		if data.FirstNode {
 			machine.FirstNode = tristate.True
 		}

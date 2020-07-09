@@ -491,7 +491,7 @@ func (m *SMachine) SetPrivateIP(address string) error {
 	if err != nil {
 		return err
 	}
-	_, err = m.GetModelManager().TableSpec().Update(m, func() error {
+	_, err = db.Update(m, func() error {
 		m.Address = address
 		return nil
 	})
@@ -499,7 +499,7 @@ func (m *SMachine) SetPrivateIP(address string) error {
 }
 
 func (m *SMachine) SetHypervisor(hypervisor string) error {
-	if _, err := m.GetModelManager().TableSpec().Update(m, func() error {
+	if _, err := db.Update(m, func() error {
 		m.Hypervisor = hypervisor
 		return nil
 	}); err != nil {

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/pkg/utils"
 
 	api "yunion.io/x/onecloud/pkg/apis/identity"
@@ -146,6 +147,11 @@ func (this *ClientSession) GetServiceVersionURL(service, endpointType, apiVersio
 		url, err = this.client.serviceCatalog.GetServiceURL(service, this.region, this.zone, endpointType)
 	}
 	if err != nil && service == api.SERVICE_TYPE {
+		return this.client.authUrl, nil
+	}
+	// HACK! in case schema of keystone changed, always trust authUrl
+	if service == api.SERVICE_TYPE && this.client.authUrl[:5] != url[:5] {
+		log.Warningf("Schema of keystone authUrl and endpoint mismatch: %s!=%s", this.client.authUrl, url)
 		return this.client.authUrl, nil
 	}
 	return url, err
@@ -389,4 +395,15 @@ func (this *ClientSession) ToJson() jsonutils.JSONObject {
 
 func (cs *ClientSession) GetToken() TokenCredential {
 	return cs.token
+}
+
+func (cs *ClientSession) GetContext() context.Context {
+	if cs.ctx == nil {
+		return context.Background()
+	}
+	return cs.ctx
+}
+
+func (cs *ClientSession) GetCommonEtcdEndpoint() (*api.EndpointDetails, error) {
+	return cs.GetClient().GetCommonEtcdEndpoint(cs.GetToken(), cs.region, cs.endpointType)
 }

@@ -37,12 +37,7 @@ type DeletePreventableCreateInput struct {
 }
 
 type KeypairListInput struct {
-	apis.StandaloneResourceListInput
-
 	apis.UserResourceListInput
-
-	// list in admin mode
-	Admin *bool `json:"admin"`
 
 	// 加密类型
 	// example: RSA
@@ -66,8 +61,7 @@ type CachedimageListInput struct {
 }
 
 type ExternalProjectListInput struct {
-	apis.StandaloneResourceListInput
-	apis.ProjectizedResourceListInput
+	apis.VirtualResourceListInput
 	apis.ExternalizedResourceBaseListInput
 
 	ManagedResourceListInput

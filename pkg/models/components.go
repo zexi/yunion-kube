@@ -127,7 +127,7 @@ func (m *SComponentManager) CreateByCluster(
 	cs := new(SClusterComponent)
 	cs.ClusterId = cluster.GetId()
 	cs.ComponentId = obj.GetId()
-	if err := cs.DoSave(); err != nil {
+	if err := cs.DoSave(ctx); err != nil {
 		return nil, errors.Wrap(err, "create cluster component joint model")
 	}
 

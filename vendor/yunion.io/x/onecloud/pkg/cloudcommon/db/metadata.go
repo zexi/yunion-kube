@@ -514,7 +514,7 @@ func (manager *SMetadataManager) SetValues(ctx context.Context, obj IModel, stor
 		}
 
 		if len(record.Id) == 0 {
-			err = manager.TableSpec().InsertOrUpdate(&newRecord)
+			err = manager.TableSpec().InsertOrUpdate(ctx, &newRecord)
 		} else {
 			rV, rD := record.Value, record.Deleted
 			_, err = Update(&record, func() error {
@@ -641,7 +641,7 @@ func GetVisiableMetadata(model IStandaloneModel, userCred mcclient.TokenCredenti
 	return metaData, nil
 }
 
-func metaList2Map(manager IStandaloneModelManager, userCred mcclient.TokenCredential, metaList []SMetadata) map[string]string {
+func metaList2Map(manager IMetadataBaseModelManager, userCred mcclient.TokenCredential, metaList []SMetadata) map[string]string {
 	metaMap := make(map[string]string)
 
 	hiddenKeys := manager.GetMetadataHiddenKeys()

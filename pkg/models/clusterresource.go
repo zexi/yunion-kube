@@ -398,7 +398,7 @@ func NewFromRemoteObject(
 	if err != nil {
 		return nil, errors.Wrapf(err, "NewFromRemoteObject %s", man.Keyword())
 	}
-	if err := man.TableSpec().Insert(dbObj); err != nil {
+	if err := man.TableSpec().Insert(ctx, dbObj); err != nil {
 		return nil, errors.Wrapf(err, "Insert %#v to database", dbObj)
 	}
 	if err := dbObj.UpdateFromRemoteObject(ctx, userCred, obj); err != nil {

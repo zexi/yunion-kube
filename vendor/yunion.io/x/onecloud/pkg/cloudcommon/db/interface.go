@@ -40,7 +40,7 @@ type IModelManager interface {
 	GetIModelManager() IModelManager
 
 	// Table() *sqlchemy.STable
-	TableSpec() *sqlchemy.STableSpec
+	TableSpec() ITableSpec
 
 	// Keyword() string
 	KeywordPlural() string
@@ -242,6 +242,10 @@ type IJointModel interface {
 	AllowUpdateJointItem(ctx context.Context, userCred mcclient.TokenCredential, item IJointModel) bool
 }
 
+type IMetadataBaseModelManager interface {
+	GetMetadataHiddenKeys() []string
+}
+
 type IStandaloneModelManager interface {
 	IResourceModelManager
 
@@ -253,7 +257,7 @@ type IStandaloneModelManager interface {
 
 	// FetchByExternalId(idStr string) (IStandaloneModel, error)
 
-	GetMetadataHiddenKeys() []string
+	IMetadataBaseModelManager
 }
 
 type IStandaloneModel interface {
@@ -316,6 +320,13 @@ type IVirtualModelManager interface {
 	IStandaloneModelManager
 
 	GetIVirtualModelManager() IVirtualModelManager
+	GetResourceCount() ([]SScopeResourceCount, error)
+}
+
+type IUserModelManager interface {
+	IStandaloneModelManager
+
+	GetIUserModelManager() IUserModelManager
 	GetResourceCount() ([]SScopeResourceCount, error)
 }
 
