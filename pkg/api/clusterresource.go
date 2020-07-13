@@ -17,7 +17,7 @@ const (
 )
 
 type ClusterResourceCreateInput struct {
-	apis.VirtualResourceCreateInput
+	apis.StatusDomainLevelResourceCreateInput
 
 	// 集群名称
 	Cluster string `json:"cluster"`
@@ -35,7 +35,8 @@ func (input ClusterResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
 }
 
 type ClusterResourceListInput struct {
-	apis.VirtualResourceListInput
+	apis.StatusDomainLevelResourceListInput
+	System *bool `json:"system"`
 
 	// 集群名称
 	Cluster string `json:"cluster"`
@@ -133,7 +134,7 @@ type ClusterK8SResourceMetaDetail struct {
 }
 
 type ClusterResourceDetail struct {
-	apis.VirtualResourceDetails
+	apis.StatusDomainLevelResourceDetails
 	*ClusterK8SResourceMetaDetail
 
 	ClusterId string `json:"cluster_id"`

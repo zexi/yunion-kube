@@ -38,10 +38,10 @@ require (
 	sigs.k8s.io/controller-runtime v0.1.10
 	sigs.k8s.io/yaml v1.1.0
 	yunion.io/x/code-generator v0.0.0-20200629074731-51f5d5e2ac62
-	yunion.io/x/jsonutils v0.0.0-20200708073651-8fe00d01c40a
+	yunion.io/x/jsonutils v0.0.0-20200710080709-7ca71cdb9383
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
-	yunion.io/x/onecloud v0.0.0-20200709093901-424a756318cc
-	yunion.io/x/pkg v0.0.0-20200708071451-a663dc94e16b
+	yunion.io/x/onecloud v0.0.0-20200716031917-bea60df49453
+	yunion.io/x/pkg v0.0.0-20200713121502-18154120c49b
 	yunion.io/x/sqlchemy v0.0.0-20200702064124-195445bc4b11
 )
 

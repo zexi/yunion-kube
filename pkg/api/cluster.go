@@ -112,6 +112,7 @@ type ClusterCreateInput struct {
 	apis.Meta
 
 	Name            string               `json:"name"`
+	IsSystem        *bool                `json:"is_system"`
 	ClusterType     string               `json:"cluster_type"`
 	CloudType       string               `json:"cloud_type"`
 	Mode            string               `json:"mode"`
@@ -164,5 +165,10 @@ type UsableInstance struct {
 }
 
 type ClusterListInput struct {
-	apis.SharableVirtualResourceListInput
+	apis.StatusDomainLevelResourceListInput
+}
+
+type ClusterSyncInput struct {
+	// Force sync
+	Force bool `json:"force"`
 }

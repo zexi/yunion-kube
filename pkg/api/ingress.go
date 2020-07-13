@@ -25,7 +25,25 @@ type IngressDetail struct {
 	Status extensions.IngressStatus `json:"status"`
 }
 
+type IngressDetailV2 struct {
+	NamespaceResourceDetail
+	// External endpoints of this ingress.
+	Endpoints []Endpoint `json:"endpoints"`
+
+	// TODO: replace this with UI specific fields.
+	// Spec is the desired state of the Ingress.
+	Spec extensions.IngressSpec `json:"spec"`
+
+	// Status is the current state of the Ingress.
+	Status extensions.IngressStatus `json:"status"`
+}
+
 type IngressCreateInput struct {
 	K8sNamespaceResourceCreateInput
+	extensions.IngressSpec
+}
+
+type IngressCreateInputV2 struct {
+	NamespaceResourceCreateInput
 	extensions.IngressSpec
 }

@@ -55,7 +55,7 @@ func buildCacheController(
 		resMan := cluster.GetK8sResourceManager(value.GroupVersionResourceKind.Kind)
 		if resMan != nil {
 			// register informer event handler
-			genericInformer.Informer().AddEventHandler(newEventHandler(cluster, resMan))
+			// genericInformer.Informer().AddEventHandler(newEventHandler(cluster, resMan))
 		}
 		// go genericInformer.Informer().Run(stop)
 	}

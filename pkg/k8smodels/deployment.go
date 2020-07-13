@@ -49,9 +49,9 @@ func (m SDeploymentManager) ValidateCreateData(
 	ctx *model.RequestContext,
 	query *jsonutils.JSONDict,
 	input *api.DeploymentCreateInput) (*api.DeploymentCreateInput, error) {
-	if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
-		return input, err
-	}
+	// if _, err := m.SK8SNamespaceResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sNamespaceResourceCreateInput); err != nil {
+	// return input, err
+	// }
 	return input, nil
 }
 

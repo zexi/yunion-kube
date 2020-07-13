@@ -18,6 +18,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	ocapis "yunion.io/x/onecloud/pkg/apis"
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
@@ -46,7 +47,7 @@ var ClusterManager *SClusterManager
 
 func init() {
 	ClusterManager = &SClusterManager{
-		SSharableVirtualResourceBaseManager: db.NewSharableVirtualResourceBaseManager(
+		SStatusDomainLevelResourceBaseManager: db.NewStatusDomainLevelResourceBaseManager(
 			SCluster{},
 			"kubeclusters_tbl",
 			"kubecluster",
@@ -59,11 +60,15 @@ func init() {
 
 // +onecloud:swagger-gen-model-singular=kubecluster
 type SClusterManager struct {
-	db.SSharableVirtualResourceBaseManager
+	db.SStatusDomainLevelResourceBaseManager
+	SSyncableK8sBaseResourceManager
 }
 
 type SCluster struct {
-	db.SSharableVirtualResourceBase
+	db.SStatusDomainLevelResourceBase
+	SSyncableK8sBaseResource
+
+	IsSystem bool `nullable:"true" default:"false" list:"admin" create:"optional" json:"is_system"`
 
 	ClusterType     string               `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	CloudType       string               `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
@@ -99,6 +104,31 @@ func (m *SClusterManager) InitializeData() error {
 		})
 	}
 	return nil
+}
+
+func (m *SClusterManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	q = m.SStatusDomainLevelResourceBaseManager.FilterByHiddenSystemAttributes(q, userCred, query, scope)
+	isSystem := jsonutils.QueryBoolean(query, "system", false)
+	if isSystem {
+		var isAllow bool
+		if consts.IsRbacEnabled() {
+			allowScope := policy.PolicyManager.AllowScope(userCred, consts.GetServiceType(), m.KeywordPlural(), policy.PolicyActionList, "system")
+			if !scope.HigherThan(allowScope) {
+				isAllow = true
+			}
+		} else {
+			if userCred.HasSystemAdminPrivilege() {
+				isAllow = true
+			}
+		}
+		if !isAllow {
+			isSystem = false
+		}
+	}
+	if !isSystem {
+		q = q.Filter(sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))))
+	}
+	return q
 }
 
 func (m *SClusterManager) GetSystemCluster() (*SCluster, error) {
@@ -225,7 +255,7 @@ func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
 }
 
 func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterListInput) (*sqlchemy.SQuery, error) {
-	return m.SSharableVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.SharableVirtualResourceListInput)
+	return m.SStatusDomainLevelResourceBaseManager.ListItemFilter(ctx, q, userCred, input.StatusDomainLevelResourceListInput)
 }
 
 func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data api.ClusterCreateInput) (manager.ICluster, error) {
@@ -348,15 +378,32 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		}
 	}
 
-	input := ocapis.VirtualResourceCreateInput{}
+	if res.IsSystem != nil && *res.IsSystem && !db.IsAdminAllowCreate(userCred, m) {
+		return nil, httperrors.NewNotSufficientPrivilegeError("non-admin user not allowed to create system object")
+	}
+
+	input := ocapis.StatusDomainLevelResourceCreateInput{}
 	if err := data.Unmarshal(&input); err != nil {
 		return nil, err
 	}
-	input, err = m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input)
+	input, err = m.SStatusDomainLevelResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input)
 	if err != nil {
 		return nil, err
 	}
 	return data, nil
+}
+
+func (cluster *SCluster) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	input := new(api.ClusterCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return errors.Wrap(err, "unmarshal cluster create input")
+	}
+	if input.IsSystem != nil && *input.IsSystem {
+		cluster.IsSystem = true
+	} else {
+		cluster.IsSystem = false
+	}
+	return cluster.SStatusDomainLevelResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data)
 }
 
 func (m *SClusterManager) AllowGetPropertyK8sVersions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -625,7 +672,7 @@ func (m *SClusterManager) FetchCustomizeColumns(
 	isList bool,
 ) []*jsonutils.JSONDict {
 	rows := make([]*jsonutils.JSONDict, len(objs))
-	virtRows := m.SSharableVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+	virtRows := m.SStatusDomainLevelResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	for i := range objs {
 		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
 		rows[i] = objs[i].(*SCluster).moreExtraInfo(rows[i])
@@ -634,7 +681,7 @@ func (m *SClusterManager) FetchCustomizeColumns(
 }
 
 func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*jsonutils.JSONDict, error) {
-	extra, err := c.SVirtualResourceBase.GetExtraDetails(ctx, userCred, query, isList)
+	extra, err := c.SStatusDomainLevelResourceBase.GetExtraDetails(ctx, userCred, query, isList)
 	if err != nil {
 		return nil, err
 	}
@@ -827,7 +874,7 @@ func (c *SCluster) GenerateCertificates(ctx context.Context, userCred mcclient.T
 }
 
 func (c *SCluster) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	c.SVirtualResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
+	c.SStatusDomainLevelResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
 	if err := c.StartClusterCreateTask(ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("StartClusterCreateTask error: %v", err)
 	}
@@ -885,7 +932,7 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 	if err := c.DeleteAllComponents(ctx, userCred); err != nil {
 		return errors.Wrapf(err, "DeleteClusterComponent")
 	}
-	return c.SVirtualResourceBase.Delete(ctx, userCred)
+	return c.SStatusDomainLevelResourceBase.Delete(ctx, userCred)
 }
 
 func (c *SCluster) DeleteAllComponents(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -1604,10 +1651,6 @@ func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient
 	return nil, nil
 }
 
-func (c *SCluster) GetProjectId() string {
-	return c.ProjectId
-}
-
 func (c *SCluster) prepareStartSync() error {
 	if c.GetStatus() != api.ClusterStatusRunning {
 		return errors.Errorf("Cluster status is %s", c.GetStatus())
@@ -1626,6 +1669,24 @@ func (m *SClusterManager) StartAutoSyncTask(ctx context.Context, userCred mcclie
 	}
 }
 
+func (c *SCluster) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return db.IsDomainAllowPerform(userCred, c, "sync")
+}
+
+func (c *SCluster) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	input := new(api.ClusterSyncInput)
+	data.Unmarshal(input)
+	if c.CanSync() || input.Force {
+		c.SubmitSyncTask(ctx, userCred, nil)
+	}
+	return nil, nil
+}
+
+type ISyncableManager interface {
+	db.IModelManager
+	SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cls *SCluster) error
+}
+
 func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCredential, waitChan chan error) {
 	RunSyncClusterTask(func() {
 		log.Infof("start sync cluster %s", c.GetName())
@@ -1636,18 +1697,26 @@ func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCr
 			}
 			return
 		}
-		// full mode sync
-		for _, man := range []IClusterModelManager{
-			NamespaceManager,
-			ReleaseManager,
+		if err := c.MarkSyncing(c, userCred); err != nil {
+			log.Errorf("Mark cluster %s syncing error: %v", c.GetId(), err)
+			return
+		}
+
+		for _, man := range []ISyncableManager{
 			NodeManager,
-			PodManager,
+			ClusterRoleManager,
+			ClusterRoleBindingManager,
+			NamespaceManager,
 		} {
-			if ret := SyncClusterResources(ctx, man, userCred, c); ret.IsError() {
-				log.Errorf("Sync cluster %s resource %s error: %v", c.GetName(), man.KeywordPlural(), ret.Result())
-			} else {
-				log.Infof("Sync cluster %s resource %s completed: %v", c.GetName(), man.KeywordPlural(), ret.Result())
+			if err := man.SyncResources(ctx, userCred, c); err != nil {
+				log.Errorf("Sync %s error: %v", man.KeywordPlural(), err)
+				c.MarkErrorSync(ctx, c, err)
+				return
 			}
+		}
+		if err := c.MarkEndSync(ctx, userCred, c); err != nil {
+			log.Errorf("mark cluster %s sync end error: %v", c.GetId(), err)
+			return
 		}
 	})
 }
@@ -1674,8 +1743,6 @@ func (m *SClusterManager) usageClusters(scope rbacutils.TRbacScope, ownerId mccl
 		// do nothing
 	case rbacutils.ScopeDomain:
 		q = q.Equals("domain_id", ownerId.GetProjectDomainId())
-	case rbacutils.ScopeProject:
-		q = q.Equals("tenant_id", ownerId.GetProjectId())
 	}
 	var clusters []sClusterUsage
 	if err := q.All(&clusters); err != nil {

@@ -3,12 +3,13 @@ package models
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"strings"
 	"time"
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/helm/pkg/strvals"
 	"sigs.k8s.io/yaml"
 
@@ -17,6 +18,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
@@ -166,23 +168,21 @@ func (m *SReleaseManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []api.ReleaseDetailV2 {
-	rows := make([]api.ReleaseDetailV2, len(objs))
-	nRows := m.SNamespaceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	for i := range nRows {
-		detail := api.ReleaseDetailV2{
-			ReleaseV2: api.ReleaseV2{
-				NamespaceResourceDetail: nRows[i],
-			},
-		}
-		var err error
-		detail, err = objs[i].(*SRelease).fillReleaseDetail(detail, isList)
-		if err != nil {
-			log.Errorf("Get release detail error: %v", err)
-		}
-		rows[i] = detail
+) []interface{} {
+	return m.SNamespaceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+}
+
+func (rls *SRelease) GetDetails(cli *client.ClusterManager, base interface{}, _ runtime.Object, isList bool) interface{} {
+	detail := api.ReleaseDetailV2{
+		ReleaseV2: api.ReleaseV2{
+			NamespaceResourceDetail: base.(api.NamespaceResourceDetail),
+		},
 	}
-	return rows
+	detail, err := rls.fillReleaseDetail(detail, isList)
+	if err != nil {
+		log.Errorf("get release detail err: %v", err)
+	}
+	return detail
 }
 
 func (rls *SRelease) fillReleaseDetail(detail api.ReleaseDetailV2, isList bool) (api.ReleaseDetailV2, error) {
@@ -503,6 +503,15 @@ func (m *SReleaseManager) NewFromRemoteObject(
 	return dbObj.(IClusterModel), nil
 }
 
+func (m *SReleaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	q = m.SStatusDomainLevelResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
+	return q
+	//input := new(api.ReleaseListInputV2)
+
+	//nsQ := NamespaceManager.Query("id")
+	//nsSq := nsQ.Equals("name", userCred.GetProjectId())
+}
+
 func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ReleaseListInputV2) (*sqlchemy.SQuery, error) {
 	q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
 	if err != nil {
@@ -521,7 +530,7 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 }
 
 func (obj *SRelease) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	obj.SNamespaceResourceBase.PostDelete(obj, ctx, userCred)
+	obj.SNamespaceResourceBase.PostDeleteV2(obj, ctx, userCred)
 }
 
 func (obj *SRelease) DeleteRemoteObject(_ *client.ClusterManager) error {

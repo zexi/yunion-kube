@@ -36,10 +36,6 @@ func InitHandlers(app *appsrv.Application) {
 		db.TenantCacheManager,
 		db.SharedResourceManager,
 		db.Metadata,
-
-		// only register this k8s model manager, not provides http handler
-		models.NodeManager,
-		models.PodManager,
 	} {
 		db.RegisterModelManager(man)
 	}
@@ -51,7 +47,20 @@ func InitHandlers(app *appsrv.Application) {
 		models.X509KeyPairManager,
 		models.ComponentManager,
 		models.MachineManager,
+		models.NodeManager,
 		models.NamespaceManager,
+		models.LimitRangeManager,
+		models.ResourceQuotaManager,
+		models.ClusterRoleManager,
+		models.ClusterRoleBindingManager,
+		models.RoleManager,
+		models.RoleBindingManager,
+		models.DeploymentManager,
+		models.ReplicaSetManager,
+		models.PodManager,
+		models.ServiceManager,
+		models.IngressManager,
+
 		models.ReleaseManager,
 	} {
 		db.RegisterModelManager(man)
@@ -76,16 +85,16 @@ func InitHandlers(app *appsrv.Application) {
 	// v2 dispatcher
 	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
 	for _, man := range []model.IK8SModelManager{
-		k8smodels.NodeManager,
+		//k8smodels.NodeManager,
 		//k8smodels.NamespaceManager,
-		k8smodels.LimitRangeManager,
-		k8smodels.ResourceQuotaManager,
-		k8smodels.PodManager,
+		//k8smodels.LimitRangeManager,
+		// k8smodels.ResourceQuotaManager,
+		// k8smodels.PodManager,
 		k8smodels.JobManager,
 		k8smodels.CronJobManager,
-		k8smodels.ServiceManager,
-		k8smodels.IngressManager,
-		k8smodels.DeploymentManager,
+		// k8smodels.ServiceManager,
+		// k8smodels.IngressManager,
+		//k8smodels.DeploymentManager,
 		k8smodels.StatefulSetManager,
 		k8smodels.DaemonSetManager,
 		k8smodels.SecretManager,
@@ -93,10 +102,10 @@ func InitHandlers(app *appsrv.Application) {
 		k8smodels.StorageClassManager,
 		k8smodels.PVManager,
 		k8smodels.PVCManager,
-		k8smodels.ClusterRoleManager,
-		k8smodels.ClusterRoleBindingManager,
-		k8smodels.RoleManager,
-		k8smodels.RoleBindingManager,
+		//k8smodels.ClusterRoleManager,
+		//k8smodels.ClusterRoleBindingManager,
+		//k8smodels.RoleManager,
+		//k8smodels.RoleBindingManager,
 		k8smodels.ServiceAccountManager,
 		k8smodels.EventManager,
 		// onecloud service operator resource manager

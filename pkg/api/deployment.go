@@ -114,9 +114,27 @@ type DeploymentDetail struct {
 }
 
 type DeploymentCreateInput struct {
-	K8sNamespaceResourceCreateInput
+	// K8sNamespaceResourceCreateInput
+	NamespaceResourceCreateInput
 
 	apps.DeploymentSpec
 
 	Service *ServiceCreateOption `json:"service"`
+}
+
+type DeploymentListInput struct {
+	NamespaceResourceListInput
+}
+
+type DeploymentDetailV2 struct {
+	NamespaceResourceDetail
+	// Aggregate information about pods belonging to this deployment
+	Pods     PodInfo `json:"podsInfo"`
+	Replicas *int32  `json:"replicas"`
+	// Container images of the Deployment
+	ContainerImages []ContainerImage `json:"containerImages"`
+	// Init Container images of deployment
+	InitContainerImages []ContainerImage  `json:"initContainerImages"`
+	Selector            map[string]string `json:"selector"`
+	DeploymentStatus
 }

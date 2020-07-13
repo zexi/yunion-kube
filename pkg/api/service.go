@@ -101,6 +101,11 @@ type ServiceCreateInput struct {
 	ServiceCreateOption
 }
 
+type ServiceCreateInputV2 struct {
+	NamespaceResourceCreateInput
+	ServiceCreateOption
+}
+
 const (
 	// k8s annotations for create pod
 	YUNION_CNI_NETWORK_ANNOTATION = "cni.yunion.io/network"
@@ -138,4 +143,38 @@ func GetServicePorts(apiPorts []v1.ServicePort) []ServicePort {
 type ServiceListInput struct {
 	ListInputK8SNamespaceBase
 	ListInputOwner
+}
+
+type ServiceDetailV2 struct {
+	NamespaceResourceDetail
+
+	// InternalEndpoint of all kubernetes services that have the same label selector as connected Replication
+	// Controller. Endpoint is DNS name merged with ports
+	InternalEndpoint Endpoint `json:"internalEndpoint"`
+
+	// ExternalEndpoints of all kubernetes services that have the same label selector as connected Replication
+	// Controller. Endpoint is DNS name merged with ports
+	ExternalEndpoints []Endpoint `json:"externalEndpoints"`
+
+	// Label selector of the service
+	Selector map[string]string `json:"selector"`
+
+	// Type determines how the service will be exposed. Valid options: ClusterIP, NodePort, LoadBalancer
+	Type v1.ServiceType `json:"type"`
+
+	// ClusterIP is usually assigned by the master. Valid values are None, empty string (""), or
+	// a valid IP address. None can be specified for headless services when proxying is not required
+	ClusterIP string `json:"clusterIP"`
+
+	// List of Endpoint obj. that are endpoints of this Service.
+	// Endpoints []*EndpointDetail `json:"endpoints"`
+
+	// List of events related to this Service
+	// Events []*Event `json:"events"`
+
+	// Pods represents list of pods targeted by same label selector as this service.
+	Pods []*PodDetailV2 `json:"pods"`
+
+	// Show the value of the SessionAffinity of the Service.
+	SessionAffinity v1.ServiceAffinity `json:"sessionAffinity"`
 }
