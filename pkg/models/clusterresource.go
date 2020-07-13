@@ -3,19 +3,25 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/kubectl/pkg/scheme"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/apis"
+	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
@@ -30,7 +36,7 @@ import (
 )
 
 type SClusterResourceBaseManager struct {
-	db.SVirtualResourceBaseManager
+	db.SStatusDomainLevelResourceBaseManager
 	db.SExternalizedResourceBaseManager
 
 	// resourceName is kubernetes resource name
@@ -50,7 +56,7 @@ func NewClusterResourceBaseManager(
 	kind string,
 	object runtime.Object) SClusterResourceBaseManager {
 	return SClusterResourceBaseManager{
-		SVirtualResourceBaseManager: db.NewVirtualResourceBaseManager(
+		SStatusDomainLevelResourceBaseManager: db.NewStatusDomainLevelResourceBaseManager(
 			dt, tableName, keyword, keywordPlural),
 		resourceName: resName,
 		kindName:     kind,
@@ -59,7 +65,7 @@ func NewClusterResourceBaseManager(
 }
 
 type SClusterResourceBase struct {
-	db.SVirtualResourceBase
+	db.SStatusDomainLevelResourceBase
 	db.SExternalizedResourceBase
 
 	ClusterId string `width:"36" charset:"ascii" nullable:"false" index:"true" list:"user"`
@@ -68,7 +74,7 @@ type SClusterResourceBase struct {
 }
 
 type IClusterModelManager interface {
-	db.IVirtualModelManager
+	db.IDomainLevelModelManager
 
 	GetK8SResourceInfo() K8SResourceInfo
 	IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error)
@@ -81,11 +87,12 @@ type IClusterModelManager interface {
 }
 
 type IClusterModel interface {
-	db.IVirtualModel
+	db.IStatusDomainLevelModel
 
 	GetExternalId() string
 	SetExternalId(idStr string)
 
+	GetClusterModelManager() IClusterModelManager
 	SetName(name string)
 	GetClusterId() string
 	GetCluster() (*SCluster, error)
@@ -95,6 +102,7 @@ type IClusterModel interface {
 	GetClusterClient() (*client.ClusterManager, error)
 	DeleteRemoteObject(cli *client.ClusterManager) error
 	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
+	GetDetails(cli *client.ClusterManager, baseDetails interface{}, k8sObj runtime.Object, isList bool) interface{}
 }
 
 type K8SResourceInfo struct {
@@ -112,24 +120,43 @@ func (m SClusterResourceBaseManager) GetK8SResourceInfo() K8SResourceInfo {
 }
 
 func (m *SClusterResourceBaseManager) FilterBySystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
-	q = m.SVirtualResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
+	q = m.SStatusDomainLevelResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
 	input := new(api.ClusterResourceListInput)
-	if input.Cluster != "" {
-		clsObj, err := ClusterManager.FetchClusterByIdOrName(userCred, input.Cluster)
-		if err != nil {
-			log.Errorf("Get cluster %s error: %v", input.Cluster, err)
+	if query != nil {
+		query.Unmarshal(input)
+	}
+	isSystem := false
+	if input.System != nil && *input.System {
+		var isAllow bool
+		isSystem = *input.System
+		if consts.IsRbacEnabled() {
+			allowScope := policy.PolicyManager.AllowScope(userCred, consts.GetServiceType(), m.KeywordPlural(), policy.PolicyActionList, "system")
+			if !scope.HigherThan(allowScope) {
+				isAllow = true
+			}
+		} else {
+			if userCred.HasSystemAdminPrivilege() {
+				isAllow = true
+			}
 		}
-		q.Equals("cluster_id", clsObj.GetId())
+		if !isAllow {
+			isSystem = false
+		}
+	}
+	if !isSystem {
+		if sysCls, _ := ClusterManager.GetSystemCluster(); sysCls != nil {
+			q = q.NotEquals("cluster_id", sysCls.GetId())
+		}
 	}
 	return q
 }
 
 func (m SClusterResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.ClusterResourceCreateInput) (*api.ClusterResourceCreateInput, error) {
-	vData, err := m.SVirtualResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, data.VirtualResourceCreateInput)
+	vData, err := m.SStatusDomainLevelResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, data.StatusDomainLevelResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
-	data.VirtualResourceCreateInput = vData
+	data.StatusDomainLevelResourceCreateInput = vData
 
 	if data.Cluster == "" {
 		return nil, httperrors.NewNotEmptyError("cluster is empty")
@@ -159,7 +186,7 @@ func FetchClusterResourceByName(manager IClusterModelManager, userCred mcclient.
 	}
 	if count > 0 && userCred != nil {
 		q = manager.FilterByOwner(q, userCred, manager.NamespaceScope())
-		q = manager.FilterBySystemAttributes(q, nil, nil, manager.ResourceScope())
+		//q = manager.FilterBySystemAttributes(q, nil, nil, manager.ResourceScope())
 		count, err = q.CountWithError()
 		if err != nil {
 			return nil, err
@@ -234,7 +261,7 @@ func (m *SClusterResourceBaseManager) GetByName(userCred mcclient.IIdentityProvi
 }
 
 func (res *SClusterResourceBase) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
-	if err := res.SVirtualResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
+	if err := res.SStatusDomainLevelResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
 	input := new(api.ClusterResourceCreateInput)
@@ -259,7 +286,7 @@ func (res *SClusterResourceBase) GetCluster() (*SCluster, error) {
 
 func (res *SClusterResourceBase) SetCluster(userCred mcclient.TokenCredential, cls *SCluster) {
 	res.ClusterId = cls.GetId()
-	res.SyncCloudProjectId(userCred, cls.GetOwnerId())
+	res.SyncCloudDomainId(userCred, cls.GetOwnerId())
 }
 
 func (res *SClusterResourceBase) GetClusterClient() (*client.ClusterManager, error) {
@@ -295,6 +322,27 @@ func GetClusterModelObjects(man IClusterModelManager, cluster *SCluster) ([]IClu
 }
 
 func SyncClusterResources(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	cluster *SCluster,
+	resMans ...IClusterModelManager,
+) error {
+	for _, man := range resMans {
+		// set cluster sync_message
+		cluster.SaveSyncMessage(cluster, fmt.Sprintf("syncing_%s", man.KeywordPlural()))
+
+		if ret := syncClusterResources(ctx, man, userCred, cluster); ret.IsError() {
+			err := errors.Errorf("Sync cluster %s resource %s error: %v", cluster.GetName(), man.KeywordPlural(), ret.Result())
+			cluster.MarkErrorSync(ctx, cluster, err)
+			return err
+		} else {
+			log.Infof("Sync cluster %s resource %s completed: %v", cluster.GetName(), man.KeywordPlural(), ret.Result())
+		}
+	}
+	return nil
+}
+
+func syncClusterResources(
 	ctx context.Context,
 	man IClusterModelManager,
 	userCred mcclient.TokenCredential,
@@ -507,10 +555,6 @@ func (obj *SClusterResourceBase) SetName(name string) {
 	obj.Name = name
 }
 
-func (obj *SClusterResourceBase) SetIsSystem(isSystem bool) {
-	obj.IsSystem = isSystem
-}
-
 func (obj *SClusterResourceBase) UpdateFromRemoteObject(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
@@ -535,7 +579,7 @@ func (obj *SClusterResourceBase) UpdateFromRemoteObject(
 }
 
 func (m *SClusterResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterResourceListInput) (*sqlchemy.SQuery, error) {
-	q, err := m.SVirtualResourceBaseManager.ListItemFilter(ctx, q, userCred, input.VirtualResourceListInput)
+	q, err := m.SStatusDomainLevelResourceBaseManager.ListItemFilter(ctx, q, userCred, input.StatusDomainLevelResourceListInput)
 	if err != nil {
 		return nil, err
 	}
@@ -550,6 +594,62 @@ func (m *SClusterResourceBaseManager) ListItemFilter(ctx context.Context, q *sql
 	return q, nil
 }
 
+func FetchClusterResourceCustomizeColumns(
+	baseGet func(obj interface{}) interface{},
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	query jsonutils.JSONObject,
+	objs []interface{},
+	fields stringutils2.SSortedStrings,
+	isList bool,
+) []interface{} {
+	ret := make([]interface{}, len(objs))
+	for idx := range objs {
+		obj := objs[idx].(IClusterModel)
+		k8sResInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+		baseDetail := baseGet(obj)
+		var k8sObj runtime.Object
+		var err error
+		if k8sResInfo.Object != nil {
+			k8sObj, err = GetK8sObject(obj)
+			if err != nil {
+				log.Errorf("get object from k8s error: %v", err)
+				ret[idx] = baseDetail
+				continue
+			}
+		}
+		cli, err := obj.GetClusterClient()
+		if err != nil {
+			log.Errorf("get object %s cluster client error: %v", obj.Keyword(), err)
+			ret[idx] = baseDetail
+			continue
+		}
+		out := obj.GetDetails(cli, baseDetail, k8sObj, isList)
+		ret[idx] = out
+	}
+	return ret
+}
+
+func (obj *SClusterResourceBase) GetDetails(
+	cli *client.ClusterManager,
+	base interface{},
+	k8sObj runtime.Object,
+	isList bool,
+) interface{} {
+	out := api.ClusterResourceDetail{
+		StatusDomainLevelResourceDetails: base.(apis.StatusDomainLevelResourceDetails),
+	}
+	cls, err := obj.GetCluster()
+	if err != nil {
+		log.Errorf("Get resource %s cluster error: %v", obj.GetName(), err)
+		return out
+	}
+	out.Cluster = cls.GetName()
+	out.ClusterId = cls.GetId()
+	out.ClusterID = cls.GetId()
+	return GetK8SResourceMetaDetail(k8sObj, out)
+}
+
 func (m *SClusterResourceBaseManager) FetchCustomizeColumns(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
@@ -557,37 +657,17 @@ func (m *SClusterResourceBaseManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []api.ClusterResourceDetail {
-	rows := make([]api.ClusterResourceDetail, len(objs))
-	vRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	k8sResInfo := m.GetK8SResourceInfo()
-	for i := range vRows {
-		detail := api.ClusterResourceDetail{
-			VirtualResourceDetails: vRows[i],
-		}
-		resObj := objs[i].(IClusterModel)
-		cls, err := resObj.GetCluster()
-		if err != nil {
-			log.Errorf("Get resource %s cluster error: %v", resObj.GetId(), err)
-		} else {
-			detail.Cluster = cls.GetName()
-			detail.ClusterId = cls.GetId()
-			detail.ClusterID = cls.GetId()
-		}
-		if k8sResInfo.Object != nil {
-			detail, err = m.GetK8SResourceMetaDetail(resObj, detail)
-			if err != nil {
-				log.Errorf("Get resource %s k8s meta error: %v", resObj.GetId(), err)
-			}
-		}
-		rows[i] = detail
+) []interface{} {
+	baseGet := func(obj interface{}) interface{} {
+		vRows := m.SStatusDomainLevelResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, []interface{}{obj}, fields, isList)
+		return vRows[0]
 	}
-	return rows
+	return FetchClusterResourceCustomizeColumns(baseGet, ctx, userCred, query, objs, fields, isList)
 }
 
-func GetK8SObject(res IClusterModel) (runtime.Object, error) {
+func GetK8sObject(res IClusterModel) (runtime.Object, error) {
 	cli, err := res.GetClusterClient()
-	man := res.GetModelManager().(IClusterModelManager)
+	man := res.GetClusterModelManager()
 	info := man.GetK8SResourceInfo()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get object %s/%s kubernetes client", info.ResourceName, res.GetName())
@@ -607,10 +687,48 @@ func GetK8SObject(res IClusterModel) (runtime.Object, error) {
 	return k8sObj, nil
 }
 
-func (m *SClusterResourceBaseManager) GetK8SResourceMetaDetail(obj IClusterModel, detail api.ClusterResourceDetail) (api.ClusterResourceDetail, error) {
-	k8sObj, err := GetK8SObject(obj)
+func UpdateK8sObject(res IClusterModel, data jsonutils.JSONObject) (runtime.Object, error) {
+	cli, err := res.GetClusterClient()
 	if err != nil {
-		return detail, errors.Wrap(err, "get object from k8s")
+		return nil, errors.Wrap(err, "get cluster client")
+	}
+	handler := cli.GetHandler()
+	resInfo := res.GetClusterModelManager().GetK8SResourceInfo()
+	rawStr, err := data.GetString()
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Get body raw data: %v", err)
+	}
+	namespaceName := ""
+	if nsResObj, ok := res.(INamespaceModel); ok {
+		nsObj, err := nsResObj.GetNamespace()
+		if err != nil {
+			return nil, errors.Wrapf(err, "get object %s/%s local db namespace", resInfo.ResourceName, res.GetName())
+		}
+		namespaceName = nsObj.GetName()
+	}
+	decode := scheme.Codecs.UniversalDeserializer().Decode
+	obj, _, err := decode([]byte(rawStr), nil, nil)
+	if err != nil {
+		return nil, httperrors.NewInputParameterError("Decode to runtime object error: %v", err)
+	}
+	putSpec := runtime.Unknown{}
+	objStr, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.NewDecoder(strings.NewReader(string(objStr))).Decode(&putSpec); err != nil {
+		return nil, err
+	}
+	_, err = handler.Update(resInfo.ResourceName, namespaceName, res.GetName(), &putSpec)
+	if err != nil {
+		return nil, errors.Wrap(err, "update remote k8s object")
+	}
+	return GetK8sObject(res)
+}
+
+func GetK8SResourceMetaDetail(k8sObj runtime.Object, detail api.ClusterResourceDetail) api.ClusterResourceDetail {
+	if k8sObj == nil {
+		return detail
 	}
 	metaObj := k8sObj.(metav1.Object)
 	detail.ClusterK8SResourceMetaDetail = &api.ClusterK8SResourceMetaDetail{
@@ -627,7 +745,33 @@ func (m *SClusterResourceBaseManager) GetK8SResourceMetaDetail(obj IClusterModel
 	if deletionTimestamp := metaObj.GetDeletionTimestamp(); deletionTimestamp != nil {
 		detail.ClusterK8SResourceMetaDetail.DeletionTimestamp = &deletionTimestamp.Time
 	}
-	return detail, nil
+	return detail
+}
+
+func (res *SClusterResourceBase) AllowGetDetailsRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	//return res.AllowGetDetails()
+	// TODO: use rbac to check
+	return true
+}
+
+func (res *SClusterResourceBase) GetDetailsRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	k8sObj, err := GetK8sObject(res)
+	if err != nil {
+		return nil, err
+	}
+	return K8SObjectToJSONObject(k8sObj), nil
+}
+
+func (res *SClusterResourceBase) AllowUpdateRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return true
+}
+
+func (res *SClusterResourceBase) UpdateRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	k8sObj, err := UpdateK8sObject(res, data)
+	if err != nil {
+		return nil, err
+	}
+	return K8SObjectToJSONObject(k8sObj), nil
 }
 
 // GetExtraDetails is deprecated
@@ -636,7 +780,7 @@ func (res *SClusterResourceBase) GetExtraDetails(ctx context.Context, userCred m
 }
 
 func (obj *SClusterResourceBase) StartCreateTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query, data jsonutils.JSONObject) {
-	obj.SVirtualResourceBase.PostCreate(ctx, userCred, ownerCred, query, data)
+	obj.SStatusDomainLevelResourceBase.PostCreate(ctx, userCred, ownerCred, query, data)
 	if err := StartClusterResourceCreateTask(ctx, userCred, resObj, data.(*jsonutils.JSONDict), ""); err != nil {
 		log.Errorf("Create %s resource task error: %v", obj.Keyword(), err)
 	}
@@ -714,7 +858,7 @@ func (obj *SClusterResourceBase) Delete(ctx context.Context, userCred mcclient.T
 }
 
 func (obj *SClusterResourceBase) RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return obj.SVirtualResourceBase.Delete(ctx, userCred)
+	return obj.SStatusDomainLevelResourceBase.Delete(ctx, userCred)
 }
 
 func (obj *SClusterResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {

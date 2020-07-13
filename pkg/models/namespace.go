@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
@@ -44,6 +45,21 @@ type SNamespace struct {
 	SClusterResourceBase
 }
 
+func (m *SNamespaceManager) SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error {
+	return SyncClusterResources(ctx, userCred, cluster,
+		LimitRangeManager,
+		ResourceQuotaManager,
+		RoleManager,
+		RoleBindingManager,
+		ReplicaSetManager,
+		DeploymentManager,
+		PodManager,
+		ServiceManager,
+		IngressManager,
+		ReleaseManager,
+	)
+}
+
 func (m *SNamespaceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.NamespaceCreateInputV2) (*api.NamespaceCreateInputV2, error) {
 	cData, err := m.SClusterResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, &data.ClusterResourceCreateInput)
 	if err != nil {
@@ -57,17 +73,11 @@ func (obj *SNamespace) CustomizeCreate(ctx context.Context, userCred mcclient.To
 	if err := obj.SClusterResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
 		return err
 	}
-	cls, err := obj.GetCluster()
-	if err != nil {
-		return errors.Wrap(err, "CustomizeCreatData fetch cluster")
-	}
-	obj.IsSystem = cls.IsSystem
 	return nil
 }
 
 func (res *SNamespace) SetCluster(userCred mcclient.TokenCredential, cls *SCluster) {
 	res.SClusterResourceBase.SetCluster(userCred, cls)
-	res.SetIsSystem(cls.IsSystem)
 }
 
 func (obj *SNamespaceManager) NewRemoteObjectForCreate(_ IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
@@ -107,7 +117,7 @@ func (ns *SNamespace) DoSync(ctx context.Context, userCred mcclient.TokenCredent
 	if err := EnsureNamespace(cluster, ns.GetName()); err != nil {
 		return errors.Wrapf(err, "ensure namespace %s", ns.GetName())
 	}
-	rNs, err := GetK8SObject(ns)
+	rNs, err := GetK8sObject(ns)
 	if err != nil {
 		return errors.Wrap(err, "get namespace k8s object")
 	}
@@ -130,13 +140,6 @@ func (ns *SNamespace) PostCreate(ctx context.Context, userCred mcclient.TokenCre
 func (ns *SNamespace) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	if err := ns.SClusterResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
 		return err
-	}
-	cls, err := ns.GetCluster()
-	if err != nil {
-		return err
-	}
-	if ns.IsSystem != cls.IsSystem {
-		ns.IsSystem = cls.IsSystem
 	}
 	k8sNsStatus := string(extObj.(*v1.Namespace).Status.Phase)
 	if ns.Status != k8sNsStatus {
@@ -162,16 +165,16 @@ func (m *SNamespaceManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []api.NamespaceDetailV2 {
-	rows := make([]api.NamespaceDetailV2, len(objs))
-	cRows := m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	for i := range cRows {
-		detail := api.NamespaceDetailV2{
-			ClusterResourceDetail: cRows[i],
-		}
-		rows[i] = detail
+) []interface{} {
+	return m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+}
+
+func (m *SNamespace) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	detail := m.SClusterResourceBase.GetDetails(cli, base, k8sObj, isList).(api.ClusterResourceDetail)
+	out := api.NamespaceDetailV2{
+		ClusterResourceDetail: detail,
 	}
-	return rows
+	return out
 }
 
 func (ns *SNamespace) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {

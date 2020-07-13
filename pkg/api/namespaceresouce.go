@@ -2,6 +2,7 @@ package api
 
 type NamespaceResourceCreateInput struct {
 	ClusterResourceCreateInput
+	// required: true
 	// 命名空间
 	Namespace string `json:"namespace"`
 }

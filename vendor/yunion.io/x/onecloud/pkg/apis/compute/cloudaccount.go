@@ -384,3 +384,18 @@ type CANetConf struct {
 	Description string `json:"description"`
 	CASimpleNetConf
 }
+
+type SubscriptonCreateInput struct {
+
+	// EA 账号id, 可通过 cloud-account-enrollment-accounts接口获取里面的id字段
+	EnrollmentAccountId string `json:"enrollment_account_id"`
+
+	// 订阅名称
+	Name string `json:"name"`
+
+	// 可选值: MS-AZR-0017P(生产用途), MS-AZR-0148P(开发测试)
+	OfferType string `json:"offer_type"`
+}
+
+type EnrollmentAccountQuery struct {
+}

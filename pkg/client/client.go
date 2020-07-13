@@ -2,17 +2,17 @@ package client
 
 import (
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/restmapper"
 	"os"
 	"path"
 	"strings"
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -77,10 +77,6 @@ func (c ClusterManager) GetKubeConfigPath() (string, error) {
 
 func (c ClusterManager) GetClusterObject() manager.ICluster {
 	return c.Cluster
-}
-
-func (c ClusterManager) GetProjectId() string {
-	return c.Cluster.GetProjectId()
 }
 
 func (c ClusterManager) GetId() string {

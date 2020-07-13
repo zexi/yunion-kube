@@ -1034,12 +1034,12 @@ yunion.io/x/code-generator/pkg/swagger-gen/generators
 # yunion.io/x/executor v0.0.0-20200227030256-a18417815e74
 yunion.io/x/executor/apis
 yunion.io/x/executor/client
-# yunion.io/x/jsonutils v0.0.0-20200708073651-8fe00d01c40a
+# yunion.io/x/jsonutils v0.0.0-20200710080709-7ca71cdb9383
 yunion.io/x/jsonutils
 # yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
 yunion.io/x/log
 yunion.io/x/log/hooks
-# yunion.io/x/onecloud v0.0.0-20200709093901-424a756318cc
+# yunion.io/x/onecloud v0.0.0-20200716031917-bea60df49453
 yunion.io/x/onecloud/pkg/apis
 yunion.io/x/onecloud/pkg/apis/billing
 yunion.io/x/onecloud/pkg/apis/cloudcommon/proxy
@@ -1092,7 +1092,7 @@ yunion.io/x/onecloud/pkg/util/seclib2
 yunion.io/x/onecloud/pkg/util/ssh
 yunion.io/x/onecloud/pkg/util/streamutils
 yunion.io/x/onecloud/pkg/util/stringutils2
-# yunion.io/x/pkg v0.0.0-20200708071451-a663dc94e16b
+# yunion.io/x/pkg v0.0.0-20200713121502-18154120c49b
 yunion.io/x/pkg/errors
 yunion.io/x/pkg/gotypes
 yunion.io/x/pkg/sortedmap

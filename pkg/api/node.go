@@ -125,4 +125,29 @@ type NodeDetailV2 struct {
 	Taints []v1.Taint `json:"taints,omitempty"`
 	// Unschedulable controls node schedulability of new pods. By default node is schedulable.
 	Unschedulable bool `json:"unschedulable"`
+
+	// NodeDetail extra fields
+	// NodePhase is the current lifecycle phase of the node.
+	Phase v1.NodePhase `json:"status"`
+
+	// PodCIDR represents the pod IP range assigned to the node.
+	PodCIDR string `json:"podCIDR"`
+
+	// ID of the node assigned by the cloud provider.
+	ProviderID string `json:"providerID"`
+
+	// Conditions is an array of current node conditions.
+	Conditions []*Condition `json:"conditions"`
+
+	// Container images of the node.
+	ContainerImages []string `json:"containerImages"`
+
+	// PodList contains information about pods belonging to this node.
+	Pods []*Pod `json:"pods"`
+
+	// Events is list of events associated to the node.
+	Events []*Event `json:"events"`
+
+	// Metrics collected for this resource
+	//Metrics []metricapi.Metric `json:"metrics"`
 }

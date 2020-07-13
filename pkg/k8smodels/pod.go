@@ -63,11 +63,11 @@ func (p SPodManager) ValidateCreateData(
 }
 
 func (p SPodManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.PodListInput) (model.IQuery, error) {
-	q, err := p.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
-	if err != nil {
-		return nil, err
-	}
-	q, err = p.SK8SOwnerResourceBaseManager.ListItemFilter(ctx, q, query.ListInputOwner)
+	// q, err := p.SK8SNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	// if err != nil {
+	// return nil, err
+	// }
+	q, err := p.SK8SOwnerResourceBaseManager.ListItemFilter(ctx, q, query.ListInputOwner)
 	if err != nil {
 		return nil, err
 	}

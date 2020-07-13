@@ -28,3 +28,9 @@ type LimitRange struct {
 type LimitRangeDetail struct {
 	LimitRange
 }
+
+type LimitRangeDetailV2 struct {
+	NamespaceResourceDetail
+	// v1.LimitRangeSpec
+	Limits []*LimitRangeItem `json:"limits"`
+}
