@@ -1660,8 +1660,15 @@ type sClusterUsage struct {
 	Id string
 }
 
-func (m *SClusterManager) usageClusters(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider) ([]sClusterUsage, error) {
-	q := m.Query("id")
+func (m *SClusterManager) usageClusters(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, isSystem bool) ([]sClusterUsage, error) {
+	q := m.Query("id", "is_system")
+	if isSystem {
+		q = q.IsTrue("is_system")
+	} else {
+		q = q.Filter(sqlchemy.OR(
+			sqlchemy.IsNullOrEmpty(q.Field("is_system")),
+			sqlchemy.IsFalse(q.Field("is_system"))))
+	}
 	switch scope {
 	case rbacutils.ScopeSystem:
 		// do nothing
@@ -1677,9 +1684,9 @@ func (m *SClusterManager) usageClusters(scope rbacutils.TRbacScope, ownerId mccl
 	return clusters, nil
 }
 
-func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider) (*api.ClusterUsage, error) {
+func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, isSystem bool) (*api.ClusterUsage, error) {
 	usage := new(api.ClusterUsage)
-	clusters, err := m.usageClusters(scope, ownerId)
+	clusters, err := m.usageClusters(scope, ownerId, isSystem)
 	if err != nil {
 		return nil, err
 	}
