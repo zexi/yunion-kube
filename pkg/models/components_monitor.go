@@ -2,6 +2,9 @@ package models
 
 import (
 	"fmt"
+
+	"k8s.io/api/core/v1"
+
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/pkg/errors"
 
@@ -193,6 +196,9 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *api.
 				Image: mi("k8s-sidecar", "0.1.99"),
 			},
 			Image: mi("grafana", "6.7.1"),
+			Service: &components.Service{
+				Type: string(v1.ServiceTypeLoadBalancer),
+			},
 		},
 		Loki: components.Loki{
 			Image: mi("loki", "1.4.1"),
