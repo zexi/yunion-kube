@@ -130,11 +130,16 @@ func NewPVCStorage(storage *api.ComponentStorage) (*Storage, error) {
 	}, nil
 }
 
+type Service struct {
+	Type string `json:"type"`
+}
+
 type Grafana struct {
 	Sidecar GrafanaSidecar `json:"sidecar"`
 	// image: grafana/grafana:6.7.1
 	Image   Image    `json:"image"`
 	Storage *Storage `json:"persistence"`
+	Service *Service `json:"service"`
 }
 
 type Loki struct {
