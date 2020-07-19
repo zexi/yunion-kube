@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -32,6 +33,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/apis"
 	"yunion.io/x/yunion-kube/pkg/apis/constants"
+	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/clientv2"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
@@ -454,6 +456,19 @@ func (c *SCluster) GetMachinesCount() (int, error) {
 	return len(ms), nil
 }
 
+func (c *SCluster) GetNodesCount() (int, error) {
+	cli, err := client.GetManagerByCluster(c)
+	if err != nil {
+		return 0, errors.Wrap(err, "get cluster client")
+	}
+	lister := cli.GetHandler().GetIndexer().NodeLister()
+	nodes, err := lister.List(labels.Everything())
+	if err != nil {
+		return 0, errors.Wrap(err, "list k8s nodes")
+	}
+	return len(nodes), nil
+}
+
 func (man *SClusterManager) GetImageRepository(input *apis.ImageRepository) *apis.ImageRepository {
 	ret := &apis.ImageRepository{
 		Url: constants.DefaultRegistryMirror,
@@ -505,8 +520,14 @@ func (c *SCluster) GetExtraDetails(ctx context.Context, userCred mcclient.TokenC
 }
 
 func (c *SCluster) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
-	if cnt, err := c.GetMachinesCount(); err != nil {
-		log.Errorf("GetMachines error: %v", err)
+	var cnt int
+	var err error
+	cnt, _ = c.GetMachinesCount()
+	if cnt == 0 {
+		cnt, err = c.GetNodesCount()
+	}
+	if err != nil {
+		log.Errorf("get machines count error: %v", err)
 	} else {
 		extra.Add(jsonutils.NewInt(int64(cnt)), "machines")
 	}
