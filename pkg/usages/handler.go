@@ -53,7 +53,8 @@ func ReportUsage(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 func DoReportUsage(ctx context.Context, scope rbacutils.TRbacScope, ownerId mcclient.IIdentityProvider, query *jsonutils.JSONDict) (*api.GlobalUsage, error) {
 	usage := new(api.GlobalUsage)
 	getUsage := func(scope rbacutils.TRbacScope) (*api.UsageResult, error) {
-		clsUsage, err := models.ClusterManager.Usage(scope, ownerId)
+		isSystem := jsonutils.QueryBoolean(query, "is_system", false)
+		clsUsage, err := models.ClusterManager.Usage(scope, ownerId, isSystem)
 		if err != nil {
 			return nil, errors.Wrapf(err, "get scope %s usage", scope)
 		}
@@ -87,4 +88,3 @@ func DoReportUsage(ctx context.Context, scope rbacutils.TRbacScope, ownerId mccl
 	}
 	return usage, nil
 }
-
