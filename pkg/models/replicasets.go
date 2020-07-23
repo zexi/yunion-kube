@@ -25,7 +25,7 @@ var (
 )
 
 func init() {
-	ReplicaSetManager = NewK8sModelManager(func() IClusterModelManager {
+	ReplicaSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SReplicaSetManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SReplicaSet),

@@ -9,7 +9,7 @@ const (
 )
 
 type SecretCreateInput struct {
-	K8sNamespaceResourceCreateInput
+	NamespaceResourceCreateInput
 	Type             v1.SecretType                      `json:"type"`
 	DockerConfigJson *DockerConfigJsonSecretCreateInput `json:"dockerConfigJson"`
 	CephCSI          *CephCSISecretCreateInput          `json:"cephCSI"`
@@ -51,6 +51,16 @@ type Secret struct {
 type SecretDetail struct {
 	Secret
 
+	// Data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN
+	// or leading dot followed by valid DNS_SUBDOMAIN.
+	// The serialized form of the secret data is a base64 encoded string,
+	// representing the arbitrary (possibly non-string) data value here.
+	Data map[string][]byte `json:"data"`
+}
+
+type SecretDetailV2 struct {
+	NamespaceResourceDetail
+	Type v1.SecretType `json:"type"`
 	// Data contains the secret data.  Each key must be a valid DNS_SUBDOMAIN
 	// or leading dot followed by valid DNS_SUBDOMAIN.
 	// The serialized form of the secret data is a base64 encoded string,

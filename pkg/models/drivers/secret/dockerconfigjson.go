@@ -10,18 +10,18 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
-	"yunion.io/x/yunion-kube/pkg/k8smodels"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 func init() {
-	k8smodels.SecretManager.RegisterDriver(
+	models.GetSecretManager().RegisterDriver(
 		v1.SecretTypeDockerConfigJson,
 		newDockerConfigJson())
 }
 
 type dockerConfigJson struct{}
 
-func newDockerConfigJson() k8smodels.ISecretDriver {
+func newDockerConfigJson() models.ISecretDriver {
 	return new(dockerConfigJson)
 }
 

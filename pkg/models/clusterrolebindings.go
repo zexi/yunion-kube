@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	ClusterRoleBindingManager = NewK8sModelManager(func() IClusterModelManager {
+	ClusterRoleBindingManager = NewK8sModelManager(func() ISyncableManager {
 		return &SClusterRoleBindingManager{
 			SClusterResourceBaseManager: NewClusterResourceBaseManager(
 				new(SClusterRoleBinding),

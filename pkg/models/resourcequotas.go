@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	ResourceQuotaManager = NewK8sModelManager(func() IClusterModelManager {
+	ResourceQuotaManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SResourceQuotaManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SResourceQuota),

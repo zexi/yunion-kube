@@ -15,6 +15,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/cronman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/runtime"
 
 	"yunion.io/x/pkg/util/signalutils"
@@ -70,13 +71,18 @@ func Run(ctx context.Context) error {
 	if err := models.ClusterManager.RegisterSystemCluster(); err != nil {
 		log.Fatalf("Register system cluster %v", err)
 	}
-	initial.InitClient()
 
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
 	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, models.ClusterManager.ClusterHealthCheckTask, true)
-	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterAutoSyncTask", 5*time.Minute, models.ClusterManager.StartAutoSyncTask, true)
+	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterAutoSyncTask", 30*time.Minute, models.ClusterManager.StartAutoSyncTask, false)
 	cron.Start()
 	defer cron.Stop()
+
+	// init client after cluster full synced
+	if err := models.ClusterManager.WaitFullSynced(); err != nil {
+		return errors.Wrap(err, "wait clusters full synced")
+	}
+	initial.InitClient()
 
 	if err := server.Start(httpsAddr, app); err != nil {
 		return err

@@ -517,3 +517,64 @@ func GetExternalEndpoints(service *v1.Service) []api.Endpoint {
 
 	return externalEndpoints
 }
+
+func getPodResourceVolumes(pod *v1.Pod, predicateF func(v1.Volume) bool) []v1.Volume {
+	var cfgs []v1.Volume
+	vols := pod.Spec.Volumes
+	for _, vol := range vols {
+		if predicateF(vol) {
+			cfgs = append(cfgs, vol)
+		}
+	}
+	return cfgs
+}
+
+func GetPodSecretVolumes(pod *v1.Pod) []v1.Volume {
+	return getPodResourceVolumes(pod, func(vol v1.Volume) bool {
+		return vol.VolumeSource.Secret != nil
+	})
+}
+
+func GetPodConfigMapVolumes(pod *v1.Pod) []v1.Volume {
+	return getPodResourceVolumes(pod, func(vol v1.Volume) bool {
+		return vol.VolumeSource.ConfigMap != nil
+	})
+}
+
+func GetConfigMapsForPod(pod *v1.Pod, cfgs []*v1.ConfigMap) []*v1.ConfigMap {
+	if len(cfgs) == 0 {
+		return nil
+	}
+	ret := make([]*v1.ConfigMap, 0)
+	uniqM := make(map[string]bool, 0)
+	for _, cfg := range cfgs {
+		for _, vol := range GetPodConfigMapVolumes(pod) {
+			if vol.ConfigMap.Name == cfg.GetName() {
+				if _, ok := uniqM[cfg.GetName()]; !ok {
+					uniqM[cfg.GetName()] = true
+					ret = append(ret, cfg)
+				}
+			}
+		}
+	}
+	return ret
+}
+
+func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
+	if len(ss) == 0 {
+		return nil
+	}
+	ret := make([]*v1.Secret, 0)
+	uniqM := make(map[string]bool, 0)
+	for _, s := range ss {
+		for _, vol := range GetPodSecretVolumes(pod) {
+			if vol.Secret.SecretName == s.GetName() {
+				if _, ok := uniqM[s.GetName()]; !ok {
+					uniqM[s.GetName()] = true
+					ret = append(ret, s)
+				}
+			}
+		}
+	}
+	return ret
+}

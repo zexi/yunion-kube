@@ -2,17 +2,17 @@ package storageclass
 
 import (
 	"database/sql"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"yunion.io/x/pkg/errors"
-	"yunion.io/x/pkg/utils"
-	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/utils/ceph"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/utils"
 
 	"yunion.io/x/yunion-kube/pkg/api"
-	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	"yunion.io/x/yunion-kube/pkg/k8smodels"
+	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/utils/ceph"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 func init() {
-	k8smodels.StorageClassManager.RegisterDriver(
+	models.GetStorageClassManager().RegisterDriver(
 		api.StorageClassProvisionerCephCSIRBD,
 		newCephCSIRBD(),
 	)
@@ -32,12 +32,12 @@ func GetCSIParamsKey(suffix string) string {
 
 type CephCSIRBD struct{}
 
-func newCephCSIRBD() k8smodels.IStorageClassDriver {
+func newCephCSIRBD() models.IStorageClassDriver {
 	return new(CephCSIRBD)
 }
 
-func (drv *CephCSIRBD) getUserKeyFromSecret(ctx *model.RequestContext, name, namespace string) (string, string, error) {
-	cli := ctx.Cluster().GetClientset()
+func (drv *CephCSIRBD) getUserKeyFromSecret(cliMan *client.ClusterManager, name, namespace string) (string, string, error) {
+	cli := cliMan.GetClientset()
 	secret, err := cli.CoreV1().Secrets(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return "", "", err
@@ -58,7 +58,7 @@ type cephConfig struct {
 	Key  string
 }
 
-func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *api.StorageClassCreateInput) (*cephConfig, error) {
+func (drv *CephCSIRBD) getCephConfig(cli *client.ClusterManager, data *api.StorageClassCreateInput) (*cephConfig, error) {
 	input := data.CephCSIRBD
 	if input == nil {
 		return nil, httperrors.NewInputParameterError("cephCSIRBD config is empty")
@@ -72,12 +72,12 @@ func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *api.Storag
 		return nil, httperrors.NewNotEmptyError("secretNamespace is empty")
 	}
 
-	user, key, err := drv.getUserKeyFromSecret(ctx, secretName, secretNamespace)
+	user, key, err := drv.getUserKeyFromSecret(cli, secretName, secretNamespace)
 	if err != nil {
 		return nil, err
 	}
 
-	cluster := ctx.Cluster().GetClusterObject().(*models.SCluster)
+	cluster := cli.GetClusterObject().(*models.SCluster)
 	// check clusterId
 	component, err := cluster.GetComponentByType(api.ClusterComponentCephCSI)
 	if err != nil {
@@ -104,8 +104,8 @@ func (drv *CephCSIRBD) getCephConfig(ctx *model.RequestContext, data *api.Storag
 	}, nil
 }
 
-func (drv *CephCSIRBD) ValidateCreateData(ctx *model.RequestContext, data *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error) {
-	cephConf, err := drv.getCephConfig(ctx, data)
+func (drv *CephCSIRBD) ValidateCreateData(cli *client.ClusterManager, data *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error) {
+	cephConf, err := drv.getCephConfig(cli, data)
 	if err != nil {
 		return nil, err
 	}
@@ -161,8 +161,8 @@ func (drv *CephCSIRBD) validatePool(monitors []string, user string, key string, 
 	return nil
 }
 
-func (drv *CephCSIRBD) ConnectionTest(ctx *model.RequestContext, data *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
-	cephConf, err := drv.getCephConfig(ctx, data)
+func (drv *CephCSIRBD) ConnectionTest(cli *client.ClusterManager, data *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
+	cephConf, err := drv.getCephConfig(cli, data)
 	if err != nil {
 		return nil, err
 	}

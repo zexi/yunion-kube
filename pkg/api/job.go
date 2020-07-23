@@ -63,6 +63,35 @@ type JobDetail struct {
 	EventList []*Event `json:"events"`
 }
 
+type JobDetailV2 struct {
+	NamespaceResourceDetail
+
+	// Aggregate information about pods belonging to this Job.
+	Pods *PodInfo `json:"podsInfo"`
+
+	// Container images of the Job.
+	ContainerImages []ContainerImage `json:"containerImages"`
+
+	// Init Container images of the Job.
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
+
+	// number of parallel jobs defined.
+	Parallelism *int32 `json:"parallelism"`
+
+	// Completions specifies the desired number of successfully finished pods the job should be run with.
+	Completions *int32 `json:"completions"`
+
+	// JobStatus contains inferred job status based on job conditions
+	JobStatus JobStatus `json:"jobStatus"`
+	Status    string    `json:"status"`
+
+	// // Detailed information about Pods belonging to this Job.
+	// PodList []*Pod `json:"pods"`
+
+	// // List of events related to this Job.
+	// EventList []*Event `json:"events"`
+}
+
 // CronJob is a presentation layer view of Kubernetes Cron Job resource.
 type CronJob struct {
 	ObjectMeta
@@ -83,8 +112,30 @@ type CronJobDetail struct {
 	Events                  []*Event `json:"events"`
 }
 
+type CronJobDetailV2 struct {
+	NamespaceResourceDetail
+	Schedule     string       `json:"schedule"`
+	Suspend      *bool        `json:"suspend"`
+	Active       int          `json:"active"`
+	LastSchedule *metav1.Time `json:"lastSchedule"`
+
+	ConcurrencyPolicy       string `json:"concurrencyPolicy"`
+	StartingDeadLineSeconds *int64 `json:"startingDeadlineSeconds"`
+
+	/*
+	 * ActiveJobs              []*Job   `json:"activeJobs"`
+	 * InactiveJobs            []*Job   `json:"inactiveJobs"`
+	 * Events                  []*Event `json:"events"`
+	 */
+}
+
 type JobCreateInput struct {
 	K8sNamespaceResourceCreateInput
+	batch.JobSpec
+}
+
+type JobCreateInputV2 struct {
+	NamespaceResourceCreateInput
 	batch.JobSpec
 }
 
@@ -96,5 +147,10 @@ type JobListInput struct {
 
 type CronJobCreateInput struct {
 	K8sNamespaceResourceCreateInput
+	v1beta1.CronJobSpec
+}
+
+type CronJobCreateInputV2 struct {
+	NamespaceResourceCreateInput
 	v1beta1.CronJobSpec
 }

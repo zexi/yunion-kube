@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	LimitRangeManager = NewK8sModelManager(func() IClusterModelManager {
+	LimitRangeManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SLimitRangeManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SLimitRange),

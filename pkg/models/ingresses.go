@@ -15,7 +15,7 @@ var (
 )
 
 func init() {
-	IngressManager = NewK8sModelManager(func() IClusterModelManager {
+	IngressManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SIngressManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SIngress),

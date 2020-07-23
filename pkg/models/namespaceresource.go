@@ -88,6 +88,11 @@ func (res *SNamespaceResourceBase) CustomizeCreate(ctx context.Context, userCred
 	return nil
 }
 
+func (res *SNamespaceResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	res.SClusterResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
+	res.StartCreateTask(res, ctx, userCred, ownerId, query, data)
+}
+
 func (res *SNamespaceResourceBase) GetNamespace() (*SNamespace, error) {
 	obj, err := NamespaceManager.FetchById(res.NamespaceId)
 	if err != nil {
@@ -203,12 +208,8 @@ func (obj *SNamespaceResourceBase) GetDetails(cli *client.ClusterManager, base i
 }
 
 func (res *SNamespaceResourceBase) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	panic("SNamespaceResourceBase.PostDelete shouldn't be called, use PostDeleteV2")
-}
-
-func (res *SNamespaceResourceBase) PostDeleteV2(obj INamespaceModel, ctx context.Context, userCred mcclient.TokenCredential) {
 	res.SClusterResourceBase.PostDelete(ctx, userCred)
-	res.StartDeleteTask(obj, ctx, userCred)
+	res.StartDeleteTask(res, ctx, userCred)
 }
 
 func (res *SNamespaceResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {
@@ -242,9 +243,11 @@ func (m *SNamespaceResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context
 		log.Errorf("OnRemoteObjectUpdate for %s get namespace error: %v", resMan.Keyword(), err)
 		return
 	}
-	dbObj, err := m.GetByName(userCred, cluster.GetId(), dbNs.GetId(), objName)
+	clusterId := cluster.GetId()
+	namespaceId := dbNs.GetId()
+	dbObj, err := m.GetByName(userCred, clusterId, namespaceId, objName)
 	if err != nil {
-		log.Errorf("OnRemoteObjectUpdate get %s local object %s error: %v", resMan.Keyword(), objName, err)
+		log.Errorf("OnRemoteObjectUpdate get %s local object %s/%s/%s error: %v", resMan.Keyword(), clusterId, namespaceId, objName, err)
 		return
 	}
 	OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, newObj)

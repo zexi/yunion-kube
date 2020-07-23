@@ -24,17 +24,34 @@ var (
 )
 
 func init() {
-	NamespaceManager = &SNamespaceManager{
-		SClusterResourceBaseManager: NewClusterResourceBaseManager(
-			SNamespace{},
-			"namespaces_tbl",
-			"namespace",
-			"namespaces",
-			api.ResourceNameNamespace,
-			api.KindNameNamespace,
-			&v1.Namespace{}),
+	initGlobalNamespaceManager()
+}
+
+func GetNamespaceManager() *SNamespaceManager {
+	if NamespaceManager == nil {
+		initGlobalNamespaceManager()
 	}
-	NamespaceManager.SetVirtualObject(NamespaceManager)
+	return NamespaceManager
+}
+
+func initGlobalNamespaceManager() {
+	if NamespaceManager != nil {
+		return
+	}
+	NamespaceManager = newK8sModelManager(func() ISyncableManager {
+		return &SNamespaceManager{
+			SClusterResourceBaseManager: NewClusterResourceBaseManager(
+				SNamespace{},
+				"namespaces_tbl",
+				"namespace",
+				"namespaces",
+				api.ResourceNameNamespace,
+				api.KindNameNamespace,
+				&v1.Namespace{}),
+		}
+	}).(*SNamespaceManager)
+	// namespaces should sync after nodes synced
+	GetNodeManager().AddSubManager(NamespaceManager)
 }
 
 type SNamespaceManager struct {
@@ -43,21 +60,6 @@ type SNamespaceManager struct {
 
 type SNamespace struct {
 	SClusterResourceBase
-}
-
-func (m *SNamespaceManager) SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error {
-	return SyncClusterResources(ctx, userCred, cluster,
-		LimitRangeManager,
-		ResourceQuotaManager,
-		RoleManager,
-		RoleBindingManager,
-		ReplicaSetManager,
-		DeploymentManager,
-		PodManager,
-		ServiceManager,
-		IngressManager,
-		ReleaseManager,
-	)
 }
 
 func (m *SNamespaceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.NamespaceCreateInputV2) (*api.NamespaceCreateInputV2, error) {

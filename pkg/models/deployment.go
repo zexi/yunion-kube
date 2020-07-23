@@ -22,11 +22,11 @@ import (
 
 var (
 	DeploymentManager *SDeploymentManager
-	_                 IClusterModel = new(SDeployment)
+	_                 IPodOwnerModel = new(SDeployment)
 )
 
 func init() {
-	DeploymentManager = NewK8sModelManager(func() IClusterModelManager {
+	DeploymentManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SDeploymentManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SDeployment),
@@ -77,16 +77,8 @@ func (m *SDeploymentManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQu
 	return m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
 }
 
-func (obj *SDeployment) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (*api.DeploymentDetailV2, error) {
-	return nil, nil
-}
-
-func (obj *SDeployment) GetRawDeployment() (*apps.Deployment, error) {
-	k8sObj, err := GetK8sObject(obj)
-	if err != nil {
-		return nil, err
-	}
-	return k8sObj.(*apps.Deployment), nil
+func (obj *SDeployment) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (api.DeploymentDetailV2, error) {
+	return api.DeploymentDetailV2{}, nil
 }
 
 func (m *SDeploymentManager) FetchCustomizeColumns(

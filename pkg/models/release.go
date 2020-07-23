@@ -34,18 +34,19 @@ var (
 )
 
 func init() {
-	ReleaseManager = &SReleaseManager{
-		SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-			&SRelease{},
-			"releases_tbl",
-			"release",
-			"releases",
-			"",
-			"",
-			nil),
-		driverManager: drivers.NewDriverManager(""),
-	}
-	ReleaseManager.SetVirtualObject(ReleaseManager)
+	ReleaseManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+		return &SReleaseManager{
+			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+				&SRelease{},
+				"releases_tbl",
+				"release",
+				"releases",
+				"",
+				"",
+				nil),
+			driverManager: drivers.NewDriverManager(""),
+		}
+	}).(*SReleaseManager)
 }
 
 type SReleaseManager struct {
@@ -527,10 +528,6 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 		q.Filter(cond)
 	}
 	return q, nil
-}
-
-func (obj *SRelease) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	obj.SNamespaceResourceBase.PostDeleteV2(obj, ctx, userCred)
 }
 
 func (obj *SRelease) DeleteRemoteObject(_ *client.ClusterManager) error {

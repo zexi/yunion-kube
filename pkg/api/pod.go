@@ -86,10 +86,8 @@ type PodDetailV2 struct {
 	ContainerImages []ContainerImage `json:"containerImages"`
 	// Init Container images of deployment
 	InitContainerImages []ContainerImage `json:"initContainerImages"`
-
-	/*
-	 * Conditions             []*Condition             `json:"conditions"`
-	 * Events                 []*Event                 `json:"events"`
+	Conditions          []*Condition     `json:"conditions"`
+	/* Events                 []*Event                 `json:"events"`
 	 * Persistentvolumeclaims []*PersistentVolumeClaim `json:"persistentVolumeClaims"`
 	 * ConfigMaps             []*ConfigMap             `json:"configMaps"`
 	 * Secrets                []*Secret                `json:"secrets"`

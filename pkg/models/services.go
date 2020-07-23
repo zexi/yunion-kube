@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	ServiceManager = NewK8sModelManager(func() IClusterModelManager {
+	ServiceManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SServiceManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SService),

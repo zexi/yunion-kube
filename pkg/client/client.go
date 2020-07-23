@@ -116,81 +116,83 @@ func BuildApiserverClient() {
 	}
 
 	changed := clusterChanged(newClusters)
-	if changed {
-		log.Infof("cluster changed, so resync info...")
-
-		shouldRemoveClusters(newClusters)
-		// build new clientManager
-		for i := 0; i < len(newClusters); i++ {
-			cluster := newClusters[i]
-			apiServer, err := cluster.GetAPIServer()
-			if err != nil {
-				log.Warningf("get cluster %s apiserver: %v", cluster.GetName(), err)
-				continue
-			}
-			kubeconfig, err := cluster.GetKubeconfig()
-			if err != nil {
-				log.Warningf("get cluster %s kubeconfig: %v", cluster.GetName(), err)
-				continue
-			}
-			clientSet, config, err := BuildClient(apiServer, kubeconfig)
-			if err != nil {
-				log.Warningf("build cluster (%s) client error: %v", cluster.GetName(), err)
-				continue
-			}
-			kubeconfigPath, err := BuildKubeConfigPath(cluster, kubeconfig)
-			if err != nil {
-				log.Warningf("build cluster %s kubeconfig path: %v", cluster.GetName(), err)
-				continue
-			}
-			dc := clientSet.Discovery()
-			restMapperRes, err := restmapper.GetAPIGroupResources(dc)
-			if err != nil {
-				log.Warningf("cluster %s get api group resources: %v", cluster.GetName(), err)
-				continue
-			}
-			restMapper := restmapper.NewDiscoveryRESTMapper(restMapperRes)
-			dclient, err := dynamic.NewForConfig(config)
-			if err != nil {
-				log.Warningf("build cluster (%s) dynamic client error: %v", err)
-				continue
-			}
-			cacheFactory, err := buildCacheController(cluster, clientSet, dclient, restMapper.(meta.PriorityRESTMapper))
-			if err != nil {
-				log.Warningf("build cluster (%s) cache controller error: %v", cluster.GetName(), err)
-				continue
-			}
-			resHandler, err := NewResourceHandler(clientSet, dclient, restMapper, cacheFactory)
-			if err != nil {
-				log.Warningf("build cluster (%s) resource handler error: %v", cluster.GetName(), err)
-				continue
-			}
-
-			cliv2, err := clientv2.NewClient(kubeconfig)
-			if err != nil {
-				log.Warningf("build cluster (%s) client v2 error: %v", cluster.GetName())
-				continue
-			}
-
-			clusterManager := &ClusterManager{
-				Cluster:        cluster,
-				Config:         config,
-				KubeClient:     resHandler,
-				APIServer:      apiServer,
-				KubeConfig:     kubeconfig,
-				kubeConfigPath: kubeconfigPath,
-				ClientV2:       cliv2,
-			}
-			managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
-			if ok {
-				man := managerInterface.(*ClusterManager)
-				man.Close()
-			}
-
-			clusterManagerSets.Store(cluster.GetId(), clusterManager)
-		}
-		log.Infof("resync cluster finished!")
+	if !changed {
+		return
 	}
+	log.Infof("cluster changed, so resync info...")
+
+	shouldRemoveClusters(newClusters)
+	// build new clientManager
+	for i := 0; i < len(newClusters); i++ {
+		cluster := newClusters[i]
+		apiServer, err := cluster.GetAPIServer()
+		if err != nil {
+			log.Warningf("get cluster %s apiserver: %v", cluster.GetName(), err)
+			continue
+		}
+		kubeconfig, err := cluster.GetKubeconfig()
+		if err != nil {
+			log.Warningf("get cluster %s kubeconfig: %v", cluster.GetName(), err)
+			continue
+		}
+		clientSet, config, err := BuildClient(apiServer, kubeconfig)
+		if err != nil {
+			log.Warningf("build cluster (%s) client error: %v", cluster.GetName(), err)
+			continue
+		}
+		kubeconfigPath, err := BuildKubeConfigPath(cluster, kubeconfig)
+		if err != nil {
+			log.Warningf("build cluster %s kubeconfig path: %v", cluster.GetName(), err)
+			continue
+		}
+		dc := clientSet.Discovery()
+		restMapperRes, err := restmapper.GetAPIGroupResources(dc)
+		if err != nil {
+			log.Warningf("cluster %s get api group resources: %v", cluster.GetName(), err)
+			continue
+		}
+		restMapper := restmapper.NewDiscoveryRESTMapper(restMapperRes)
+		dclient, err := dynamic.NewForConfig(config)
+		if err != nil {
+			log.Warningf("build cluster (%s) dynamic client error: %v", err)
+			continue
+		}
+		cacheFactory, err := buildCacheController(cluster, clientSet, dclient, restMapper.(meta.PriorityRESTMapper))
+		if err != nil {
+			log.Warningf("build cluster (%s) cache controller error: %v", cluster.GetName(), err)
+			continue
+		}
+		resHandler, err := NewResourceHandler(clientSet, dclient, restMapper, cacheFactory)
+		if err != nil {
+			log.Warningf("build cluster (%s) resource handler error: %v", cluster.GetName(), err)
+			continue
+		}
+
+		cliv2, err := clientv2.NewClient(kubeconfig)
+		if err != nil {
+			log.Warningf("build cluster (%s) client v2 error: %v", cluster.GetName())
+			continue
+		}
+
+		clusterManager := &ClusterManager{
+			Cluster:        cluster,
+			Config:         config,
+			KubeClient:     resHandler,
+			APIServer:      apiServer,
+			KubeConfig:     kubeconfig,
+			kubeConfigPath: kubeconfigPath,
+			ClientV2:       cliv2,
+		}
+		managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
+		if ok {
+			// close old cluster
+			man := managerInterface.(*ClusterManager)
+			man.Close()
+		}
+
+		clusterManagerSets.Store(cluster.GetId(), clusterManager)
+	}
+	log.Infof("resync cluster finished!")
 }
 
 func SyncMapLen(m *sync.Map) int {

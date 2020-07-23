@@ -38,7 +38,7 @@ import (
 type SClusterResourceBaseManager struct {
 	db.SStatusDomainLevelResourceBaseManager
 	db.SExternalizedResourceBaseManager
-
+	*SSyncableManager
 	// resourceName is kubernetes resource name
 	resourceName string
 	// kindName is kubernetes resource kind
@@ -58,9 +58,10 @@ func NewClusterResourceBaseManager(
 	return SClusterResourceBaseManager{
 		SStatusDomainLevelResourceBaseManager: db.NewStatusDomainLevelResourceBaseManager(
 			dt, tableName, keyword, keywordPlural),
-		resourceName: resName,
-		kindName:     kind,
-		rawObject:    object,
+		resourceName:     resName,
+		kindName:         kind,
+		rawObject:        object,
+		SSyncableManager: newSyncableManager(),
 	}
 }
 
@@ -182,20 +183,22 @@ func FetchClusterResourceByName(manager IClusterModelManager, userCred mcclient.
 	}
 	count, err := q.CountWithError()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "first count with error")
 	}
+	// log.Errorf("====q string: %s with %q, %q, %q, count: %d", q.String(), clusterId, namespaceId, resId, count)
 	if count > 0 && userCred != nil {
 		q = manager.FilterByOwner(q, userCred, manager.NamespaceScope())
 		//q = manager.FilterBySystemAttributes(q, nil, nil, manager.ResourceScope())
 		count, err = q.CountWithError()
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "filter by owner")
 		}
+		// log.Errorf("**** q string: %s with ", q.String())
 	}
 	if count == 1 {
 		obj, err := db.NewModelObject(manager)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "NewModelObject")
 		}
 		if err := q.First(obj); err != nil {
 			return nil, err
@@ -277,9 +280,13 @@ func (res *SClusterResourceBase) GetParentId() string {
 }
 
 func (res *SClusterResourceBase) GetCluster() (*SCluster, error) {
-	obj, err := ClusterManager.FetchById(res.ClusterId)
+	return GetClusterById(res.ClusterId)
+}
+
+func GetClusterById(id string) (*SCluster, error) {
+	obj, err := ClusterManager.FetchById(id)
 	if err != nil {
-		return nil, errors.Wrapf(err, "fetch cluster %s", res.ClusterId)
+		return nil, errors.Wrapf(err, "fetch cluster %s", id)
 	}
 	return obj.(*SCluster), nil
 }
@@ -291,6 +298,14 @@ func (res *SClusterResourceBase) SetCluster(userCred mcclient.TokenCredential, c
 
 func (res *SClusterResourceBase) GetClusterClient() (*client.ClusterManager, error) {
 	cls, err := res.GetCluster()
+	if err != nil {
+		return nil, err
+	}
+	return client.GetManagerByCluster(cls)
+}
+
+func GetClusterClient(clsId string) (*client.ClusterManager, error) {
+	cls, err := GetClusterById(clsId)
 	if err != nil {
 		return nil, err
 	}
@@ -325,18 +340,23 @@ func SyncClusterResources(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	cluster *SCluster,
-	resMans ...IClusterModelManager,
+	resMans ...ISyncableManager,
 ) error {
+	if len(resMans) == 0 {
+		return nil
+	}
 	for _, man := range resMans {
 		// set cluster sync_message
 		cluster.SaveSyncMessage(cluster, fmt.Sprintf("syncing_%s", man.KeywordPlural()))
-
 		if ret := syncClusterResources(ctx, man, userCred, cluster); ret.IsError() {
 			err := errors.Errorf("Sync cluster %s resource %s error: %v", cluster.GetName(), man.KeywordPlural(), ret.Result())
 			cluster.MarkErrorSync(ctx, cluster, err)
 			return err
 		} else {
 			log.Infof("Sync cluster %s resource %s completed: %v", cluster.GetName(), man.KeywordPlural(), ret.Result())
+		}
+		if err := SyncClusterResources(ctx, userCred, cluster, man.GetSubManagers()...); err != nil {
+			return errors.Wrapf(err, "Sync sub resources")
 		}
 	}
 	return nil
@@ -373,7 +393,7 @@ func syncClusterResources(
 		dbObj := dbObjs[i]
 		if taskman.TaskManager.IsInTask(dbObj) {
 			log.Warningf("cluster %s resource %s object %s is in task, exit this sync task", dbObj.GetClusterId(), dbObj.Keyword(), dbObj.GetName())
-			syncResult.Error(fmt.Errorf("object %s is in task", dbObjs[i].GetName()))
+			syncResult.Error(fmt.Errorf("object %s/%s is in task", dbObj.Keyword(), dbObj.GetName()))
 			return syncResult
 		}
 	}
@@ -446,7 +466,7 @@ func NewFromRemoteObject(
 	if err != nil {
 		return nil, errors.Wrapf(err, "NewFromRemoteObject %s", man.Keyword())
 	}
-	if err := man.TableSpec().Insert(ctx, dbObj); err != nil {
+	if err := man.TableSpec().InsertOrUpdate(ctx, dbObj); err != nil {
 		return nil, errors.Wrapf(err, "Insert %#v to database", dbObj)
 	}
 	if err := dbObj.UpdateFromRemoteObject(ctx, userCred, obj); err != nil {
@@ -834,13 +854,16 @@ func (m *SClusterResourceBaseManager) CreateRemoteObject(_ IClusterModel, cli *c
 }
 
 func DeleteRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, man IClusterModelManager, model IClusterModel, data jsonutils.JSONObject) error {
-	cli, err := model.GetClusterClient()
-	if err != nil {
-		return errors.Wrap(err, "get cluster client")
-	}
-	if err := model.DeleteRemoteObject(cli); err != nil {
-		return errors.Wrap(err, "DeleteRemoteObject")
-	}
+	/*
+	 * cli, err := model.GetClusterClient()
+	 * if err != nil {
+	 *     return errors.Wrap(err, "get cluster client")
+	 * }
+	 * if err := model.DeleteRemoteObject(cli); err != nil {
+	 *     return errors.Wrap(err, "DeleteRemoteObject")
+	 * }
+	 */
+	log.Errorf("++++try delete model %s/%s", model.Keyword(), model.GetName())
 	return nil
 }
 

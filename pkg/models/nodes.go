@@ -21,23 +21,30 @@ import (
 )
 
 var (
-	NodeManager *SNodeManager
+	nodeManager *SNodeManager
 )
 
 func init() {
-	NodeManager = &SNodeManager{
-		SClusterResourceBaseManager: NewClusterResourceBaseManager(
-			&SNode{},
-			"nodes_tbl",
-			"k8s_node",
-			"k8s_nodes",
-			api.ResourceNameNode,
-			api.KindNameNode,
-			new(v1.Node),
-		),
+	GetNodeManager()
+}
+
+func GetNodeManager() *SNodeManager {
+	if nodeManager == nil {
+		nodeManager = NewK8sModelManager(func() ISyncableManager {
+			return &SNodeManager{
+				SClusterResourceBaseManager: NewClusterResourceBaseManager(
+					&SNode{},
+					"nodes_tbl",
+					"k8s_node",
+					"k8s_nodes",
+					api.ResourceNameNode,
+					api.KindNameNode,
+					new(v1.Node),
+				),
+			}
+		}).(*SNodeManager)
 	}
-	NodeManager.SetVirtualObject(NodeManager)
-	RegisterK8sModelManager(NodeManager)
+	return nodeManager
 }
 
 type SNodeManager struct {
@@ -64,10 +71,6 @@ type SNode struct {
 
 func (m *SNodeManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.NodeCreateInput) (*api.NodeCreateInput, error) {
 	return nil, httperrors.NewBadRequestError("Not support node create")
-}
-
-func (m *SNodeManager) SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error {
-	return SyncClusterResources(ctx, userCred, cluster, m)
 }
 
 func (m *SNodeManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.NodeListInput) (*sqlchemy.SQuery, error) {
