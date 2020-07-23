@@ -118,45 +118,51 @@ func (obj *SPod) GetAPIConfigMaps() ([]*api.ConfigMap, error) {
 	return ConfigMapManager.GetAPIConfigMaps(obj.GetCluster(), cfgs)
 }
 
-func (obj *SPod) GetRawSecrets() ([]*v1.Secret, error) {
-	ss, err := SecretManager.GetRawSecrets(obj.GetCluster(), obj.GetNamespace())
-	if err != nil {
-		return nil, err
-	}
-	ss = GetSecretsForPod(obj.GetRawPod(), ss)
-	return ss, nil
-}
-
-func (obj *SPod) GetAPISecrets() ([]*api.Secret, error) {
-	ss, err := obj.GetRawSecrets()
-	if err != nil {
-		return nil, err
-	}
-	return SecretManager.GetAPISecrets(obj.GetCluster(), ss)
-}
+/*
+ * func (obj *SPod) GetRawSecrets() ([]*v1.Secret, error) {
+ *     ss, err := SecretManager.GetRawSecrets(obj.GetCluster(), obj.GetNamespace())
+ *     if err != nil {
+ *         return nil, err
+ *     }
+ *     ss = GetSecretsForPod(obj.GetRawPod(), ss)
+ *     return ss, nil
+ * }
+ *
+ * func (obj *SPod) GetAPISecrets() ([]*api.Secret, error) {
+ *     ss, err := obj.GetRawSecrets()
+ *     if err != nil {
+ *         return nil, err
+ *     }
+ *     return SecretManager.GetAPISecrets(obj.GetCluster(), ss)
+ * }
+ */
 
 func (obj *SPod) GetAPIObject() (*api.Pod, error) {
 	pod := obj.GetRawPod()
 	cluster := obj.GetCluster()
-	warnings, err := EventManager.GetWarningEventsByPods(cluster, []*v1.Pod{pod})
-	secrets, err := SecretManager.GetRawSecrets(cluster, pod.GetNamespace())
-	if err != nil {
-		return nil, err
-	}
-	configmaps, err := ConfigMapManager.GetRawConfigMaps(cluster, pod.GetNamespace())
-	if err != nil {
-		return nil, err
-	}
+	warnings, _ := EventManager.GetWarningEventsByPods(cluster, []*v1.Pod{pod})
+	/*
+	 * secrets, err := SecretManager.GetRawSecrets(cluster, pod.GetNamespace())
+	 * if err != nil {
+	 *     return nil, err
+	 * }
+	 */
+	/*
+	 * configmaps, err := ConfigMapManager.GetRawConfigMaps(cluster, pod.GetNamespace())
+	 * if err != nil {
+	 *     return nil, err
+	 * }
+	 */
 	return &api.Pod{
-		ObjectMeta:          api.NewObjectMeta(pod.ObjectMeta, cluster),
-		TypeMeta:            api.NewTypeMeta(pod.TypeMeta),
-		Warnings:            warnings,
-		PodStatus:           PodManager.getPodStatus(pod),
-		RestartCount:        PodManager.getRestartCount(pod),
-		PodIP:               pod.Status.PodIP,
-		QOSClass:            string(pod.Status.QOSClass),
-		Containers:          extractContainerInfo(pod.Spec.Containers, pod, configmaps, secrets),
-		InitContainers:      extractContainerInfo(pod.Spec.InitContainers, pod, configmaps, secrets),
+		ObjectMeta:   api.NewObjectMeta(pod.ObjectMeta, cluster),
+		TypeMeta:     api.NewTypeMeta(pod.TypeMeta),
+		Warnings:     warnings,
+		PodStatus:    PodManager.getPodStatus(pod),
+		RestartCount: PodManager.getRestartCount(pod),
+		PodIP:        pod.Status.PodIP,
+		QOSClass:     string(pod.Status.QOSClass),
+		// Containers:          extractContainerInfo(pod.Spec.Containers, pod, configmaps, secrets),
+		// InitContainers:      extractContainerInfo(pod.Spec.InitContainers, pod, configmaps, secrets),
 		ContainerImages:     GetContainerImages(&pod.Spec),
 		InitContainerImages: GetInitContainerImages(&pod.Spec),
 	}, nil
@@ -191,10 +197,12 @@ func (obj *SPod) GetAPIDetailObject() (*api.PodDetail, error) {
 	if err != nil {
 		return nil, err
 	}
-	secrets, err := obj.GetAPISecrets()
-	if err != nil {
-		return nil, err
-	}
+	/*
+	 * secrets, err := obj.GetAPISecrets()
+	 * if err != nil {
+	 *     return nil, err
+	 * }
+	 */
 	cfgs, err := obj.GetAPIConfigMaps()
 	if err != nil {
 		return nil, err
@@ -213,7 +221,7 @@ func (obj *SPod) GetAPIDetailObject() (*api.PodDetail, error) {
 		Events:                 events,
 		Persistentvolumeclaims: pvcs,
 		ConfigMaps:             cfgs,
-		Secrets:                secrets,
+		// Secrets:                secrets,
 	}, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	res "k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,7 +35,7 @@ var (
 )
 
 func init() {
-	PodManager = NewK8sModelManager(func() IClusterModelManager {
+	PodManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SPodManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SPod),
@@ -315,10 +316,27 @@ func evalEnvFrom(container v1.Container, configMaps []*v1.ConfigMap, secrets []*
 	return vars
 }
 
+func (p *SPod) getConditions(pod *v1.Pod) []*api.Condition {
+	var conds []*api.Condition
+	for _, cond := range pod.Status.Conditions {
+		conds = append(conds, &api.Condition{
+			Type:               string(cond.Type),
+			Status:             cond.Status,
+			LastProbeTime:      cond.LastProbeTime,
+			LastTransitionTime: cond.LastTransitionTime,
+			Reason:             cond.Reason,
+			Message:            cond.Message,
+		})
+	}
+	return SortConditions(conds)
+}
+
 func (p *SPod) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
 	pod := k8sObj.(*v1.Pod)
+	warnings, _ := GetEventManager().GetWarningEventsByPods(cli, []*v1.Pod{pod})
 	out := api.PodDetailV2{
 		NamespaceResourceDetail: p.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail),
+		Warnings:                warnings,
 		PodStatus:               PodManager.getPodStatus(pod),
 		RestartCount:            PodManager.getRestartCount(pod),
 		PodIP:                   pod.Status.PodIP,
@@ -328,12 +346,20 @@ func (p *SPod) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj r
 		ContainerImages:     GetContainerImages(&pod.Spec),
 		InitContainerImages: GetInitContainerImages(&pod.Spec),
 	}
+	if isList {
+		return out
+	}
+	out.Conditions = p.getConditions(pod)
 	// TODO: fill secrets, pvcs...
 	return out
 }
 
 func (m *SPodManager) GetAllRawPods(cluster *client.ClusterManager) ([]*v1.Pod, error) {
 	return m.GetRawPods(cluster, v1.NamespaceAll)
+}
+
+func (m *SPodManager) GetRawPodsByObjectNamespace(cli *client.ClusterManager, obj runtime.Object) ([]*v1.Pod, error) {
+	return m.GetRawPods(cli, obj.(metav1.Object).GetNamespace())
 }
 
 func (m *SPodManager) GetRawPods(cluster *client.ClusterManager, ns string) ([]*v1.Pod, error) {
@@ -354,7 +380,7 @@ func (m *SPodManager) NewFromRemoteObject(ctx context.Context, userCred mcclient
 	podObj := model.(*SPod)
 	nodeName := kPod.Spec.NodeName
 	if nodeName != "" {
-		nodeObj, err := NodeManager.GetByName(userCred, podObj.ClusterId, nodeName)
+		nodeObj, err := GetNodeManager().GetByName(userCred, podObj.ClusterId, nodeName)
 		if err != nil {
 			return nil, errors.Wrapf(err, "fetch pod's node by name: %s", nodeName)
 		}
@@ -420,6 +446,10 @@ func (p *SPod) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.Tok
 	if err != nil {
 		return errors.Wrap(err, "get pod resource requests and limits")
 	}
+	status := getters.GetPodStatus(k8sPod)
+	if status.Status != p.Status {
+		p.Status = status.Status
+	}
 	cpuRequests, cpuLimits, memoryRequests, memoryLimits := reqs[v1.ResourceCPU],
 		limits[v1.ResourceCPU], reqs[v1.ResourceMemory], limits[v1.ResourceMemory]
 	p.CpuRequests = cpuRequests.MilliValue()
@@ -427,10 +457,6 @@ func (p *SPod) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.Tok
 	p.MemoryRequests = memoryRequests.MilliValue()
 	p.MemoryLimits = memoryLimits.MilliValue()
 	return nil
-}
-
-func (p *SPod) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	p.SNamespaceResourceBase.PostDeleteV2(p, ctx, userCred)
 }
 
 func (m *SPodManager) GetPodsByClusters(clusterIds []string) ([]SPod, error) {

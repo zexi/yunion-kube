@@ -30,6 +30,16 @@ type DaemonSetStatus struct {
 	Status string `json:"status"`
 }
 
+type DaemonSetDetailV2 struct {
+	NamespaceResourceDetail
+	// Aggregate information about pods belonging to this deployment
+	PodInfo             PodInfo           `json:"podsInfo"`
+	ContainerImages     []ContainerImage  `json:"containerImages"`
+	InitContainerImages []ContainerImage  `json:"initContainerImages"`
+	Selector            *v1.LabelSelector `json:"labelSelector"`
+	DaemonSetStatus
+}
+
 type DaemonSetDetail struct {
 	DaemonSet
 
@@ -38,6 +48,13 @@ type DaemonSetDetail struct {
 
 type DaemonSetCreateInput struct {
 	K8sNamespaceResourceCreateInput
+
+	apps.DaemonSetSpec
+	Service *ServiceCreateOption `json:"service"`
+}
+
+type DaemonSetCreateInputV2 struct {
+	NamespaceResourceCreateInput
 
 	apps.DaemonSetSpec
 	Service *ServiceCreateOption `json:"service"`

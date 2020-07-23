@@ -1,0 +1,58 @@
+package models
+
+import (
+	"context"
+
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
+
+	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/client"
+)
+
+var (
+	ServiceAccountManager *SServiceAccountManager
+	_                     IClusterModel = new(SServiceAccount)
+)
+
+func init() {
+	ServiceAccountManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+		return &SServiceAccountManager{
+			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+				new(SServiceAccount),
+				"serviceaccounts_tbl",
+				"serviceaccount",
+				"serviceaccounts",
+				api.ResourceNameServiceAccount,
+				api.KindNameServiceAccount,
+				new(v1.ServiceAccount),
+			),
+		}
+	}).(*SServiceAccountManager)
+}
+
+type SServiceAccountManager struct {
+	SNamespaceResourceBaseManager
+}
+
+type SServiceAccount struct {
+	SNamespaceResourceBase
+}
+
+func (m *SServiceAccountManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	return nil, httperrors.NewBadRequestError("Not support serviceaccount create")
+}
+
+func (obj *SServiceAccount) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	sa := k8sObj.(*v1.ServiceAccount)
+	return api.ServiceAccount{
+		NamespaceResourceDetail:      obj.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail),
+		Secrets:                      sa.Secrets,
+		ImagePullSecrets:             sa.ImagePullSecrets,
+		AutomountServiceAccountToken: sa.AutomountServiceAccountToken,
+	}
+}

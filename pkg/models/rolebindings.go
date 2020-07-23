@@ -20,7 +20,7 @@ var (
 )
 
 func init() {
-	RoleBindingManager = NewK8sModelManager(func() IClusterModelManager {
+	RoleBindingManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SRoleBindingManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SRoleBinding),
@@ -68,8 +68,4 @@ func (rb *SRoleBinding) UpdateFromRemoteObject(ctx context.Context, userCred mcc
 		return err
 	}
 	return nil
-}
-
-func (rb *SRoleBinding) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	rb.SNamespaceResourceBase.PostDeleteV2(rb, ctx, userCred)
 }

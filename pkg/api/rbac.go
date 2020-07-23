@@ -82,9 +82,7 @@ type RoleBinding struct {
 }
 
 type ServiceAccount struct {
-	ObjectMeta
-
-	TypeMeta
+	NamespaceResourceDetail
 	// Secrets is the list of secrets allowed to be used by pods running using this ServiceAccount.
 	// More info: https://kubernetes.io/docs/concepts/configuration/secret
 	// +optional

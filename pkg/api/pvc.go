@@ -23,8 +23,19 @@ type PersistentVolumeClaimDetail struct {
 	Pods []*Pod `json:"pods"`
 }
 
+type PersistentVolumeClaimDetailV2 struct {
+	NamespaceResourceDetail
+	Status       string                          `json:"status"`
+	Volume       string                          `json:"volume"`
+	Capacity     v1.ResourceList                 `json:"capacity"`
+	AccessModes  []v1.PersistentVolumeAccessMode `json:"accessModes"`
+	StorageClass *string                         `json:"storageClass"`
+	// Deprecated
+	MountedBy []string `json:"mountedBy"`
+}
+
 type PersistentVolumeClaimCreateInput struct {
-	K8sNamespaceResourceCreateInput
+	NamespaceResourceCreateInput
 	Size         string `json:"size"`
 	StorageClass string `json:"storageClass"`
 }

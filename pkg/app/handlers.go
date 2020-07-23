@@ -9,24 +9,29 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
+	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
 	"yunion.io/x/yunion-kube/pkg/k8s"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
 	"yunion.io/x/yunion-kube/pkg/k8smodels"
 	"yunion.io/x/yunion-kube/pkg/models"
-
-	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
-	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/secret"
-	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/storageclass"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/release"
+	_ "yunion.io/x/yunion-kube/pkg/models/drivers/secret"
+	_ "yunion.io/x/yunion-kube/pkg/models/drivers/storageclass"
 	"yunion.io/x/yunion-kube/pkg/usages"
 )
+
+func prepare() {
+	models.InitEventManager(k8smodels.EventManager)
+}
 
 func InitHandlers(app *appsrv.Application) {
 	db.InitAllManagers()
 	apiPrefix := "/api"
 	taskman.AddTaskHandler(apiPrefix, app)
 	usages.AddUsageHandler(apiPrefix, app)
+
+	prepare()
 
 	for _, man := range []db.IModelManager{
 		taskman.TaskManager,
@@ -47,20 +52,33 @@ func InitHandlers(app *appsrv.Application) {
 		models.X509KeyPairManager,
 		models.ComponentManager,
 		models.MachineManager,
-		models.NodeManager,
+
+		// k8s cluster resource manager
+		models.GetNodeManager(),
 		models.NamespaceManager,
-		models.LimitRangeManager,
-		models.ResourceQuotaManager,
+		models.GetStorageClassManager(),
 		models.ClusterRoleManager,
 		models.ClusterRoleBindingManager,
+		models.PVManager,
+
+		// k8s namespace resource manager
+		models.PVCManager,
+		models.LimitRangeManager,
+		models.ResourceQuotaManager,
 		models.RoleManager,
 		models.RoleBindingManager,
-		models.DeploymentManager,
-		models.ReplicaSetManager,
-		models.PodManager,
 		models.ServiceManager,
 		models.IngressManager,
-
+		models.DeploymentManager,
+		models.StatefulSetManager,
+		models.DaemonSetManager,
+		models.ReplicaSetManager,
+		models.JobManager,
+		models.CronJobManager,
+		models.PodManager,
+		models.ServiceAccountManager,
+		models.GetSecretManager(),
+		models.ConfigMapManager,
 		models.ReleaseManager,
 	} {
 		db.RegisterModelManager(man)
@@ -85,29 +103,8 @@ func InitHandlers(app *appsrv.Application) {
 	// v2 dispatcher
 	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
 	for _, man := range []model.IK8SModelManager{
-		//k8smodels.NodeManager,
-		//k8smodels.NamespaceManager,
-		//k8smodels.LimitRangeManager,
-		// k8smodels.ResourceQuotaManager,
-		// k8smodels.PodManager,
-		k8smodels.JobManager,
-		k8smodels.CronJobManager,
-		// k8smodels.ServiceManager,
-		// k8smodels.IngressManager,
-		//k8smodels.DeploymentManager,
-		k8smodels.StatefulSetManager,
-		k8smodels.DaemonSetManager,
-		k8smodels.SecretManager,
-		k8smodels.ConfigMapManager,
-		k8smodels.StorageClassManager,
-		k8smodels.PVManager,
-		k8smodels.PVCManager,
-		//k8smodels.ClusterRoleManager,
-		//k8smodels.ClusterRoleBindingManager,
-		//k8smodels.RoleManager,
-		//k8smodels.RoleBindingManager,
-		k8smodels.ServiceAccountManager,
 		k8smodels.EventManager,
+
 		// onecloud service operator resource manager
 		k8smodels.VirtualMachineManager,
 		k8smodels.AnsiblePlaybookManager,
@@ -117,17 +114,6 @@ func InitHandlers(app *appsrv.Application) {
 		handler := model.NewK8SModelHandler(man)
 		log.Infof("Dispatcher register k8s resource manager %q", man.KeywordPlural())
 		v2Dispatcher.Add(handler)
-	}
-
-	helmAppPrefix := fmt.Sprintf("%s/releaseapps", apiPrefix)
-
-	for _, man := range []k8s.IK8sResourceManager{
-		//meter.MeterAppManager,
-		//servicetree.ServicetreeAppManager,
-		//notify.NotifyAppManager,
-	} {
-		handler := k8s.NewK8sResourceHandler(man)
-		k8s.AddResourceDispatcher(helmAppPrefix, app, handler)
 	}
 
 	k8s.AddHelmDispatcher(apiPrefix, app)

@@ -39,10 +39,22 @@ func GetK8sResourceManagerByKind(kindName string) manager.IK8sResourceManager {
 	return nil
 }
 
-func NewK8sModelManager(factoryF func() IClusterModelManager) IClusterModelManager {
+func newK8sModelManager(factoryF func() ISyncableManager) ISyncableManager {
 	man := factoryF()
 	man.SetVirtualObject(man)
 	RegisterK8sModelManager(man)
+	return man
+}
+
+func NewK8sModelManager(factoryF func() ISyncableManager) ISyncableManager {
+	man := newK8sModelManager(factoryF)
+	GetClusterManager().AddSubManager(man)
+	return man
+}
+
+func NewK8sNamespaceModelManager(factoryF func() ISyncableManager) ISyncableManager {
+	man := newK8sModelManager(factoryF)
+	GetNamespaceManager().AddSubManager(man)
 	return man
 }
 

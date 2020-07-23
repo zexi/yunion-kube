@@ -46,6 +46,20 @@ import (
 var ClusterManager *SClusterManager
 
 func init() {
+	initGlobalClusterManager()
+}
+
+func GetClusterManager() *SClusterManager {
+	if ClusterManager == nil {
+		initGlobalClusterManager()
+	}
+	return ClusterManager
+}
+
+func initGlobalClusterManager() {
+	if ClusterManager != nil {
+		return
+	}
 	ClusterManager = &SClusterManager{
 		SStatusDomainLevelResourceBaseManager: db.NewStatusDomainLevelResourceBaseManager(
 			SCluster{},
@@ -53,6 +67,7 @@ func init() {
 			"kubecluster",
 			"kubeclusters",
 		),
+		SSyncableManager: newSyncableManager(),
 	}
 	manager.RegisterClusterManager(ClusterManager)
 	ClusterManager.SetVirtualObject(ClusterManager)
@@ -62,6 +77,7 @@ func init() {
 type SClusterManager struct {
 	db.SStatusDomainLevelResourceBaseManager
 	SSyncableK8sBaseResourceManager
+	*SSyncableManager
 }
 
 type SCluster struct {
@@ -1658,15 +1674,34 @@ func (c *SCluster) prepareStartSync() error {
 	return nil
 }
 
-func (m *SClusterManager) StartAutoSyncTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+func (m *SClusterManager) WaitFullSynced() error {
+	ctx := context.TODO()
+	userCred := GetAdminCred()
+	return m.startAutoSyncTask(ctx, userCred, true)
+}
+
+func (m *SClusterManager) startAutoSyncTask(ctx context.Context, userCred mcclient.TokenCredential, wait bool) error {
 	clusters, err := m.GetRunningClusters()
 	if err != nil {
-		log.Errorf("Start auto sync cluster task get running clusters: %v", err)
-		return
+		return errors.Wrap(err, "Start auto sync cluster task get running clusters: %v")
 	}
+	errs := make([]error, 0)
 	for _, cls := range clusters {
-		cls.(*SCluster).SubmitSyncTask(ctx, userCred, nil)
+		if wait {
+			waitCh := make(chan error, 0)
+			cls.(*SCluster).SubmitSyncTask(ctx, userCred, waitCh)
+			if err := <-waitCh; err != nil {
+				errs = append(errs, err)
+			}
+		} else {
+			cls.(*SCluster).SubmitSyncTask(ctx, userCred, nil)
+		}
 	}
+	return errors.NewAggregate(errs)
+}
+
+func (m *SClusterManager) StartAutoSyncTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
+	m.startAutoSyncTask(ctx, userCred, false)
 }
 
 func (c *SCluster) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
@@ -1682,11 +1717,6 @@ func (c *SCluster) PerformSync(ctx context.Context, userCred mcclient.TokenCrede
 	return nil, nil
 }
 
-type ISyncableManager interface {
-	db.IModelManager
-	SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cls *SCluster) error
-}
-
 func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCredential, waitChan chan error) {
 	RunSyncClusterTask(func() {
 		log.Infof("start sync cluster %s", c.GetName())
@@ -1699,23 +1729,32 @@ func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCr
 		}
 		if err := c.MarkSyncing(c, userCred); err != nil {
 			log.Errorf("Mark cluster %s syncing error: %v", c.GetId(), err)
+			if waitChan != nil {
+				waitChan <- err
+			}
 			return
 		}
 
-		for _, man := range []ISyncableManager{
-			NodeManager,
-			ClusterRoleManager,
-			ClusterRoleBindingManager,
-			NamespaceManager,
-		} {
-			if err := man.SyncResources(ctx, userCred, c); err != nil {
+		for _, man := range GetClusterManager().GetSubManagers() {
+			err := SyncClusterResources(ctx, userCred, c, man)
+			if err != nil {
 				log.Errorf("Sync %s error: %v", man.KeywordPlural(), err)
 				c.MarkErrorSync(ctx, c, err)
+				if waitChan != nil {
+					waitChan <- err
+				}
 				return
 			}
 		}
 		if err := c.MarkEndSync(ctx, userCred, c); err != nil {
 			log.Errorf("mark cluster %s sync end error: %v", c.GetId(), err)
+			if waitChan != nil {
+				waitChan <- err
+			}
+			return
+		}
+		if waitChan != nil {
+			waitChan <- nil
 			return
 		}
 	})
@@ -1758,7 +1797,7 @@ func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IId
 		return nil, err
 	}
 	usage.Count = int64(len(clusters))
-	nodeUsage, err := NodeManager.Usage(clusters)
+	nodeUsage, err := GetNodeManager().Usage(clusters)
 	if err != nil {
 		return nil, errors.Wrap(err, "get node usage")
 	}
