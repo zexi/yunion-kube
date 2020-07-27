@@ -12,7 +12,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
-	"k8s.io/kubernetes/pkg/util/mount"
+	"k8s.io/utils/exec"
+	"k8s.io/utils/mount"
 
 	"yunion.io/x/log"
 
@@ -105,7 +106,7 @@ func (s *Server) MountVolume(ctx context.Context, in *pb.MountVolumeRequest) (*p
 		options = append(options, "ro")
 	}
 
-	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: mount.NewOSExec()}
+	diskMounter := &mount.SafeFormatAndMount{Interface: mount.New(""), Exec: exec.New()}
 	if err := diskMounter.FormatAndMount(devPath, targetPath, fsType, options); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to format and mount: %v", err)
 	}

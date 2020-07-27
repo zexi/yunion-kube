@@ -2,10 +2,12 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"yunion.io/x/jsonutils"
@@ -13,15 +15,33 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/pkg/util/sets"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/drivers"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
 )
 
+func init() {
+	importDriver := NewDefaultImportDriver()
+	importDriver.drivers = drivers.NewDriverManager("")
+	importDriver.registerDriver(
+		newImportK8sDriver(),
+		newImportOpenshiftDriver(),
+	)
+	models.RegisterClusterDriver(importDriver)
+}
+
+type iImportDriver interface {
+	GetDistribution() string
+	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, input *api.ClusterCreateInput, config *rest.Config) error
+}
+
 type SDefaultImportDriver struct {
 	*SBaseDriver
+	drivers *drivers.DriverManager
 }
 
 func NewDefaultImportDriver() *SDefaultImportDriver {
@@ -30,8 +50,27 @@ func NewDefaultImportDriver() *SDefaultImportDriver {
 	}
 }
 
-func init() {
-	models.RegisterClusterDriver(NewDefaultImportDriver())
+func (d *SDefaultImportDriver) registerDriver(drvs ...iImportDriver) {
+	for _, drv := range drvs {
+		d.drivers.Register(drv, drv.GetDistribution())
+	}
+}
+
+func (d *SDefaultImportDriver) getDriver(distro string) iImportDriver {
+	drv, err := d.drivers.Get(distro)
+	if err != nil {
+		panic(fmt.Errorf("Get driver %s: %v", distro, err))
+	}
+	return drv.(iImportDriver)
+}
+
+func (d *SDefaultImportDriver) getRegisterDistros() sets.String {
+	ret := make([]string, 0)
+	d.drivers.Range(func(key, val interface{}) bool {
+		ret = append(ret, key.(string))
+		return true
+	})
+	return sets.NewString(ret...)
 }
 
 func (d *SDefaultImportDriver) GetK8sVersions() []string {
@@ -40,9 +79,15 @@ func (d *SDefaultImportDriver) GetK8sVersions() []string {
 
 func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
 	// test kubeconfig is work
-	createData := api.ClusterCreateInput{}
-	if err := data.Unmarshal(&createData); err != nil {
+	createData := new(api.ClusterCreateInput)
+	if err := data.Unmarshal(createData); err != nil {
 		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
+	}
+	if createData.Distribution == "" {
+		createData.Distribution = api.ImportClusterDistributionK8s
+	}
+	if !d.getRegisterDistros().Has(createData.Distribution) {
+		return httperrors.NewNotSupportedError("Not support import distribution %s", createData.Distribution)
 	}
 	apiServer := createData.ApiServer
 	kubeconfig := createData.Kubeconfig
@@ -86,6 +131,11 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 	}
 	if k8sSvc.UID == sysK8SSvc.UID {
 		return httperrors.NewNotAcceptableError("cluster already imported as default system cluster")
+	}
+
+	drv := d.getDriver(createData.Distribution)
+	if err := drv.ValidateCreateData(ctx, userCred, ownerId, createData, restConfig); err != nil {
+		return errors.Wrapf(err, "check distribution %s", createData.Distribution)
 	}
 
 	// TODO: inject version info

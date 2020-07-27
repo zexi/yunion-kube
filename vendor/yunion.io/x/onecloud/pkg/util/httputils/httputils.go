@@ -15,6 +15,8 @@
 package httputils
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -147,17 +149,17 @@ type JsonResponse interface {
 }
 
 func (ce *JSONClientError) ParseErrorFromJsonResponse(statusCode int, body jsonutils.JSONObject) error {
-	err := body.Unmarshal(ce)
-	if err != nil {
-		return errors.Wrapf(err, "body.Unmarshal(%s)", body.String())
+	body.Unmarshal(ce)
+	if ce.Code == 0 {
+		ce.Code = statusCode
 	}
-	if ce.Code != 0 || len(ce.Class) > 0 || len(ce.Class) > 0 || len(ce.Details) > 0 {
-		if ce.Code == 0 {
-			ce.Code = statusCode
-		}
-		return ce
+	if len(ce.Class) == 0 {
+		ce.Class = http.StatusText(statusCode)
 	}
-	return nil
+	if len(ce.Details) == 0 {
+		ce.Details = body.String()
+	}
+	return ce
 }
 
 func NewJsonClient(client *http.Client) *JsonClient {
@@ -424,9 +426,25 @@ func Request(client *http.Client, ctx context.Context, method THttpMethod, urlSt
 	resp, err := client.Do(req)
 	if err != nil {
 		red(err.Error())
-	}
-	if err == nil && clientTrace != nil {
-		clientTrace.EndClientTraceHeader(resp.Header)
+	} else {
+		encoding := resp.Header.Get("Content-Encoding")
+		switch encoding {
+		case "", "identity":
+			// do nothing
+		case "gzip":
+			gzipBody, err := gzip.NewReader(resp.Body)
+			if err != nil {
+				return nil, errors.Wrap(err, "gzip.NewReader")
+			}
+			resp.Body = gzipBody
+		case "deflate":
+			resp.Body = flate.NewReader(resp.Body)
+		default:
+			return nil, errors.Wrapf(errors.ErrNotSupported, "unsupported content-encoding %s", encoding)
+		}
+		if clientTrace != nil {
+			clientTrace.EndClientTraceHeader(resp.Header)
+		}
 	}
 	return resp, err
 }
@@ -526,9 +544,18 @@ func (client *JsonClient) Send(ctx context.Context, req JsonReuest, response Jso
 		ce.Code = resp.StatusCode
 		ce.Details = resp.Header.Get("Location")
 		ce.Class = "redirect"
-		return resp.Header, nil, &ce
+		return resp.Header, jrbody, &ce
 	}
+
 	return resp.Header, jrbody, response.ParseErrorFromJsonResponse(resp.StatusCode, jrbody)
+}
+
+func IsRedirectError(err error) bool {
+	ce, ok := err.(*JSONClientError)
+	if ok && ce.Class == "redirect" {
+		return true
+	}
+	return false
 }
 
 func ParseResponse(resp *http.Response, err error, debug bool) (http.Header, []byte, error) {
