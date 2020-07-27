@@ -103,6 +103,9 @@ type SCluster struct {
 
 	// kubernetes api server endpoint
 	ApiServer string `width:"256" nullable:"true" charset:"ascii" create:"optional" list:"user"`
+
+	// kubernetes distribution
+	Distribution string `width:"256" nullable:"true" default:"k8s" charset:"utf8" create:"optional" list:"user"`
 }
 
 func (m *SClusterManager) InitializeData() error {

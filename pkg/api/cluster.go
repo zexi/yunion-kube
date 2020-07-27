@@ -148,9 +148,15 @@ type CreateMachineData struct {
 	Config       *MachineCreateConfig `json:"config"`
 }
 
+const (
+	ImportClusterDistributionK8s       = "k8s"
+	ImportClusterDistributionOpenshift = "openshift"
+)
+
 type ImportClusterData struct {
-	Kubeconfig string `json:"kubeconfig"`
-	ApiServer  string `json:"api_server"`
+	Kubeconfig   string `json:"kubeconfig"`
+	ApiServer    string `json:"api_server"`
+	Distribution string `json:"distribution"`
 }
 
 const (
