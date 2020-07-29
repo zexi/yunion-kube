@@ -232,7 +232,7 @@ func (obj *SNode) GetAPIObject() (*api.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &api.Node{
+	node := &api.Node{
 		ObjectMeta:         obj.GetObjectMeta(),
 		TypeMeta:           obj.GetTypeMeta(),
 		Ready:              obj.getNodeConditionStatus(rNode, v1.NodeReady) == v1.ConditionTrue,
@@ -240,8 +240,15 @@ func (obj *SNode) GetAPIObject() (*api.Node, error) {
 		Address:            rNode.Status.Addresses,
 		NodeInfo:           rNode.Status.NodeInfo,
 		Taints:             rNode.Spec.Taints,
-		Unschedulable:      rNode.Spec.Unschedulable,
-	}, nil
+	}
+	unschedule := rNode.Spec.Unschedulable
+	for _, taint := range node.Taints {
+		if taint.Effect == v1.TaintEffectNoSchedule {
+			unschedule = true
+		}
+	}
+	node.Unschedulable = unschedule
+	return node, nil
 }
 
 func (obj *SNode) GetAPIDetailObject() (*api.NodeDetail, error) {
