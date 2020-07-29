@@ -40,7 +40,7 @@ func (_ SRoleManager) GetK8SResourceInfo() model.K8SResourceInfo {
 }
 
 func (obj SRole) GetType() string {
-	return strings.ToLower(api.KindNameRole)
+	return strings.ToLower(obj.Keyword())
 }
 
 func (obj SRole) GetRawRole() *rbac.Role {
