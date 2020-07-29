@@ -43,7 +43,7 @@ func (obj SClusterRole) GetRawClusterRole() *rbac.ClusterRole {
 }
 
 func (obj SClusterRole) GetType() string {
-	return strings.ToLower(api.KindNameClusterRole)
+	return strings.ToLower(obj.Keyword())
 }
 
 func (obj SClusterRole) GetAPIObject() (*api.RbacRole, error) {
