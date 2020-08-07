@@ -299,7 +299,7 @@ func (r *SRelease) CustomizeCreate(ctx context.Context, userCred mcclient.TokenC
 
 func (r *SRelease) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	r.SNamespaceResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
-	r.StartCreateTask(r, ctx, userCred, ownerId, query, data)
+	r.StartCreateTask(r, ctx, userCred, ownerId, data.(*jsonutils.JSONDict), "")
 }
 
 func (m *SReleaseManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
@@ -463,6 +463,19 @@ func (m *SReleaseManager) ListRemoteObjects(cli *client.ClusterManager) ([]inter
 	return ret, nil
 }
 
+func (obj *SRelease) GetRemoteObject(cli *client.ClusterManager) (interface{}, error) {
+	ns, err := obj.GetNamespace()
+	if err != nil {
+		return nil, errors.Wrap(err, "get release namespace")
+	}
+	helmCli, err := NewHelmClient(cli.Cluster.(*SCluster), ns.GetName())
+	if err != nil {
+		return nil, errors.Wrap(err, "new helm client")
+	}
+	getAct := helmCli.Release().Get()
+	return getAct.Run(obj.GetName())
+}
+
 func (m *SReleaseManager) getRemoteReleaseGlobalId(clusterId, namespace, name string) string {
 	return fmt.Sprintf("%s/%s/%s", clusterId, namespace, name)
 }
@@ -496,7 +509,7 @@ func (m *SReleaseManager) NewFromRemoteObject(
 	dbObj.(IClusterModel).SetName(rls.Name)
 	dbObj.(IClusterModel).SetCluster(userCred, cluster)
 	// set local db namespace object
-	localNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), rls.Namespace)
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), rls.Namespace)
 	if err != nil {
 		return nil, err
 	}

@@ -3,11 +3,13 @@ package models
 import (
 	"context"
 
-	rbac "k8s.io/api/rbac/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kubernetes/pkg/apis/rbac"
+	"k8s.io/kubernetes/pkg/apis/rbac/validation"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/sqlchemy"
 
@@ -37,10 +39,12 @@ func init() {
 
 type SClusterRoleBindingManager struct {
 	SClusterResourceBaseManager
+	SRoleRefResourceBaseManager
 }
 
 type SClusterRoleBinding struct {
 	SClusterResourceBase
+	SRoleRefResourceBase
 }
 
 func (m *SClusterRoleBindingManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterResourceListInput) (*sqlchemy.SQuery, error) {
@@ -51,8 +55,28 @@ func (m *SClusterRoleBindingManager) SyncResources(ctx context.Context, userCred
 	return SyncClusterResources(ctx, userCred, cluster, m)
 }
 
-func (m *SClusterRoleBindingManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	return nil, httperrors.NewBadRequestError("Not support clusterrolebinding create")
+func (m *SClusterRoleBindingManager) ValidateClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) error {
+	return ValidateK8sObject(crb, new(rbac.ClusterRoleBinding), func(out interface{}) field.ErrorList {
+		return validation.ValidateClusterRoleBinding(out.(*rbac.ClusterRoleBinding))
+	})
+}
+
+func (m *SClusterRoleBindingManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.ClusterRoleBindingCreateInput) (*api.ClusterRoleBindingCreateInput, error) {
+	cInput, err := m.SClusterResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &input.ClusterResourceCreateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.ClusterResourceCreateInput = *cInput
+
+	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(GetClusterRoleManager(), userCred, input.RoleRef); err != nil {
+		return nil, err
+	}
+
+	crb := input.ToClusterRoleBinding()
+	if err := m.ValidateClusterRoleBinding(crb); err != nil {
+		return nil, err
+	}
+	return input, nil
 }
 
 func (m *SClusterRoleBindingManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {

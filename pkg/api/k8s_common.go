@@ -2,6 +2,8 @@ package api
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"yunion.io/x/onecloud/pkg/apis"
 )
 
 type K8sClusterResourceGetInput struct {
@@ -42,4 +44,18 @@ func (input K8sNamespaceResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
 	objMeta := input.K8sClusterResourceCreateInput.ToObjectMeta()
 	objMeta.Namespace = input.Namespace
 	return objMeta
+}
+
+type K8sResourceCreateInput struct {
+	apis.StatusDomainLevelResourceCreateInput
+	Labels      map[string]string `json:"labels"`
+	Annotations map[string]string `json:"annotations"`
+}
+
+func (input K8sResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:        input.Name,
+		Labels:      input.Labels,
+		Annotations: input.Annotations,
+	}
 }

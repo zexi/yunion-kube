@@ -63,7 +63,8 @@ type ServerListInput struct {
 
 	// 列出可以挂载磁盘的主机
 	AttachableServersForDisk string `json:"attachable_servers_for_disk"`
-	// Deprecated:列出可以挂载磁盘的主机
+	// Deprecated
+	// 列出可以挂载磁盘的主机
 	Disk string `json:"disk" "yunion:deprecated-by":"attachable_servers_for_disk"`
 
 	// 按主机资源类型进行排序
@@ -281,19 +282,19 @@ type GuestResourceInfo struct {
 
 type ServerResourceInput struct {
 	// 主机（ID或Name）
-	Server string `json:"server"`
+	ServerId string `json:"server_id"`
 	// swagger:ignore
 	// Deprecated
 	// Filter by guest Id
-	ServerId string `json:"server_id" "yunion:deprecated-by":"server"`
+	Server string `json:"server" "yunion:deprecated-by":"server_id"`
 	// swagger:ignore
 	// Deprecated
 	// Filter by guest Id
-	Guest string `json:"guest" "yunion:deprecated-by":"server"`
+	Guest string `json:"guest" "yunion:deprecated-by":"server_id"`
 	// swagger:ignore
 	// Deprecated
 	// Filter by guest Id
-	GuestId string `json:"guest_id" "yunion:deprecated-by":"server"`
+	GuestId string `json:"guest_id" "yunion:deprecated-by":"server_id"`
 }
 
 type ServerFilterListInput struct {
@@ -354,4 +355,54 @@ type GuestMigrateInput struct {
 
 type GuestLiveMigrateInput struct {
 	PreferHost string `json:"prefer_host"`
+}
+
+type GuestSetSecgroupInput struct {
+	// 安全组Id列表
+	// 实例必须处于运行,休眠或者关机状态
+	//
+	//
+	// | 平台		 | 最多绑定安全组数量	|
+	// |-------------|-------------------	|
+	// | Azure       | 1					|
+	// | VMware      | 不支持安全组			|
+	// | Baremetal   | 不支持安全组			|
+	// | ZStack	     | 1					|
+	// | 其他	     | 5					|
+	SecgroupIds []string `json:"secgroup_ids"`
+}
+
+type GuestRevokeSecgroupInput struct {
+	// 安全组Id列表
+	// 实例必须处于运行,休眠或者关机状态
+	SecgroupIds []string `json:"secgroup_ids"`
+}
+
+type GuestAssignSecgroupInput struct {
+	// 安全组Id
+	// 实例必须处于运行,休眠或者关机状态
+	SecgroupId string `json:"secgroup_id"`
+
+	// swagger:ignore
+	// Deprecated
+	Secgrp string `json:"secgrp" "yunion:deprecated-by":"secgroup_id"`
+
+	// swagger:ignore
+	// Deprecated
+	Secgroup string `json:"secgroup" "yunion:deprecated-by":"secgroup_id"`
+}
+
+type GuestAddSecgroupInput struct {
+	// 安全组Id列表
+	// 实例必须处于运行,休眠或者关机状态
+	//
+	//
+	// | 平台		 | 最多绑定安全组数量	|
+	// |-------------|-------------------	|
+	// | Azure       | 1					|
+	// | VMware      | 不支持安全组			|
+	// | Baremetal   | 不支持安全组			|
+	// | ZStack	     | 1					|
+	// | 其他	     | 5					|
+	SecgroupIds []string `json:"secgroup_ids"`
 }

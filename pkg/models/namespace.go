@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/jsonutils"
@@ -20,46 +20,44 @@ import (
 )
 
 var (
-	NamespaceManager *SNamespaceManager
+	namespaceManager *SNamespaceManager
+	_                IClusterModelManager = new(SNamespaceManager)
+	_                IClusterModel        = new(SNamespace)
 )
 
 func init() {
-	initGlobalNamespaceManager()
+	GetNamespaceManager()
 }
 
 func GetNamespaceManager() *SNamespaceManager {
-	if NamespaceManager == nil {
-		initGlobalNamespaceManager()
+	if namespaceManager == nil {
+		namespaceManager = newK8sModelManager(func() ISyncableManager {
+			return &SNamespaceManager{
+				SClusterResourceBaseManager: NewClusterResourceBaseManager(
+					SNamespace{},
+					"namespaces_tbl",
+					"namespace",
+					"namespaces",
+					api.ResourceNameNamespace,
+					api.KindNameNamespace,
+					&v1.Namespace{}),
+			}
+		}).(*SNamespaceManager)
+		namespaceManager.RegisterFederatedManager(GetFedNamespaceManager())
+		// namespaces should sync after nodes synced
+		GetNodeManager().AddSubManager(namespaceManager)
 	}
-	return NamespaceManager
-}
-
-func initGlobalNamespaceManager() {
-	if NamespaceManager != nil {
-		return
-	}
-	NamespaceManager = newK8sModelManager(func() ISyncableManager {
-		return &SNamespaceManager{
-			SClusterResourceBaseManager: NewClusterResourceBaseManager(
-				SNamespace{},
-				"namespaces_tbl",
-				"namespace",
-				"namespaces",
-				api.ResourceNameNamespace,
-				api.KindNameNamespace,
-				&v1.Namespace{}),
-		}
-	}).(*SNamespaceManager)
-	// namespaces should sync after nodes synced
-	GetNodeManager().AddSubManager(NamespaceManager)
+	return namespaceManager
 }
 
 type SNamespaceManager struct {
 	SClusterResourceBaseManager
+	SFederatedManagedResourceBaseManager
 }
 
 type SNamespace struct {
 	SClusterResourceBase
+	SFederatedManagedResourceBase
 }
 
 func (m *SNamespaceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.NamespaceCreateInputV2) (*api.NamespaceCreateInputV2, error) {
@@ -82,16 +80,19 @@ func (res *SNamespace) SetCluster(userCred mcclient.TokenCredential, cls *SClust
 	res.SClusterResourceBase.SetCluster(userCred, cls)
 }
 
-func (obj *SNamespaceManager) NewRemoteObjectForCreate(_ IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
+func (m *SNamespaceManager) NewRemoteObjectForCreate(obj IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.NamespaceCreateInputV2)
-	data.Unmarshal(input)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	objMeta := input.ToObjectMeta()
 	return &v1.Namespace{
-		ObjectMeta: input.ToObjectMeta(),
+		ObjectMeta: objMeta,
 	}, nil
 }
 
 func (m *SNamespaceManager) EnsureNamespace(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, cluster *SCluster, data *api.NamespaceCreateInputV2) (*SNamespace, error) {
-	data.Cluster = cluster.GetId()
+	data.ClusterId = cluster.GetId()
 	nsObj, err := m.GetByIdOrName(userCred, cluster.GetId(), data.Name)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
@@ -123,7 +124,7 @@ func (ns *SNamespace) DoSync(ctx context.Context, userCred mcclient.TokenCredent
 	if err != nil {
 		return errors.Wrap(err, "get namespace k8s object")
 	}
-	return SyncUpdatedClusterResource(ctx, userCred, NamespaceManager, ns, rNs)
+	return SyncUpdatedClusterResource(ctx, userCred, namespaceManager, ns, rNs)
 }
 
 func (m *SNamespaceManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {
@@ -132,11 +133,6 @@ func (m *SNamespaceManager) NewFromRemoteObject(ctx context.Context, userCred mc
 		return nil, err
 	}
 	return nsObj, nil
-}
-
-func (ns *SNamespace) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	ns.SClusterResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
-	ns.StartCreateTask(ns, ctx, userCred, ownerId, query, data)
 }
 
 func (ns *SNamespace) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
@@ -207,9 +203,4 @@ func (ns *SNamespace) Delete(ctx context.Context, userCred mcclient.TokenCredent
 		}
 	}
 	return nil
-}
-
-func (ns *SNamespace) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	ns.SClusterResourceBase.PostDelete(ctx, userCred)
-	ns.StartDeleteTask(ns, ctx, userCred)
 }

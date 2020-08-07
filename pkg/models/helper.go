@@ -21,7 +21,9 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/cli-runtime/pkg/resource"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -42,7 +44,13 @@ import (
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
+	gotypesutil "yunion.io/x/yunion-kube/pkg/utils/gotypes"
+	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
 )
+
+func RegisterSerializable(objs ...gotypes.ISerializable) {
+	gotypesutil.RegisterSerializable(objs...)
+}
 
 func RunBatchTask(
 	ctx context.Context,
@@ -577,4 +585,14 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 		}
 	}
 	return ret
+}
+
+func ValidateK8sObject(versionObj runtime.Object, internalObj interface{}, validateFunc func(internalObj interface{}) field.ErrorList) error {
+	if err := legacyscheme.Scheme.Convert(versionObj, internalObj, nil); err != nil {
+		return k8serrors.NewGeneralError(err)
+	}
+	if err := validateFunc(internalObj).ToAggregate(); err != nil {
+		return httperrors.NewInputParameterError("%s", err)
+	}
+	return nil
 }

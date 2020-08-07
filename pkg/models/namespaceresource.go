@@ -49,6 +49,14 @@ func (r *SNamespaceResourceBase) GetParentId() string {
 	return r.NamespaceId
 }
 
+func (r *SNamespaceResourceBase) GetNamespaceName() (string, error) {
+	ns, err := r.GetNamespace()
+	if err != nil {
+		return "", err
+	}
+	return ns.GetName(), nil
+}
+
 func (m *SNamespaceResourceBaseManager) GetByIdOrName(userCred mcclient.IIdentityProvider, clusterId, namespaceId string, resId string) (IClusterModel, error) {
 	return FetchClusterResourceByIdOrName(m, userCred, clusterId, namespaceId, resId)
 }
@@ -64,14 +72,15 @@ func (m SNamespaceResourceBaseManager) ValidateCreateData(ctx context.Context, u
 	}
 	data.ClusterResourceCreateInput = *cData
 
-	if data.Namespace == "" {
+	if data.NamespaceId == "" {
 		return nil, httperrors.NewNotEmptyError("namespace is empty")
 	}
-	nsObj, err := NamespaceManager.GetByIdOrName(userCred, data.Cluster, data.Namespace)
+	nsObj, err := GetNamespaceManager().GetByIdOrName(userCred, data.ClusterId, data.NamespaceId)
 	if err != nil {
-		return nil, NewCheckIdOrNameError("namespace", data.Namespace, err)
+		return nil, NewCheckIdOrNameError("namespace_id", data.NamespaceId, err)
 	}
-	data.Namespace = nsObj.GetId()
+	data.NamespaceId = nsObj.GetId()
+	data.Namespace = nsObj.GetName()
 
 	return data, nil
 }
@@ -84,17 +93,16 @@ func (res *SNamespaceResourceBase) CustomizeCreate(ctx context.Context, userCred
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "namespace resource unmarshal data")
 	}
-	res.NamespaceId = input.Namespace
+	res.NamespaceId = input.NamespaceId
 	return nil
 }
 
-func (res *SNamespaceResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	res.SClusterResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
-	res.StartCreateTask(res, ctx, userCred, ownerId, query, data)
+func (res *SNamespaceResourceBase) GetNamespaceId() string {
+	return res.NamespaceId
 }
 
 func (res *SNamespaceResourceBase) GetNamespace() (*SNamespace, error) {
-	obj, err := NamespaceManager.FetchById(res.NamespaceId)
+	obj, err := GetNamespaceManager().FetchById(res.NamespaceId)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fetch namespace %s", res.NamespaceId)
 	}
@@ -104,15 +112,20 @@ func (res *SNamespaceResourceBase) GetNamespace() (*SNamespace, error) {
 type INamespaceModel interface {
 	IClusterModel
 
+	GetNamespaceId() string
 	GetNamespace() (*SNamespace, error)
 	SetNamespace(userCred mcclient.TokenCredential, ns *SNamespace)
+}
+
+func (m SNamespaceResourceBaseManager) IsNamespaceScope() bool {
+	return true
 }
 
 func (m *SNamespaceResourceBaseManager) IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error) {
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
 	objNs := metaObj.GetNamespace()
-	localNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), objNs)
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNs)
 	if err != nil {
 		return nil, false, errors.Wrapf(err, "get cluster %s namespace %s", cluster.GetId(), objNs)
 	}
@@ -133,7 +146,7 @@ func (res *SNamespaceResourceBaseManager) NewFromRemoteObject(
 	}
 	localObj := clsObj.(INamespaceModel)
 	ns := remoteObj.(metav1.Object).GetNamespace()
-	localNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), ns)
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), ns)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get local namespace by name %s", ns)
 	}
@@ -147,7 +160,7 @@ func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *s
 		return nil, err
 	}
 	if input.Namespace != "" {
-		ns, err := NamespaceManager.GetByIdOrName(userCred, input.Cluster, input.Namespace)
+		ns, err := GetNamespaceManager().GetByIdOrName(userCred, input.Cluster, input.Namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -207,9 +220,14 @@ func (obj *SNamespaceResourceBase) GetDetails(cli *client.ClusterManager, base i
 	return out
 }
 
-func (res *SNamespaceResourceBase) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	res.SClusterResourceBase.PostDelete(ctx, userCred)
-	res.StartDeleteTask(res, ctx, userCred)
+func (res *SNamespaceResourceBase) GetRemoteObject(cli *client.ClusterManager) (interface{}, error) {
+	ns, err := res.GetNamespace()
+	if err != nil {
+		return nil, errors.Wrap(err, "get namespace")
+	}
+	resInfo := res.GetClusterModelManager().GetK8SResourceInfo()
+	k8sCli := cli.GetHandler()
+	return k8sCli.Get(resInfo.ResourceName, ns.GetName(), res.GetName())
 }
 
 func (res *SNamespaceResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {
@@ -238,7 +256,7 @@ func (m *SNamespaceResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context
 	metaObj := newObj.(metav1.Object)
 	objName := metaObj.GetName()
 	objNamespace := metaObj.GetNamespace()
-	dbNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), objNamespace)
+	dbNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNamespace)
 	if err != nil {
 		log.Errorf("OnRemoteObjectUpdate for %s get namespace error: %v", resMan.Keyword(), err)
 		return
@@ -259,7 +277,7 @@ func (m *SNamespaceResourceBaseManager) OnRemoteObjectDelete(ctx context.Context
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
 	objNamespace := metaObj.GetNamespace()
-	dbNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), objNamespace)
+	dbNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNamespace)
 	if err != nil {
 		log.Errorf("OnRemoteObjectDelete for %s get namespace error: %v", resMan.Keyword(), err)
 		return

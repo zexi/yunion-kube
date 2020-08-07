@@ -39,9 +39,16 @@ func GetK8sResourceManagerByKind(kindName string) manager.IK8sResourceManager {
 	return nil
 }
 
-func newK8sModelManager(factoryF func() ISyncableManager) ISyncableManager {
-	man := factoryF()
+func newModelManager(factory func() db.IModelManager) db.IModelManager {
+	man := factory()
 	man.SetVirtualObject(man)
+	return man
+}
+
+func newK8sModelManager(factoryF func() ISyncableManager) ISyncableManager {
+	man := newModelManager(func() db.IModelManager {
+		return factoryF()
+	}).(ISyncableManager)
 	RegisterK8sModelManager(man)
 	return man
 }

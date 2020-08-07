@@ -3,36 +3,46 @@ package models
 import (
 	"context"
 
-	rbac "k8s.io/api/rbac/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kubernetes/pkg/apis/rbac"
+	"k8s.io/kubernetes/pkg/apis/rbac/validation"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 var (
-	ClusterRoleManager *SClusterRoleManager
-	_                  db.IModel = new(SClusterRole)
+	clusterRoleManager *SClusterRoleManager
+	_                  IClusterModelManager = new(SClusterRoleManager)
+	_                  IClusterModel        = new(SClusterRole)
 )
 
 func init() {
-	ClusterRoleManager = NewK8sModelManager(func() ISyncableManager {
-		return &SClusterRoleManager{
-			SClusterResourceBaseManager: NewClusterResourceBaseManager(
-				new(SClusterRole),
-				"clusterroles_tbl",
-				"rbacclusterrole",
-				"rbacclusterroles",
-				api.ResourceNameClusterRole,
-				api.KindNameClusterRole,
-				new(rbac.ClusterRole),
-			),
-		}
-	}).(*SClusterRoleManager)
+	GetClusterRoleManager()
+}
+
+func GetClusterRoleManager() *SClusterRoleManager {
+	if clusterRoleManager == nil {
+		clusterRoleManager = NewK8sModelManager(func() ISyncableManager {
+			return &SClusterRoleManager{
+				SClusterResourceBaseManager: NewClusterResourceBaseManager(
+					new(SClusterRole),
+					"clusterroles_tbl",
+					"rbacclusterrole",
+					"rbacclusterroles",
+					api.ResourceNameClusterRole,
+					api.KindNameClusterRole,
+					new(rbacv1.ClusterRole),
+				),
+			}
+		}).(*SClusterRoleManager)
+	}
+	return clusterRoleManager
 }
 
 type SClusterRoleManager struct {
@@ -43,6 +53,10 @@ type SClusterRole struct {
 	SClusterResourceBase
 }
 
+func (m *SClusterRoleManager) GetRoleKind() string {
+	return api.KindNameClusterRole
+}
+
 func (m *SClusterRoleManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterResourceListInput) (*sqlchemy.SQuery, error) {
 	return m.SClusterResourceBaseManager.ListItemFilter(ctx, q, userCred, input)
 }
@@ -51,8 +65,31 @@ func (m *SClusterRoleManager) SyncResources(ctx context.Context, userCred mcclie
 	return SyncClusterResources(ctx, userCred, cluster, m)
 }
 
-func (m *SClusterRoleManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	return nil, httperrors.NewBadRequestError("Not support clusterrole create")
+func (m *SClusterRoleManager) ValidateClusterRoleObject(obj *rbacv1.ClusterRole) error {
+	return ValidateK8sObject(obj, new(rbac.ClusterRole), func(out interface{}) field.ErrorList {
+		return validation.ValidateClusterRole(out.(*rbac.ClusterRole))
+	})
+}
+
+func (m *SClusterRoleManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.ClusterRoleCreateInput) (*api.ClusterRoleCreateInput, error) {
+	cInput, err := m.SClusterResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &input.ClusterResourceCreateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.ClusterResourceCreateInput = *cInput
+	cRole := input.ToClusterRole()
+	if err := m.ValidateClusterRoleObject(cRole); err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+
+func (m *SClusterRoleManager) NewRemoteObjectForCreate(_ IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
+	input := new(api.ClusterRoleCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	return input.ToClusterRole(), nil
 }
 
 func (m *SClusterRoleManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {
@@ -68,8 +105,4 @@ func (cr *SClusterRole) UpdateFromRemoteObject(ctx context.Context, userCred mcc
 		return err
 	}
 	return nil
-}
-
-func (cr *SClusterRole) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	cr.SClusterResourceBase.PostDelete(ctx, userCred)
 }

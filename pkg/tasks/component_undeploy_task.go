@@ -48,5 +48,5 @@ func (t *ComponentUndeployTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 func (t *ComponentUndeployTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
 	obj.SetStatus(t.UserCred, api.ComponentStatusUndeployFail, reason)
-	t.STask.SetStageFailed(ctx, reason)
+	t.STask.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
 }

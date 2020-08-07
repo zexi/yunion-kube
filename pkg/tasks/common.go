@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 
+	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -18,5 +19,5 @@ func SetObjectTaskFailed(ctx context.Context, task taskman.ITask, obj IStatusSta
 	if len(status) > 0 {
 		obj.SetStatus(task.GetUserCred(), status, reason)
 	}
-	task.SetStageFailed(ctx, reason)
+	task.SetStageFailed(ctx, jsonutils.NewString(reason))
 }

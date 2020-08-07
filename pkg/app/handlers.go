@@ -55,7 +55,7 @@ func InitHandlers(app *appsrv.Application) {
 
 		// k8s cluster resource manager
 		models.GetNodeManager(),
-		models.NamespaceManager,
+		models.GetNamespaceManager(),
 		models.GetStorageClassManager(),
 		models.ClusterRoleManager,
 		models.ClusterRoleBindingManager,
@@ -80,6 +80,9 @@ func InitHandlers(app *appsrv.Application) {
 		models.GetSecretManager(),
 		models.ConfigMapManager,
 		models.ReleaseManager,
+
+		// federated resources
+		models.GetFedNamespaceManager(),
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
@@ -89,6 +92,9 @@ func InitHandlers(app *appsrv.Application) {
 	for _, man := range []db.IJointModelManager{
 		models.ClusterX509KeyPairManager,
 		models.ClusterComponentManager,
+
+		// federated joint resources
+		models.FederatedNamespaceClusterManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewJointModelHandler(man)

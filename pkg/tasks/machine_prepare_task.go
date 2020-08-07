@@ -2,17 +2,16 @@ package tasks
 
 import (
 	"context"
-	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/utils/logclient"
-
-	"github.com/pkg/errors"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 func init() {
@@ -81,6 +80,6 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 
 func (t *MachinePrepareTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
 	machine.SetStatus(t.UserCred, api.MachineStatusPrepareFail, err.Error())
-	t.SetStageFailed(ctx, err.Error())
+	t.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
 	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, err.Error(), t.UserCred, false)
 }

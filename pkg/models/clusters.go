@@ -71,6 +71,7 @@ func initGlobalClusterManager() {
 	}
 	manager.RegisterClusterManager(ClusterManager)
 	ClusterManager.SetVirtualObject(ClusterManager)
+	ClusterManager.SetAlias("cluster", "clusters")
 }
 
 // +onecloud:swagger-gen-model-singular=kubecluster
@@ -577,6 +578,10 @@ func (m *SClusterManager) GetClustersByStatus(status ...string) ([]manager.IClus
 }
 
 func (m *SClusterManager) FetchClusterByIdOrName(userCred mcclient.TokenCredential, id string) (manager.ICluster, error) {
+	return m.GetClusterByIdOrName(userCred, id)
+}
+
+func (m *SClusterManager) GetClusterByIdOrName(userCred mcclient.TokenCredential, id string) (*SCluster, error) {
 	cluster, err := m.FetchByIdOrName(userCred, id)
 	if err != nil {
 		if err == sql.ErrNoRows {

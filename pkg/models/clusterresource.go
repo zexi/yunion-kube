@@ -77,6 +77,7 @@ type SClusterResourceBase struct {
 type IClusterModelManager interface {
 	db.IDomainLevelModelManager
 
+	IsNamespaceScope() bool
 	GetK8SResourceInfo() K8SResourceInfo
 	IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error)
 	NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error)
@@ -99,17 +100,26 @@ type IClusterModel interface {
 	GetCluster() (*SCluster, error)
 	SetCluster(userCred mcclient.TokenCredential, cluster *SCluster)
 	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
+	NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error)
 	UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error
 	GetClusterClient() (*client.ClusterManager, error)
-	DeleteRemoteObject(cli *client.ClusterManager) error
 	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
 	GetDetails(cli *client.ClusterManager, baseDetails interface{}, k8sObj runtime.Object, isList bool) interface{}
+
+	// RemoteObject operator interfaces
+	GetRemoteObject(cli *client.ClusterManager) (interface{}, error)
+	UpdateRemoteObject(cli *client.ClusterManager, remoteObj interface{}) (interface{}, error)
+	DeleteRemoteObject(cli *client.ClusterManager) error
 }
 
 type K8SResourceInfo struct {
 	ResourceName string
 	KindName     string
 	Object       runtime.Object
+}
+
+func (m SClusterResourceBaseManager) IsNamespaceScope() bool {
+	return false
 }
 
 func (m SClusterResourceBaseManager) GetK8SResourceInfo() K8SResourceInfo {
@@ -159,14 +169,14 @@ func (m SClusterResourceBaseManager) ValidateCreateData(ctx context.Context, use
 	}
 	data.StatusDomainLevelResourceCreateInput = vData
 
-	if data.Cluster == "" {
+	if data.ClusterId == "" {
 		return nil, httperrors.NewNotEmptyError("cluster is empty")
 	}
-	clsObj, err := ClusterManager.FetchByIdOrName(userCred, data.Cluster)
+	clsObj, err := ClusterManager.FetchByIdOrName(userCred, data.ClusterId)
 	if err != nil {
-		return nil, NewCheckIdOrNameError("cluster", data.Cluster, err)
+		return nil, NewCheckIdOrNameError("cluster", data.ClusterId, err)
 	}
-	data.Cluster = clsObj.GetId()
+	data.ClusterId = clsObj.GetId()
 
 	return data, nil
 }
@@ -215,6 +225,9 @@ func FetchClusterResourceByName(manager IClusterModelManager, userCred mcclient.
 func FetchClusterResourceById(manager IClusterModelManager, clusterId string, namespaceId string, resId string) (IClusterModel, error) {
 	if len(clusterId) == 0 {
 		return nil, errors.Errorf("cluster id must provided")
+	}
+	if manager.IsNamespaceScope() && namespaceId == "" {
+		return nil, errors.Errorf("namespace id must provided for %s", manager.Keyword())
 	}
 	q := manager.Query()
 	q = manager.FilterById(q, resId)
@@ -271,8 +284,29 @@ func (res *SClusterResourceBase) CustomizeCreate(ctx context.Context, userCred m
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "cluster resource unmarshal data")
 	}
-	res.ClusterId = input.Cluster
+	res.ClusterId = input.ClusterId
 	return nil
+}
+
+func (res *SClusterResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	res.SStatusDomainLevelResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
+	if err := res.StartCreateTask(res, ctx, userCred, ownerId, data.(*jsonutils.JSONDict), ""); err != nil {
+		log.Errorf("StartCreateTask error: %v", err)
+	}
+}
+
+func (res *SClusterResourceBase) PostUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	res.SStatusDomainLevelResourceBase.PostUpdate(ctx, userCred, query, data)
+	if err := res.StartUpdateTask(res, ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
+		log.Errorf("StartUpdateTask error: %v", err)
+	}
+}
+
+func (res *SClusterResourceBase) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
+	res.SStatusDomainLevelResourceBase.PostDelete(ctx, userCred)
+	if err := res.StartDeleteTask(res, ctx, userCred, jsonutils.NewDict(), ""); err != nil {
+		log.Errorf("StartDeleteTask error: %v", err)
+	}
 }
 
 func (res *SClusterResourceBase) GetParentId() string {
@@ -799,22 +833,6 @@ func (res *SClusterResourceBase) GetExtraDetails(ctx context.Context, userCred m
 	return api.ClusterResourceDetail{}, nil
 }
 
-func (obj *SClusterResourceBase) StartCreateTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query, data jsonutils.JSONObject) {
-	obj.SStatusDomainLevelResourceBase.PostCreate(ctx, userCred, ownerCred, query, data)
-	if err := StartClusterResourceCreateTask(ctx, userCred, resObj, data.(*jsonutils.JSONDict), ""); err != nil {
-		log.Errorf("Create %s resource task error: %v", obj.Keyword(), err)
-	}
-}
-
-func StartClusterResourceCreateTask(ctx context.Context, userCred mcclient.TokenCredential, res IClusterModel, data *jsonutils.JSONDict, parentId string) error {
-	task, err := taskman.TaskManager.NewTask(ctx, "ClusterResourceCreateTask", res, userCred, data, parentId, "", nil)
-	if err != nil {
-		return err
-	}
-	task.ScheduleRun(nil)
-	return nil
-}
-
 func CreateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, man IClusterModelManager, model IClusterModel, data jsonutils.JSONObject) (interface{}, error) {
 	cli, err := model.GetClusterClient()
 	if err != nil {
@@ -842,6 +860,33 @@ func CreateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, 
 		return nil, errors.Wrap(err, "set external id")
 	}
 	return obj, nil
+}
+
+func UpdateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, model IClusterModel, data jsonutils.JSONObject) (interface{}, error) {
+	cli, err := model.GetClusterClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "get cluster client")
+	}
+	extObj, err := model.GetRemoteObject(cli)
+	if err != nil {
+		return nil, errors.Wrap(err, "get remote object")
+	}
+	extObj, err = model.NewRemoteObjectForUpdate(cli, extObj, data)
+	if err != nil {
+		return nil, errors.Wrap(err, "NewRemoteObjectForUpdate")
+	}
+	extObj, err = model.UpdateRemoteObject(cli, extObj)
+	if err != nil {
+		return nil, errors.Wrap(err, "UpdateRemoteObject")
+	}
+	extObj, err = model.GetRemoteObject(cli)
+	if err != nil {
+		return nil, errors.Wrap(err, "get remote object after updated")
+	}
+	if err := model.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+		return nil, errors.Wrap(err, "UpdateFromRemoteObject")
+	}
+	return extObj, nil
 }
 
 func (m *SClusterResourceBaseManager) NewRemoteObjectForCreate(_ IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
@@ -875,6 +920,22 @@ func (obj *SClusterResourceBase) GetClusterModelManager() IClusterModelManager {
 	return obj.GetModelManager().(IClusterModelManager)
 }
 
+func (obj *SClusterResourceBase) GetRemoteObject(cli *client.ClusterManager) (interface{}, error) {
+	resInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+	k8sCli := cli.GetHandler()
+	return k8sCli.Get(resInfo.ResourceName, "", obj.GetName())
+}
+
+func (obj *SClusterResourceBase) UpdateRemoteObject(cli *client.ClusterManager, remoteObj interface{}) (interface{}, error) {
+	resInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+	k8sCli := cli.GetHandler()
+	return k8sCli.UpdateV2(resInfo.ResourceName, remoteObj.(runtime.Object))
+}
+
+func (res *SClusterResourceBase) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	return remoteObj, nil
+}
+
 func (obj *SClusterResourceBase) Delete(ctx context.Context, userCred mcclient.TokenCredential) error {
 	log.Infof("Resource %s delete do nothing", obj.Keyword())
 	return nil
@@ -895,8 +956,8 @@ func (obj *SClusterResourceBase) DeleteRemoteObject(cli *client.ClusterManager) 
 	return nil
 }
 
-func StartClusterResourceDeleteTask(ctx context.Context, userCred mcclient.TokenCredential, res IClusterModel, data *jsonutils.JSONDict, parentId string) error {
-	task, err := taskman.TaskManager.NewTask(ctx, "ClusterResourceDeleteTask", res, userCred, data, parentId, "", nil)
+func (_ *SClusterResourceBase) StartCreateTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *jsonutils.JSONDict, parentId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterResourceCreateTask", resObj, userCred, data, parentId, "", nil)
 	if err != nil {
 		return err
 	}
@@ -904,10 +965,22 @@ func StartClusterResourceDeleteTask(ctx context.Context, userCred mcclient.Token
 	return nil
 }
 
-func (obj *SClusterResourceBase) StartDeleteTask(res IClusterModel, ctx context.Context, userCred mcclient.TokenCredential) {
-	if err := StartClusterResourceDeleteTask(ctx, userCred, res, jsonutils.NewDict(), ""); err != nil {
-		log.Errorf("StartClusterResourceDeleteTask error: %v", err)
+func (_ *SClusterResourceBase) StartUpdateTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterResourceUpdateTask", resObj, userCred, data, parentId, "", nil)
+	if err != nil {
+		return err
 	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (_ *SClusterResourceBase) StartDeleteTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterResourceDeleteTask", resObj, userCred, data, parentId, "", nil)
+	if err != nil {
+		return err
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
 
 func (m *SClusterResourceBaseManager) OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {

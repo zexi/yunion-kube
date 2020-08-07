@@ -66,6 +66,7 @@ type Config struct {
 	Organization []string
 	AltNames     AltNames
 	Usages       []x509.ExtKeyUsage
+	Duration     time.Duration
 }
 
 func GetOrGenerateCACert(kp *api.KeyPair, user string) (api.KeyPair, error) {
@@ -125,6 +126,10 @@ func (cfg *Config) NewSignedCert(key *rsa.PrivateKey, caCert *x509.Certificate, 
 		return nil, errors.New("must specify at least one ExtKeyUsage")
 	}
 
+	if cfg.Duration == 0 {
+		return nil, errors.New("must specify duration")
+	}
+
 	tmpl := x509.Certificate{
 		Subject: pkix.Name{
 			CommonName:   cfg.CommonName,
@@ -134,7 +139,7 @@ func (cfg *Config) NewSignedCert(key *rsa.PrivateKey, caCert *x509.Certificate, 
 		IPAddresses:  cfg.AltNames.IPs,
 		SerialNumber: serial,
 		NotBefore:    caCert.NotBefore,
-		NotAfter:     time.Now().Add(duration100y).UTC(),
+		NotAfter:     time.Now().Add(cfg.Duration).UTC(),
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  cfg.Usages,
 	}
@@ -197,42 +202,10 @@ func NewKubeconfig(clusterName, endpoint string, caCert *x509.Certificate, caKey
 		CommonName:   "kubernetes-admin",
 		Organization: []string{"system:masters"},
 		Usages:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		Duration:     duration100y,
 	}
 
-	clientKey, err := NewPrivateKey()
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create private key")
-	}
-
-	clientCert, err := cfg.NewSignedCert(clientKey, caCert, caKey)
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to sign certificate")
-	}
-
-	userName := "kubernetes-admin"
-	contextName := fmt.Sprintf("%s@%s", userName, clusterName)
-
-	return &kapi.Config{
-		Clusters: map[string]*kapi.Cluster{
-			clusterName: {
-				Server:                   endpoint,
-				CertificateAuthorityData: EncodeCertPEM(caCert),
-			},
-		},
-		Contexts: map[string]*kapi.Context{
-			contextName: {
-				Cluster:  clusterName,
-				AuthInfo: userName,
-			},
-		},
-		AuthInfos: map[string]*kapi.AuthInfo{
-			userName: {
-				ClientKeyData:         EncodePrivateKeyPEM(clientKey),
-				ClientCertificateData: EncodeCertPEM(clientCert),
-			},
-		},
-		CurrentContext: contextName,
-	}, nil
+	return NewKubeconfigV2(clusterName, endpoint, caCert, caKey, cfg)
 }
 
 // EncodeCertPEM returns PEM-endcoded certificate data.
@@ -298,4 +271,44 @@ func GenerateCertificateHash(encoded []byte) (string, error) {
 
 	certHash := sha256.Sum256(cert.RawSubjectPublicKeyInfo)
 	return "sha256:" + strings.ToLower(hex.EncodeToString(certHash[:])), nil
+}
+
+func NewKubeconfigV2(clusterName, endpoint string, caCert *x509.Certificate, caKey *rsa.PrivateKey, cfg *Config) (*kapi.Config, error) {
+	if cfg == nil {
+		return nil, errors.Errorf("config must provided")
+	}
+
+	clientKey, err := NewPrivateKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to create private key")
+	}
+
+	clientCert, err := cfg.NewSignedCert(clientKey, caCert, caKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to sign certificate")
+	}
+
+	userName := cfg.CommonName
+	contextName := fmt.Sprintf("%s@%s", userName, clusterName)
+	return &kapi.Config{
+		Clusters: map[string]*kapi.Cluster{
+			clusterName: {
+				Server:                   endpoint,
+				CertificateAuthorityData: EncodeCertPEM(caCert),
+			},
+		},
+		Contexts: map[string]*kapi.Context{
+			contextName: {
+				Cluster:  clusterName,
+				AuthInfo: userName,
+			},
+		},
+		AuthInfos: map[string]*kapi.AuthInfo{
+			userName: {
+				ClientKeyData:         EncodePrivateKeyPEM(clientKey),
+				ClientCertificateData: EncodeCertPEM(clientCert),
+			},
+		},
+		CurrentContext: contextName,
+	}, nil
 }

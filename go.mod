@@ -14,6 +14,7 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.0
 	github.com/gorilla/websocket v1.4.0
+	github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/zexi/golosetup v0.0.0-20181117053200-8c308e8bbf44
@@ -38,13 +39,12 @@ require (
 	k8s.io/utils v0.0.0-20191114184206-e782cd3c129f
 	sigs.k8s.io/controller-runtime v0.1.10
 	sigs.k8s.io/yaml v1.1.0
-	yunion.io/x/code-generator v0.0.0-20200722133040-37fe07d10e33
-	yunion.io/x/jsonutils v0.0.0-20200710080709-7ca71cdb9383
+	yunion.io/x/code-generator v0.0.0-20200801025920-d006db774f0f
+	yunion.io/x/jsonutils v0.0.0-20200805065614-cb99ccad79d6
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
-	yunion.io/x/onecloud v0.0.0-20200727075449-e4a251e812d4
+	yunion.io/x/onecloud v0.0.0-20200810081646-9af25a2aa9fb
 	yunion.io/x/pkg v0.0.0-20200713121502-18154120c49b
-	yunion.io/x/sqlchemy v0.0.0-20200702064124-195445bc4b11
-	github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e
+	yunion.io/x/sqlchemy v0.0.0-20200810025043-6d151476b545
 )
 
 replace (

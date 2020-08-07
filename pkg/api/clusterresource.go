@@ -10,28 +10,21 @@ import (
 
 const (
 	ClusterResourceStatusCreating   = "creating"
-	ClusterResourceStatusCreated    = "created"
 	ClusterResourceStatusCreateFail = "create_fail"
+	ClusterResourceStatusUpdating   = "updating"
+	ClusterResourceStatusUpdateFail = "update_fail"
 	ClusterResourceStatusDeleting   = "deleting"
 	ClusterResourceStatusDeleteFail = "delete_fail"
 )
 
 type ClusterResourceCreateInput struct {
-	apis.StatusDomainLevelResourceCreateInput
+	K8sResourceCreateInput
+	// 集群Id
+	ClusterId string `json:"cluster_id"`
 
-	// 集群名称
-	Cluster string `json:"cluster"`
-
-	Labels      map[string]string `json:"labels"`
-	Annotations map[string]string `json:"annotations"`
-}
-
-func (input ClusterResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
-	return metav1.ObjectMeta{
-		Name:        input.Name,
-		Labels:      input.Labels,
-		Annotations: input.Annotations,
-	}
+	// swagger:ignore
+	// Deprecated
+	Cluster string `json:"cluster" yunion-deprecated-by:"cluster_id"`
 }
 
 type ClusterResourceListInput struct {

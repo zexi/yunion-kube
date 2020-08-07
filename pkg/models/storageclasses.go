@@ -106,9 +106,9 @@ func (m *SStorageClassManager) ValidateCreateData(ctx context.Context, userCred 
 	if err != nil {
 		return nil, err
 	}
-	cli, err := GetClusterClient(input.Cluster)
+	cli, err := GetClusterClient(input.ClusterId)
 	if err != nil {
-		return nil, errors.Wrapf(err, "get cluster client %s", input.Cluster)
+		return nil, errors.Wrapf(err, "get cluster client %s", input.ClusterId)
 	}
 	return drv.ValidateCreateData(cli, input)
 }
@@ -162,9 +162,9 @@ func (m *SStorageClassManager) PerformClassConnectionTest(ctx context.Context, u
 	if err != nil {
 		return nil, err
 	}
-	cli, err := GetClusterClient(input.Cluster)
+	cli, err := GetClusterClient(input.ClusterId)
 	if err != nil {
-		return nil, errors.Wrapf(err, "get cluster client %s", input.Cluster)
+		return nil, errors.Wrapf(err, "get cluster client %s", input.ClusterId)
 	}
 	return drv.ConnectionTest(cli, input)
 }

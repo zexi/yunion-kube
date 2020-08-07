@@ -61,11 +61,11 @@ func (t *ClusterSyncstatusTask) OnSyncStatusFailed(ctx context.Context, cluster 
 }
 
 func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandaloneModel, err string) {
-	t.SetFailed(ctx, cluster, err)
+	t.SetFailed(ctx, cluster, jsonutils.NewString(err))
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, err, t.UserCred, false)
 }
 
-func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
+func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, api.ClusterStatusUnknown, "")
 	t.STask.SetStageFailed(ctx, reason)

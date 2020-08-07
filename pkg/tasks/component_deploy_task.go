@@ -56,5 +56,5 @@ func (t *ComponentDeployTask) OnDeployCompleteFailed(ctx context.Context, obj *m
 func (t *ComponentDeployTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
 	obj.SetStatus(t.UserCred, api.ComponentStatusDeployFail, reason)
-	t.STask.SetStageFailed(ctx, reason)
+	t.STask.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
 }

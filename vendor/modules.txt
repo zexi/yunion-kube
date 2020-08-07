@@ -608,12 +608,14 @@ k8s.io/api/storage/v1beta1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
+k8s.io/apiextensions-apiserver/pkg/features
 # k8s.io/apimachinery v0.17.3 => github.com/openshift/kubernetes-apimachinery v0.0.0-20191211181342-5a804e65bdc1
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/api/validation
+k8s.io/apimachinery/pkg/api/validation/path
 k8s.io/apimachinery/pkg/apis/meta/internalversion
 k8s.io/apimachinery/pkg/apis/meta/v1
 k8s.io/apimachinery/pkg/apis/meta/v1/unstructured
@@ -664,6 +666,8 @@ k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.17.0 => k8s.io/apiserver v0.17.0
 k8s.io/apiserver/pkg/authentication/user
+k8s.io/apiserver/pkg/features
+k8s.io/apiserver/pkg/util/feature
 # k8s.io/cli-runtime v0.17.0 => github.com/openshift/kubernetes-cli-runtime v0.0.0-20191211181810-5b89652d688e
 k8s.io/cli-runtime/pkg/genericclioptions
 k8s.io/cli-runtime/pkg/genericclioptions/openshiftpatch
@@ -970,7 +974,83 @@ k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient
 k8s.io/kubernetes/cmd/kubeadm/app/util/config
 k8s.io/kubernetes/cmd/kubeadm/app/util/config/strict
 k8s.io/kubernetes/cmd/kubeadm/app/util/runtime
+k8s.io/kubernetes/pkg/api/legacyscheme
+k8s.io/kubernetes/pkg/api/service
+k8s.io/kubernetes/pkg/api/v1/pod
+k8s.io/kubernetes/pkg/apis/apps
+k8s.io/kubernetes/pkg/apis/apps/install
+k8s.io/kubernetes/pkg/apis/apps/v1
+k8s.io/kubernetes/pkg/apis/apps/v1beta1
+k8s.io/kubernetes/pkg/apis/apps/v1beta2
+k8s.io/kubernetes/pkg/apis/authentication
+k8s.io/kubernetes/pkg/apis/authentication/install
+k8s.io/kubernetes/pkg/apis/authentication/v1
+k8s.io/kubernetes/pkg/apis/authentication/v1beta1
+k8s.io/kubernetes/pkg/apis/authorization
+k8s.io/kubernetes/pkg/apis/authorization/install
+k8s.io/kubernetes/pkg/apis/authorization/v1
+k8s.io/kubernetes/pkg/apis/authorization/v1beta1
+k8s.io/kubernetes/pkg/apis/autoscaling
+k8s.io/kubernetes/pkg/apis/autoscaling/install
+k8s.io/kubernetes/pkg/apis/autoscaling/v1
+k8s.io/kubernetes/pkg/apis/autoscaling/v2beta1
+k8s.io/kubernetes/pkg/apis/autoscaling/v2beta2
+k8s.io/kubernetes/pkg/apis/batch
+k8s.io/kubernetes/pkg/apis/batch/install
+k8s.io/kubernetes/pkg/apis/batch/v1
+k8s.io/kubernetes/pkg/apis/batch/v1beta1
+k8s.io/kubernetes/pkg/apis/batch/v2alpha1
+k8s.io/kubernetes/pkg/apis/certificates
+k8s.io/kubernetes/pkg/apis/certificates/install
+k8s.io/kubernetes/pkg/apis/certificates/v1beta1
+k8s.io/kubernetes/pkg/apis/coordination
+k8s.io/kubernetes/pkg/apis/coordination/install
+k8s.io/kubernetes/pkg/apis/coordination/v1
+k8s.io/kubernetes/pkg/apis/coordination/v1beta1
+k8s.io/kubernetes/pkg/apis/core
+k8s.io/kubernetes/pkg/apis/core/helper
+k8s.io/kubernetes/pkg/apis/core/install
+k8s.io/kubernetes/pkg/apis/core/pods
+k8s.io/kubernetes/pkg/apis/core/v1
+k8s.io/kubernetes/pkg/apis/core/v1/helper
+k8s.io/kubernetes/pkg/apis/core/validation
+k8s.io/kubernetes/pkg/apis/events
+k8s.io/kubernetes/pkg/apis/events/install
+k8s.io/kubernetes/pkg/apis/events/v1beta1
+k8s.io/kubernetes/pkg/apis/extensions
+k8s.io/kubernetes/pkg/apis/extensions/install
+k8s.io/kubernetes/pkg/apis/extensions/v1beta1
+k8s.io/kubernetes/pkg/apis/networking
+k8s.io/kubernetes/pkg/apis/policy
+k8s.io/kubernetes/pkg/apis/policy/install
+k8s.io/kubernetes/pkg/apis/policy/v1beta1
+k8s.io/kubernetes/pkg/apis/rbac
+k8s.io/kubernetes/pkg/apis/rbac/install
+k8s.io/kubernetes/pkg/apis/rbac/v1
+k8s.io/kubernetes/pkg/apis/rbac/v1alpha1
+k8s.io/kubernetes/pkg/apis/rbac/v1beta1
+k8s.io/kubernetes/pkg/apis/rbac/validation
+k8s.io/kubernetes/pkg/apis/scheduling
+k8s.io/kubernetes/pkg/apis/scheduling/install
+k8s.io/kubernetes/pkg/apis/scheduling/v1
+k8s.io/kubernetes/pkg/apis/scheduling/v1alpha1
+k8s.io/kubernetes/pkg/apis/scheduling/v1beta1
+k8s.io/kubernetes/pkg/apis/settings
+k8s.io/kubernetes/pkg/apis/settings/install
+k8s.io/kubernetes/pkg/apis/settings/v1alpha1
+k8s.io/kubernetes/pkg/apis/storage
+k8s.io/kubernetes/pkg/apis/storage/install
+k8s.io/kubernetes/pkg/apis/storage/v1
+k8s.io/kubernetes/pkg/apis/storage/v1alpha1
+k8s.io/kubernetes/pkg/apis/storage/v1beta1
+k8s.io/kubernetes/pkg/capabilities
+k8s.io/kubernetes/pkg/features
+k8s.io/kubernetes/pkg/fieldpath
+k8s.io/kubernetes/pkg/kubelet/types
+k8s.io/kubernetes/pkg/master/ports
+k8s.io/kubernetes/pkg/security/apparmor
 k8s.io/kubernetes/pkg/util/node
+k8s.io/kubernetes/pkg/util/parsers
 # k8s.io/utils v0.0.0-20191114184206-e782cd3c129f
 k8s.io/utils/buffer
 k8s.io/utils/exec
@@ -1009,19 +1089,19 @@ sigs.k8s.io/kustomize/pkg/transformers/config/defaultconfig
 sigs.k8s.io/kustomize/pkg/types
 # sigs.k8s.io/yaml v1.1.0
 sigs.k8s.io/yaml
-# yunion.io/x/code-generator v0.0.0-20200722133040-37fe07d10e33
+# yunion.io/x/code-generator v0.0.0-20200801025920-d006db774f0f
 yunion.io/x/code-generator/pkg/common
 yunion.io/x/code-generator/pkg/common/inflection
 yunion.io/x/code-generator/pkg/swagger-gen/generators
 # yunion.io/x/executor v0.0.0-20200227030256-a18417815e74
 yunion.io/x/executor/apis
 yunion.io/x/executor/client
-# yunion.io/x/jsonutils v0.0.0-20200710080709-7ca71cdb9383
+# yunion.io/x/jsonutils v0.0.0-20200805065614-cb99ccad79d6
 yunion.io/x/jsonutils
 # yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
 yunion.io/x/log
 yunion.io/x/log/hooks
-# yunion.io/x/onecloud v0.0.0-20200727075449-e4a251e812d4
+# yunion.io/x/onecloud v0.0.0-20200810081646-9af25a2aa9fb
 yunion.io/x/onecloud/pkg/apis
 yunion.io/x/onecloud/pkg/apis/billing
 yunion.io/x/onecloud/pkg/apis/cloudcommon/proxy
@@ -1102,7 +1182,7 @@ yunion.io/x/pkg/util/workqueue
 yunion.io/x/pkg/utils
 # yunion.io/x/s3cli v0.0.0-20190917004522-13ac36d8687e
 yunion.io/x/s3cli
-# yunion.io/x/sqlchemy v0.0.0-20200702064124-195445bc4b11
+# yunion.io/x/sqlchemy v0.0.0-20200810025043-6d151476b545
 yunion.io/x/sqlchemy
 # yunion.io/x/structarg v0.0.0-20200720093445-9f850fa222ce
 yunion.io/x/structarg

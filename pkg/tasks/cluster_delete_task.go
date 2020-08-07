@@ -56,10 +56,10 @@ func (t *ClusterDeleteTask) OnMachinesDeletedFailed(ctx context.Context, cluster
 }
 
 func (t *ClusterDeleteTask) onError(ctx context.Context, cluster db.IStandaloneModel, err error) {
-	t.SetFailed(ctx, cluster, err.Error())
+	t.SetFailed(ctx, cluster, jsonutils.NewString(err.Error()))
 }
 
-func (t *ClusterDeleteTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
+func (t *ClusterDeleteTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, api.ClusterStatusDeleteFail, "")
 	t.STask.SetStageFailed(ctx, reason)

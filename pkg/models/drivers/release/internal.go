@@ -26,13 +26,13 @@ func (d *internalDriver) GetType() api.RepoType {
 }
 
 func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *api.ReleaseCreateInput) (*api.ReleaseCreateInput, error) {
-	if data.Namespace != "" {
+	if data.NamespaceId != "" {
 		return nil, httperrors.NewNotAcceptableError("%s release can not specify namespace", d.GetType())
 	}
-	if data.Cluster != "" {
+	if data.ClusterId != "" {
 		return nil, httperrors.NewNotAcceptableError("%s release can not specify cluster", d.GetType())
 	}
-	data.Namespace = ownerCred.GetProjectId()
+	data.NamespaceId = ownerCred.GetProjectId()
 	sysCls, err := models.ClusterManager.GetSystemCluster()
 	if err != nil {
 		return nil, err
@@ -40,20 +40,20 @@ func (d *internalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 	if sysCls == nil {
 		return nil, httperrors.NewNotFoundError("system cluster not found")
 	}
-	data.Cluster = sysCls.GetId()
+	data.ClusterId = sysCls.GetId()
 	nsData := new(api.NamespaceCreateInputV2)
 	nsData.Name = ownerCred.GetProjectId()
-	nsData.Cluster = sysCls.GetId()
-	ns, err := models.NamespaceManager.EnsureNamespace(ctx, userCred, ownerCred, sysCls, nsData)
+	nsData.ClusterId = sysCls.GetId()
+	ns, err := models.GetNamespaceManager().EnsureNamespace(ctx, userCred, ownerCred, sysCls, nsData)
 	if err != nil {
 		return nil, errors.Wrap(err, "ensure namespace")
 	}
-	data.Namespace = ns.GetId()
+	data.NamespaceId = ns.GetId()
 	return data, nil
 }
 
 func (d *internalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *api.ReleaseCreateInput) error {
-	release.ClusterId = data.Cluster
-	release.NamespaceId = data.Namespace
+	release.ClusterId = data.ClusterId
+	release.NamespaceId = data.NamespaceId
 	return nil
 }

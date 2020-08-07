@@ -41,5 +41,5 @@ func (t *ComponentDeleteTask) OnUndeployCompleteFailed(ctx context.Context, obj 
 func (t *ComponentDeleteTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
 	obj.SetStatus(t.UserCred, api.ComponentStatusDeleteFail, reason)
-	t.STask.SetStageFailed(ctx, reason)
+	t.STask.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
 }
