@@ -131,6 +131,10 @@ func (m SConfigMap) GetAPIDetailObject() (*api.ConfigMapDetail, error) {
 	}, nil
 }
 
+func (m SConfigMap) ValidateUpdateData(ctx *model.RequestContext, query, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+	return nil, nil
+}
+
 func (m SConfigMap) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input api.ConfigMapUpdateInput) (runtime.Object, error) {
 	updateObj := m.GetRawConfigMap().DeepCopy()
 	for k, v := range input.Data {
