@@ -132,7 +132,7 @@ func (m SConfigMap) GetAPIDetailObject() (*api.ConfigMapDetail, error) {
 }
 
 func (m SConfigMap) ValidateUpdateData(ctx *model.RequestContext, query, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	return nil, nil
+	return jsonutils.NewDict(), nil
 }
 
 func (m SConfigMap) NewK8SRawObjectForUpdate(ctx *model.RequestContext, input api.ConfigMapUpdateInput) (runtime.Object, error) {
