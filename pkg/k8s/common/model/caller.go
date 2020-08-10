@@ -335,7 +335,7 @@ func ValidateUpdateData(model IK8SModel, ctx *RequestContext, query *jsonutils.J
 		return nil, httperrors.NewGeneralError(err)
 	}
 	if len(ret) != 2 {
-		return nil, httperrors.NewInternalServerError("Invalid ValidateCreateData return value")
+		return nil, httperrors.NewInternalServerError("Invalid ValidateUpdateData return value")
 	}
 	resVal := ret[0]
 	if err := ValueToError(ret[1]); err != nil {
