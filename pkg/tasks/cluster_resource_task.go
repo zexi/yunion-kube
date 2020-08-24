@@ -55,7 +55,7 @@ func (t *ClusterResourceCreateTask) OnCreateComplete(ctx context.Context, obj mo
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterResourceCreateTask) OnCreateComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
+func (t *ClusterResourceCreateTask) OnCreateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusCreateFail, reason.String())
 }
 

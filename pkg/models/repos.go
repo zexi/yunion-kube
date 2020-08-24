@@ -223,6 +223,13 @@ func (r *SRepo) DoSync() error {
 	if err != nil {
 		return err
 	}
+	entry := &repo.Entry{
+		Name: r.Name,
+		URL:  r.Url,
+	}
+	if err := cli.Add(entry); err != nil && errors.Cause(err) != helm.ErrRepoAlreadyExists {
+		return err
+	}
 	return cli.Update(r.Name)
 }
 
