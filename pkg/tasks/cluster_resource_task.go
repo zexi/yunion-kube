@@ -55,7 +55,7 @@ func (t *ClusterResourceCreateTask) OnCreateComplete(ctx context.Context, obj mo
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterResourceCreateTask) OnCreateComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
+func (t *ClusterResourceCreateTask) OnCreateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusCreateFail, reason.String())
 }
 
@@ -81,7 +81,7 @@ func (t *ClusterResourceUpdateTask) OnUpdateComplete(ctx context.Context, obj mo
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterResourceUpdateTask) OnUpdateComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
+func (t *ClusterResourceUpdateTask) OnUpdateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusUpdateFail, reason.String())
 }
 
@@ -110,6 +110,6 @@ func (t *ClusterResourceDeleteTask) OnDeleteComplete(ctx context.Context, obj mo
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterResourceDeleteTask) OnDeleteComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
+func (t *ClusterResourceDeleteTask) OnDeleteCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusDeleteFail, reason.String())
 }

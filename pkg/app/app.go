@@ -15,7 +15,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/cronman"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
-	"yunion.io/x/pkg/errors"
+	// "yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/util/runtime"
 
 	"yunion.io/x/pkg/util/signalutils"
@@ -80,7 +80,8 @@ func Run(ctx context.Context) error {
 
 	// init client after cluster full synced
 	if err := models.ClusterManager.WaitFullSynced(); err != nil {
-		return errors.Wrap(err, "wait clusters full synced")
+		// return errors.Wrap(err, "wait clusters full synced")
+		log.Errorf("wait clusters full synced: %v", err)
 	}
 	initial.InitClient()
 

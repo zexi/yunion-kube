@@ -11,7 +11,6 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
@@ -156,15 +155,12 @@ func (m *SNamespaceManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQue
 	return q, nil
 }
 
-func (m *SNamespaceManager) FetchCustomizeColumns(
-	ctx context.Context,
-	userCred mcclient.TokenCredential,
-	query jsonutils.JSONObject,
-	objs []interface{},
-	fields stringutils2.SSortedStrings,
-	isList bool,
-) []interface{} {
-	return m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+func (m *SNamespace) GetEvents() ([]*api.Event, error) {
+	cli, err := m.GetClusterClient()
+	if err != nil {
+		return nil, err
+	}
+	return GetEventManager().GetNamespaceEvents(cli, m.GetName())
 }
 
 func (m *SNamespace) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {

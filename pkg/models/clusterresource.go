@@ -203,7 +203,7 @@ func FetchClusterResourceByName(manager IClusterModelManager, userCred mcclient.
 		if err != nil {
 			return nil, errors.Wrap(err, "filter by owner")
 		}
-		// log.Errorf("**** q string: %s with ", q.String())
+		// log.Errorf("**** q string: %s with count %d", q.String(), count)
 	}
 	if count == 1 {
 		obj, err := db.NewModelObject(manager)
@@ -336,6 +336,14 @@ func (res *SClusterResourceBase) GetClusterClient() (*client.ClusterManager, err
 		return nil, err
 	}
 	return client.GetManagerByCluster(cls)
+}
+
+func (res *SClusterResourceBase) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return db.IsAdminAllowPerform(userCred, res, "purge")
+}
+
+func (res *SClusterResourceBase) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	return nil, res.RealDelete(ctx, userCred)
 }
 
 func GetClusterClient(clsId string) (*client.ClusterManager, error) {
@@ -924,6 +932,18 @@ func (obj *SClusterResourceBase) GetRemoteObject(cli *client.ClusterManager) (in
 	resInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
 	k8sCli := cli.GetHandler()
 	return k8sCli.Get(resInfo.ResourceName, "", obj.GetName())
+}
+
+func (obj *SClusterResourceBase) GetK8sObject() (runtime.Object, error) {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, err
+	}
+	ret, err := obj.GetRemoteObject(cli)
+	if err != nil {
+		return nil, err
+	}
+	return ret.(runtime.Object), nil
 }
 
 func (obj *SClusterResourceBase) UpdateRemoteObject(cli *client.ClusterManager, remoteObj interface{}) (interface{}, error) {

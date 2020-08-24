@@ -67,3 +67,5 @@ func (obj *SResourceQuota) GetDetails(cli *client.ClusterManager, base interface
 	detail.StatusList = statusList
 	return detail
 }
+
+// TODO: support filter by namespace owner

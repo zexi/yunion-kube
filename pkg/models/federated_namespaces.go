@@ -25,7 +25,6 @@ var (
 )
 
 func init() {
-	RegisterSerializable(new(api.FederatedNamespaceSpec))
 	GetFedNamespaceManager()
 }
 

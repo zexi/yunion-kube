@@ -2,38 +2,54 @@ package api
 
 import (
 	rbac "k8s.io/api/rbac/v1"
+
+	"yunion.io/x/jsonutils"
 )
 
-type RoleRef struct {
-	Kind string `json:"kind"`
-	Id   string `json:"id"`
-	// Name should set by backend
-	Name string `json:"-"`
+type Subjects []rbac.Subject
+
+func (ss *Subjects) String() string {
+	return jsonutils.Marshal(ss).String()
 }
 
-func (ref RoleRef) ToRoleRef() rbac.RoleRef {
-	apiGroup := rbac.GroupName
-	return rbac.RoleRef{
-		APIGroup: apiGroup,
-		Kind:     ref.Kind,
-		Name:     ref.Name,
+func (ss *Subjects) IsZero() bool {
+	if ss == nil {
+		return true
 	}
+	return false
+}
+
+type RoleRef rbac.RoleRef
+
+func (rf *RoleRef) String() string {
+	return jsonutils.Marshal(rf).String()
+}
+
+func (rf *RoleRef) IsZero() bool {
+	if rf == nil {
+		return true
+	}
+	return false
 }
 
 type RoleBindingCreateInput struct {
 	NamespaceResourceCreateInput
 	// Subjects holds references to the objects the role applies to.
 	// +optional
-	Subjects []rbac.Subject `json:"subjects,omitempty"`
+	Subjects Subjects `json:"subjects,omitempty"`
 	// RoleRef can reference a Role in the current namespace or a ClusterRole in the global namespace.
 	// If the RoleRef cannot be resolved, the Authorizer must return an error.
-	RoleRef *RoleRef `json:"role_ref"`
+	RoleRef RoleRef `json:"roleRef"`
 }
 
-func (rb RoleBindingCreateInput) ToRoleBinding() *rbac.RoleBinding {
-	return &rbac.RoleBinding{
-		ObjectMeta: rb.ToObjectMeta(),
-		Subjects:   rb.Subjects,
-		RoleRef:    rb.RoleRef.ToRoleRef(),
+func (rb RoleBindingCreateInput) ToRoleBinding(namespaceName string) (*rbac.RoleBinding, error) {
+	objMeta, err := rb.ToObjectMeta(newNamespaceGetter(namespaceName))
+	if err != nil {
+		return nil, err
 	}
+	return &rbac.RoleBinding{
+		ObjectMeta: objMeta,
+		Subjects:   rb.Subjects,
+		RoleRef:    rbac.RoleRef(rb.RoleRef),
+	}, nil
 }

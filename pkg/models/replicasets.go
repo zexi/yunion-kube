@@ -20,24 +20,12 @@ import (
 )
 
 var (
-	ReplicaSetManager *SReplicaSetManager
+	replicaSetManager *SReplicaSetManager
 	_                 IClusterModel = new(SReplicaSet)
 )
 
 func init() {
-	ReplicaSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SReplicaSetManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SReplicaSet),
-				"replicasets_tbl",
-				"replicaset",
-				"replicasets",
-				api.ResourceNameReplicaSet,
-				api.KindNameReplicaSet,
-				new(apps.ReplicaSet),
-			),
-		}
-	}).(*SReplicaSetManager)
+	GetReplicaSetManager()
 }
 
 type SReplicaSetManager struct {
@@ -46,6 +34,25 @@ type SReplicaSetManager struct {
 
 type SReplicaSet struct {
 	SNamespaceResourceBase
+}
+
+func GetReplicaSetManager() *SReplicaSetManager {
+	if replicaSetManager == nil {
+		replicaSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SReplicaSetManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					new(SReplicaSet),
+					"replicasets_tbl",
+					"replicaset",
+					"replicasets",
+					api.ResourceNameReplicaSet,
+					api.KindNameReplicaSet,
+					new(apps.ReplicaSet),
+				),
+			}
+		}).(*SReplicaSetManager)
+	}
+	return replicaSetManager
 }
 
 func (m *SReplicaSetManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {

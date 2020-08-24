@@ -74,6 +74,10 @@ func (m *SFederatedResourceBase) GetJointModelManager() IFederatedJointClusterMa
 	return m.GetManager().GetJointModelManager()
 }
 
+func (m *SFederatedResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedResourceListInput) (*sqlchemy.SQuery, error) {
+	return m.SStatusDomainLevelResourceBaseManager.ListItemFilter(ctx, q, userCred, input.StatusDomainLevelResourceListInput)
+}
+
 func (m *SFederatedResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedResourceCreateInput) (*api.FederatedResourceCreateInput, error) {
 	dInput, err := m.SStatusDomainLevelResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, input.StatusDomainLevelResourceCreateInput)
 	if err != nil {

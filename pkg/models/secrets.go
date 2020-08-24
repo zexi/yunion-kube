@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/jsonutils"
@@ -30,7 +31,7 @@ func GetSecretManager() *SSecretManager {
 					"secrets_tbl",
 					"secret",
 					"secrets",
-					api.ResourceNameDaemonSet,
+					api.ResourceNameSecret,
 					api.KindNameSecret,
 					new(v1.Secret),
 				),
@@ -143,9 +144,18 @@ func (m *SSecretManager) NewRemoteObjectForCreate(model IClusterModel, cli *clie
 	for k, v := range data {
 		dataBytes[k] = []byte(v)
 	}
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	return &v1.Secret{
-		ObjectMeta: input.ToObjectMeta(),
+		ObjectMeta: objMeta,
 		Type:       input.Type,
 		Data:       dataBytes,
 	}, nil
+}
+
+func (m SSecretManager) GetRawSecrets(cluster *client.ClusterManager, ns string) ([]*v1.Secret, error) {
+	indexer := cluster.GetHandler().GetIndexer()
+	return indexer.SecretLister().Secrets(ns).List(labels.Everything())
 }

@@ -137,4 +137,13 @@ type DeploymentDetailV2 struct {
 	InitContainerImages []ContainerImage  `json:"initContainerImages"`
 	Selector            map[string]string `json:"selector"`
 	DeploymentStatus
+	// Rolling update strategy containing maxSurge and maxUnavailable
+	RollingUpdateStrategy *RollingUpdateStrategy `json:"rollingUpdateStrategy,omitempty"`
+	// The deployment strategy to use to replace existing pods with new ones.
+	// Valid options: Recreate, RollingUpdate
+	Strategy apps.DeploymentStrategyType `json:"strategy"`
+	// Min ready seconds
+	MinReadySeconds int32 `json:"minReadySeconds"`
+	// Optional field that specifies the number of old Replica Sets to retain to allow rollback.
+	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit"`
 }

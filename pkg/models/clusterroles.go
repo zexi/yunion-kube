@@ -4,6 +4,7 @@ import (
 	"context"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/apis/rbac/validation"
@@ -105,4 +106,15 @@ func (cr *SClusterRole) UpdateFromRemoteObject(ctx context.Context, userCred mcc
 		return err
 	}
 	return nil
+}
+
+func (cr *SClusterRole) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	detail := cr.SClusterResourceBase.GetDetails(cli, base, k8sObj, isList).(api.ClusterResourceDetail)
+	role := k8sObj.(*rbacv1.ClusterRole)
+	out := api.ClusterRoleDetail{
+		ClusterResourceDetail: detail,
+		Rules:                 role.Rules,
+		AggregationRule:       role.AggregationRule,
+	}
+	return out
 }

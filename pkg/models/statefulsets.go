@@ -18,24 +18,31 @@ import (
 )
 
 var (
-	StatefulSetManager *SStatefulSetManager
+	statefulSetManager *SStatefulSetManager
 	_                  IPodOwnerModel = new(SStatefulSet)
 )
 
 func init() {
-	StatefulSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SStatefulSetManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SStatefulSet),
-				"statefulsets_tbl",
-				"statefulsets",
-				"statefulset",
-				api.ResourceNameStatefulSet,
-				api.KindNameStatefulSet,
-				new(apps.StatefulSet),
-			),
-		}
-	}).(*SStatefulSetManager)
+	GetStatefulSetManager()
+}
+
+func GetStatefulSetManager() *SStatefulSetManager {
+	if statefulSetManager == nil {
+		statefulSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SStatefulSetManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					new(SStatefulSet),
+					"statefulsets_tbl",
+					"statefulset",
+					"statefulsets",
+					api.ResourceNameStatefulSet,
+					api.KindNameStatefulSet,
+					new(apps.StatefulSet),
+				),
+			}
+		}).(*SStatefulSetManager)
+	}
+	return statefulSetManager
 }
 
 type SStatefulSetManager struct {
@@ -49,7 +56,10 @@ type SStatefulSet struct {
 func (m *SStatefulSetManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.StatefulsetCreateInputV2)
 	data.Unmarshal(input)
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
 	input.Selector = GetSelectorByObjectMeta(&objMeta)
@@ -113,4 +123,31 @@ func (obj *SStatefulSet) GetDetails(cli *client.ClusterManager, base interface{}
 	return detail
 }
 
-// TODO: support update
+func (obj *SStatefulSet) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	ss := remoteObj.(*apps.StatefulSet)
+	input := new(api.StatefulsetUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	if err := UpdatePodTemplate(&ss.Spec.Template, input.PodTemplateUpdateInput); err != nil {
+		return nil, err
+	}
+	return ss, nil
+}
+
+func (obj *SStatefulSet) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	if err := obj.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+		return errors.Wrap(err, "update statefulset")
+	}
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return errors.Wrap(err, "get statefulset cluster client")
+	}
+	ss := extObj.(*apps.StatefulSet)
+	podInfo, err := obj.GetPodInfo(cli, ss)
+	if err != nil {
+		return errors.Wrap(err, "get pod info")
+	}
+	statefulSetStatus := *getters.GetStatefulSetStatus(podInfo, *ss)
+	return obj.SetStatus(userCred, statefulSetStatus.Status, "update from remote")
+}

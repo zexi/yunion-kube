@@ -4,6 +4,7 @@ import (
 	"context"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/apis/rbac/validation"
@@ -12,30 +13,39 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 var (
-	RoleBindingManager *SRoleBindingManager
+	roleBindingManager *SRoleBindingManager
 	_                  db.IModel = new(SRoleBinding)
 )
 
 func init() {
-	RoleBindingManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SRoleBindingManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SRoleBinding),
-				"rolebindings_tbl",
-				"rbacrolebinding",
-				"rbacrolebindings",
-				api.ResourceNameRoleBinding,
-				api.KindNameRoleBinding,
-				new(rbac.RoleBinding),
-			),
-		}
-	}).(*SRoleBindingManager)
+	GetRoleBindingManager()
+}
+
+func GetRoleBindingManager() *SRoleBindingManager {
+	if roleBindingManager == nil {
+		roleBindingManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SRoleBindingManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					new(SRoleBinding),
+					"rolebindings_tbl",
+					"rbacrolebinding",
+					"rbacrolebindings",
+					api.ResourceNameRoleBinding,
+					api.KindNameRoleBinding,
+					new(rbac.RoleBinding),
+				),
+			}
+		}).(*SRoleBindingManager)
+	}
+	return roleBindingManager
 }
 
 type SRoleBindingManager struct {
@@ -77,15 +87,29 @@ func (m *SRoleBindingManager) ValidateCreateData(ctx context.Context, userCred m
 	} else {
 		return nil, httperrors.NewNotAcceptableError("not support role ref kind %s", input.RoleRef.Kind)
 	}
-	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(roleMan, userCred, input.RoleRef); err != nil {
+	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(roleMan, userCred, &input.RoleRef); err != nil {
 		return nil, err
 	}
 
-	rb := input.ToRoleBinding()
+	rb, err := input.ToRoleBinding(input.Namespace)
 	if err := m.ValidateRoleBinding(rb); err != nil {
 		return nil, err
 	}
 	return input, nil
+}
+
+func (obj *SRoleBinding) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	if err := obj.SNamespaceResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
+		return err
+	}
+	input := new(api.RoleBindingCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return errors.Wrap(err, "unmarshal rolebinding create input")
+	}
+	if err := obj.SRoleRefResourceBase.CustomizeCreate(&input.RoleRef); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *SRoleBindingManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {
@@ -101,4 +125,15 @@ func (rb *SRoleBinding) UpdateFromRemoteObject(ctx context.Context, userCred mcc
 		return err
 	}
 	return nil
+}
+
+func (rb *SRoleBinding) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	detail := rb.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail)
+	binding := k8sObj.(*rbacv1.RoleBinding)
+	out := api.RoleBindingDetail{
+		NamespaceResourceDetail: detail,
+		RoleRef:                 binding.RoleRef,
+		Subjects:                binding.Subjects,
+	}
+	return out
 }

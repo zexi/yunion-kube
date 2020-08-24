@@ -13,7 +13,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
-	"yunion.io/x/yunion-kube/pkg/k8smodels"
+	// "yunion.io/x/yunion-kube/pkg/k8smodels"
 	"yunion.io/x/yunion-kube/pkg/models"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/release"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/secret"
@@ -21,17 +21,11 @@ import (
 	"yunion.io/x/yunion-kube/pkg/usages"
 )
 
-func prepare() {
-	models.InitEventManager(k8smodels.EventManager)
-}
-
 func InitHandlers(app *appsrv.Application) {
 	db.InitAllManagers()
 	apiPrefix := "/api"
 	taskman.AddTaskHandler(apiPrefix, app)
 	usages.AddUsageHandler(apiPrefix, app)
-
-	prepare()
 
 	for _, man := range []db.IModelManager{
 		taskman.TaskManager,
@@ -57,7 +51,7 @@ func InitHandlers(app *appsrv.Application) {
 		models.GetNodeManager(),
 		models.GetNamespaceManager(),
 		models.GetStorageClassManager(),
-		models.ClusterRoleManager,
+		models.GetClusterRoleManager(),
 		models.ClusterRoleBindingManager,
 		models.PVManager,
 
@@ -65,12 +59,12 @@ func InitHandlers(app *appsrv.Application) {
 		models.PVCManager,
 		models.LimitRangeManager,
 		models.ResourceQuotaManager,
-		models.RoleManager,
-		models.RoleBindingManager,
+		models.GetRoleManager(),
+		models.GetRoleBindingManager(),
 		models.ServiceManager,
 		models.IngressManager,
-		models.DeploymentManager,
-		models.StatefulSetManager,
+		models.GetDeploymentManager(),
+		models.GetStatefulSetManager(),
 		models.DaemonSetManager,
 		models.ReplicaSetManager,
 		models.JobManager,
@@ -109,12 +103,12 @@ func InitHandlers(app *appsrv.Application) {
 	// v2 dispatcher
 	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
 	for _, man := range []model.IK8SModelManager{
-		k8smodels.EventManager,
+		// k8smodels.EventManager,
 
-		// onecloud service operator resource manager
-		k8smodels.VirtualMachineManager,
-		k8smodels.AnsiblePlaybookManager,
-		k8smodels.AnsiblePlaybookTemplateManager,
+		// // onecloud service operator resource manager
+		// k8smodels.VirtualMachineManager,
+		// k8smodels.AnsiblePlaybookManager,
+		// k8smodels.AnsiblePlaybookTemplateManager,
 	} {
 		model.RegisterModelManager(man)
 		handler := model.NewK8SModelHandler(man)

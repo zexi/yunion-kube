@@ -2,6 +2,8 @@ package api
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"yunion.io/x/pkg/errors"
 )
 
 type NamespaceResourceCreateInput struct {
@@ -15,10 +17,18 @@ type NamespaceResourceCreateInput struct {
 	Namespace string `json:"namespace" yunion-deprecated-by:"namespace_id"`
 }
 
-func (input NamespaceResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
+type INamespaceGetter interface {
+	GetNamespaceName() (string, error)
+}
+
+func (input NamespaceResourceCreateInput) ToObjectMeta(getter INamespaceGetter) (metav1.ObjectMeta, error) {
 	objMeta := input.ClusterResourceCreateInput.ToObjectMeta()
-	objMeta.Namespace = input.Namespace
-	return objMeta
+	nsName, err := getter.GetNamespaceName()
+	if err != nil {
+		return metav1.ObjectMeta{}, errors.Wrap(err, "get namespace name")
+	}
+	objMeta.Namespace = nsName
+	return objMeta, nil
 }
 
 type NamespaceResourceListInput struct {

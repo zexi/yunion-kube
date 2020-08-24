@@ -17,7 +17,6 @@ var (
 )
 
 func init() {
-	RegisterSerializable(new(api.FederatedRoleSpec))
 	GetFedRoleManager()
 }
 

@@ -56,7 +56,10 @@ func (m *SServiceManager) ValidateCreateData(ctx context.Context, userCred mccli
 func (m *SServiceManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.ServiceCreateInputV2)
 	data.Unmarshal(input)
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	return GetServiceFromOption(&objMeta, &input.ServiceCreateOption), nil
 }
 
@@ -78,16 +81,6 @@ func (obj *SService) GetDetails(
 	if isList {
 		return detail
 	}
-	/*
-	 * events, err := obj.GetEvents()
-	 * if err != nil {
-	 *     return nil, err
-	 * }
-	 * pods, err := obj.GetPods()
-	 * if err != nil {
-	 *     return nil, err
-	 * }
-	 */
 	detail.SessionAffinity = svc.Spec.SessionAffinity
 	return detail
 }

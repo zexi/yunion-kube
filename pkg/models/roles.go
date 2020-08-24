@@ -4,6 +4,7 @@ import (
 	"context"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/apis/rbac/validation"
@@ -76,19 +77,26 @@ func (m *SRoleManager) ValidateCreateData(ctx context.Context, userCred mcclient
 		return nil, err
 	}
 	input.NamespaceResourceCreateInput = *nInput
-	role := input.ToRole()
+	role, err := input.ToRole(input.Namespace)
+	if err != nil {
+		return nil, err
+	}
 	if err := m.ValidateRoleObject(role); err != nil {
 		return nil, err
 	}
 	return input, nil
 }
 
-func (m *SRoleManager) NewRemoteObjectForCreate(_ IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
+func (m *SRoleManager) NewRemoteObjectForCreate(obj IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.RoleCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return nil, err
 	}
-	return input.ToRole(), nil
+	nsName, err := obj.(*SRole).GetNamespaceName()
+	if err != nil {
+		return nil, err
+	}
+	return input.ToRole(nsName)
 }
 
 func (m *SRoleManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {
@@ -106,4 +114,14 @@ func (r *SRole) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.To
 		return err
 	}
 	return nil
+}
+
+func (r *SRole) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	detail := r.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail)
+	role := k8sObj.(*rbacv1.Role)
+	out := api.RoleDetail{
+		NamespaceResourceDetail: detail,
+		Rules:                   role.Rules,
+	}
+	return out
 }

@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
@@ -48,4 +49,19 @@ func (m *SFederatedNamespaceResourceManager) ValidateCreateData(ctx context.Cont
 	input.FederatednamespaceId = nsObj.GetId()
 	input.Federatednamespace = nsObj.GetName()
 	return input, nil
+}
+
+func (m *SFederatedNamespaceResourceManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedNamespaceResourceListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFederatedResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.FederatedResourceListInput)
+	if err != nil {
+		return nil, err
+	}
+	if input.Federatednamespace != "" {
+		ns, err := GetFedNamespaceManager().GetFedNamespaceByIdOrName(userCred, input.Federatednamespace)
+		if err != nil {
+			return nil, err
+		}
+		q = q.Equals("federatednamespace_id", ns.GetId())
+	}
+	return q, nil
 }

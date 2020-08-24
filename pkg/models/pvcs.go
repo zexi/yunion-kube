@@ -49,7 +49,10 @@ func (m *SPVCManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.
 	if err != nil {
 		return nil, err
 	}
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	pvc := &v1.PersistentVolumeClaim{
 		ObjectMeta: objMeta,
 		Spec: v1.PersistentVolumeClaimSpec{

@@ -341,11 +341,21 @@ func (p *SPod) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj r
 		RestartCount:            PodManager.getRestartCount(pod),
 		PodIP:                   pod.Status.PodIP,
 		QOSClass:                string(pod.Status.QOSClass),
-		// Containers:              extractContainerInfo(pod.Spec.Containers, pod, configmaps, secrets),
-		// InitContainers:          extractContainerInfo(pod.Spec.InitContainers, pod, configmaps, secrets),
-		ContainerImages:     GetContainerImages(&pod.Spec),
-		InitContainerImages: GetInitContainerImages(&pod.Spec),
+		ContainerImages:         GetContainerImages(&pod.Spec),
+		InitContainerImages:     GetInitContainerImages(&pod.Spec),
 	}
+	configmaps, err := GetConfigMapManager().GetRawConfigMaps(cli, pod.GetNamespace())
+	if err != nil {
+		log.Errorf("Get configmaps error: %v", err)
+		return out
+	}
+	secrets, err := GetSecretManager().GetRawSecrets(cli, pod.GetNamespace())
+	if err != nil {
+		log.Errorf("Get secrets error: %v", err)
+		return out
+	}
+	out.Containers = extractContainerInfo(pod.Spec.Containers, pod, configmaps, secrets)
+	out.InitContainers = extractContainerInfo(pod.Spec.InitContainers, pod, configmaps, secrets)
 	if isList {
 		return out
 	}

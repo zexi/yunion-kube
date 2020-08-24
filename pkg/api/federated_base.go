@@ -15,10 +15,19 @@ type FederatedResourceJointClusterInput struct {
 	ClusterId string `json:"cluster_id"`
 }
 
+type FederatedResourceListInput struct {
+	apis.StatusDomainLevelResourceListInput
+}
+
+type FederatedNamespaceResourceListInput struct {
+	FederatedResourceListInput
+	Federatednamespace string `json:"federatednamespace"`
+}
+
 type FederatedNamespaceResourceCreateInput struct {
 	FederatedResourceCreateInput
 	FederatednamespaceId string `json:"federatednamespace_id"`
-	Federatednamespace   string
+	Federatednamespace   string `json:"-"`
 }
 
 func (input FederatedNamespaceResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {

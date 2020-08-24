@@ -49,7 +49,7 @@ func (m *SServiceAccountManager) ValidateCreateData(ctx context.Context, userCre
 
 func (obj *SServiceAccount) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
 	sa := k8sObj.(*v1.ServiceAccount)
-	return api.ServiceAccount{
+	return api.ServiceAccountDetail{
 		NamespaceResourceDetail:      obj.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail),
 		Secrets:                      sa.Secrets,
 		ImagePullSecrets:             sa.ImagePullSecrets,

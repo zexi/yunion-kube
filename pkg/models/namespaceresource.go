@@ -49,14 +49,6 @@ func (r *SNamespaceResourceBase) GetParentId() string {
 	return r.NamespaceId
 }
 
-func (r *SNamespaceResourceBase) GetNamespaceName() (string, error) {
-	ns, err := r.GetNamespace()
-	if err != nil {
-		return "", err
-	}
-	return ns.GetName(), nil
-}
-
 func (m *SNamespaceResourceBaseManager) GetByIdOrName(userCred mcclient.IIdentityProvider, clusterId, namespaceId string, resId string) (IClusterModel, error) {
 	return FetchClusterResourceByIdOrName(m, userCred, clusterId, namespaceId, resId)
 }
@@ -107,6 +99,14 @@ func (res *SNamespaceResourceBase) GetNamespace() (*SNamespace, error) {
 		return nil, errors.Wrapf(err, "fetch namespace %s", res.NamespaceId)
 	}
 	return obj.(*SNamespace), nil
+}
+
+func (res *SNamespaceResourceBase) GetNamespaceName() (string, error) {
+	ns, err := res.GetNamespace()
+	if err != nil {
+		return "", err
+	}
+	return ns.GetName(), nil
 }
 
 type INamespaceModel interface {
@@ -258,7 +258,7 @@ func (m *SNamespaceResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context
 	objNamespace := metaObj.GetNamespace()
 	dbNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNamespace)
 	if err != nil {
-		log.Errorf("OnRemoteObjectUpdate for %s get namespace error: %v", resMan.Keyword(), err)
+		log.Errorf("OnRemoteObjectUpdate for %s get namespace %s error: %v", resMan.Keyword(), objNamespace, err)
 		return
 	}
 	clusterId := cluster.GetId()

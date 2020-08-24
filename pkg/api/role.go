@@ -9,10 +9,25 @@ type RoleCreateInput struct {
 	Rules []rbac.PolicyRule `json:"rules"`
 }
 
-func (input RoleCreateInput) ToRole() *rbac.Role {
-	objMeta := input.NamespaceResourceCreateInput.ToObjectMeta()
+type nsGetter struct {
+	namespace string
+}
+
+func newNamespaceGetter(ns string) INamespaceGetter {
+	return nsGetter{namespace: ns}
+}
+
+func (g nsGetter) GetNamespaceName() (string, error) {
+	return g.namespace, nil
+}
+
+func (input RoleCreateInput) ToRole(namespaceName string) (*rbac.Role, error) {
+	objMeta, err := input.NamespaceResourceCreateInput.ToObjectMeta(newNamespaceGetter(namespaceName))
+	if err != nil {
+		return nil, err
+	}
 	return &rbac.Role{
 		ObjectMeta: objMeta,
 		Rules:      input.Rules,
-	}
+	}, nil
 }

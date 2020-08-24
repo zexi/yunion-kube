@@ -4,6 +4,7 @@ import (
 	"context"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/apis/rbac/validation"
@@ -11,9 +12,11 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/client"
 )
 
 var (
@@ -68,7 +71,7 @@ func (m *SClusterRoleBindingManager) ValidateCreateData(ctx context.Context, use
 	}
 	input.ClusterResourceCreateInput = *cInput
 
-	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(GetClusterRoleManager(), userCred, input.RoleRef); err != nil {
+	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(GetClusterRoleManager(), userCred, &input.RoleRef); err != nil {
 		return nil, err
 	}
 
@@ -79,6 +82,20 @@ func (m *SClusterRoleBindingManager) ValidateCreateData(ctx context.Context, use
 	return input, nil
 }
 
+func (obj *SClusterRoleBinding) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	if err := obj.SClusterResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
+		return err
+	}
+	input := new(api.ClusterRoleBindingCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return errors.Wrap(err, "unmarshal clusterrolebinding create input")
+	}
+	if err := obj.SRoleRefResourceBase.CustomizeCreate(&input.RoleRef); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *SClusterRoleBindingManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {
 	return m.SClusterResourceBaseManager.NewFromRemoteObject(ctx, userCred, cluster, obj)
 }
@@ -87,6 +104,13 @@ func (crb *SClusterRoleBinding) UpdateFromRemoteObject(ctx context.Context, user
 	return crb.SClusterResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj)
 }
 
-func (crb *SClusterRoleBinding) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	crb.SClusterResourceBase.PostDelete(ctx, userCred)
+func (crb *SClusterRoleBinding) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	detail := crb.SClusterResourceBase.GetDetails(cli, base, k8sObj, isList).(api.ClusterResourceDetail)
+	binding := k8sObj.(*rbacv1.ClusterRoleBinding)
+	out := api.ClusterRoleBindingDetail{
+		ClusterResourceDetail: detail,
+		RoleRef:               binding.RoleRef,
+		Subjects:              binding.Subjects,
+	}
+	return out
 }

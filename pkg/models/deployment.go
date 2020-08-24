@@ -11,7 +11,6 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
@@ -21,24 +20,31 @@ import (
 )
 
 var (
-	DeploymentManager *SDeploymentManager
+	deploymentManager *SDeploymentManager
 	_                 IPodOwnerModel = new(SDeployment)
 )
 
 func init() {
-	DeploymentManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SDeploymentManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SDeployment),
-				"deployments_tbl",
-				"deployment",
-				"deployments",
-				api.ResourceNameDeployment,
-				api.KindNameDeployment,
-				new(apps.Deployment),
-			),
-		}
-	}).(*SDeploymentManager)
+	GetDeploymentManager()
+}
+
+func GetDeploymentManager() *SDeploymentManager {
+	if deploymentManager == nil {
+		deploymentManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SDeploymentManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					new(SDeployment),
+					"deployments_tbl",
+					"deployment",
+					"deployments",
+					api.ResourceNameDeployment,
+					api.KindNameDeployment,
+					new(apps.Deployment),
+				),
+			}
+		}).(*SDeploymentManager)
+	}
+	return deploymentManager
 }
 
 type SDeploymentManager struct {
@@ -59,7 +65,10 @@ func (m *SDeploymentManager) ValidateCreateData(ctx context.Context, userCred mc
 func (m *SDeploymentManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.DeploymentCreateInput)
 	data.Unmarshal(input)
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
 	input.Selector = GetSelectorByObjectMeta(&objMeta)
@@ -73,6 +82,21 @@ func (m *SDeploymentManager) NewRemoteObjectForCreate(model IClusterModel, cli *
 	return deploy, nil
 }
 
+func (obj *SDeployment) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	deploy := remoteObj.(*apps.Deployment)
+	input := new(api.DeploymentUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	if input.Replicas != nil {
+		deploy.Spec.Replicas = input.Replicas
+	}
+	if err := UpdatePodTemplate(&deploy.Spec.Template, input.PodTemplateUpdateInput); err != nil {
+		return nil, err
+	}
+	return deploy, nil
+}
+
 func (m *SDeploymentManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.DeploymentListInput) (*sqlchemy.SQuery, error) {
 	return m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
 }
@@ -81,15 +105,21 @@ func (obj *SDeployment) GetExtraDetails(ctx context.Context, userCred mcclient.T
 	return api.DeploymentDetailV2{}, nil
 }
 
-func (m *SDeploymentManager) FetchCustomizeColumns(
-	ctx context.Context,
-	userCred mcclient.TokenCredential,
-	query jsonutils.JSONObject,
-	objs []interface{},
-	fields stringutils2.SSortedStrings,
-	isList bool,
-) []interface{} {
-	return m.SNamespaceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+func (obj *SDeployment) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	if err := obj.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+		return errors.Wrap(err, "update deployment")
+	}
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return errors.Wrap(err, "get deployment cluster client")
+	}
+	deploy := extObj.(*apps.Deployment)
+	podInfo, err := obj.GetPodInfo(cli, deploy)
+	if err != nil {
+		return errors.Wrap(err, "get pod info")
+	}
+	deployStatus := getters.GetDeploymentStatus(podInfo, *deploy)
+	return obj.SetStatus(userCred, deployStatus.Status, "update from remote")
 }
 
 func (obj *SDeployment) GetRawReplicaSets(cli *client.ClusterManager, deploy *apps.Deployment) ([]*apps.ReplicaSet, error) {
@@ -123,6 +153,42 @@ func (obj *SDeployment) GetPodInfo(cli *client.ClusterManager, deploy *apps.Depl
 	return GetPodInfo(deploy.Status.Replicas, deploy.Spec.Replicas, pods)
 }
 
+func (obj *SDeployment) FindOldReplicaSets(deploy *apps.Deployment, rss []*apps.ReplicaSet) ([]*apps.ReplicaSet, []*apps.ReplicaSet, error) {
+	var requiredRSs []*apps.ReplicaSet
+	var allRSs []*apps.ReplicaSet
+	newRS, err := FindNewReplicaSet(deploy, rss)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, rs := range rss {
+		// Filter out new replica set
+		if newRS != nil && rs.UID == newRS.UID {
+			continue
+		}
+		allRSs = append(allRSs, rs)
+		if *(rs.Spec.Replicas) != 0 {
+			requiredRSs = append(requiredRSs, rs)
+		}
+	}
+	return requiredRSs, allRSs, nil
+}
+
+func (obj *SDeployment) FindNewReplicaSet(deploy *apps.Deployment) (*apps.ReplicaSet, error) {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, err
+	}
+	rss, err := obj.GetRawReplicaSets(cli, deploy)
+	if err != nil {
+		return nil, err
+	}
+	rs, err := FindNewReplicaSet(deploy, rss)
+	if err != nil {
+		return nil, err
+	}
+	return rs, nil
+}
+
 func (obj *SDeployment) GetDetails(
 	cli *client.ClusterManager,
 	base interface{},
@@ -144,5 +210,14 @@ func (obj *SDeployment) GetDetails(
 		detail.Pods = *podInfo
 		detail.DeploymentStatus = *getters.GetDeploymentStatus(podInfo, *deploy)
 	}
+	var rollingUpdateStrategy *api.RollingUpdateStrategy
+	if deploy.Spec.Strategy.RollingUpdate != nil {
+		rollingUpdateStrategy = &api.RollingUpdateStrategy{
+			MaxSurge:       deploy.Spec.Strategy.RollingUpdate.MaxSurge,
+			MaxUnavailable: deploy.Spec.Strategy.RollingUpdate.MaxUnavailable,
+		}
+	}
+	detail.RollingUpdateStrategy = rollingUpdateStrategy
+	detail.RevisionHistoryLimit = deploy.Spec.RevisionHistoryLimit
 	return detail
 }

@@ -41,7 +41,10 @@ type SIngress struct {
 func (m *SIngressManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.IngressCreateInputV2)
 	data.Unmarshal(input)
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	ing := &extensions.Ingress{
 		ObjectMeta: objMeta,
 		Spec:       input.IngressSpec,

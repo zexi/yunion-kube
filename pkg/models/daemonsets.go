@@ -11,6 +11,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -49,7 +50,10 @@ type SDaemonSet struct {
 func (m *SDaemonSetManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.DaemonSetCreateInputV2)
 	data.Unmarshal(input)
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
 	input.Selector = GetSelectorByObjectMeta(&objMeta)
@@ -99,4 +103,33 @@ func (obj *SDaemonSet) GetDetails(cli *client.ClusterManager, base interface{}, 
 		detail.DaemonSetStatus = *getters.GetDaemonsetStatus(podInfo, *ds)
 	}
 	return detail
+}
+
+func (obj *SDaemonSet) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	if err := obj.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+		return errors.Wrap(err, "update daemonset")
+	}
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return errors.Wrap(err, "get daemonset cluster client")
+	}
+	ds := extObj.(*apps.DaemonSet)
+	podInfo, err := obj.GetPodInfo(cli, ds)
+	if err != nil {
+		return errors.Wrap(err, "get pod info")
+	}
+	status := getters.GetDaemonsetStatus(podInfo, *ds)
+	return obj.SetStatus(userCred, status.Status, "update from remote")
+}
+
+func (obj *SDaemonSet) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	ds := remoteObj.(*apps.DaemonSet)
+	input := new(api.DaemonSetUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	if err := UpdatePodTemplate(&ds.Spec.Template, input.PodTemplateUpdateInput); err != nil {
+		return nil, err
+	}
+	return ds, nil
 }

@@ -18,6 +18,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,13 +45,8 @@ import (
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	k8sutil "yunion.io/x/yunion-kube/pkg/k8s/util"
-	gotypesutil "yunion.io/x/yunion-kube/pkg/utils/gotypes"
 	"yunion.io/x/yunion-kube/pkg/utils/k8serrors"
 )
-
-func RegisterSerializable(objs ...gotypes.ISerializable) {
-	gotypesutil.RegisterSerializable(objs...)
-}
 
 func RunBatchTask(
 	ctx context.Context,
@@ -593,6 +589,86 @@ func ValidateK8sObject(versionObj runtime.Object, internalObj interface{}, valid
 	}
 	if err := validateFunc(internalObj).ToAggregate(); err != nil {
 		return httperrors.NewInputParameterError("%s", err)
+	}
+	return nil
+}
+
+// Methods below are taken from kubernetes repo:
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/util/deployment_util.go
+
+// FindNewReplicaSet returns the new RS this given deployment targets (the one with the same pod template).
+func FindNewReplicaSet(deployment *apps.Deployment, rsList []*apps.ReplicaSet) (*apps.ReplicaSet, error) {
+	newRSTemplate := GetNewReplicaSetTemplate(deployment)
+	for i := range rsList {
+		if EqualIgnoreHash(rsList[i].Spec.Template, newRSTemplate) {
+			// This is the new ReplicaSet.
+			return rsList[i], nil
+		}
+	}
+	// new ReplicaSet does not exist.
+	return nil, nil
+}
+
+// GetNewReplicaSetTemplate returns the desired PodTemplateSpec for the new ReplicaSet corresponding to the given ReplicaSet.
+// Callers of this helper need to set the DefaultDeploymentUniqueLabelKey k/v pair.
+func GetNewReplicaSetTemplate(deployment *apps.Deployment) v1.PodTemplateSpec {
+	// newRS will have the same template as in deployment spec.
+	return v1.PodTemplateSpec{
+		ObjectMeta: deployment.Spec.Template.ObjectMeta,
+		Spec:       deployment.Spec.Template.Spec,
+	}
+}
+
+// EqualIgnoreHash returns true if two given podTemplateSpec are equal, ignoring the diff in value of Labels[pod-template-hash]
+// We ignore pod-template-hash because the hash result would be different upon podTemplateSpec API changes
+// (e.g. the addition of a new field will cause the hash code to change)
+// Note that we assume input podTemplateSpecs contain non-empty labels
+func EqualIgnoreHash(template1, template2 v1.PodTemplateSpec) bool {
+	// First, compare template.Labels (ignoring hash)
+	labels1, labels2 := template1.Labels, template2.Labels
+	if len(labels1) > len(labels2) {
+		labels1, labels2 = labels2, labels1
+	}
+	// We make sure len(labels2) >= len(labels1)
+	for k, v := range labels2 {
+		if labels1[k] != v && k != apps.DefaultDeploymentUniqueLabelKey {
+			return false
+		}
+	}
+	// Then, compare the templates without comparing their labels
+	template1.Labels, template2.Labels = nil, nil
+	return equality.Semantic.DeepEqual(template1, template2)
+}
+
+func UpdatePodTemplate(temp *v1.PodTemplateSpec, input api.PodTemplateUpdateInput) error {
+	if len(input.RestartPolicy) != 0 {
+		temp.Spec.RestartPolicy = input.RestartPolicy
+	}
+	if len(input.DNSPolicy) != 0 {
+		temp.Spec.DNSPolicy = input.DNSPolicy
+	}
+	cf := func(container *v1.Container, cs []api.ContainerUpdateInput) error {
+		if len(cs) == 0 {
+			return nil
+		}
+		for _, c := range cs {
+			if container.Name == c.Name {
+				container.Image = c.Image
+				return nil
+			}
+		}
+		return httperrors.NewNotFoundError("Not found container %s in input", container.Name)
+	}
+	for _, c := range temp.Spec.InitContainers {
+		if err := cf(&c, input.InitContainers); err != nil {
+			return err
+		}
+	}
+	for i, c := range temp.Spec.Containers {
+		if err := cf(&c, input.Containers); err != nil {
+			return err
+		}
+		temp.Spec.Containers[i] = c
 	}
 	return nil
 }

@@ -18,25 +18,12 @@ import (
 )
 
 var (
-	JobManager *SJobManager
+	jobManager *SJobManager
 	_          IClusterModel = new(SJob)
 )
 
 func init() {
-	JobManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SJobManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SJob),
-				"jobs_tbl",
-				"job",
-				"jobs",
-				api.ResourceNameJob,
-				api.KindNameJob,
-				new(batch.Job),
-			),
-		}
-	}).(*SJobManager)
-	JobManager.SK8sOwnedResourceBaseManager = SK8sOwnedResourceBaseManager{JobManager}
+	GetJobManager()
 }
 
 type SJobManager struct {
@@ -46,6 +33,26 @@ type SJobManager struct {
 
 type SJob struct {
 	SNamespaceResourceBase
+}
+
+func GetJobManager() *SJobManager {
+	if jobManager == nil {
+		jobManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SJobManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					new(SJob),
+					"jobs_tbl",
+					"job",
+					"jobs",
+					api.ResourceNameJob,
+					api.KindNameJob,
+					new(batch.Job),
+				),
+			}
+		}).(*SJobManager)
+		jobManager.SK8sOwnedResourceBaseManager = SK8sOwnedResourceBaseManager{jobManager}
+	}
+	return jobManager
 }
 
 func (m *SJobManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query *jsonutils.JSONDict, input *api.JobCreateInputV2) (*api.JobCreateInputV2, error) {
@@ -60,7 +67,10 @@ func (m *SJobManager) ValidateCreateData(ctx context.Context, userCred mcclient.
 func (m *SJobManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.JobCreateInputV2)
 	data.Unmarshal(input)
-	objMeta := input.ToObjectMeta()
+	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
+	if err != nil {
+		return nil, err
+	}
 	return &batch.Job{
 		ObjectMeta: objMeta,
 		Spec:       input.JobSpec,
