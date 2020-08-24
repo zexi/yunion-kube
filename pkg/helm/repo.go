@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
@@ -18,6 +17,12 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 
 	"yunion.io/x/log"
+	"yunion.io/x/pkg/errors"
+)
+
+const (
+	ErrRepoAlreadyExists = errors.Error("Repository already exists")
+	ErrNoRepositories    = errors.Error("no repositories found. You must add one before updating")
 )
 
 type RepoClient struct {
@@ -55,7 +60,7 @@ func (c *RepoConfig) GetSetting() *cli.EnvSettings {
 
 func NewRepoClient(dataDir string) (*RepoClient, error) {
 	if len(dataDir) == 0 {
-		return nil, errors.New("Helm state store path must specified")
+		return nil, errors.Error("Helm state store path must specified")
 	}
 	if _, err := os.Stat(dataDir); err != nil {
 		if os.IsNotExist(err) {
@@ -103,7 +108,7 @@ func (c RepoClient) Add(entry *repo.Entry) error {
 	}
 
 	if f.Has(entry.Name) {
-		return errors.Errorf("repository name (%s) already exists, please specify a different name", entry.Name)
+		return errors.Wrapf(ErrRepoAlreadyExists, "repository name (%s) already exists, please specify a different name", entry.Name)
 	}
 
 	r, err := repo.NewChartRepository(entry, getter.All(c.GetSetting()))
@@ -124,8 +129,6 @@ func (c RepoClient) Add(entry *repo.Entry) error {
 	return nil
 }
 
-var errNoRepositories = errors.New("no repositories found. You must add one before updating")
-
 func isNotExist(err error) bool {
 	return os.IsNotExist(errors.Cause(err))
 }
@@ -134,7 +137,7 @@ func (c RepoClient) Update(name string) error {
 	repoFile := c.RepositoryConfig
 	f, err := repo.LoadFile(repoFile)
 	if isNotExist(err) || len(f.Repositories) == 0 {
-		return errNoRepositories
+		return ErrNoRepositories
 	}
 	var repos []*repo.ChartRepository
 	for _, cfg := range f.Repositories {

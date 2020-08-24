@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,6 +87,7 @@ type IClusterModel interface {
 	GetExternalId() string
 	SetExternalId(idStr string)
 
+	GetStatus() string
 	SetName(name string)
 	GetClusterId() string
 	GetCluster() (*SCluster, error)
@@ -249,6 +251,10 @@ func (res *SClusterResourceBase) GetParentId() string {
 	return res.ClusterId
 }
 
+func (res *SClusterResourceBase) GetStatus() string {
+	return res.Status
+}
+
 func (res *SClusterResourceBase) GetCluster() (*SCluster, error) {
 	obj, err := ClusterManager.FetchById(res.ClusterId)
 	if err != nil {
@@ -410,6 +416,12 @@ func NewFromRemoteObject(
 func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCredential, dbObj IClusterModel) error {
 	lockman.LockObject(ctx, dbObj)
 	defer lockman.ReleaseObject(ctx, dbObj)
+
+	status := dbObj.GetStatus()
+	if strings.HasSuffix(status, "_fail") || strings.HasSuffix(status, "_failed") {
+		log.Warningf("object %s/%s status is %s, skip deleted it", dbObj.Keyword(), dbObj.GetName(), dbObj.GetStatus())
+		return nil
+	}
 
 	if err := dbObj.ValidateDeleteCondition(ctx); err != nil {
 		err := errors.Wrapf(err, "ValidateDeleteCondition")

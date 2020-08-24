@@ -322,7 +322,7 @@ func (r *SRelease) doCreate() (*release.Release, error) {
 	install := cli.Release().Install()
 	install.Namespace = ns.GetName()
 	install.ReleaseName = r.GetName()
-	install.Atomic = true
+	// install.Atomic = true
 	install.Replace = true
 	vals := r.GetHelmValues()
 	rls, err := install.Run(chart, vals)
