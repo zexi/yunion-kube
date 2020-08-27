@@ -35,9 +35,12 @@ func init() {
 			}
 		}).(*SFederatedNamespaceClusterManager)
 		GetFedNamespaceManager().SetJointModelManager(FederatedNamespaceClusterManager)
+		RegisterFedJointClusterManager(GetFedNamespaceManager(), FederatedNamespaceClusterManager)
 	})
 }
 
+// +onecloud:swagger-gen-model-singular=federatednamespacecluster
+// +onecloud:swagger-gen-model-plural=federatednamespaceclusters
 type SFederatedNamespaceClusterManager struct {
 	SFederatedJointClusterManager
 }

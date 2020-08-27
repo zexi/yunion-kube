@@ -1,4 +1,4 @@
-package k8smodels
+package models
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -10,27 +10,35 @@ import (
 )
 
 var (
-	VirtualMachineManager *SVirtualMachineManager
+	virtualMachineManager *SVirtualMachineManager
 )
 
 func init() {
-	VirtualMachineManager = &SVirtualMachineManager{
-		SK8SNamespaceResourceBaseManager: model.NewK8SNamespaceResourceBaseManager(new(SVirtualMachine), "virtualmachine", "virtualmachines"),
-	}
-	VirtualMachineManager.SetVirtualObject(VirtualMachineManager)
+	GetVirtualMachineManager()
 }
 
 type SVirtualMachineManager struct {
-	model.SK8SNamespaceResourceBaseManager
+	model.SK8sNamespaceResourceBaseManager
 }
 
 type SVirtualMachine struct {
-	model.SK8SNamespaceResourceBase
+	model.SK8sNamespaceResourceBase
 	UnstructuredResourceBase
 }
 
-func (m *SVirtualMachineManager) GetK8SResourceInfo() model.K8SResourceInfo {
-	return model.K8SResourceInfo{
+func GetVirtualMachineManager() *SVirtualMachineManager {
+	if virtualMachineManager == nil {
+		virtualMachineManager = &SVirtualMachineManager{
+			SK8sNamespaceResourceBaseManager: model.NewK8sNamespaceResourceBaseManager(new(SVirtualMachine), "virtualmachine", "virtualmachines"),
+		}
+		virtualMachineManager.SetVirtualObject(virtualMachineManager)
+		RegisterK8sModelManager(virtualMachineManager)
+	}
+	return virtualMachineManager
+}
+
+func (m *SVirtualMachineManager) GetK8sResourceInfo() model.K8sResourceInfo {
+	return model.K8sResourceInfo{
 		ResourceName: api.ResourceNameVirtualMachine,
 		KindName:     api.KindNameVirtualMachine,
 		Object:       &unstructured.Unstructured{},

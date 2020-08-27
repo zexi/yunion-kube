@@ -44,6 +44,8 @@ func GetFedNamespaceManager() *SFederatedNamespaceManager {
 	return fedNamespaceManager
 }
 
+// +onecloud:swagger-gen-model-singular=federatednamespace
+// +onecloud:swagger-gen-model-plural=federatednamespaces
 type SFederatedNamespaceManager struct {
 	SFederatedResourceBaseManager
 }

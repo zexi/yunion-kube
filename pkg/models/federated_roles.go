@@ -36,6 +36,8 @@ func GetFedRoleManager() *SFederatedRoleManager {
 	return fedRoleManager
 }
 
+// +onecloud:swagger-gen-model-singular=federatedrole
+// +onecloud:swagger-gen-model-plural=federatedroles
 type SFederatedRoleManager struct {
 	SFederatedNamespaceResourceManager
 }

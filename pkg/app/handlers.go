@@ -13,7 +13,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
-	// "yunion.io/x/yunion-kube/pkg/k8smodels"
 	"yunion.io/x/yunion-kube/pkg/models"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/release"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/secret"
@@ -66,17 +65,20 @@ func InitHandlers(app *appsrv.Application) {
 		models.GetDeploymentManager(),
 		models.GetStatefulSetManager(),
 		models.DaemonSetManager,
-		models.ReplicaSetManager,
-		models.JobManager,
-		models.CronJobManager,
+		models.GetReplicaSetManager(),
+		models.GetJobManager(),
+		models.GetCronJobManager(),
 		models.PodManager,
 		models.ServiceAccountManager,
 		models.GetSecretManager(),
-		models.ConfigMapManager,
+		models.GetConfigMapManager(),
 		models.ReleaseManager,
 
 		// federated resources
 		models.GetFedNamespaceManager(),
+		models.GetFedClusterRoleManager(),
+		models.GetFedClusterRoleBindingManager(),
+		models.GetFedRoleManager(),
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
@@ -95,22 +97,16 @@ func InitHandlers(app *appsrv.Application) {
 		dispatcher.AddJointModelDispatcher(apiPrefix, app, handler)
 	}
 
-	// register model manager
-	for _, man := range []model.IK8SModelManager{} {
-		model.RegisterModelManager(man)
-	}
-
-	// v2 dispatcher
+	// k8s directly resource dispatcher
 	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
-	for _, man := range []model.IK8SModelManager{
-		// k8smodels.EventManager,
+	for _, man := range []model.IK8sModelManager{
+		models.GetEventManager(),
 
-		// // onecloud service operator resource manager
-		// k8smodels.VirtualMachineManager,
-		// k8smodels.AnsiblePlaybookManager,
-		// k8smodels.AnsiblePlaybookTemplateManager,
+		// onecloud service operator resource manager
+		models.GetVirtualMachineManager(),
+		models.GetAnsiblePlaybookManager(),
+		models.GetAnsiblePlaybookTemplateManager(),
 	} {
-		model.RegisterModelManager(man)
 		handler := model.NewK8SModelHandler(man)
 		log.Infof("Dispatcher register k8s resource manager %q", man.KeywordPlural())
 		v2Dispatcher.Add(handler)

@@ -19,15 +19,6 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type SFederatedResourceBaseManager struct {
-	db.SStatusDomainLevelResourceBaseManager
-	jointManager IFederatedJointClusterManager
-}
-
-type SFederatedResourceBase struct {
-	db.SStatusDomainLevelResourceBase
-}
-
 type IFederatedModelManager interface {
 	db.IModelManager
 
@@ -48,6 +39,16 @@ type IFederatedModel interface {
 	GetJointModelManager() IFederatedJointClusterManager
 	ValidateAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 	ValidateDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
+}
+
+// +onecloud:swagger-gen-ignore
+type SFederatedResourceBaseManager struct {
+	db.SStatusDomainLevelResourceBaseManager
+	jointManager IFederatedJointClusterManager
+}
+
+type SFederatedResourceBase struct {
+	db.SStatusDomainLevelResourceBase
 }
 
 func NewFedResourceBaseManager(

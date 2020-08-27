@@ -28,7 +28,7 @@ type IngressDetail struct {
 type IngressDetailV2 struct {
 	NamespaceResourceDetail
 	// External endpoints of this ingress.
-	Endpoints []Endpoint `json:"endpoints"`
+	Endpoints []Endpoint `json:"endpoints,allowempty"`
 
 	// TODO: replace this with UI specific fields.
 	// Spec is the desired state of the Ingress.

@@ -127,7 +127,7 @@ func (obj *SDeployment) GetRawReplicaSets(cli *client.ClusterManager, deploy *ap
 	if err != nil {
 		return nil, errors.Wrap(err, "deploy label as selector")
 	}
-	return ReplicaSetManager.GetRawReplicaSets(cli, deploy.GetNamespace(), selector)
+	return GetReplicaSetManager().GetRawReplicaSets(cli, deploy.GetNamespace(), selector)
 }
 
 func (obj *SDeployment) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {

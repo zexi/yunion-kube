@@ -35,7 +35,7 @@ type NamespaceTemplate struct {
 
 type FederatedNamespaceCreateInput struct {
 	FederatedResourceCreateInput
-	Spec *FederatedNamespaceSpec `json:"spec"`
+	Spec FederatedNamespaceSpec `json:"spec"`
 }
 
 func (input FederatedNamespaceCreateInput) ToNamespace() *corev1.Namespace {

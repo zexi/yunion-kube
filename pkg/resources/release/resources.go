@@ -30,14 +30,14 @@ func GetReleaseResources(
 	ret := make(map[string][]interface{})
 	ress.Visit(func(info *resource.Info, err error) error {
 		gvk := info.Object.GetObjectKind().GroupVersionKind()
-		man := model.GetK8SModelManagerByKind(gvk.Kind)
+		man := model.GetK8sModelManagerByKind(gvk.Kind)
 		if man == nil {
 			log.Warningf("not fond %s manager", gvk.Kind)
 			return nil
 		}
 		keyword := man.Keyword()
 		unstructObj := info.Object.(*unstructured.Unstructured)
-		newObj := man.GetK8SResourceInfo().Object.DeepCopyObject()
+		newObj := man.GetK8sResourceInfo().Object.DeepCopyObject()
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructObj.Object, newObj); err != nil {
 			return err
 		}

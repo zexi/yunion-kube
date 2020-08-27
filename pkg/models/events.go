@@ -31,21 +31,52 @@ func init() {
 }
 
 type IEventManager interface {
+	model.IK8sModelManager
 	GetNamespaceEvents(cluster model.ICluster, namespace string) ([]*api.Event, error)
 	GetWarningEventsByPods(cluster model.ICluster, pods []*v1.Pod) ([]*api.Event, error)
 }
 
+type SEventManager struct {
+	model.SK8sNamespaceResourceBaseManager
+	model.SK8sOwnedResourceBaseManager
+}
+
+type SEvent struct {
+	model.SK8sNamespaceResourceBase
+}
+
 func GetEventManager() IEventManager {
 	if eventManager == nil {
-		eventManager = newEventManager()
+		eventManager = &SEventManager{
+			SK8sNamespaceResourceBaseManager: model.NewK8sNamespaceResourceBaseManager(
+				&SEvent{},
+				"k8s_event",
+				"k8s_events",
+			),
+		}
+		eventManager.SetVirtualObject(eventManager)
 	}
 	return eventManager
 }
 
-type SEventManager struct{}
+func (m SEventManager) GetK8sResourceInfo() model.K8sResourceInfo {
+	return model.K8sResourceInfo{
+		ResourceName: api.ResourceNameEvent,
+		Object:       &v1.Event{},
+		KindName:     api.KindNameEvent,
+	}
+}
 
-func newEventManager() IEventManager {
-	return new(SEventManager)
+func (m SEventManager) ListItemFilter(ctx *model.RequestContext, q model.IQuery, query *api.EventListInput) (model.IQuery, error) {
+	q, err := m.SK8sNamespaceResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SNamespaceBase)
+	if err != nil {
+		return q, err
+	}
+	q, err = m.SK8sOwnedResourceBaseManager.ListItemFilter(ctx, q, query.ListInputOwner)
+	if err != nil {
+		return q, err
+	}
+	return q, nil
 }
 
 func (m *SEventManager) GetWarningEventsByPods(cluster model.ICluster, pods []*v1.Pod) ([]*api.Event, error) {
@@ -58,39 +89,51 @@ func (m *SEventManager) GetWarningEventsByPods(cluster model.ICluster, pods []*v
 
 func (m *SEventManager) GetAPIEvents(cluster model.ICluster, events []*v1.Event) ([]*api.Event, error) {
 	ret := make([]*api.Event, 0)
-	for _, e := range events {
-		apiE := api.Event{
-			ObjectMeta: api.ObjectMeta{
-				ObjectMeta: e.ObjectMeta,
-				ClusterMeta: &api.ClusterMeta{
-					Cluster:   cluster.GetName(),
-					ClusterId: cluster.GetId(),
-				},
-			},
-			Message:             e.Message,
-			SourceComponent:     e.Source.Component,
-			SourceHost:          e.Source.Host,
-			SubObject:           e.InvolvedObject.FieldPath,
-			Count:               e.Count,
-			FirstSeen:           e.FirstTimestamp,
-			LastSeen:            e.LastTimestamp,
-			Reason:              e.Reason,
-			Type:                e.Type,
-			InvolvedObject:      e.InvolvedObject,
-			Source:              e.Source,
-			Series:              e.Series,
-			Action:              e.Action,
-			Related:             e.Related,
-			ReportingController: e.ReportingController,
-			ReportingInstance:   e.ReportingInstance,
-		}
-		ret = append(ret, &apiE)
+	if err := ConvertRawToAPIObjects(m, cluster, events, &ret); err != nil {
+		return nil, err
 	}
 	s := &eventLastTimestampSorter{
 		events: ret,
 	}
 	sort.Sort(s)
 	return s.events, nil
+}
+
+func (obj SEvent) GetRawEvent() *v1.Event {
+	return obj.GetK8sObject().(*v1.Event)
+}
+
+func (obj *SEvent) IsOwnedBy(owner model.IOwnerModel) (bool, error) {
+	return model.IsEventOwner(owner, obj.GetRawEvent())
+}
+
+func (obj SEvent) GetAPIObject() (*api.Event, error) {
+	e := obj.GetRawEvent()
+	return &api.Event{
+		DepObjectMeta:       obj.GetObjectMeta(),
+		ObjectMeta:          obj.GetObjectMeta(),
+		TypeMeta:            obj.GetTypeMeta(),
+		Message:             e.Message,
+		SourceComponent:     e.Source.Component,
+		SourceHost:          e.Source.Host,
+		SubObject:           e.InvolvedObject.FieldPath,
+		Count:               e.Count,
+		FirstSeen:           e.FirstTimestamp,
+		LastSeen:            e.LastTimestamp,
+		Reason:              e.Reason,
+		Type:                e.Type,
+		InvolvedObject:      e.InvolvedObject,
+		Source:              e.Source,
+		Series:              e.Series,
+		Action:              e.Action,
+		Related:             e.Related,
+		ReportingController: e.ReportingController,
+		ReportingInstance:   e.ReportingInstance,
+	}, nil
+}
+
+func (obj SEvent) GetAPIDetailObject() (*api.Event, error) {
+	return obj.GetAPIObject()
 }
 
 type eventLastTimestampSorter struct {
@@ -225,6 +268,35 @@ func (m SEventManager) GetRawEvents(cluster model.ICluster, ns string) ([]*v1.Ev
 	return indexer.EventLister().Events(ns).List(labels.Everything())
 }
 
+func (m SEventManager) GetEventsByUID(cluster model.ICluster, uId types.UID) ([]*api.Event, error) {
+	res, err := m.GetRawEventsByUID(cluster, uId)
+	if err != nil {
+		return nil, err
+	}
+	return m.GetAPIEvents(cluster, res)
+}
+
+func (m SEventManager) FilterEventsByUID(events []*v1.Event, uid types.UID) []*v1.Event {
+	result := make([]*v1.Event, 0)
+	for _, e := range events {
+		if e.InvolvedObject.UID == uid {
+			result = append(result, e)
+		}
+	}
+	return m.fillEventsType(result)
+}
+
+func (m SEventManager) FilterEventsByKindName(events []*v1.Event, kind, namespace, name string) []*v1.Event {
+	result := make([]*v1.Event, 0)
+	for _, e := range events {
+		iobj := e.InvolvedObject
+		if iobj.Kind == kind && iobj.Namespace == namespace && iobj.Name == name {
+			result = append(result, e)
+		}
+	}
+	return m.fillEventsType(result)
+}
+
 func (m SEventManager) FilterEventsByType(events []*v1.Event, eventType string) []*v1.Event {
 	if len(eventType) == 0 || len(events) == 0 {
 		return events
@@ -289,16 +361,6 @@ func (m SEventManager) GetRawEventsByUID(cluster model.ICluster, uId types.UID) 
 		return nil, err
 	}
 	return m.FilterEventsByUID(events, uId), nil
-}
-
-func (m SEventManager) FilterEventsByUID(events []*v1.Event, uid types.UID) []*v1.Event {
-	result := make([]*v1.Event, 0)
-	for _, e := range events {
-		if e.InvolvedObject.UID == uid {
-			result = append(result, e)
-		}
-	}
-	return m.fillEventsType(result)
 }
 
 func (m SEventManager) GetNamespaceEvents(cluster model.ICluster, ns string) ([]*api.Event, error) {

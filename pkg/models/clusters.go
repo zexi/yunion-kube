@@ -275,7 +275,28 @@ func (m *SClusterManager) GetSession() (*mcclient.ClientSession, error) {
 }
 
 func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterListInput) (*sqlchemy.SQuery, error) {
-	return m.SStatusDomainLevelResourceBaseManager.ListItemFilter(ctx, q, userCred, input.StatusDomainLevelResourceListInput)
+	q, err := m.SStatusDomainLevelResourceBaseManager.ListItemFilter(ctx, q, userCred, input.StatusDomainLevelResourceListInput)
+	if err != nil {
+		return nil, err
+	}
+	if input.FederatedResourceUsedInput.ShouldDo() {
+		fedJointMan := GetFedJointClusterManager(input.FederatedKeyword)
+		if fedJointMan == nil {
+			return nil, httperrors.NewInputParameterError("federated_keyword %s not found", input.FederatedKeyword)
+		}
+		fedMan := fedJointMan.GetFedManager()
+		fedObj, err := fedMan.FetchByIdOrName(userCred, input.FederatedResourceId)
+		if err != nil {
+			return nil, httperrors.NewNotFoundError("federated resource %s %s found error: %v", input.FederatedKeyword, input.FederatedResourceId, err)
+		}
+		sq := fedJointMan.Query("cluster_id").Equals(fmt.Sprintf("%s_id", input.FederatedKeyword), fedObj.GetId()).SubQuery()
+		if *input.FederatedUsed {
+			q = q.In("id", sq)
+		} else {
+			q = q.NotIn("id", sq)
+		}
+	}
+	return q, nil
 }
 
 func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.TokenCredential, data api.ClusterCreateInput) (manager.ICluster, error) {

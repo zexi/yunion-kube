@@ -15,14 +15,14 @@ type IQuery interface {
 	FilterAny(any bool) IQuery
 	AddOrderFields(ofs ...OrderField) IQuery
 
-	FetchObjects() ([]IK8SModel, error)
+	FetchObjects() ([]IK8sModel, error)
 
 	GetTotal() int64
 	GetLimit() int64
 	GetOffset() int64
 }
 
-type QueryFilter func(obj IK8SModel) (bool, error)
+type QueryFilter func(obj IK8sModel) (bool, error)
 
 type sK8SQuery struct {
 	limit        int64
@@ -35,10 +35,10 @@ type sK8SQuery struct {
 	orderFields  []OrderField
 
 	cluster ICluster
-	manager IK8SModelManager
+	manager IK8sModelManager
 }
 
-func NewK8SResourceQuery(cluster ICluster, manager IK8SModelManager) IQuery {
+func NewK8SResourceQuery(cluster ICluster, manager IK8sModelManager) IQuery {
 	q := &sK8SQuery{
 		cluster:     cluster,
 		manager:     manager,
@@ -95,15 +95,15 @@ func (q *sK8SQuery) PagingMarker(pm string) IQuery {
 	return q
 }
 
-func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
+func (q *sK8SQuery) FetchObjects() ([]IK8sModel, error) {
 	cluster := q.cluster
 	cli := cluster.GetHandler()
-	resInfo := q.manager.GetK8SResourceInfo()
+	resInfo := q.manager.GetK8sResourceInfo()
 	objs, err := cli.List(resInfo.ResourceName, q.namespace, labels.Everything().String())
 	if err != nil {
 		return nil, err
 	}
-	ret := make([]IK8SModel, len(objs))
+	ret := make([]IK8sModel, len(objs))
 	for idx, obj := range objs {
 		model, err := NewK8SModelObject(q.manager, cluster, obj)
 		if err != nil {
@@ -122,9 +122,9 @@ func (q *sK8SQuery) FetchObjects() ([]IK8SModel, error) {
 	return ret, nil
 }
 
-func (q *sK8SQuery) applyFilters(objs []IK8SModel) ([]IK8SModel, error) {
+func (q *sK8SQuery) applyFilters(objs []IK8sModel) ([]IK8sModel, error) {
 	// TODO: impl filter any
-	ret := make([]IK8SModel, 0)
+	ret := make([]IK8sModel, 0)
 	for _, obj := range objs {
 		filtered := true
 		for _, f := range q.filters {
@@ -148,11 +148,11 @@ var _ sort.Interface = new(k8sModelSorter)
 
 // k8sModelSorter implements sort.Interface
 type k8sModelSorter struct {
-	objs  []IK8SModel
+	objs  []IK8sModel
 	field OrderField
 }
 
-func newK8SModelSorter(objs []IK8SModel, field OrderField) *k8sModelSorter {
+func newK8SModelSorter(objs []IK8sModel, field OrderField) *k8sModelSorter {
 	return &k8sModelSorter{
 		objs:  objs,
 		field: field,
@@ -176,7 +176,7 @@ func (s *k8sModelSorter) Less(i, j int) bool {
 }
 
 type K8SModelSorter struct {
-	objs   []IK8SModel
+	objs   []IK8sModel
 	fields []OrderField
 }
 
@@ -188,11 +188,11 @@ func (s *K8SModelSorter) doSort() *K8SModelSorter {
 	return s
 }
 
-func (s *K8SModelSorter) Objects() []IK8SModel {
+func (s *K8SModelSorter) Objects() []IK8sModel {
 	return s.objs
 }
 
-func (q *sK8SQuery) applySorters(objs []IK8SModel) []IK8SModel {
+func (q *sK8SQuery) applySorters(objs []IK8sModel) []IK8sModel {
 	sorter := &K8SModelSorter{
 		objs:   objs,
 		fields: q.orderFields,
@@ -200,7 +200,7 @@ func (q *sK8SQuery) applySorters(objs []IK8SModel) []IK8SModel {
 	return sorter.doSort().Objects()
 }
 
-func (q *sK8SQuery) applyOffseter(objs []IK8SModel) []IK8SModel {
+func (q *sK8SQuery) applyOffseter(objs []IK8sModel) []IK8sModel {
 	ret := objs
 	if q.offset == 0 {
 		return ret
@@ -212,7 +212,7 @@ func (q *sK8SQuery) applyOffseter(objs []IK8SModel) []IK8SModel {
 	return ret
 }
 
-func (q *sK8SQuery) applyLimiter(objs []IK8SModel) []IK8SModel {
+func (q *sK8SQuery) applyLimiter(objs []IK8sModel) []IK8sModel {
 	if q.limit < 0 {
 		// -1 means not do limit query
 		return objs

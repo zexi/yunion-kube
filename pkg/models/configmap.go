@@ -10,6 +10,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -66,9 +67,11 @@ func (m *SConfigMapManager) ValidateCreateData(ctx context.Context, userCred mcc
 	return input, nil
 }
 
-func (m *SConfigMap) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, body jsonutils.JSONObject) (interface{}, error) {
+func (m *SConfigMapManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, body jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.ConfigMapCreateInput)
-	body.Unmarshal(input)
+	if err := body.Unmarshal(input); err != nil {
+		return nil, errors.Wrap(err, "unmarshal to configmap input")
+	}
 	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
 	if err != nil {
 		return nil, err

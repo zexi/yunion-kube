@@ -169,11 +169,12 @@ func GetReleaseResources(
 	ret := make(map[string][]interface{})
 	ress.Visit(func(info *resource.Info, err error) error {
 		gvk := info.Object.GetObjectKind().GroupVersionKind()
-		man := model.GetK8SModelManagerByKind(gvk.Kind)
-		if man == nil {
+		oman := model.GetK8sModelManagerByKind(gvk.Kind)
+		if oman == nil {
 			log.Warningf("not fond %s manager", gvk.Kind)
 			return nil
 		}
+		man := oman.(model.IK8sModelManager)
 		obj := info.Object.(*unstructured.Unstructured)
 		objGVK := obj.GroupVersionKind()
 		keyword := man.Keyword()
@@ -670,5 +671,57 @@ func UpdatePodTemplate(temp *v1.PodTemplateSpec, input api.PodTemplateUpdateInpu
 		}
 		temp.Spec.Containers[i] = c
 	}
+	return nil
+}
+
+// objs is: []*objs, e.g.: []*v1.Pod{}
+// targets is: the pointer of []*v, e.g.: &[]*api.Pod{}
+func ConvertRawToAPIObjects(
+	man model.IK8sModelManager,
+	cluster model.ICluster,
+	objs interface{},
+	targets interface{}) error {
+	objsVal := reflect.ValueOf(objs)
+	// get targets slice value
+	targetsValue := reflect.Indirect(reflect.ValueOf(targets))
+	for i := 0; i < objsVal.Len(); i++ {
+		objVal := objsVal.Index(i)
+		// get targetType *v, the pointer of targetType
+		targetPtrType := targetsValue.Type().Elem()
+		// get targetType v
+		targetType := targetPtrType.Elem()
+		// target is the *v instance
+		target := reflect.New(targetType).Interface()
+		if err := ConvertRawToAPIObject(man, cluster, objVal.Interface().(runtime.Object), target); err != nil {
+			return err
+		}
+		newTargets := reflect.Append(targetsValue, reflect.ValueOf(target))
+		targetsValue.Set(newTargets)
+	}
+	return nil
+}
+
+func ConvertRawToAPIObject(
+	man model.IK8sModelManager,
+	cluster model.ICluster,
+	obj runtime.Object, target interface{}) error {
+	mObj, err := model.NewK8SModelObject(man, cluster, obj)
+	if err != nil {
+		return err
+	}
+	mv := reflect.ValueOf(mObj)
+	funcVal, err := model.FindFunc(mv, model.DMethodGetAPIObject)
+	if err != nil {
+		return err
+	}
+	ret := funcVal.Call(nil)
+	if len(ret) != 2 {
+		return fmt.Errorf("invalidate %s %s return value number", man.Keyword(), model.DMethodGetAPIObject)
+	}
+	if err := model.ValueToError(ret[1]); err != nil {
+		return err
+	}
+	targetVal := reflect.ValueOf(target)
+	targetVal.Elem().Set(ret[0].Elem())
 	return nil
 }

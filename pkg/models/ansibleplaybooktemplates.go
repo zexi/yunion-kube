@@ -1,4 +1,4 @@
-package k8smodels
+package models
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -9,27 +9,35 @@ import (
 )
 
 var (
-	AnsiblePlaybookTemplateManager *SAnsiblePlaybookTemplateManager
+	ansiblePlaybookTemplateManager *SAnsiblePlaybookTemplateManager
 )
 
 func init() {
-	AnsiblePlaybookTemplateManager = &SAnsiblePlaybookTemplateManager{
-		SK8SNamespaceResourceBaseManager: model.NewK8SNamespaceResourceBaseManager(new(SAnsiblePlaybook), "k8s_ansibleplaybooktemplate", "k8s_ansibleplaybooktemplates"),
+	GetAnsiblePlaybookTemplateManager()
+}
+
+func GetAnsiblePlaybookTemplateManager() *SAnsiblePlaybookTemplateManager {
+	if ansiblePlaybookTemplateManager == nil {
+		ansiblePlaybookTemplateManager = &SAnsiblePlaybookTemplateManager{
+			SK8sNamespaceResourceBaseManager: model.NewK8sNamespaceResourceBaseManager(new(SAnsiblePlaybook), "k8s_ansibleplaybooktemplate", "k8s_ansibleplaybooktemplates"),
+		}
+		ansiblePlaybookTemplateManager.SetVirtualObject(ansiblePlaybookTemplateManager)
+		RegisterK8sModelManager(ansiblePlaybookTemplateManager)
 	}
-	AnsiblePlaybookTemplateManager.SetVirtualObject(AnsiblePlaybookTemplateManager)
+	return ansiblePlaybookTemplateManager
 }
 
 type SAnsiblePlaybookTemplateManager struct {
-	model.SK8SNamespaceResourceBaseManager
+	model.SK8sNamespaceResourceBaseManager
 }
 
 type SAnsiblePlaybookTemplate struct {
-	model.SK8SNamespaceResourceBase
+	model.SK8sNamespaceResourceBase
 	UnstructuredResourceBase
 }
 
-func (m *SAnsiblePlaybookTemplateManager) GetK8SResourceInfo() model.K8SResourceInfo {
-	return model.K8SResourceInfo{
+func (m *SAnsiblePlaybookTemplateManager) GetK8sResourceInfo() model.K8sResourceInfo {
+	return model.K8sResourceInfo{
 		ResourceName: api.ResourceNameAnsiblePlaybookTemplate,
 		KindName:     api.KindNameAnsiblePlaybookTemplate,
 		Object:       &unstructured.Unstructured{},

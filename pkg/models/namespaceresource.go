@@ -22,6 +22,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
+// +onecloud:swagger-gen-ignore
 type SNamespaceResourceBaseManager struct {
 	SClusterResourceBaseManager
 }
@@ -225,13 +226,13 @@ func (res *SNamespaceResourceBase) GetRemoteObject(cli *client.ClusterManager) (
 	if err != nil {
 		return nil, errors.Wrap(err, "get namespace")
 	}
-	resInfo := res.GetClusterModelManager().GetK8SResourceInfo()
+	resInfo := res.GetClusterModelManager().GetK8sResourceInfo()
 	k8sCli := cli.GetHandler()
 	return k8sCli.Get(resInfo.ResourceName, ns.GetName(), res.GetName())
 }
 
 func (res *SNamespaceResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {
-	resInfo := res.GetClusterModelManager().GetK8SResourceInfo()
+	resInfo := res.GetClusterModelManager().GetK8sResourceInfo()
 	ns, err := res.GetNamespace()
 	if err != nil {
 		return errors.Wrap(err, "get namespace")

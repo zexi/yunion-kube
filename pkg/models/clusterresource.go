@@ -32,9 +32,11 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
+// +onecloud:swagger-gen-ignore
 type SClusterResourceBaseManager struct {
 	db.SStatusDomainLevelResourceBaseManager
 	db.SExternalizedResourceBaseManager
@@ -78,7 +80,7 @@ type IClusterModelManager interface {
 	db.IDomainLevelModelManager
 
 	IsNamespaceScope() bool
-	GetK8SResourceInfo() K8SResourceInfo
+	GetK8sResourceInfo() model.K8sResourceInfo
 	IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error)
 	NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error)
 	ListRemoteObjects(cli *client.ClusterManager) ([]interface{}, error)
@@ -112,18 +114,12 @@ type IClusterModel interface {
 	DeleteRemoteObject(cli *client.ClusterManager) error
 }
 
-type K8SResourceInfo struct {
-	ResourceName string
-	KindName     string
-	Object       runtime.Object
-}
-
 func (m SClusterResourceBaseManager) IsNamespaceScope() bool {
 	return false
 }
 
-func (m SClusterResourceBaseManager) GetK8SResourceInfo() K8SResourceInfo {
-	return K8SResourceInfo{
+func (m SClusterResourceBaseManager) GetK8sResourceInfo() model.K8sResourceInfo {
+	return model.K8sResourceInfo{
 		ResourceName: m.resourceName,
 		KindName:     m.kindName,
 		Object:       m.rawObject,
@@ -567,7 +563,7 @@ func SyncUpdatedClusterResource(
 }
 
 func (m *SClusterResourceBaseManager) ListRemoteObjects(clsCli *client.ClusterManager) ([]interface{}, error) {
-	resInfo := m.GetK8SResourceInfo()
+	resInfo := m.GetK8sResourceInfo()
 	k8sCli := clsCli.GetHandler()
 	k8sObjs, err := k8sCli.List(resInfo.ResourceName, "", labels.Everything().String())
 	if err != nil {
@@ -668,7 +664,7 @@ func FetchClusterResourceCustomizeColumns(
 	ret := make([]interface{}, len(objs))
 	for idx := range objs {
 		obj := objs[idx].(IClusterModel)
-		k8sResInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+		k8sResInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 		baseDetail := baseGet(obj)
 		var k8sObj runtime.Object
 		var err error
@@ -730,7 +726,7 @@ func (m *SClusterResourceBaseManager) FetchCustomizeColumns(
 func GetK8sObject(res IClusterModel) (runtime.Object, error) {
 	cli, err := res.GetClusterClient()
 	man := res.GetClusterModelManager()
-	info := man.GetK8SResourceInfo()
+	info := man.GetK8sResourceInfo()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get object %s/%s kubernetes client", info.ResourceName, res.GetName())
 	}
@@ -755,7 +751,7 @@ func UpdateK8sObject(res IClusterModel, data jsonutils.JSONObject) (runtime.Obje
 		return nil, errors.Wrap(err, "get cluster client")
 	}
 	handler := cli.GetHandler()
-	resInfo := res.GetClusterModelManager().GetK8SResourceInfo()
+	resInfo := res.GetClusterModelManager().GetK8sResourceInfo()
 	rawStr, err := data.GetString()
 	if err != nil {
 		return nil, httperrors.NewInputParameterError("Get body raw data: %v", err)
@@ -929,7 +925,7 @@ func (obj *SClusterResourceBase) GetClusterModelManager() IClusterModelManager {
 }
 
 func (obj *SClusterResourceBase) GetRemoteObject(cli *client.ClusterManager) (interface{}, error) {
-	resInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+	resInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 	k8sCli := cli.GetHandler()
 	return k8sCli.Get(resInfo.ResourceName, "", obj.GetName())
 }
@@ -947,7 +943,7 @@ func (obj *SClusterResourceBase) GetK8sObject() (runtime.Object, error) {
 }
 
 func (obj *SClusterResourceBase) UpdateRemoteObject(cli *client.ClusterManager, remoteObj interface{}) (interface{}, error) {
-	resInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+	resInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 	k8sCli := cli.GetHandler()
 	return k8sCli.UpdateV2(resInfo.ResourceName, remoteObj.(runtime.Object))
 }
@@ -966,7 +962,7 @@ func (obj *SClusterResourceBase) RealDelete(ctx context.Context, userCred mcclie
 }
 
 func (obj *SClusterResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {
-	resInfo := obj.GetClusterModelManager().GetK8SResourceInfo()
+	resInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 	if err := cli.GetHandler().Delete(resInfo.ResourceName, "", obj.GetName(), &metav1.DeleteOptions{}); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil
@@ -1004,20 +1000,54 @@ func (_ *SClusterResourceBase) StartDeleteTask(resObj IClusterModel, ctx context
 }
 
 func (m *SClusterResourceBaseManager) OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
-	resMan := m.GetClusterModelManager()
-	OnRemoteObjectCreate(resMan, ctx, userCred, cluster, obj)
+	// lockman.LockClass(ctx, m, db.GetLockClassKey(m, userCred))
+	// defer lockman.ReleaseClass(ctx, m, db.GetLockClassKey(m, userCred))
+
+	// resMan := m.GetClusterModelManager()
+	// OnRemoteObjectCreate(resMan, ctx, userCred, cluster, obj)
+	m.OnCreateOrUpdateByRemoteObject(ctx, userCred, cluster, obj)
 }
 
-func (m *SClusterResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, oldObj, newObj runtime.Object) {
+func (m *SClusterResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, _, newObj runtime.Object) {
+	// resMan := m.GetClusterModelManager()
+	// metaObj := newObj.(metav1.Object)
+	// objName := metaObj.GetName()
+	// dbObj, err := m.GetByName(userCred, cluster.GetId(), objName)
+	// if err != nil {
+	// log.Errorf("OnRemoteObjectUpdate get %s local object %s error: %v", resMan.Keyword(), objName, err)
+	// return
+	// }
+
+	// lockman.LockObject(ctx, dbObj)
+	// defer lockman.ReleaseObject(ctx, dbObj)
+
+	// OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, newObj)
+	m.OnCreateOrUpdateByRemoteObject(ctx, userCred, cluster, newObj)
+}
+
+func (m *SClusterResourceBaseManager) OnCreateOrUpdateByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
 	resMan := m.GetClusterModelManager()
-	metaObj := newObj.(metav1.Object)
+	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
-	dbObj, err := m.GetByName(userCred, cluster.GetId(), objName)
+	dbObj, exist, err := resMan.IsRemoteObjectLocalExist(userCred, cluster.(*SCluster), obj)
 	if err != nil {
-		log.Errorf("OnRemoteObjectUpdate get %s local object %s error: %v", resMan.Keyword(), objName, err)
+		log.Errorf("Create or update by remote object %s/%s/%s error: %v", metaObj.GetNamespace(), objName, err)
 		return
 	}
-	OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, newObj)
+
+	if exist {
+		lockman.LockObject(ctx, dbObj)
+		defer lockman.ReleaseObject(ctx, dbObj)
+
+		OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, obj)
+		return
+	} else {
+		lockman.LockClass(ctx, m, db.GetLockClassKey(m, userCred))
+		defer lockman.ReleaseClass(ctx, m, db.GetLockClassKey(m, userCred))
+
+		OnRemoteObjectCreate(resMan, ctx, userCred, cluster, obj)
+		return
+	}
 }
 
 func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
@@ -1033,6 +1063,10 @@ func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, 
 		log.Errorf("OnRemoteObjectDelete get %s local object %s error: %v", resMan.Keyword(), objName, err)
 		return
 	}
+
+	lockman.LockObject(ctx, dbObj)
+	defer lockman.ReleaseObject(ctx, dbObj)
+
 	OnRemoteObjectDelete(resMan, ctx, userCred, dbObj)
 }
 

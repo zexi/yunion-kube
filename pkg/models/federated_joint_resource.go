@@ -18,12 +18,19 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type SFederatedJointResourceBaseManager struct {
-	db.SJointResourceBaseManager
+var (
+	globalFedJointClusterManagers map[string]IFederatedJointClusterManager
+)
+
+func RegisterFedJointClusterManager(masterMan IFederatedModelManager, jointMan IFederatedJointClusterManager) {
+	if globalFedJointClusterManagers == nil {
+		globalFedJointClusterManagers = make(map[string]IFederatedJointClusterManager)
+	}
+	globalFedJointClusterManagers[masterMan.Keyword()] = jointMan
 }
 
-type SFederatedJointResourceBase struct {
-	db.SJointResourceBase
+func GetFedJointClusterManager(keyword string) IFederatedJointClusterManager {
+	return globalFedJointClusterManagers[keyword]
 }
 
 type IFederatedJointModel interface {
@@ -38,6 +45,7 @@ type IFederatedJointManager interface {
 
 type IFederatedJointClusterManager interface {
 	IFederatedJointManager
+	GetFedManager() IFederatedModelManager
 	GetResourceManager() IClusterModelManager
 	ClusterQuery(clusterId string) *sqlchemy.SQuery
 
@@ -57,24 +65,34 @@ type IFederatedJointClusterModel interface {
 	UpdateResource(resObj IClusterModel) error
 }
 
-func NewFederatedJointResourceBaseManager(dt interface{}, tableName string, keyword string, keywordPlural string, master, slave db.IStandaloneModelManager) SFederatedJointResourceBaseManager {
+// +onecloud:swagger-gen-ignore
+type SFederatedJointResourceBaseManager struct {
+	db.SJointResourceBaseManager
+}
+
+type SFederatedJointResourceBase struct {
+	db.SJointResourceBase
+}
+
+func NewFederatedJointResourceBaseManager(dt interface{}, tableName string, keyword string, keywordPlural string, master IFederatedModelManager, slave db.IStandaloneModelManager) SFederatedJointResourceBaseManager {
 	return SFederatedJointResourceBaseManager{
-		SJointResourceBaseManager: db.NewJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master, slave),
+		SJointResourceBaseManager: db.NewJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master.(db.IStandaloneModelManager), slave),
 	}
 }
 
 func NewFederatedJointClusterManager(
 	dt interface{}, tableName string,
 	keyword string, keywordPlural string,
-	master db.IStandaloneModelManager,
+	master IFederatedModelManager,
 	resourceMan IClusterModelManager,
 ) SFederatedJointClusterManager {
 	base := NewFederatedJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master, GetClusterManager())
-	return SFederatedJointClusterManager{
+	man := SFederatedJointClusterManager{
 		SFederatedJointResourceBaseManager: base,
 		masterFieldName:                    fmt.Sprintf("%s_id", master.Keyword()),
 		resourceManager:                    resourceMan,
 	}
+	return man
 }
 
 func NewFederatedJointManager(factory func() db.IJointModelManager) db.IJointModelManager {
@@ -95,6 +113,10 @@ type SFederatedJointCluster struct {
 	ClusterId   string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 	NamespaceId string `width:"36" charset:"ascii" list:"user" index:"true"`
 	ResourceId  string `width:"36" charset:"ascii" list:"user" index:"true"`
+}
+
+func (m SFederatedJointClusterManager) GetFedManager() IFederatedModelManager {
+	return m.GetMasterManager().(IFederatedModelManager)
 }
 
 func (m SFederatedJointClusterManager) GetResourceManager() IClusterModelManager {
@@ -153,6 +175,14 @@ func (obj *SFederatedJointCluster) SetResource(resObj IClusterModel) error {
 
 func (obj *SFederatedJointCluster) UpdateResource(resObj IClusterModel) error {
 	return nil
+}
+
+func (m *SFederatedJointClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedJointClusterListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFederatedJointResourceBaseManager.ListItemFilter(ctx, q, userCred, input.JointResourceBaseListInput)
+	if err != nil {
+		return nil, err
+	}
+	return q, nil
 }
 
 func (m *SFederatedJointClusterManager) FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []interface{}, fields stringutils2.SSortedStrings, isList bool) []interface{} {

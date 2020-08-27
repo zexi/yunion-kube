@@ -6,10 +6,14 @@ import (
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/object"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
@@ -17,16 +21,30 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
-var globalK8sModelManagers map[K8SResourceInfo]IClusterModelManager
+var globalK8sModelManagers map[model.K8sResourceInfo]IK8sModelManager
 
-func RegisterK8sModelManager(man IClusterModelManager) {
-	if globalK8sModelManagers == nil {
-		globalK8sModelManagers = make(map[K8SResourceInfo]IClusterModelManager)
+func init() {
+	model.GetK8sModelManagerByKind = func(kindName string) model.IModelManager {
+		return GetK8sResourceManagerByKind(kindName).(model.IModelManager)
 	}
-	globalK8sModelManagers[man.GetK8SResourceInfo()] = man
+}
+
+type IK8sModelManager interface {
+	lockman.ILockedClass
+	object.IObject
+
+	GetK8sResourceInfo() model.K8sResourceInfo
+}
+
+func RegisterK8sModelManager(man IK8sModelManager) {
+	if globalK8sModelManagers == nil {
+		globalK8sModelManagers = make(map[model.K8sResourceInfo]IK8sModelManager)
+	}
+	globalK8sModelManagers[man.GetK8sResourceInfo()] = man
 }
 
 // GetK8sResourceManagerByKind used by bidirect sync
@@ -149,4 +167,60 @@ func IsObjectContains(obj metav1.Object, objs interface{}) bool {
 		}
 	}
 	return false
+}
+
+type UnstructuredResourceBase struct{}
+
+func (_ UnstructuredResourceBase) GetUnstructuredObject(m model.IK8sModel) *unstructured.Unstructured {
+	return m.GetK8sObject().(*unstructured.Unstructured)
+}
+
+func (res UnstructuredResourceBase) GetRawJSONObject(m model.IK8sModel) (jsonutils.JSONObject, error) {
+	rawObj := res.GetUnstructuredObject(m)
+	jsonBytes, err := rawObj.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	jsonObj, err := jsonutils.Parse(jsonBytes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parse json bytes %q", string(jsonBytes))
+	}
+	return jsonObj, nil
+}
+
+type IUnstructuredOutput interface {
+	SetObjectMeta(meta api.ObjectMeta) *api.ObjectTypeMeta
+	SetTypeMeta(meta api.TypeMeta) *api.ObjectTypeMeta
+}
+
+type IK8SUnstructuredModel interface {
+	model.IK8sModel
+
+	FillAPIObjectBySpec(rawObjSpec jsonutils.JSONObject, output IUnstructuredOutput) error
+	FillAPIObjectByStatus(rawObjStatus jsonutils.JSONObject, output IUnstructuredOutput) error
+}
+
+func (res UnstructuredResourceBase) ConvertToAPIObject(m IK8SUnstructuredModel, output IUnstructuredOutput) error {
+	output.SetObjectMeta(m.GetObjectMeta()).SetTypeMeta(m.GetTypeMeta())
+	jsonObj, err := res.GetRawJSONObject(m)
+	if err != nil {
+		return errors.Wrap(err, "get json object")
+	}
+	specObj, err := jsonObj.Get("spec")
+	if err != nil {
+		log.Errorf("Get spec object error: %v", err)
+	} else {
+		if err := m.FillAPIObjectBySpec(specObj, output); err != nil {
+			log.Errorf("FillAPIObjectBySpec error: %v", err)
+		}
+	}
+	statusObj, err := jsonObj.Get("status")
+	if err != nil {
+		log.Errorf("Get status object error: %v", err)
+	} else {
+		if err := m.FillAPIObjectByStatus(statusObj, output); err != nil {
+			log.Errorf("FillAPIObjectByStatus error: %v", err)
+		}
+	}
+	return nil
 }

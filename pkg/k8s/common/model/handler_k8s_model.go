@@ -109,10 +109,10 @@ type ICluster interface {
 }
 
 type K8SModelHandler struct {
-	modelManager IK8SModelManager
+	modelManager IK8sModelManager
 }
 
-func NewK8SModelHandler(manager IK8SModelManager) *K8SModelHandler {
+func NewK8SModelHandler(manager IK8sModelManager) *K8SModelHandler {
 	return &K8SModelHandler{modelManager: manager}
 }
 
@@ -135,7 +135,7 @@ func (h *K8SModelHandler) List(ctx *RequestContext, query *jsonutils.JSONDict) (
 	return ListK8SModels(ctx, h.modelManager, query)
 }
 
-func ListK8SModels(ctx *RequestContext, man IK8SModelManager, query *jsonutils.JSONDict) (*modulebase.ListResult, error) {
+func ListK8SModels(ctx *RequestContext, man IK8sModelManager, query *jsonutils.JSONDict) (*modulebase.ListResult, error) {
 	var err error
 	//var maxLimit int64 = consts.GetMaxPagingLimit()
 	baseInput := new(api.ListInputK8SBase)
@@ -204,7 +204,7 @@ func calculateListResult(data []jsonutils.JSONObject, total, limit, offset int64
 	return &ret
 }
 
-func Query2List(ctx *RequestContext, man IK8SModelManager, q IQuery) ([]jsonutils.JSONObject, error) {
+func Query2List(ctx *RequestContext, man IK8sModelManager, q IQuery) ([]jsonutils.JSONObject, error) {
 	objs, err := q.FetchObjects()
 	if err != nil {
 		return nil, err
@@ -239,20 +239,20 @@ func (h *K8SModelHandler) Get(ctx *RequestContext, id string, query *jsonutils.J
 
 func getModelItemDetails(
 	ctx *RequestContext,
-	manager IK8SModelManager, item IK8SModel) (jsonutils.JSONObject, error) {
+	manager IK8sModelManager, item IK8sModel) (jsonutils.JSONObject, error) {
 	return GetDetails(item)
 }
 
 func fetchK8SModel(
 	ctx *RequestContext,
-	man IK8SModelManager,
+	man IK8sModelManager,
 	namespace string,
 	id string,
 	query *jsonutils.JSONDict,
-) (IK8SModel, error) {
+) (IK8sModel, error) {
 	cluster := ctx.Cluster()
 	cli := cluster.GetHandler()
-	resInfo := man.GetK8SResourceInfo()
+	resInfo := man.GetK8sResourceInfo()
 	obj, err := cli.Get(resInfo.ResourceName, namespace, id)
 	if err != nil {
 		return nil, err
@@ -269,8 +269,8 @@ func fetchK8SModel(
 	return model, nil
 }
 
-func NewK8SModelObjectByName(man IK8SModelManager, cluster ICluster, namespace, name string) (IK8SModel, error) {
-	kind := man.GetK8SResourceInfo().ResourceName
+func NewK8SModelObjectByName(man IK8sModelManager, cluster ICluster, namespace, name string) (IK8sModel, error) {
+	kind := man.GetK8sResourceInfo().ResourceName
 	obj, err := cluster.GetHandler().Get(kind, namespace, name)
 	if err != nil {
 		return nil, err
@@ -278,12 +278,12 @@ func NewK8SModelObjectByName(man IK8SModelManager, cluster ICluster, namespace, 
 	return NewK8SModelObject(man, cluster, obj)
 }
 
-func NewK8SModelObject(man IK8SModelManager, cluster ICluster, obj runtime.Object) (IK8SModel, error) {
-	m, ok := reflect.New(man.Factory().DataType()).Interface().(IK8SModel)
+func NewK8SModelObject(man IK8sModelManager, cluster ICluster, obj runtime.Object) (IK8sModel, error) {
+	m, ok := reflect.New(man.Factory().DataType()).Interface().(IK8sModel)
 	if !ok {
 		return nil, db.ErrInconsistentDataType
 	}
-	newObj := man.GetK8SResourceInfo().Object.DeepCopyObject()
+	newObj := man.GetK8sResourceInfo().Object.DeepCopyObject()
 	switch obj.(type) {
 	case *unstructured.Unstructured:
 		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.(*unstructured.Unstructured).Object, newObj); err != nil {
@@ -291,13 +291,13 @@ func NewK8SModelObject(man IK8SModelManager, cluster ICluster, obj runtime.Objec
 		}
 		obj = newObj
 	}
-	m.SetModelManager(man, m).SetCluster(cluster).SetK8SObject(obj)
+	m.SetModelManager(man, m).SetCluster(cluster).SetK8sObject(obj)
 	return m, nil
 }
 
 func NewK8SModelObjectByRef(
-	man IK8SModelManager, cluster ICluster,
-	ref *v1.ObjectReference) (IK8SModel, error) {
+	man IK8sModelManager, cluster ICluster,
+	ref *v1.ObjectReference) (IK8sModel, error) {
 	obj, err := cluster.GetHandler().Get(ref.Kind, ref.Namespace, ref.Name)
 	if err != nil {
 		return nil, err
@@ -414,7 +414,7 @@ func (h *K8SModelHandler) Create(ctx *RequestContext, query, data *jsonutils.JSO
 	return getModelItemDetails(ctx, h.modelManager, model)
 }
 
-func DoCreate(manager IK8SModelManager, ctx *RequestContext, query, data *jsonutils.JSONDict) (IK8SModel, error) {
+func DoCreate(manager IK8sModelManager, ctx *RequestContext, query, data *jsonutils.JSONDict) (IK8sModel, error) {
 	lockKey := fmt.Sprintf("%s-%s", ctx.Cluster().GetId(), manager.KeywordPlural())
 	lockman.LockClass(ctx.Context(), manager, lockKey)
 	defer lockman.ReleaseClass(ctx.Context(), manager, lockKey)
@@ -423,9 +423,9 @@ func DoCreate(manager IK8SModelManager, ctx *RequestContext, query, data *jsonut
 }
 
 func doCreateItem(
-	manager IK8SModelManager,
+	manager IK8sModelManager,
 	ctx *RequestContext,
-	query, data *jsonutils.JSONDict) (IK8SModel, error) {
+	query, data *jsonutils.JSONDict) (IK8sModel, error) {
 	man := manager
 	cluster := ctx.Cluster()
 	cli := cluster.GetHandler()
@@ -433,7 +433,7 @@ func doCreateItem(
 	if err != nil {
 		return nil, k8serrors.NewGeneralError(err)
 	}
-	resInfo := man.GetK8SResourceInfo()
+	resInfo := man.GetK8sResourceInfo()
 	obj, err := NewK8SRawObjectForCreate(man, ctx, dataDict)
 	if err != nil {
 		return nil, k8serrors.NewGeneralError(err)
@@ -458,18 +458,18 @@ func (h *K8SModelHandler) Update(ctx *RequestContext, id string, query, data *js
 }
 
 func DoUpdate(
-	manager IK8SModelManager,
-	model IK8SModel,
-	ctx *RequestContext, query, data *jsonutils.JSONDict) (IK8SModel, error) {
+	manager IK8sModelManager,
+	model IK8sModel,
+	ctx *RequestContext, query, data *jsonutils.JSONDict) (IK8sModel, error) {
 	lockman.LockObject(ctx.Context(), model)
 	defer lockman.ReleaseObject(ctx.Context(), model)
 	return doUpdateItem(manager, model, ctx, query, data)
 }
 
 func doUpdateItem(
-	manager IK8SModelManager,
-	model IK8SModel,
-	ctx *RequestContext, query, data *jsonutils.JSONDict) (IK8SModel, error) {
+	manager IK8sModelManager,
+	model IK8sModel,
+	ctx *RequestContext, query, data *jsonutils.JSONDict) (IK8sModel, error) {
 	data, err := ValidateUpdateData(model, ctx, query, data)
 	if err != nil {
 		return nil, err
@@ -479,7 +479,7 @@ func doUpdateItem(
 		return nil, err
 	}
 	cli := ctx.Cluster().GetHandler()
-	resInfo := manager.GetK8SResourceInfo()
+	resInfo := manager.GetK8sResourceInfo()
 	_, err = cli.UpdateV2(resInfo.ResourceName, rawObj)
 	if err != nil {
 		return nil, err
@@ -499,8 +499,8 @@ func (h *K8SModelHandler) Delete(ctx *RequestContext, id string, query, data *js
 }
 
 func DoDelete(
-	man IK8SModelManager,
-	model IK8SModel,
+	man IK8sModelManager,
+	model IK8sModel,
 	ctx *RequestContext,
 	query, data *jsonutils.JSONDict) error {
 
@@ -517,7 +517,7 @@ func DoDelete(
 
 	meta := model.GetObjectMeta()
 	cli := ctx.Cluster().GetHandler()
-	resInfo := man.GetK8SResourceInfo()
+	resInfo := man.GetK8sResourceInfo()
 
 	if err := cli.Delete(resInfo.ResourceName, meta.GetNamespace(), meta.GetName(), &metav1.DeleteOptions{}); err != nil {
 		return err
@@ -531,7 +531,7 @@ func (h *K8SModelHandler) GetRawData(ctx *RequestContext, id string, query *json
 	if err != nil {
 		return nil, err
 	}
-	return K8SObjectToJSONObject(model.GetK8SObject()), nil
+	return K8sObjectToJSONObject(model.GetK8sObject()), nil
 }
 
 func (h *K8SModelHandler) UpdateRawData(ctx *RequestContext, id string, query, data *jsonutils.JSONDict) (jsonutils.JSONObject, error) {
@@ -541,7 +541,7 @@ func (h *K8SModelHandler) UpdateRawData(ctx *RequestContext, id string, query, d
 		return nil, err
 	}
 	cli := ctx.Cluster().GetHandler()
-	resInfo := h.modelManager.GetK8SResourceInfo()
+	resInfo := h.modelManager.GetK8sResourceInfo()
 	rawStr, err := data.GetString()
 	if err != nil {
 		return nil, httperrors.NewInputParameterError("Get body raw data: %v", err)
@@ -563,5 +563,5 @@ func (h *K8SModelHandler) UpdateRawData(ctx *RequestContext, id string, query, d
 	if err != nil {
 		return nil, err
 	}
-	return K8SObjectToJSONObject(obj), nil
+	return K8sObjectToJSONObject(obj), nil
 }

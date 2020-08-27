@@ -109,31 +109,31 @@ func filterJobsByState(active bool, jobs []*batch.Job) (matchingJobs []*batch.Jo
 	return
 }
 
-func (obj *SCronJob) GetRawJobs(cronjob *batch2.CronJob) ([]*batch.Job, error) {
-	jobs, err := GetJobManager().GetRawJobs(obj.GetCluster(), obj.GetNamespace())
-	if err != nil {
-		return nil, err
-	}
-	return filterJobsByOwnerUID(cronjob.GetUID(), jobs), nil
-}
+// func (obj *SCronJob) GetRawJobs(cronjob *batch2.CronJob) ([]*batch.Job, error) {
+// jobs, err := GetJobManager().GetRawJobs(obj.GetCluster(), obj.GetNamespace())
+// if err != nil {
+// return nil, err
+// }
+// return filterJobsByOwnerUID(cronjob.GetUID(), jobs), nil
+// }
 
-func (obj *SCronJob) GetJobsByState(active bool) ([]*api.Job, error) {
-	jobs, err := obj.GetRawJobs()
-	if err != nil {
-		return nil, err
-	}
-	jobs = filterJobsByState(active, jobs)
-	return JobManager.GetAPIJobs(obj.GetCluster(), jobs)
-}
+// func (obj *SCronJob) GetJobsByState(active bool) ([]*api.Job, error) {
+// jobs, err := obj.GetRawJobs()
+// if err != nil {
+// return nil, err
+// }
+// jobs = filterJobsByState(active, jobs)
+// return GetJobManager().GetAPIJobs(obj.GetCluster(), jobs)
+// }
 
-func (obj *SCronJob) GetActiveJobs() ([]*api.Job, error) {
-	return obj.GetJobsByState(true)
-}
+// func (obj *SCronJob) GetActiveJobs() ([]*api.Job, error) {
+// return obj.GetJobsByState(true)
+// }
 
-func (obj *SCronJob) GetInActiveJobs() ([]*api.Job, error) {
+// func (obj *SCronJob) GetInActiveJobs() ([]*api.Job, error) {
 
-	return obj.GetJobsByState(false)
-}
+// return obj.GetJobsByState(false)
+// }
 
 // TriggerCronJob manually triggers a cron job and creates a new job.
 func (obj *SCronJob) TriggerCronJob() error {

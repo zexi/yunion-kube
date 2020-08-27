@@ -40,6 +40,8 @@ func init() {
 	}).(*SClusterRoleBindingManager)
 }
 
+// +onecloud:swagger-gen-model-singular=rbacclusterrolebinding
+// +onecloud:swagger-gen-model-plural=rbacclusterrolebindings
 type SClusterRoleBindingManager struct {
 	SClusterResourceBaseManager
 	SRoleRefResourceBaseManager

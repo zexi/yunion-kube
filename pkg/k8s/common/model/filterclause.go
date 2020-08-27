@@ -16,7 +16,7 @@ type SFilterClause struct {
 }
 
 func QWrap(f func(data *jsonutils.JSONDict) (bool, error), format string, hints ...interface{}) QueryFilter {
-	return func(obj IK8SModel) (bool, error) {
+	return func(obj IK8sModel) (bool, error) {
 		data, err := GetObject(obj)
 		msg := fmt.Sprintf(format, hints...)
 		if err != nil {

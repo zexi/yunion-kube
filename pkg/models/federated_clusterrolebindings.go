@@ -35,6 +35,8 @@ func GetFedClusterRoleBindingManager() *SFederatedClusterRoleBindingManager {
 	return fedClusterRoleBindingManager
 }
 
+// +onecloud:swagger-gen-model-singular=federatedclusterrolebinding
+// +onecloud:swagger-gen-model-plural=federatedclusterrolebindings
 type SFederatedClusterRoleBindingManager struct {
 	SFederatedResourceBaseManager
 	SRoleRefResourceBaseManager

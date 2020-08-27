@@ -46,6 +46,8 @@ func GetClusterRoleManager() *SClusterRoleManager {
 	return clusterRoleManager
 }
 
+// +onecloud:swagger-gen-model-singular=rbacclusterrole
+// +onecloud:swagger-gen-model-plural=rbacclusterroles
 type SClusterRoleManager struct {
 	SClusterResourceBaseManager
 }

@@ -29,8 +29,8 @@ func init() {
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
 				new(SDaemonSet),
 				"daemonsets_tbl",
-				"daemonsets",
 				"daemonset",
+				"daemonsets",
 				api.ResourceNameDaemonSet,
 				api.KindNameDaemonSet,
 				new(apps.DaemonSet),

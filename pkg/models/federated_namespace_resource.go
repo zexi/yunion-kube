@@ -11,6 +11,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
+// +onecloud:swagger-gen-ignore
 type SFederatedNamespaceResourceManager struct {
 	SFederatedResourceBaseManager
 }

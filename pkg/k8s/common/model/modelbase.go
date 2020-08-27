@@ -13,89 +13,89 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type SK8SObjectFactory struct {
+type SK8sObjectFactory struct {
 	structType reflect.Type
 }
 
-func (f *SK8SObjectFactory) DataType() reflect.Type {
+func (f *SK8sObjectFactory) DataType() reflect.Type {
 	return f.structType
 }
 
-func NewK8SObjectFactory(model interface{}) *SK8SObjectFactory {
+func NewK8sObjectFactory(model interface{}) *SK8sObjectFactory {
 	val := reflect.Indirect(reflect.ValueOf(model))
 	st := val.Type()
 	if st.Kind() != reflect.Struct {
 		panic("expect struct kind")
 	}
-	factory := &SK8SObjectFactory{
+	factory := &SK8sObjectFactory{
 		structType: st,
 	}
 	return factory
 }
 
-type SK8SModelBase struct {
+type SK8sModelBase struct {
 	object.SObject
 
-	K8SObject runtime.Object `json:"rawObject"`
+	K8sObject runtime.Object `json:"rawObject"`
 
-	manager IK8SModelManager
+	manager IK8sModelManager
 	cluster ICluster
 }
 
-func (m SK8SModelBase) GetId() string {
+func (m SK8sModelBase) GetId() string {
 	return ""
 }
 
-func (m SK8SModelBase) GetName() string {
+func (m SK8sModelBase) GetName() string {
 	return ""
 }
 
-func (m SK8SModelBase) Keyword() string {
+func (m SK8sModelBase) Keyword() string {
 	return m.GetModelManager().Keyword()
 }
 
-func (m SK8SModelBase) KeywordPlural() string {
+func (m SK8sModelBase) KeywordPlural() string {
 	return m.GetModelManager().KeywordPlural()
 }
 
-func (m *SK8SModelBase) SetModelManager(man IK8SModelManager, virtual IK8SModel) IK8SModel {
+func (m *SK8sModelBase) SetModelManager(man IK8sModelManager, virtual IK8sModel) IK8sModel {
 	m.manager = man
 	m.SetVirtualObject(virtual)
 	return m
 }
 
-func (m SK8SModelBase) GetModelManager() IK8SModelManager {
+func (m SK8sModelBase) GetModelManager() IK8sModelManager {
 	return m.manager
 }
 
-func (m *SK8SModelBase) SetK8SObject(obj runtime.Object) IK8SModel {
-	m.K8SObject = obj
+func (m *SK8sModelBase) SetK8sObject(obj runtime.Object) IK8sModel {
+	m.K8sObject = obj
 	return m
 }
 
-func (m *SK8SModelBase) GetK8SObject() runtime.Object {
-	return m.K8SObject
+func (m *SK8sModelBase) GetK8sObject() runtime.Object {
+	return m.K8sObject
 }
 
-func (m *SK8SModelBase) GetMetaObject() metav1.Object {
-	return m.GetK8SObject().(metav1.Object)
+func (m *SK8sModelBase) GetMetaObject() metav1.Object {
+	return m.GetK8sObject().(metav1.Object)
 }
 
-func (m *SK8SModelBase) SetCluster(cluster ICluster) IK8SModel {
+func (m *SK8sModelBase) SetCluster(cluster ICluster) IK8sModel {
 	m.cluster = cluster
 	return m
 }
 
-func (m *SK8SModelBase) GetCluster() ICluster {
+func (m *SK8sModelBase) GetCluster() ICluster {
 	return m.cluster
 }
 
-func (m *SK8SModelBase) GetNamespace() string {
+func (m *SK8sModelBase) GetNamespace() string {
 	return ""
 }
 
-func (m *SK8SModelBase) GetObjectMeta() api.ObjectMeta {
-	kObj := m.GetK8SObject()
+func (m *SK8sModelBase) GetObjectMeta() api.ObjectMeta {
+	kObj := m.GetK8sObject()
 	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
 	meta := metav1.ObjectMeta{}
 	if isUnstruct {
@@ -124,8 +124,8 @@ func (m *SK8SModelBase) GetObjectMeta() api.ObjectMeta {
 	}
 }
 
-func (m *SK8SModelBase) GetTypeMeta() api.TypeMeta {
-	kObj := m.GetK8SObject()
+func (m *SK8sModelBase) GetTypeMeta() api.TypeMeta {
+	kObj := m.GetK8sObject()
 	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
 	meta := metav1.TypeMeta{}
 	if isUnstruct {
@@ -150,19 +150,19 @@ func (m *SK8SModelBase) GetTypeMeta() api.TypeMeta {
 	}
 }
 
-type SK8SModelBaseManager struct {
+type SK8sModelBaseManager struct {
 	object.SObject
 
-	factory     *SK8SObjectFactory
+	factory     *SK8sObjectFactory
 	orderFields OrderFields
 
 	keyword       string
 	keywordPlural string
 }
 
-func NewK8SModelBaseManager(model interface{}, keyword, keywordPlural string) SK8SModelBaseManager {
-	factory := NewK8SObjectFactory(model)
-	modelMan := SK8SModelBaseManager{
+func NewK8sModelBaseManager(model interface{}, keyword, keywordPlural string) SK8sModelBaseManager {
+	factory := NewK8sObjectFactory(model)
+	modelMan := SK8sModelBaseManager{
 		factory:       factory,
 		orderFields:   make(map[string]IOrderField),
 		keyword:       keyword,
@@ -171,50 +171,50 @@ func NewK8SModelBaseManager(model interface{}, keyword, keywordPlural string) SK
 	return modelMan
 }
 
-func (m *SK8SModelBaseManager) GetIModelManager() IK8SModelManager {
+func (m *SK8sModelBaseManager) GetIModelManager() IK8sModelManager {
 	virt := m.GetVirtualObject()
 	if virt == nil {
 		panic(fmt.Sprintf("Forgot to call SetVirtualObject?"))
 	}
-	r, ok := virt.(IK8SModelManager)
+	r, ok := virt.(IK8sModelManager)
 	if !ok {
 		panic(fmt.Sprintf("Cannot convert virtual object to IK8SModelManager"))
 	}
 	return r
 }
 
-func (m *SK8SModelBaseManager) Factory() *SK8SObjectFactory {
+func (m *SK8sModelBaseManager) Factory() *SK8sObjectFactory {
 	return m.factory
 }
 
-func (m *SK8SModelBaseManager) Keyword() string {
+func (m *SK8sModelBaseManager) Keyword() string {
 	return m.keyword
 }
 
-func (m *SK8SModelBaseManager) KeywordPlural() string {
+func (m *SK8sModelBaseManager) KeywordPlural() string {
 	return m.keywordPlural
 }
 
-func (m *SK8SModelBaseManager) GetContextManagers() [][]IK8SModelManager {
+func (m *SK8sModelBaseManager) GetContextManagers() [][]IK8sModelManager {
 	return nil
 }
 
-func (m *SK8SModelBaseManager) ValidateName(name string) error {
+func (m *SK8sModelBaseManager) ValidateName(name string) error {
 	return nil
 }
 
-func (m *SK8SModelBaseManager) GetQuery(cluster ICluster) IQuery {
+func (m *SK8sModelBaseManager) GetQuery(cluster ICluster) IQuery {
 	return NewK8SResourceQuery(cluster, m.GetIModelManager())
 }
 
-func (m *SK8SModelBaseManager) GetOrderFields() OrderFields {
+func (m *SK8sModelBaseManager) GetOrderFields() OrderFields {
 	return m.orderFields
 }
 
-func (m *SK8SModelBaseManager) RegisterOrderFields(fields ...IOrderField) {
+func (m *SK8sModelBaseManager) RegisterOrderFields(fields ...IOrderField) {
 	m.orderFields.Set(fields...)
 }
 
-func (m *SK8SModelBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SBase) (IQuery, error) {
+func (m *SK8sModelBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SBase) (IQuery, error) {
 	return q, nil
 }

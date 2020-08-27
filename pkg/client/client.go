@@ -40,6 +40,7 @@ var (
 
 var (
 	clusterManagerSets = &sync.Map{}
+	buildLock          = sync.Mutex{}
 )
 
 type ClusterManager struct {
@@ -109,6 +110,9 @@ func (c ClusterManager) Close() {
 }
 
 func BuildApiserverClient() {
+	buildLock.Lock()
+	defer buildLock.Unlock()
+
 	newClusters, err := manager.ClusterManager().GetRunningClusters()
 	if err != nil {
 		log.Errorf("build apiserver client get all cluster error.", err)

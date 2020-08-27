@@ -45,6 +45,8 @@ func GetRoleManager() *SRoleManager {
 	return roleManager
 }
 
+// +onecloud:swagger-gen-model-singular=rbacrole
+// +onecloud:swagger-gen-model-plural=rbacroles
 type SRoleManager struct {
 	SNamespaceResourceBaseManager
 }

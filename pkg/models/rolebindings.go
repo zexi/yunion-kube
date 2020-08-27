@@ -48,6 +48,8 @@ func GetRoleBindingManager() *SRoleBindingManager {
 	return roleBindingManager
 }
 
+// +onecloud:swagger-gen-model-singular=rbacrolebinding
+// +onecloud:swagger-gen-model-plural=rbacrolebindings
 type SRoleBindingManager struct {
 	SNamespaceResourceBaseManager
 	SRoleRefResourceBaseManager

@@ -1,6 +1,8 @@
 package api
 
-import "yunion.io/x/onecloud/pkg/apis"
+import (
+	"yunion.io/x/onecloud/pkg/apis"
+)
 
 // k8s cluster type
 type ClusterType string
@@ -170,8 +172,21 @@ type UsableInstance struct {
 	Type string `json:"type"`
 }
 
+type FederatedResourceUsedInput struct {
+	// federated resource keyword, e.g: federatednamespace
+	FederatedKeyword    string `json:"federated_keyword"`
+	FederatedResourceId string `json:"federated_resource_id"`
+	// is used by specify federated resource
+	FederatedUsed *bool `json:"federated_used"`
+}
+
+func (input FederatedResourceUsedInput) ShouldDo() bool {
+	return input.FederatedKeyword != "" && input.FederatedResourceId != "" && input.FederatedUsed != nil
+}
+
 type ClusterListInput struct {
 	apis.StatusDomainLevelResourceListInput
+	FederatedResourceUsedInput
 }
 
 type ClusterSyncInput struct {
