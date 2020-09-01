@@ -517,6 +517,12 @@ func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCred
 	lockman.LockObject(ctx, dbObj)
 	defer lockman.ReleaseObject(ctx, dbObj)
 
+	status := dbObj.GetStatus()
+	if strings.HasSuffix(status, "_fail") || strings.HasSuffix(status, "_failed") {
+		log.Warningf("object %s/%s status is %s, skip deleted it", dbObj.Keyword(), dbObj.GetName(), dbObj.GetStatus())
+		return nil
+	}
+
 	if err := dbObj.ValidateDeleteCondition(ctx); err != nil {
 		err := errors.Wrapf(err, "ValidateDeleteCondition")
 		dbObj.SetStatus(userCred, api.ClusterResourceStatusDeleteFail, err.Error())
