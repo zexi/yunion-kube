@@ -182,6 +182,27 @@ func (m *SFederatedJointClusterManager) ListItemFilter(ctx context.Context, q *s
 	if err != nil {
 		return nil, err
 	}
+	if len(input.ClusterId) > 0 {
+		clusterObj, err := GetClusterManager().FetchByIdOrName(userCred, input.ClusterId)
+		if err != nil {
+			return nil, errors.Wrap(err, "Get cluster")
+		}
+		q = q.Equals("cluster_id", clusterObj.GetId())
+	}
+	if len(input.ResourceId) > 0 {
+		resObj, err := m.GetResourceManager().FetchByIdOrName(userCred, input.ResourceId)
+		if err != nil {
+			return nil, errors.Wrap(err, "Get resource")
+		}
+		q = q.Equals("resource_id", resObj.GetId())
+	}
+	if len(input.NamespaceId) > 0 {
+		nsObj, err := GetNamespaceManager().FetchByIdOrName(userCred, input.NamespaceId)
+		if err != nil {
+			return nil, errors.Wrap(err, "Get namespace")
+		}
+		q = q.Equals("namespace_id", nsObj.GetId())
+	}
 	return q, nil
 }
 

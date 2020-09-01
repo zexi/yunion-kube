@@ -11,6 +11,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
@@ -49,6 +50,21 @@ type SFederatedNamespaceCluster struct {
 	SFederatedJointCluster
 
 	FederatednamespaceId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+}
+
+func (m *SFederatedNamespaceClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedNamespaceClusterListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFederatedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FederatedJointClusterListInput)
+	if err != nil {
+		return nil, err
+	}
+	if len(input.FederatednamespaceId) > 0 {
+		fedNsObj, err := GetFedNamespaceManager().FetchByIdOrName(userCred, input.FederatednamespaceId)
+		if err != nil {
+			return nil, errors.Wrap(err, "Get federatednamespace object")
+		}
+		q = q.Equals("federatednamespace_id", fedNsObj.GetId())
+	}
+	return q, nil
 }
 
 func (obj *SFederatedNamespaceCluster) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {

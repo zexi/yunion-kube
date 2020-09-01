@@ -59,3 +59,8 @@ type FederatedNamespaceClusterDetails struct {
 	FederatedJointClusterResourceDetails
 	Federatednamespace string `json:"federatednamespace"`
 }
+
+type FederatedNamespaceClusterListInput struct {
+	FederatedJointClusterListInput
+	FederatednamespaceId string `json:"federatednamespace_id"`
+}
