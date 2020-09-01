@@ -10,7 +10,7 @@ const (
 )
 
 type RepoCreateInput struct {
-	apis.SharableVirtualResourceCreateInput
+	apis.StatusInfrasResourceBaseCreateInput
 
 	// Repo URL
 	// required: true
@@ -23,13 +23,13 @@ type RepoCreateInput struct {
 }
 
 type RepoListInput struct {
-	apis.SharableVirtualResourceListInput
+	apis.StatusInfrasResourceBaseListInput
 
 	Type string `json:"type"`
 }
 
 type RepoDetail struct {
-	apis.SharableVirtualResourceDetails
+	apis.StatusInfrasResourceBaseDetails
 
 	Url  string `json:"url"`
 	Type string `json:"type"`
