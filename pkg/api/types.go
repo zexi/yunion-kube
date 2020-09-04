@@ -148,9 +148,6 @@ type K8SBaseResource struct {
 
 // Event is a single event representation.
 type Event struct {
-	// Deprecated, for compatible, should be delete after v3.2
-	DepObjectMeta ObjectMeta `json:"objectMeta"`
-
 	ObjectMeta
 	TypeMeta
 

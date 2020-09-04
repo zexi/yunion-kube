@@ -9,26 +9,37 @@ import (
 )
 
 var (
-	PVManager *SPVManager
+	pvManager *SPVManager
 	_         IClusterModel = new(SPV)
 )
 
 func init() {
-	PVManager = NewK8sModelManager(func() ISyncableManager {
-		return &SPVManager{
-			SClusterResourceBaseManager: NewClusterResourceBaseManager(
-				new(SPV),
-				"persistentvolumes_tbl",
-				"persistentvolume",
-				"persistentvolumes",
-				api.ResourceNamePersistentVolume,
-				api.KindNamePersistentVolume,
-				new(v1.PersistentVolume),
-			),
-		}
-	}).(*SPVManager)
+	GetPVManager()
 }
 
+func GetPVManager() *SPVManager {
+	if pvManager == nil {
+		pvManager = NewK8sModelManager(func() ISyncableManager {
+			return &SPVManager{
+				SClusterResourceBaseManager: NewClusterResourceBaseManager(
+					SPV{},
+					"persistentvolumes_tbl",
+					"persistentvolume",
+					"persistentvolumes",
+					api.ResourceNamePersistentVolume,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNamePersistentVolume,
+					new(v1.PersistentVolume),
+				),
+			}
+		}).(*SPVManager)
+	}
+	return pvManager
+}
+
+// +onecloud:swagger-gen-model-singular=persistentvolume
+// +onecloud:swagger-gen-model-plural=persistentvolumes
 type SPVManager struct {
 	SClusterResourceBaseManager
 }

@@ -51,34 +51,35 @@ func InitHandlers(app *appsrv.Application) {
 		models.GetNamespaceManager(),
 		models.GetStorageClassManager(),
 		models.GetClusterRoleManager(),
-		models.ClusterRoleBindingManager,
-		models.PVManager,
+		models.GetClusterRoleBindingManager(),
+		models.GetPVManager(),
 
 		// k8s namespace resource manager
-		models.PVCManager,
-		models.LimitRangeManager,
-		models.ResourceQuotaManager,
+		models.GetPVCManager(),
+		models.GetLimitRangeManager(),
+		models.GetResourceQuotaManager(),
 		models.GetRoleManager(),
 		models.GetRoleBindingManager(),
-		models.ServiceManager,
-		models.IngressManager,
+		models.GetServiceManager(),
+		models.GetIngressManager(),
 		models.GetDeploymentManager(),
 		models.GetStatefulSetManager(),
-		models.DaemonSetManager,
+		models.GetDaemonSetManager(),
 		models.GetReplicaSetManager(),
 		models.GetJobManager(),
 		models.GetCronJobManager(),
-		models.PodManager,
+		models.GetPodManager(),
 		models.ServiceAccountManager,
 		models.GetSecretManager(),
 		models.GetConfigMapManager(),
-		models.ReleaseManager,
+		models.GetReleaseManager(),
 
 		// federated resources
 		models.GetFedNamespaceManager(),
 		models.GetFedClusterRoleManager(),
 		models.GetFedClusterRoleBindingManager(),
 		models.GetFedRoleManager(),
+		models.GetFedRoleBindingManager(),
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
@@ -90,7 +91,11 @@ func InitHandlers(app *appsrv.Application) {
 		models.ClusterComponentManager,
 
 		// federated joint resources
-		models.FederatedNamespaceClusterManager,
+		models.FedNamespaceClusterManager,
+		models.FedClusterRoleClusterManager,
+		models.FedClusterRoleBindingClusterManager,
+		models.FedRoleClusterManager,
+		models.FedRoleBindingClusterManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewJointModelHandler(man)

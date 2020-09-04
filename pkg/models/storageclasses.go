@@ -31,36 +31,33 @@ var (
 )
 
 func init() {
-	initGlobalStorageManager()
+	GetStorageClassManager()
 }
 
 func GetStorageClassManager() *SStorageClassManager {
 	if storageClassManager == nil {
-		initGlobalStorageManager()
+		storageClassManager = NewK8sModelManager(func() ISyncableManager {
+			return &SStorageClassManager{
+				SClusterResourceBaseManager: NewClusterResourceBaseManager(
+					SStorageClass{},
+					"storageclasses_tbl",
+					"storageclass",
+					"storageclasses",
+					api.ResourceNameStorageClass,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNameStorageClass,
+					new(v1.StorageClass),
+				),
+				driverManager: drivers.NewDriverManager(""),
+			}
+		}).(*SStorageClassManager)
 	}
 	return storageClassManager
 }
 
-func initGlobalStorageManager() {
-	if storageClassManager != nil {
-		return
-	}
-	storageClassManager = NewK8sModelManager(func() ISyncableManager {
-		return &SStorageClassManager{
-			SClusterResourceBaseManager: NewClusterResourceBaseManager(
-				new(SStorageClass),
-				"storageclasses_tbl",
-				"storageclass",
-				"storageclasses",
-				api.ResourceNameStorageClass,
-				api.KindNameStorageClass,
-				new(v1.StorageClass),
-			),
-			driverManager: drivers.NewDriverManager(""),
-		}
-	}).(*SStorageClassManager)
-}
-
+// +onecloud:swagger-gen-model-singular=storageclass
+// +onecloud:swagger-gen-model-plural=storageclasses
 type SStorageClassManager struct {
 	SClusterResourceBaseManager
 	driverManager *drivers.DriverManager

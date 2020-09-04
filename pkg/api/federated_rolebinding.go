@@ -39,3 +39,7 @@ type RoleBindingTemplate struct {
 	Subjects []rbac.Subject `json:"subjects,omitempty"`
 	RoleRef  rbac.RoleRef   `json:"roleRef"`
 }
+
+func (input FederatedRoleBindingCreateInput) ToRoleBinding(namespace string) *rbac.RoleBinding {
+	return input.Spec.ToRoleBinding(input.ToObjectMeta(namespace))
+}

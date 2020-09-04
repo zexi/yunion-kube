@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"context"
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -93,6 +94,6 @@ func NewJSONClientError(err error) *httputils.JSONClientError {
 	return httputils.NewJsonClientError(statusCode, title, msg)
 }
 
-func GeneralServerError(w http.ResponseWriter, err error) {
-	httperrors.GeneralServerError(w, NewJSONClientError(err))
+func GeneralServerError(ctx context.Context, w http.ResponseWriter, err error) {
+	httperrors.GeneralServerError(ctx, w, NewJSONClientError(err))
 }

@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"reflect"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -15,24 +16,33 @@ import (
 )
 
 var (
-	ServiceManager *SServiceManager
+	serviceManager *SServiceManager
 	_              IPodOwnerModel = new(SService)
 )
 
 func init() {
-	ServiceManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SServiceManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SService),
-				"services_tbl",
-				"k8s_service",
-				"k8s_services",
-				api.ResourceNameService,
-				api.KindNameService,
-				new(v1.Service),
-			),
-		}
-	}).(*SServiceManager)
+	GetServiceManager()
+}
+
+func GetServiceManager() *SServiceManager {
+	if serviceManager == nil {
+		serviceManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SServiceManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SService{},
+					"services_tbl",
+					"k8s_service",
+					"k8s_services",
+					api.ResourceNameService,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNameService,
+					new(v1.Service),
+				),
+			}
+		}).(*SServiceManager)
+	}
+	return serviceManager
 }
 
 type SServiceManager struct {
@@ -63,6 +73,25 @@ func (m *SServiceManager) NewRemoteObjectForCreate(model IClusterModel, cli *cli
 	return GetServiceFromOption(&objMeta, &input.ServiceCreateOption), nil
 }
 
+func (m *SServiceManager) GetRawServicesByMatchLabels(cli *client.ClusterManager, namespace string, matchLabels map[string]string) ([]*v1.Service, error) {
+	indexer := cli.GetHandler().GetIndexer()
+	svcs, err := indexer.ServiceLister().Services(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]*v1.Service, 0)
+	for _, svc := range svcs {
+		if reflect.DeepEqual(svc.Spec.Selector, matchLabels) {
+			ret = append(ret, svc)
+		}
+	}
+	return ret, nil
+}
+
+func (obj *SService) IsOwnedBy(ownerModel IClusterModel) (bool, error) {
+	return IsServiceOwner(ownerModel.(IServiceOwnerModel), obj)
+}
+
 func (obj *SService) GetDetails(
 	cli *client.ClusterManager,
 	base interface{},
@@ -88,5 +117,5 @@ func (obj *SService) GetDetails(
 func (obj *SService) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
 	svc := rawObj.(*v1.Service)
 	selector := labels.SelectorFromSet(svc.Spec.Selector)
-	return PodManager.GetRawPodsBySelector(cli, svc.GetNamespace(), selector)
+	return GetPodManager().GetRawPodsBySelector(cli, svc.GetNamespace(), selector)
 }

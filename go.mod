@@ -9,11 +9,12 @@ require (
 	github.com/ceph/go-ceph v0.0.0-20181217221554-e32f9f0f2e94
 	github.com/docker/docker v1.4.2-0.20181221150755-2cb26cfe9cbf
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-sql-driver/mysql v1.4.1
+	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gofrs/flock v0.7.1
 	github.com/golang/protobuf v1.3.2
 	github.com/gorilla/mux v1.7.0
 	github.com/gorilla/websocket v1.4.0
+	github.com/openshift/api v0.0.0-20191213091414-3fbf6bcf78e8
 	github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.4.2
@@ -42,9 +43,9 @@ require (
 	yunion.io/x/code-generator v0.0.0-20200801025920-d006db774f0f
 	yunion.io/x/jsonutils v0.0.0-20200814075449-927b118adbd8
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
-	yunion.io/x/onecloud v0.0.0-20200810081646-9af25a2aa9fb
+	yunion.io/x/onecloud v0.0.0-20200915022712-e197ff815ad7
 	yunion.io/x/pkg v0.0.0-20200814072949-4f1b541857d6
-	yunion.io/x/sqlchemy v0.0.0-20200810025043-6d151476b545
+	yunion.io/x/sqlchemy v0.0.0-20200909073353-606d1fe76db5
 )
 
 replace (

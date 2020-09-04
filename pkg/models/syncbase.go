@@ -1,8 +1,16 @@
 package models
 
+import (
+	"context"
+
+	"yunion.io/x/onecloud/pkg/mcclient"
+)
+
 type ISyncableManager interface {
 	IClusterModelManager
 	GetSubManagers() []ISyncableManager
+	// PurgeAllByCluster invoke when cluster deleted
+	PurgeAllByCluster(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error
 	// SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cls *SCluster) error
 }
 

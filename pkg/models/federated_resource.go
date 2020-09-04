@@ -307,3 +307,26 @@ func (m *SFederatedResourceBaseManager) performSyncCluster(jointObj IFederatedJo
 func (m *SFederatedResourceBase) PerformSyncCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
 	return nil, m.GetManager().PerformSyncCluster(m, ctx, userCred, data.JSON(data))
 }
+
+func (m *SFederatedResourceBase) GetAttachedClusters(ctx context.Context) ([]SCluster, error) {
+	jm := m.GetJointModelManager()
+	clusters := make([]SCluster, 0)
+	q := GetClusterManager().Query()
+	sq := jm.Query("cluster_id").Equals("federatedresource_id", m.GetId()).SubQuery()
+	q = q.In("id", sq)
+	if err := db.FetchModelObjects(GetClusterManager(), q, &clusters); err != nil {
+		return nil, errors.Wrapf(err, "get federated resource %s %s attached clusters", m.Keyword(), m.GetName())
+	}
+	return clusters, nil
+}
+
+func (m *SFederatedResourceBase) ValidateDeleteCondition(ctx context.Context) error {
+	clusters, err := m.GetAttachedClusters(ctx)
+	if err != nil {
+		return errors.Wrap(err, "get attached clusters")
+	}
+	if len(clusters) != 0 {
+		return httperrors.NewNotEmptyError("federated resource %s attached to %d clusters", m.Keyword(), len(clusters))
+	}
+	return nil
+}

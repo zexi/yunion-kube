@@ -257,11 +257,6 @@ func fetchK8SModel(
 	if err != nil {
 		return nil, err
 	}
-	/*uobj := robj.(*unstructured.Unstructured)
-	obj := resInfo.Object
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(uobj.UnstructuredContent(), obj); err != nil {
-		return nil, errors.Wrap(err, "unstructured marshal")
-	}*/
 	model, err := NewK8SModelObject(man, cluster, obj)
 	if err != nil {
 		return nil, err
@@ -515,7 +510,10 @@ func DoDelete(
 		return err
 	}
 
-	meta := model.GetObjectMeta()
+	meta, err := model.GetObjectMeta()
+	if err != nil {
+		return err
+	}
 	cli := ctx.Cluster().GetHandler()
 	resInfo := man.GetK8sResourceInfo()
 

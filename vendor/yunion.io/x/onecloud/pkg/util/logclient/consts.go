@@ -197,6 +197,7 @@ const (
 	ACT_SAVE_TO_TEMPLATE = "保存为模版"
 
 	ACT_SYNC_POLICIES = "同步权限"
+	ACT_SYNC_USERS    = "同步用户"
 	ACT_ADD_USER      = "添加用户"
 	ACT_REMOVE_USER   = "移除用户"
 	ACT_ATTACH_POLICY = "绑定权限"
@@ -204,4 +205,11 @@ const (
 
 	ACT_UPDATE_BILLING_OPTIONS = "更新账单文件"
 	ACT_UPDATE_CREDENTIAL      = "更新账号密码"
+
+	ACT_PULL_SUBCONTACT   = "拉取联系方式"
+	ACT_SEND_NOTIFICATION = "发送通知消息"
+	ACT_SEND_VERIFICATION = "发送验证消息"
+
+	ACT_SYNC_VPCS        = "同步VPC"
+	ACT_SYNC_RECORD_SETS = "同步解析列表"
 )

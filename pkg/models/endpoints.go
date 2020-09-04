@@ -25,11 +25,13 @@ func GetEndpointManager() *SEndpointManager {
 		endpointManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SEndpointManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SEndpoint),
+					SEndpoint{},
 					"endpoints_tbl",
 					"k8s_endpoint",
 					"k8s_endpoints",
 					api.ResourceNameEndpoint,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
 					api.KindNameEndpoint,
 					new(v1.Endpoints),
 				),

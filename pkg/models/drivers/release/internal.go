@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	models.ReleaseManager.RegisterDriver(newInternalDriver())
+	models.GetReleaseManager().RegisterDriver(newInternalDriver())
 }
 
 func newInternalDriver() models.IReleaseDriver {

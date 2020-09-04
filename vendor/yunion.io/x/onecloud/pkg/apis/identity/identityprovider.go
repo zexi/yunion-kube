@@ -59,6 +59,9 @@ type IdpResourceInfo struct {
 
 	// 认证源类型, 例如sql, cas, ldap等
 	IdpDriver string `json:"idp_driver"`
+
+	// 认证源模板
+	Template string `json:"template"`
 }
 
 type IdentityProviderCreateInput struct {
@@ -77,7 +80,7 @@ type IdentityProviderCreateInput struct {
 	TargetDomainId string `json:"target_domain_id"`
 	// swagger:ignore
 	// Deprecated
-	TargetDomain string `json:"target_domain" "yunion:deprecated-by":"target_domain_id"`
+	TargetDomain string `json:"target_domain" yunion-deprecated-by:"target_domain_id"`
 
 	// 新建域的时候是否自动新建第一个项目
 	AutoCreateProject *bool `json:"auto_create_project"`

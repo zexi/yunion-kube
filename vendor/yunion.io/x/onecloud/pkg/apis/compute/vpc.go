@@ -36,6 +36,10 @@ type VpcDetails struct {
 	// NAT网关个数
 	// example: 0
 	NatgatewayCount int `json:"natgateway_count"`
+
+	// DnsZone个数
+	// example: 2
+	DnsZoneCount int `json:"dns_zone_count"`
 }
 
 type VpcResourceInfoBase struct {
@@ -90,7 +94,7 @@ type VpcResourceInput struct {
 	// swagger:ignore
 	// Deprecated
 	// filter by vpc Id
-	Vpc string `json:"vpc" "yunion:deprecated-by":"vpc_id"`
+	Vpc string `json:"vpc" yunion-deprecated-by:"vpc_id"`
 
 	// Vpc外网访问模式
 	ExternalAccessMode string `json:"external_access_mode"`

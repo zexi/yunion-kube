@@ -43,3 +43,7 @@ type NamespaceResourceDetail struct {
 	NamespaceId string `json:"namespace_id"`
 	Namespace   string `json:"namespace"`
 }
+
+type NamespaceResourceUpdateInput struct {
+	ClusterResourceUpdateInput
+}

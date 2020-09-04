@@ -28,6 +28,8 @@ func init() {
 	GetReplicaSetManager()
 }
 
+// +onecloud:swagger-gen-model-singular=replicaset
+// +onecloud:swagger-gen-model-plural=replicasets
 type SReplicaSetManager struct {
 	SNamespaceResourceBaseManager
 }
@@ -41,11 +43,13 @@ func GetReplicaSetManager() *SReplicaSetManager {
 		replicaSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SReplicaSetManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SReplicaSet),
+					SReplicaSet{},
 					"replicasets_tbl",
 					"replicaset",
 					"replicasets",
 					api.ResourceNameReplicaSet,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
 					api.KindNameReplicaSet,
 					new(apps.ReplicaSet),
 				),

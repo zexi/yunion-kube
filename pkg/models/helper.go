@@ -425,7 +425,7 @@ func FilterPodsByControllerRef(owner metav1.Object, allPods []*v1.Pod) []*v1.Pod
 }
 
 func GetRawPodsByController(cli *client.ClusterManager, obj metav1.Object) ([]*v1.Pod, error) {
-	pods, err := PodManager.GetRawPods(cli, obj.GetNamespace())
+	pods, err := GetPodManager().GetRawPods(cli, obj.GetNamespace())
 	if err != nil {
 		return nil, err
 	}
@@ -584,11 +584,24 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 	return ret
 }
 
-func ValidateK8sObject(versionObj runtime.Object, internalObj interface{}, validateFunc func(internalObj interface{}) field.ErrorList) error {
+func ValidateCreateK8sObject(versionObj runtime.Object, internalObj interface{}, validateFunc func(internalObj interface{}) field.ErrorList) error {
 	if err := legacyscheme.Scheme.Convert(versionObj, internalObj, nil); err != nil {
 		return k8serrors.NewGeneralError(err)
 	}
 	if err := validateFunc(internalObj).ToAggregate(); err != nil {
+		return httperrors.NewInputParameterError("%s", err)
+	}
+	return nil
+}
+
+func ValidateUpdateK8sObject(ovObj, nvObj runtime.Object, oObj, nObj interface{}, validateFunc func(newObj, oldObj interface{}) field.ErrorList) error {
+	if err := legacyscheme.Scheme.Convert(ovObj, oObj, nil); err != nil {
+		return k8serrors.NewGeneralError(err)
+	}
+	if err := legacyscheme.Scheme.Convert(nvObj, nObj, nil); err != nil {
+		return k8serrors.NewGeneralError(err)
+	}
+	if err := validateFunc(nObj, oObj).ToAggregate(); err != nil {
 		return httperrors.NewInputParameterError("%s", err)
 	}
 	return nil

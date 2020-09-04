@@ -30,6 +30,7 @@ import (
 	"yunion.io/x/pkg/utils"
 
 	api "yunion.io/x/onecloud/pkg/apis/identity"
+	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/util/httputils"
 )
 
@@ -136,16 +137,17 @@ func (this *ClientSession) GetServiceURL(service, endpointType string) (string, 
 	return this.GetServiceVersionURL(service, endpointType, this.getApiVersion(""))
 }
 
+func (this *ClientSession) GetServiceCatalog() IServiceCatalog {
+	return this.client.GetServiceCatalog()
+}
+
 func (this *ClientSession) GetServiceVersionURL(service, endpointType, apiVersion string) (string, error) {
 	if len(this.endpointType) > 0 {
 		// session specific endpoint type should override the input endpointType, which is supplied by manager
 		endpointType = this.endpointType
 	}
 	service = this.getServiceName(service, apiVersion)
-	url, err := this.token.GetServiceURL(service, this.region, this.zone, endpointType)
-	if err != nil && this.client.serviceCatalog != nil {
-		url, err = this.client.serviceCatalog.GetServiceURL(service, this.region, this.zone, endpointType)
-	}
+	url, err := this.GetServiceCatalog().GetServiceURL(service, this.region, this.zone, endpointType)
 	if err != nil && service == api.SERVICE_TYPE {
 		return this.client.authUrl, nil
 	}
@@ -167,10 +169,7 @@ func (this *ClientSession) GetServiceVersionURLs(service, endpointType, apiVersi
 		endpointType = this.endpointType
 	}
 	service = this.getServiceName(service, apiVersion)
-	urls, err := this.token.GetServiceURLs(service, this.region, this.zone, endpointType)
-	if err != nil && this.client.serviceCatalog != nil {
-		urls, err = this.client.serviceCatalog.GetServiceURLs(service, this.region, this.zone, endpointType)
-	}
+	urls, err := this.GetServiceCatalog().GetServiceURLs(service, this.region, this.zone, endpointType)
 	if err != nil && service == api.SERVICE_TYPE {
 		return []string{this.client.authUrl}, nil
 	}
@@ -210,6 +209,7 @@ func (this *ClientSession) RawBaseUrlRequest(
 		populateHeader(&tmpHeader, headers)
 	}
 	populateHeader(&tmpHeader, this.Header)
+	httperrors.SetLangHeader(this.ctx, tmpHeader)
 	ctx := this.ctx
 	if this.ctx == nil {
 		ctx = context.Background()
@@ -245,6 +245,7 @@ func (this *ClientSession) JSONVersionRequest(
 		populateHeader(&tmpHeader, headers)
 	}
 	populateHeader(&tmpHeader, this.Header)
+	httperrors.SetLangHeader(this.ctx, tmpHeader)
 	ctx := this.ctx
 	if this.ctx == nil {
 		ctx = context.Background()

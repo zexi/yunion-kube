@@ -24,7 +24,7 @@ type WireResourceInput struct {
 	// swagger:ignore
 	// Deprecated
 	// fitler by wire id
-	Wire string `json:"wire" "yunion:deprecated-by":"wire_id"`
+	Wire string `json:"wire" yunion-deprecated-by:"wire_id"`
 }
 
 type WireFilterListBase struct {
@@ -47,7 +47,7 @@ type NetworkResourceInput struct {
 	// swagger:ignore
 	// Deprecated
 	// filter by networkId
-	Network string `json:"network" "yunion:deprecated-by":"network_id"`
+	Network string `json:"network" yunion-deprecated-by:"network_id"`
 }
 
 type NetworkFilterListBase struct {
@@ -309,4 +309,14 @@ type NetworkUpdateInput struct {
 
 	// 是否加入自动分配地址池
 	IsAutoAlloc *bool `json:"is_auto_alloc"`
+}
+
+type GetNetworkAddressesInput struct {
+	// 获取资源的范围，例如 project|domain|system
+	Scope string `json:"scope"`
+}
+
+type GetNetworkAddressesOutput struct {
+	// IP子网地址记录
+	Addresses []SNetworkAddress `json:"addresses"`
 }

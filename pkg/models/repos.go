@@ -190,7 +190,7 @@ func (r *SRepo) ToEntry() *repo.Entry {
 }
 
 func (r *SRepo) ValidateDeleteCondition(ctx context.Context) error {
-	rlsCnt, err := ReleaseManager.Query().Equals("repo_id", r.GetId()).CountWithError()
+	rlsCnt, err := GetReleaseManager().Query().Equals("repo_id", r.GetId()).CountWithError()
 	if err != nil {
 		return errors.Wrap(err, "check release count")
 	}

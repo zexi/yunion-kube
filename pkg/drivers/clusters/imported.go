@@ -11,7 +11,6 @@ import (
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
@@ -37,6 +36,10 @@ func init() {
 type iImportDriver interface {
 	GetDistribution() string
 	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, input *api.ClusterCreateInput, config *rest.Config) error
+	// GetClusterUsers query users resource from remote k8s cluster
+	GetClusterUsers(cluster *models.SCluster, restCfg *rest.Config) ([]api.ClusterUser, error)
+	// GetClusterUserGroups query groups resource from remote k8s cluster
+	GetClusterUserGroups(cluster *models.SCluster, restCfg *rest.Config) ([]api.ClusterUserGroup, error)
 }
 
 type SDefaultImportDriver struct {
@@ -51,8 +54,10 @@ func NewDefaultImportDriver() *SDefaultImportDriver {
 }
 
 func (d *SDefaultImportDriver) registerDriver(drvs ...iImportDriver) {
-	for _, drv := range drvs {
-		d.drivers.Register(drv, drv.GetDistribution())
+	for idx := range drvs {
+		if err := d.drivers.Register(drvs[idx], drvs[idx].GetDistribution()); err != nil {
+			panic(fmt.Sprintf("import driver %s already registerd", drvs[idx].GetDistribution()))
+		}
 	}
 }
 
@@ -77,20 +82,20 @@ func (d *SDefaultImportDriver) GetK8sVersions() []string {
 	return []string{}
 }
 
-func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, createData *api.ClusterCreateInput) error {
 	// test kubeconfig is work
-	createData := new(api.ClusterCreateInput)
-	if err := data.Unmarshal(createData); err != nil {
-		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
+	importData := createData.ImportData
+	if importData == nil {
+		return httperrors.NewInputParameterError("not found import data")
 	}
-	if createData.Distribution == "" {
-		createData.Distribution = api.ImportClusterDistributionK8s
+	if importData.Distribution == "" {
+		importData.Distribution = api.ImportClusterDistributionK8s
 	}
-	if !d.getRegisterDistros().Has(createData.Distribution) {
-		return httperrors.NewNotSupportedError("Not support import distribution %s", createData.Distribution)
+	if !d.getRegisterDistros().Has(importData.Distribution) {
+		return httperrors.NewNotSupportedError("Not support import distribution %s", importData.Distribution)
 	}
-	apiServer := createData.ApiServer
-	kubeconfig := createData.Kubeconfig
+	apiServer := importData.ApiServer
+	kubeconfig := importData.Kubeconfig
 	restConfig, rawConfig, err := client.BuildClientConfig(apiServer, kubeconfig)
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Invalid imported kubeconfig: %v", err)
@@ -99,8 +104,8 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Load kubeconfig error: %v", err)
 	}
-	createData.Kubeconfig = string(newKubeconfig)
-	createData.ApiServer = restConfig.Host
+	importData.Kubeconfig = string(newKubeconfig)
+	importData.ApiServer = restConfig.Host
 	cli, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return k8serrors.NewGeneralError(err)
@@ -109,6 +114,7 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 	if err != nil {
 		return k8serrors.NewGeneralError(err)
 	}
+	createData.Version = version.String()
 	// check system cluster duplicate imported
 	sysCluster, err := models.ClusterManager.GetSystemCluster()
 	if err != nil {
@@ -133,14 +139,12 @@ func (d *SDefaultImportDriver) ValidateCreateData(ctx context.Context, userCred 
 		return httperrors.NewNotAcceptableError("cluster already imported as default system cluster")
 	}
 
-	drv := d.getDriver(createData.Distribution)
+	drv := d.getDriver(createData.ImportData.Distribution)
 	if err := drv.ValidateCreateData(ctx, userCred, ownerId, createData, restConfig); err != nil {
-		return errors.Wrapf(err, "check distribution %s", createData.Distribution)
+		return errors.Wrapf(err, "check distribution %s", importData.Distribution)
 	}
+	createData.ImportData = importData
 
-	// TODO: inject version info
-	data.Update(jsonutils.Marshal(createData))
-	log.Infof("Get version: %#v", version)
 	return nil
 }
 
@@ -163,4 +167,12 @@ func (d *SDefaultImportDriver) ValidateCreateMachines(
 	imageRepo *api.ImageRepository,
 	data []*api.CreateMachineData) error {
 	return httperrors.NewBadRequestError("Not support add machines")
+}
+
+func (d *SDefaultImportDriver) GetClusterUsers(cluster *models.SCluster, config *rest.Config) ([]api.ClusterUser, error) {
+	return d.getDriver(cluster.Distribution).GetClusterUsers(cluster, config)
+}
+
+func (d *SDefaultImportDriver) GetClusterUserGroups(cluster *models.SCluster, config *rest.Config) ([]api.ClusterUserGroup, error) {
+	return d.getDriver(cluster.Distribution).GetClusterUserGroups(cluster, config)
 }

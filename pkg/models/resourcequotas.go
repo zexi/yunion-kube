@@ -15,26 +15,37 @@ import (
 )
 
 var (
-	ResourceQuotaManager *SResourceQuotaManager
+	resourceQuotaManager *SResourceQuotaManager
 	_                    IClusterModel = new(SResourceQuota)
 )
 
 func init() {
-	ResourceQuotaManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SResourceQuotaManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SResourceQuota),
-				"resourcequotas_tbl",
-				"resourcequota",
-				"resourcequotas",
-				api.ResourceNameResourceQuota,
-				api.KindNameResourceQuota,
-				new(v1.LimitRange),
-			),
-		}
-	}).(*SResourceQuotaManager)
+	GetResourceQuotaManager()
 }
 
+func GetResourceQuotaManager() *SResourceQuotaManager {
+	if resourceQuotaManager == nil {
+		resourceQuotaManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SResourceQuotaManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SResourceQuota{},
+					"resourcequotas_tbl",
+					"resourcequota",
+					"resourcequotas",
+					api.ResourceNameResourceQuota,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNameResourceQuota,
+					new(v1.LimitRange),
+				),
+			}
+		}).(*SResourceQuotaManager)
+	}
+	return resourceQuotaManager
+}
+
+// +onecloud:swagger-gen-model-singular=resourcequota
+// +onecloud:swagger-gen-model-plural=resourcequotas
 type SResourceQuotaManager struct {
 	SNamespaceResourceBaseManager
 }

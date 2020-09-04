@@ -11,23 +11,32 @@ import (
 )
 
 var (
-	IngressManager *SIngressManager
+	ingressManager *SIngressManager
 )
 
 func init() {
-	IngressManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SIngressManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SIngress),
-				"ingresses_tbl",
-				"ingress",
-				"ingresses",
-				api.ResourceNameIngress,
-				api.KindNameIngress,
-				new(extensions.Ingress),
-			),
-		}
-	}).(*SIngressManager)
+	GetIngressManager()
+}
+
+func GetIngressManager() *SIngressManager {
+	if ingressManager == nil {
+		ingressManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SIngressManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					new(SIngress),
+					"ingresses_tbl",
+					"ingress",
+					"ingresses",
+					api.ResourceNameIngress,
+					extensions.GroupName,
+					extensions.SchemeGroupVersion.Version,
+					api.KindNameIngress,
+					new(extensions.Ingress),
+				),
+			}
+		}).(*SIngressManager)
+	}
+	return ingressManager
 }
 
 type SIngressManager struct {

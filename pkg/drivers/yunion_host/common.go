@@ -114,14 +114,10 @@ func ValidateCreateMachines(ms []*api.CreateMachineData) error {
 	return nil
 }
 
-func ValidateClusterCreateData(data *jsonutils.JSONDict) error {
-	createData := api.ClusterCreateInput{}
-	if err := data.Unmarshal(&createData); err != nil {
-		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
-	}
+func ValidateClusterCreateData(createData *api.ClusterCreateInput) error {
 	ms := createData.Machines
 	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 && createData.Provider != string(api.ProviderTypeSystem) {
+	if len(controls) == 0 && createData.Provider != api.ProviderTypeSystem {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
 	session, err := models.ClusterManager.GetSession()
@@ -169,7 +165,7 @@ func RemoteCheckHostsEnvironment(hosts []string, privateKey string) error {
 func RemoteCheckHostEnvironment(host string, port int, username string, privateKey string) error {
 	cli, err := ssh.NewClient(host, port, username, "", privateKey)
 	if err != nil {
-		return fmt.Errorf("create ssh connection: %v", host, err)
+		return fmt.Errorf("create ssh %s connection: %v", host, err)
 	}
 	_, err = cli.Run("which docker kubeadm kubelet")
 	if err != nil {

@@ -67,6 +67,7 @@ func newK8sModelManager(factoryF func() ISyncableManager) ISyncableManager {
 	man := newModelManager(func() db.IModelManager {
 		return factoryF()
 	}).(ISyncableManager)
+	man.InitOwnedManager(man)
 	RegisterK8sModelManager(man)
 	return man
 }
@@ -84,15 +85,19 @@ func NewK8sNamespaceModelManager(factoryF func() ISyncableManager) ISyncableMana
 }
 
 type SK8sOwnedResourceBaseManager struct {
-	ownerManager IClusterModelManager
+	ownedManager IClusterModelManager
+}
+
+func newK8sOwnedResourceManager(ownedMan IClusterModelManager) SK8sOwnedResourceBaseManager {
+	return SK8sOwnedResourceBaseManager{ownedManager: ownedMan}
 }
 
 type IK8sOwnedResource interface {
 	IsOwnedBy(ownerModel IClusterModel) (bool, error)
 }
 
-func (m SK8sOwnedResourceBaseManager) newOwnerModel(obj jsonutils.JSONObject) (IK8sOwnedResource, error) {
-	model, err := db.NewModelObject(m.ownerManager)
+func (m SK8sOwnedResourceBaseManager) newOwnedModel(obj jsonutils.JSONObject) (IK8sOwnedResource, error) {
+	model, err := db.NewModelObject(m.ownedManager)
 	if err != nil {
 		return nil, errors.Wrap(err, "db.NewModelObject")
 	}
@@ -116,9 +121,9 @@ func (m SK8sOwnedResourceBaseManager) CustomizeFilterList(ctx context.Context, q
 		return filters, httperrors.NewNotFoundError("Not found owner_kind %s", input.OwnerKind)
 	}
 	ff := func(obj jsonutils.JSONObject) (bool, error) {
-		model, err := m.newOwnerModel(obj)
+		model, err := m.newOwnedModel(obj)
 		if err != nil {
-			return false, errors.Wrap(err, "newOwnerModel")
+			return false, errors.Wrap(err, "newOwnedModel")
 		}
 		clusterId, _ := obj.GetString("cluster_id")
 		namespaceId, _ := obj.GetString("namespace_id")
@@ -156,6 +161,32 @@ func IsPodOwner(owner IPodOwnerModel, pod *SPod) (bool, error) {
 		return false, errors.Wrap(err, "get k8s pod")
 	}
 	return IsObjectContains(p.(*v1.Pod), pods), nil
+}
+
+type IServiceOwnerModel interface {
+	IClusterModel
+
+	GetRawServices(cli *client.ClusterManager, obj runtime.Object) ([]*v1.Service, error)
+}
+
+func IsServiceOwner(owner IServiceOwnerModel, svc *SService) (bool, error) {
+	ownerObj, err := GetK8sObject(owner)
+	if err != nil {
+		return false, errors.Wrap(err, "get owner k8s object")
+	}
+	cli, err := owner.GetClusterClient()
+	if err != nil {
+		return false, errors.Wrap(err, "get cluster client")
+	}
+	svcs, err := owner.GetRawServices(cli, ownerObj)
+	if err != nil {
+		return false, errors.Wrap(err, "get owner raw services")
+	}
+	obj, err := GetK8sObject(svc)
+	if err != nil {
+		return false, errors.Wrap(err, "get k8s service")
+	}
+	return IsObjectContains(obj.(*v1.Service), svcs), nil
 }
 
 func IsObjectContains(obj metav1.Object, objs interface{}) bool {
@@ -201,7 +232,11 @@ type IK8SUnstructuredModel interface {
 }
 
 func (res UnstructuredResourceBase) ConvertToAPIObject(m IK8SUnstructuredModel, output IUnstructuredOutput) error {
-	output.SetObjectMeta(m.GetObjectMeta()).SetTypeMeta(m.GetTypeMeta())
+	objMeta, err := m.GetObjectMeta()
+	if err != nil {
+		return errors.Wrap(err, "GetObjectMeta")
+	}
+	output.SetObjectMeta(objMeta).SetTypeMeta(m.GetTypeMeta())
 	jsonObj, err := res.GetRawJSONObject(m)
 	if err != nil {
 		return errors.Wrap(err, "get json object")

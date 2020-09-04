@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	models.ReleaseManager.RegisterDriver(newExternalDriver())
+	models.GetReleaseManager().RegisterDriver(newExternalDriver())
 }
 
 func newExternalDriver() models.IReleaseDriver {
@@ -38,7 +38,7 @@ func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 	if data.NamespaceId == "" {
 		return nil, httperrors.NewNotEmptyError("namespace")
 	}
-	nInput, err := models.ReleaseManager.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, nil, &data.NamespaceResourceCreateInput)
+	nInput, err := models.GetReleaseManager().SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, nil, &data.NamespaceResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}

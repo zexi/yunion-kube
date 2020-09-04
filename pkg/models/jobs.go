@@ -45,6 +45,8 @@ func GetJobManager() *SJobManager {
 					"job",
 					"jobs",
 					api.ResourceNameJob,
+					batch.GroupName,
+					batch.SchemeGroupVersion.Version,
 					api.KindNameJob,
 					new(batch.Job),
 				),
@@ -84,7 +86,7 @@ func (job *SJob) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCre
 func (obj *SJob) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
 	job := rawObj.(*batch.Job)
 	labelSelector := labels.SelectorFromSet(job.Spec.Selector.MatchLabels)
-	return PodManager.GetRawPodsBySelector(cli, job.GetNamespace(), labelSelector)
+	return GetPodManager().GetRawPodsBySelector(cli, job.GetNamespace(), labelSelector)
 }
 
 func (obj *SJob) GetPodInfo(cli *client.ClusterManager, job *batch.Job) (*api.PodInfo, error) {

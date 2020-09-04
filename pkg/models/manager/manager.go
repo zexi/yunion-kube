@@ -28,9 +28,9 @@ type ICluster interface {
 type IK8sResourceManager interface {
 	db.IModelManager
 
-	OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
-	OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, oldObj, newObj runtime.Object)
-	OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
+	OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, resMan IK8sResourceManager, obj runtime.Object)
+	OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, resMan IK8sResourceManager, oldObj, newObj runtime.Object)
+	OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, resMan IK8sResourceManager, obj runtime.Object)
 }
 
 type IClusterManager interface {

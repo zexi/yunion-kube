@@ -232,18 +232,18 @@ func (h eventHandler) run(f func(ctx context.Context, userCred mcclient.TokenCre
 
 func (h eventHandler) OnAdd(obj interface{}) {
 	h.run(func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster) {
-		h.manager.OnRemoteObjectCreate(ctx, userCred, cls, obj.(runtime.Object))
+		h.manager.OnRemoteObjectCreate(ctx, userCred, cls, h.manager, obj.(runtime.Object))
 	})
 }
 
 func (h eventHandler) OnUpdate(oldObj, newObj interface{}) {
 	h.run(func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster) {
-		h.manager.OnRemoteObjectUpdate(ctx, userCred, cls, oldObj.(runtime.Object), newObj.(runtime.Object))
+		h.manager.OnRemoteObjectUpdate(ctx, userCred, cls, h.manager, oldObj.(runtime.Object), newObj.(runtime.Object))
 	})
 }
 
 func (h eventHandler) OnDelete(obj interface{}) {
 	h.run(func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster) {
-		h.manager.OnRemoteObjectDelete(ctx, userCred, cls, obj.(runtime.Object))
+		h.manager.OnRemoteObjectDelete(ctx, userCred, cls, h.manager, obj.(runtime.Object))
 	})
 }

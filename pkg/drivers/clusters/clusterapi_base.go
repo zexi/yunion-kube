@@ -46,7 +46,7 @@ func (d *sClusterAPIDriver) NeedGenerateCertificate() bool {
 	return true
 }
 
-func (d *sClusterAPIDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *sClusterAPIDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.ClusterCreateInput) error {
 	/*ok, err := clusters.ClusterManager.IsSystemClusterReady()
 	if err != nil {
 		return err

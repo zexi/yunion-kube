@@ -23,11 +23,13 @@ func init() {
 	ServiceAccountManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 		return &SServiceAccountManager{
 			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SServiceAccount),
+				SServiceAccount{},
 				"serviceaccounts_tbl",
 				"serviceaccount",
 				"serviceaccounts",
 				api.ResourceNameServiceAccount,
+				v1.GroupName,
+				v1.SchemeGroupVersion.Version,
 				api.KindNameServiceAccount,
 				new(v1.ServiceAccount),
 			),
@@ -35,6 +37,8 @@ func init() {
 	}).(*SServiceAccountManager)
 }
 
+// +onecloud:swagger-gen-model-singular=serviceaccount
+// +onecloud:swagger-gen-model-plural=serviceaccounts
 type SServiceAccountManager struct {
 	SNamespaceResourceBaseManager
 }

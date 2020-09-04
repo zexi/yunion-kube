@@ -41,3 +41,7 @@ type FederatedClusterRoleCreateInput struct {
 func (input FederatedClusterRoleCreateInput) ToClusterRole() *rbac.ClusterRole {
 	return input.Spec.ToClusterRole(input.ToObjectMeta())
 }
+
+type FederatedClusterRoleClusterListInput struct {
+	FedJointClusterListInput
+}

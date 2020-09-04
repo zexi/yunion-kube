@@ -33,11 +33,13 @@ func GetNodeManager() *SNodeManager {
 		nodeManager = NewK8sModelManager(func() ISyncableManager {
 			return &SNodeManager{
 				SClusterResourceBaseManager: NewClusterResourceBaseManager(
-					&SNode{},
+					SNode{},
 					"nodes_tbl",
 					"k8s_node",
 					"k8s_nodes",
 					api.ResourceNameNode,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
 					api.KindNameNode,
 					new(v1.Node),
 				),
@@ -90,7 +92,7 @@ func (node *SNode) GetRawPods(rNode *v1.Node) ([]*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	allPods, err := PodManager.GetAllRawPods(cluster)
+	allPods, err := GetPodManager().GetAllRawPods(cluster)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Get node %s pods", node.GetName())
 	}
@@ -282,7 +284,7 @@ func (m *SNodeManager) Usage(clusters []sClusterUsage) (*api.NodeUsage, error) {
 	for i := range clusters {
 		clusterIds[i] = clusters[i].Id
 	}
-	pods, err := PodManager.GetPodsByClusters(clusterIds)
+	pods, err := GetPodManager().GetPodsByClusters(clusterIds)
 	if err != nil {
 		return nil, err
 	}

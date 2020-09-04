@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -30,23 +31,32 @@ import (
 )
 
 var (
-	ReleaseManager *SReleaseManager
+	releaseManager *SReleaseManager
 )
 
 func init() {
-	ReleaseManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SReleaseManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				&SRelease{},
-				"releases_tbl",
-				"release",
-				"releases",
-				"",
-				"",
-				nil),
-			driverManager: drivers.NewDriverManager(""),
-		}
-	}).(*SReleaseManager)
+	GetReleaseManager()
+}
+
+func GetReleaseManager() *SReleaseManager {
+	if releaseManager == nil {
+		releaseManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SReleaseManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SRelease{},
+					"releases_tbl",
+					"release",
+					"releases",
+					"",
+					"",
+					"",
+					"",
+					nil),
+				driverManager: drivers.NewDriverManager(""),
+			}
+		}).(*SReleaseManager)
+	}
+	return releaseManager
 }
 
 type SReleaseManager struct {
@@ -267,7 +277,7 @@ func (r *SRelease) GetDriver() (IReleaseDriver, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "get type")
 	}
-	return ReleaseManager.GetDriver(typ)
+	return GetReleaseManager().GetDriver(typ)
 }
 
 func (r *SRelease) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -387,7 +397,7 @@ func (r *SRelease) GetChartClient() (*helm.ChartClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReleaseManager.GetChartClient(repo), nil
+	return GetReleaseManager().GetChartClient(repo), nil
 }
 
 func (r *SRelease) GetChart() (*chart.Chart, error) {
@@ -395,7 +405,7 @@ func (r *SRelease) GetChart() (*chart.Chart, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReleaseManager.ShowChart(repo, r.Chart, r.ChartVersion)
+	return GetReleaseManager().ShowChart(repo, r.Chart, r.ChartVersion)
 }
 
 func (r *SRelease) GetHelmRelease(isList bool) (*api.ReleaseDetail, error) {
@@ -463,7 +473,11 @@ func (m *SReleaseManager) ListRemoteObjects(cli *client.ClusterManager) ([]inter
 	return ret, nil
 }
 
-func (obj *SRelease) GetRemoteObject(cli *client.ClusterManager) (interface{}, error) {
+func (obj *SRelease) GetRemoteObject() (interface{}, error) {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, err
+	}
 	ns, err := obj.GetNamespace()
 	if err != nil {
 		return nil, errors.Wrap(err, "get release namespace")
@@ -489,7 +503,14 @@ func (m *SReleaseManager) IsRemoteObjectLocalExist(userCred mcclient.TokenCreden
 	rls := obj.(*release.Release)
 	objNs := rls.Namespace
 	objName := rls.Name
-	if localObj, _ := m.GetByName(userCred, cluster.GetId(), objNs, objName); localObj != nil {
+	localObj, err := m.GetByName(userCred, cluster.GetId(), objNs, objName)
+	if err != nil {
+		if errors.Cause(err) == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, errors.Wrapf(err, "get cluster %s namespace %s release %s", cluster.GetName(), objNs, objName)
+	}
+	if localObj != nil {
 		return localObj, true, nil
 	}
 	return nil, false, nil
@@ -543,7 +564,7 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 	return q, nil
 }
 
-func (obj *SRelease) DeleteRemoteObject(_ *client.ClusterManager) error {
+func (obj *SRelease) DeleteRemoteObject() error {
 	helmCli, err := obj.GetHelmClient()
 	if err != nil {
 		return errors.Wrap(err, "get helm client when delete")

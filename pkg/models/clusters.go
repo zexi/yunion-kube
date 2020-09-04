@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -17,7 +18,6 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	ocapis "yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
@@ -78,6 +78,7 @@ func initGlobalClusterManager() {
 type SClusterManager struct {
 	db.SStatusDomainLevelResourceBaseManager
 	SSyncableK8sBaseResourceManager
+
 	*SSyncableManager
 }
 
@@ -95,7 +96,6 @@ type SCluster struct {
 	ServiceCidr     string               `width:"36" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	ServiceDomain   string               `width:"128" charset:"ascii" nullable:"false" create:"required" list:"user"`
 	PodCidr         string               `width:"36" charset:"ascii" nullable:"true" create:"optional" list:"user"`
-	Version         string               `width:"128" charset:"ascii" nullable:"false" create:"optional" list:"user"`
 	Ha              tristate.TriState    `nullable:"true" create:"required" list:"user"`
 	ImageRepository jsonutils.JSONObject `nullable:"true" create:"optional" list:"user"`
 
@@ -105,8 +105,12 @@ type SCluster struct {
 	// kubernetes api server endpoint
 	ApiServer string `width:"256" nullable:"true" charset:"ascii" create:"optional" list:"user"`
 
+	// Version records kubernetes api server version
+	Version string `width:"128" charset:"ascii" nullable:"false" create:"optional" list:"user"`
 	// kubernetes distribution
 	Distribution string `width:"256" nullable:"true" default:"k8s" charset:"utf8" create:"optional" list:"user"`
+	// DistributionInfo records distribution misc info
+	DistributionInfo jsonutils.JSONObject `nullable:"true" create:"optional" list:"user"`
 }
 
 func (m *SClusterManager) InitializeData() error {
@@ -206,18 +210,21 @@ func (m *SClusterManager) GetSystemClusterK8SInfo() (*k8sInfo, error) {
 
 func (m *SClusterManager) GetSystemClusterCreateData() (*api.ClusterCreateInput, error) {
 	createData := &api.ClusterCreateInput{
-		Name:        SystemClusterName,
-		ClusterType: string(api.ClusterTypeDefault),
-		CloudType:   string(api.CloudTypePrivate),
-		Mode:        string(api.ModeTypeImport),
-		Provider:    string(api.ProviderTypeSystem),
+		ClusterType: api.ClusterTypeDefault,
+		CloudType:   api.CloudTypePrivate,
+		Mode:        api.ModeTypeImport,
+		Provider:    api.ProviderTypeSystem,
 	}
+	createData.Name = SystemClusterName
 	k8sInfo, err := m.GetSystemClusterK8SInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "get k8s info")
 	}
-	createData.ApiServer = k8sInfo.ApiServer
-	createData.Kubeconfig = k8sInfo.Kubeconfig
+	importData := &api.ImportClusterData{
+		ApiServer:  k8sInfo.ApiServer,
+		Kubeconfig: k8sInfo.Kubeconfig,
+	}
+	createData.ImportData = importData
 	return createData, nil
 }
 
@@ -289,7 +296,7 @@ func (m *SClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 		if err != nil {
 			return nil, httperrors.NewNotFoundError("federated resource %s %s found error: %v", input.FederatedKeyword, input.FederatedResourceId, err)
 		}
-		sq := fedJointMan.Query("cluster_id").Equals(fmt.Sprintf("%s_id", input.FederatedKeyword), fedObj.GetId()).SubQuery()
+		sq := fedJointMan.Query("cluster_id").Equals("federatedresource_id", fedObj.GetId()).SubQuery()
 		if *input.FederatedUsed {
 			q = q.In("id", sq)
 		} else {
@@ -308,83 +315,89 @@ func (m *SClusterManager) CreateCluster(ctx context.Context, userCred mcclient.T
 	return obj.(*SCluster), nil
 }
 
-func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
-	var (
-		clusterType  string
-		cloudType    string
-		modeType     string
-		providerType string
-	)
-
-	clusterType = SetJSONDataDefault(data, "cluster_type", string(api.ClusterTypeDefault))
-	if !utils.IsInStringArray(clusterType, []string{string(api.ClusterTypeDefault)}) {
-		return nil, httperrors.NewInputParameterError("Invalid cluster type: %q", clusterType)
+func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.ClusterCreateInput) (*api.ClusterCreateInput, error) {
+	sInput, err := m.SStatusDomainLevelResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input.StatusDomainLevelResourceCreateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.StatusDomainLevelResourceCreateInput = sInput
+	if input.IsSystem != nil && *input.IsSystem && !db.IsAdminAllowCreate(userCred, m) {
+		return nil, httperrors.NewNotSufficientPrivilegeError("non-admin user not allowed to create system object")
 	}
 
-	cloudType = SetJSONDataDefault(data, "cloud_type", string(api.CloudTypePrivate))
-	if !utils.IsInStringArray(cloudType, []string{string(api.CloudTypePrivate)}) {
-		return nil, httperrors.NewInputParameterError("Invalid cloud type: %q", cloudType)
+	if input.ClusterType == "" {
+		input.ClusterType = api.ClusterTypeDefault
+	}
+	if !utils.IsInStringArray(string(input.ClusterType), []string{string(api.ClusterTypeDefault)}) {
+		return nil, httperrors.NewInputParameterError("Invalid cluster type: %q", input.ClusterType)
 	}
 
-	resType := SetJSONDataDefault(data, "resource_type", string(api.ClusterResourceTypeHost))
-	if err := m.ValidateResourceType(resType); err != nil {
+	if input.CloudType == "" {
+		input.CloudType = api.CloudTypePrivate
+	}
+	if !utils.IsInStringArray(string(input.CloudType), []string{string(api.CloudTypePrivate)}) {
+		return nil, httperrors.NewInputParameterError("Invalid cloud type: %q", input.CloudType)
+	}
+
+	if input.ResourceType == "" {
+		input.ResourceType = api.ClusterResourceTypeHost
+	}
+	if err := m.ValidateResourceType(string(input.ResourceType)); err != nil {
 		return nil, err
 	}
 
-	modeType = SetJSONDataDefault(data, "mode", string(api.ModeTypeSelfBuild))
-	if !utils.IsInStringArray(modeType, []string{
+	if input.Mode == "" {
+		input.Mode = api.ModeTypeSelfBuild
+	}
+	if !utils.IsInStringArray(string(input.Mode), []string{
 		string(api.ModeTypeSelfBuild),
 		string(api.ModeTypeImport),
 	}) {
-		return nil, httperrors.NewInputParameterError("Invalid mode type: %q", modeType)
+		return nil, httperrors.NewInputParameterError("Invalid mode type: %q", input.Mode)
 	}
 
-	providerType = SetJSONDataDefault(data, "provider", string(api.ProviderTypeOnecloud))
-	if err := m.ValidateProviderType(providerType); err != nil {
+	if input.Provider == "" {
+		input.Provider = api.ProviderTypeOnecloud
+	}
+	if err := m.ValidateProviderType(string(input.Provider)); err != nil {
 		return nil, err
 	}
 
 	driver, err := GetDriverWithError(
-		api.ModeType(modeType),
-		api.ProviderType(providerType),
-		api.ClusterResourceType(resType),
+		input.Mode,
+		input.Provider,
+		input.ResourceType,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceCidr := SetJSONDataDefault(data, "service_cidr", api.DefaultServiceCIDR)
-	if _, err := netutils.NewIPV4Prefix(serviceCidr); err != nil {
-		return nil, httperrors.NewInputParameterError("Invalid service CIDR: %q", serviceCidr)
+	// TODO: fetch serviceCidr, serviceDomain and podCidr from import cluster
+	if input.ServiceCidr == "" {
+		input.ServiceCidr = api.DefaultServiceCIDR
 	}
-
-	serviceDomain := SetJSONDataDefault(data, "service_domain", api.DefaultServiceDomain)
-	if len(serviceDomain) == 0 {
+	if _, err := netutils.NewIPV4Prefix(input.ServiceCidr); err != nil {
+		return nil, httperrors.NewInputParameterError("Invalid service CIDR: %q", input.ServiceCidr)
+	}
+	if input.ServiceDomain == "" {
+		input.ServiceDomain = api.DefaultServiceDomain
+	}
+	if len(input.ServiceDomain) == 0 {
 		return nil, httperrors.NewInputParameterError("service domain must provided")
 	}
-
-	podCidr := SetJSONDataDefault(data, "pod_cidr", api.DefaultPodCIDR)
-	if _, err := netutils.NewIPV4Prefix(serviceCidr); err != nil {
-		return nil, httperrors.NewInputParameterError("Invalid pod CIDR: %q", podCidr)
+	if input.PodCidr == "" {
+		input.PodCidr = api.DefaultPodCIDR
+	}
+	if _, err := netutils.NewIPV4Prefix(input.PodCidr); err != nil {
+		return nil, httperrors.NewInputParameterError("Invalid pod CIDR: %q", input.PodCidr)
 	}
 
-	if jsonutils.QueryBoolean(data, "ha", false) {
-		data.Set("ha", jsonutils.JSONTrue)
-	} else {
-		data.Set("ha", jsonutils.JSONFalse)
-	}
-
-	res := api.ClusterCreateInput{}
-	if err := data.Unmarshal(&res); err != nil {
-		return nil, httperrors.NewInputParameterError("Unmarshal: %v", err)
-	}
-
-	if res.Provider != string(api.ProviderTypeSystem) && driver.NeedCreateMachines() && len(res.Machines) == 0 {
+	if input.Provider != api.ProviderTypeSystem && driver.NeedCreateMachines() && len(input.Machines) == 0 {
 		return nil, httperrors.NewInputParameterError("Machines desc not provider")
 	}
 
 	var machineResType api.MachineResourceType
-	for _, m := range res.Machines {
+	for _, m := range input.Machines {
 		if len(m.ResourceType) == 0 {
 			return nil, httperrors.NewInputParameterError("Machine resource type is empty")
 		}
@@ -396,20 +409,22 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 		}
 	}
 
-	if err := driver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
+	if err := driver.ValidateCreateData(ctx, userCred, ownerId, query, input); err != nil {
 		return nil, err
 	}
 
 	versions := driver.GetK8sVersions()
 	if len(versions) > 0 {
 		defaultVersion := versions[0]
-		version := SetJSONDataDefault(data, "version", defaultVersion)
-		if !utils.IsInStringArray(version, versions) {
-			return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", version, versions)
+		if input.Version == "" {
+			input.Version = defaultVersion
+		}
+		if !utils.IsInStringArray(input.Version, versions) {
+			return nil, httperrors.NewInputParameterError("Invalid version: %q, choose one from %v", input.Version, versions)
 		}
 	}
 
-	imageRepo := res.ImageRepository
+	imageRepo := input.ImageRepository
 	if imageRepo != nil {
 		if imageRepo.Url == "" {
 			return nil, httperrors.NewNotEmptyError("image_repository.url is empty, use format: 'registry.hub.docker.com/yunion'")
@@ -418,23 +433,21 @@ func (m *SClusterManager) ValidateCreateData(ctx context.Context, userCred mccli
 			return nil, err
 		}
 	}
+	return input, nil
+}
 
-	if res.IsSystem != nil && *res.IsSystem && !db.IsAdminAllowCreate(userCred, m) {
-		return nil, httperrors.NewNotSufficientPrivilegeError("non-admin user not allowed to create system object")
-	}
-
-	input := ocapis.StatusDomainLevelResourceCreateInput{}
-	if err := data.Unmarshal(&input); err != nil {
+func (cluster *SCluster) GetDistributionInfo() (*api.ClusterDistributionInfo, error) {
+	out := new(api.ClusterDistributionInfo)
+	if err := cluster.DistributionInfo.Unmarshal(out); err != nil {
 		return nil, err
 	}
-	input, err = m.SStatusDomainLevelResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, input)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	return out, nil
 }
 
 func (cluster *SCluster) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
+	if err := cluster.SStatusDomainLevelResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data); err != nil {
+		return err
+	}
 	input := new(api.ClusterCreateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "unmarshal cluster create input")
@@ -444,7 +457,13 @@ func (cluster *SCluster) CustomizeCreate(ctx context.Context, userCred mcclient.
 	} else {
 		cluster.IsSystem = false
 	}
-	return cluster.SStatusDomainLevelResourceBase.CustomizeCreate(ctx, userCred, ownerId, query, data)
+	if input.Mode == api.ModeTypeImport {
+		cluster.Kubeconfig = input.ImportData.Kubeconfig
+		cluster.Distribution = input.ImportData.Distribution
+		cluster.ApiServer = input.ImportData.ApiServer
+		cluster.DistributionInfo = jsonutils.Marshal(input.ImportData.DistributionInfo)
+	}
+	return nil
 }
 
 func (m *SClusterManager) AllowGetPropertyK8sVersions(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -582,12 +601,19 @@ func (m *SClusterManager) GetRunningClusters() ([]manager.ICluster, error) {
 	return m.GetClustersByStatus(api.ClusterStatusRunning)
 }
 
-func (m *SClusterManager) GetClustersByStatus(status ...string) ([]manager.ICluster, error) {
-	clusters := m.Query().SubQuery()
-	q := clusters.Query()
-	q = q.Filter(sqlchemy.In(clusters.Field("status"), status))
+func (m *SClusterManager) getClustersByStatus(status ...string) ([]SCluster, error) {
+	q := m.Query()
+	q = q.In("status", status)
 	objs := make([]SCluster, 0)
 	err := db.FetchModelObjects(m, q, &objs)
+	if err != nil {
+		return nil, err
+	}
+	return objs, nil
+}
+
+func (m *SClusterManager) GetClustersByStatus(status ...string) ([]manager.ICluster, error) {
+	objs, err := m.getClustersByStatus(status...)
 	if err != nil {
 		return nil, err
 	}
@@ -622,7 +648,7 @@ func (m *SClusterManager) GetCluster(id string) (*SCluster, error) {
 }
 
 func (m *SClusterManager) ClusterHealthCheckTask(ctx context.Context, userCred mcclient.TokenCredential, isStart bool) {
-	clusters, err := m.GetClustersByStatus(
+	clusters, err := m.getClustersByStatus(
 		api.ClusterStatusRunning,
 		api.ClusterStatusLost,
 		//types.ClusterStatusUnknown,
@@ -631,15 +657,26 @@ func (m *SClusterManager) ClusterHealthCheckTask(ctx context.Context, userCred m
 		log.Errorf("ClusterHealthCheckTask get clusters: %v", err)
 		return
 	}
-	for _, obj := range clusters {
-		c := obj.(*SCluster)
+	for idx := range clusters {
+		c := &clusters[idx]
 		if err := c.IsHealthy(); err == nil {
-			if c.Status != api.ClusterStatusRunning {
-				c.SetStatus(userCred, api.ClusterStatusRunning, "by health check cronjob")
+			prevStatus := c.GetStatus()
+			if c.GetStatus() != api.ClusterStatusRunning {
+				if err := c.SetStatus(userCred, api.ClusterStatusRunning, "by health check cronjob"); err != nil {
+					log.Errorf("Set cluster %s status to running error: %v", c.GetName(), err)
+				} else {
+					c.Status = api.ClusterStatusRunning
+					log.Errorf("===set cluster %s status succ: %s", c.GetName(), c.GetStatus())
+				}
+				if err := client.GetClustersManager().UpdateClient(c); err != nil {
+					log.Errorf("Update cluster %s client error: %v", c.GetName(), err)
+					c.SetStatus(userCred, prevStatus, err.Error())
+				}
 			}
 			continue
 		} else {
 			c.SetStatus(userCred, api.ClusterStatusLost, err.Error())
+			client.GetClustersManager().RemoveClient(c.GetId())
 		}
 	}
 }
@@ -977,7 +1014,34 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 	if err := c.DeleteAllComponents(ctx, userCred); err != nil {
 		return errors.Wrapf(err, "DeleteClusterComponent")
 	}
+	if err := client.GetClustersManager().RemoveClient(c.GetId()); err != nil {
+		return errors.Wrap(err, "Delete from client")
+	}
+	if err := c.PurgeAllClusterResource(ctx, userCred); err != nil {
+		return errors.Wrap(err, "Purge all k8s cluster db resources")
+	}
 	return c.SStatusDomainLevelResourceBase.Delete(ctx, userCred)
+}
+
+func (c *SCluster) PurgeAllClusterResource(ctx context.Context, userCred mcclient.TokenCredential) error {
+	return c.purgeSubClusterResource(ctx, userCred, GetClusterManager().GetSubManagers())
+}
+
+func (c *SCluster) purgeSubClusterResource(ctx context.Context, userCred mcclient.TokenCredential, resMans []ISyncableManager) error {
+	if len(resMans) == 0 {
+		return nil
+	}
+	for _, resMan := range resMans {
+		log.Infof("Start purge cluster %s resources %s", c.GetName(), resMan.KeywordPlural())
+		if err := c.purgeSubClusterResource(ctx, userCred, resMan.GetSubManagers()); err != nil {
+			return errors.Wrapf(err, "purge resource %s subresource", resMan.KeywordPlural())
+		}
+		if err := resMan.PurgeAllByCluster(ctx, userCred, c); err != nil {
+			return errors.Wrapf(err, "purge subresource %s", resMan.Keyword())
+		}
+		log.Infof("Purge cluster %s resources %s success.", c.GetName(), resMan.KeywordPlural())
+	}
+	return nil
 }
 
 func (c *SCluster) DeleteAllComponents(ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -1017,11 +1081,11 @@ func (c *SCluster) StartClusterDeleteTask(ctx context.Context, userCred mcclient
 }
 
 func (c *SCluster) allowPerformAction(userCred mcclient.TokenCredential, action string) bool {
-	return db.IsProjectAllowPerform(userCred, c, action)
+	return db.IsDomainAllowPerform(userCred, c, action)
 }
 
 func (c *SCluster) allowGetSpec(userCred mcclient.TokenCredential, spec string) bool {
-	return db.IsProjectAllowGetSpec(userCred, c, spec)
+	return db.IsDomainAllowGetSpec(userCred, c, spec)
 }
 
 func (c *SCluster) AllowPerformTerminate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
@@ -1041,10 +1105,6 @@ func (c *SCluster) AllowGetDetailsKubeconfig(ctx context.Context, userCred mccli
 
 func (c *SCluster) GetRunningControlplaneMachine() (manager.IMachine, error) {
 	return c.getControlplaneMachine(true)
-}
-
-func (c *SCluster) GetStatus() string {
-	return c.Status
 }
 
 func (c *SCluster) getControlplaneMachine(checkStatus bool) (manager.IMachine, error) {
@@ -1832,4 +1892,69 @@ func (m *SClusterManager) Usage(scope rbacutils.TRbacScope, ownerId mcclient.IId
 	}
 	usage.Node = nodeUsage
 	return usage, nil
+}
+
+// GetRemoteClient get remote kubernetes wrapped client
+func (c *SCluster) GetRemoteClient() (*client.ClusterManager, error) {
+	return client.GetManagerByCluster(c)
+}
+
+func (c *SCluster) GetDetailsApiResources(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterAPIGroupResources, error) {
+	rCli, err := c.GetRemoteClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "get remote kubernetes client")
+	}
+	dCli, err := rCli.ClientV2.K8S().ToDiscoveryClient()
+	if err != nil {
+		return nil, errors.Wrap(err, "get discoveryClient")
+	}
+	lists, err := dCli.ServerPreferredResources()
+	if err != nil {
+		return nil, errors.Wrap(err, "get server preferred resources")
+	}
+	resources := []api.ClusterAPIGroupResource{}
+	// ref code from kubernetes/pkg/kubectl/cmd/apiresources/apiresources.go
+	for _, list := range lists {
+		if len(list.APIResources) == 0 {
+			continue
+		}
+		gv, err := schema.ParseGroupVersion(list.GroupVersion)
+		if err != nil {
+			continue
+		}
+		for _, resource := range list.APIResources {
+			if len(resource.Verbs) == 0 {
+				continue
+			}
+			resources = append(resources, api.ClusterAPIGroupResource{
+				APIGroup:    gv.Group,
+				APIResource: resource,
+			})
+		}
+	}
+	return resources, nil
+}
+
+func (c *SCluster) GetDetailsClusterUsers(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterUsers, error) {
+	if c.Distribution != api.ImportClusterDistributionOpenshift {
+		return nil, nil
+	}
+	config, err := c.GetK8sRestConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "get k8s restconfig")
+	}
+	drv := c.GetDriver()
+	return drv.GetClusterUsers(c, config)
+}
+
+func (c *SCluster) GetDetailsClusterUserGroups(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterUserGroups, error) {
+	if c.Distribution != api.ImportClusterDistributionOpenshift {
+		return nil, nil
+	}
+	config, err := c.GetK8sRestConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "get k8s restconfig")
+	}
+	drv := c.GetDriver()
+	return drv.GetClusterUserGroups(c, config)
 }

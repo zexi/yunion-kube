@@ -15,6 +15,12 @@ func init() {
 		new(api.FederatedNamespaceSpec),
 		// for federated role
 		new(api.FederatedRoleSpec),
+		// for federated rolebinding
+		new(api.FederatedRoleBindingSpec),
+		// for federated cluserrole
+		new(api.FederatedClusterRoleSpec),
+		// for federated clusterrolebinding
+		new(api.FederatedClusterRoleBindingSpec),
 	)
 }
 

@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 
@@ -73,17 +72,17 @@ func Run(ctx context.Context) error {
 	}
 
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
-	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterHealthCheck", time.Minute, models.ClusterManager.ClusterHealthCheckTask, true)
-	cron.AddJobAtIntervalsWithStartRun("StartKubeClusterAutoSyncTask", 30*time.Minute, models.ClusterManager.StartAutoSyncTask, false)
+	initial.InitClient(cron)
 	cron.Start()
 	defer cron.Stop()
 
 	// init client after cluster full synced
-	if err := models.ClusterManager.WaitFullSynced(); err != nil {
-		// return errors.Wrap(err, "wait clusters full synced")
-		log.Errorf("wait clusters full synced: %v", err)
-	}
-	initial.InitClient()
+	/*
+	 * if err := models.ClusterManager.WaitFullSynced(); err != nil {
+	 *     // return errors.Wrap(err, "wait clusters full synced")
+	 *     log.Errorf("wait clusters full synced: %v", err)
+	 * }
+	 */
 
 	if err := server.Start(httpsAddr, app); err != nil {
 		return err

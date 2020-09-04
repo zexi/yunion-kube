@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -61,7 +60,7 @@ type IFederatedJointClusterModel interface {
 	IsNamespaceScope() bool
 	IsResourceExist() (IClusterModel, bool, error)
 	SetResource(resObj IClusterModel) error
-	GetResourceCreateData(baseInput api.ClusterResourceCreateInput) (jsonutils.JSONObject, error)
+	GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, baseInput api.ClusterResourceCreateInput) (jsonutils.JSONObject, error)
 	UpdateResource(resObj IClusterModel) error
 }
 
@@ -89,7 +88,6 @@ func NewFederatedJointClusterManager(
 	base := NewFederatedJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master, GetClusterManager())
 	man := SFederatedJointClusterManager{
 		SFederatedJointResourceBaseManager: base,
-		masterFieldName:                    fmt.Sprintf("%s_id", master.Keyword()),
 		resourceManager:                    resourceMan,
 	}
 	return man
@@ -103,16 +101,16 @@ func NewFederatedJointManager(factory func() db.IJointModelManager) db.IJointMod
 
 type SFederatedJointClusterManager struct {
 	SFederatedJointResourceBaseManager
-	masterFieldName string
 	resourceManager IClusterModelManager
 }
 
 type SFederatedJointCluster struct {
 	SFederatedJointResourceBase
 
-	ClusterId   string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
-	NamespaceId string `width:"36" charset:"ascii" list:"user" index:"true"`
-	ResourceId  string `width:"36" charset:"ascii" list:"user" index:"true"`
+	FederatedresourceId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+	ClusterId           string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+	NamespaceId         string `width:"36" charset:"ascii" list:"user" index:"true"`
+	ResourceId          string `width:"36" charset:"ascii" list:"user" index:"true"`
 }
 
 func (m SFederatedJointClusterManager) GetFedManager() IFederatedModelManager {
@@ -124,7 +122,7 @@ func (m SFederatedJointClusterManager) GetResourceManager() IClusterModelManager
 }
 
 func (m SFederatedJointClusterManager) GetMasterFieldName() string {
-	return m.masterFieldName
+	return "federatedresource_id"
 }
 
 func (m SFederatedJointClusterManager) GetSlaveFieldName() string {
@@ -155,6 +153,10 @@ func (obj *SFederatedJointCluster) GetResourceManager() IClusterModelManager {
 	return obj.GetManager().GetResourceManager()
 }
 
+func (obj *SFederatedJointCluster) GetFedResourceManager() IFederatedModelManager {
+	return obj.GetManager().GetFedManager()
+}
+
 func (obj *SFederatedJointCluster) IsNamespaceScope() bool {
 	return obj.GetResourceManager().IsNamespaceScope()
 }
@@ -177,10 +179,20 @@ func (obj *SFederatedJointCluster) UpdateResource(resObj IClusterModel) error {
 	return nil
 }
 
-func (m *SFederatedJointClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedJointClusterListInput) (*sqlchemy.SQuery, error) {
+func (m *SFederatedJointClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FedJointClusterListInput) (*sqlchemy.SQuery, error) {
 	q, err := m.SFederatedJointResourceBaseManager.ListItemFilter(ctx, q, userCred, input.JointResourceBaseListInput)
 	if err != nil {
 		return nil, err
+	}
+	log.Errorf("====input: %#v", input)
+	if len(input.FederatedResourceId) > 0 {
+		masterMan := m.GetMasterManager()
+		log.Errorf("==masterMan: %v", masterMan)
+		fedObj, err := masterMan.FetchByIdOrName(userCred, input.FederatedResourceId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Get %s object", masterMan.Keyword())
+		}
+		q = q.Equals("federatedresource_id", fedObj.GetId())
 	}
 	if len(input.ClusterId) > 0 {
 		clusterObj, err := GetClusterManager().FetchByIdOrName(userCred, input.ClusterId)
@@ -226,13 +238,18 @@ func (obj *SFederatedJointCluster) GetCluster() (*SCluster, error) {
 }
 
 func (obj *SFederatedJointCluster) GetDetails(base interface{}, isList bool) interface{} {
-	out := api.FederatedJointClusterResourceDetails{
+	out := api.FedJointClusterResourceDetails{
 		JointResourceBaseDetails: base.(apis.JointResourceBaseDetails),
 	}
 	if cluster, err := obj.GetCluster(); err != nil {
 		log.Errorf("get cluster %s object error: %v", obj.ClusterId, err)
 	} else {
 		out.Cluster = cluster.GetName()
+	}
+	if fedObj, err := obj.GetFedResourceModel(); err != nil {
+		log.Errorf("get federated resource %s object error: %v", obj.FederatedresourceId, err)
+	} else {
+		out.FederatedResource = fedObj.GetName()
 	}
 	if obj.IsNamespaceScope() {
 		if obj.NamespaceId != "" {
@@ -249,6 +266,14 @@ func (obj *SFederatedJointCluster) GetDetails(base interface{}, isList bool) int
 		}
 	}
 	return out
+}
+
+func (obj *SFederatedJointCluster) GetFedResourceModel() (IFederatedModel, error) {
+	fObj, err := obj.GetFedResourceManager().FetchById(obj.FederatedresourceId)
+	if err != nil {
+		return nil, errors.Wrap(err, "get federated resource model")
+	}
+	return fObj.(IFederatedModel), nil
 }
 
 func (obj *SFederatedJointCluster) GetResourceModel() (IClusterModel, error) {
@@ -320,7 +345,7 @@ func (m *SFederatedJointClusterManager) CreateResource(
 	baseInput.Name = fedObj.GetName()
 	baseInput.ClusterId = cluster.GetId()
 	baseInput.ProjectDomainId = cluster.DomainId
-	data, err := jointObj.GetResourceCreateData(*baseInput)
+	data, err := jointObj.GetResourceCreateData(ctx, userCred, *baseInput)
 	if err != nil {
 		return errors.Wrap(err, "GetResourceCreateData")
 	}

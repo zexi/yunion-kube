@@ -1,7 +1,6 @@
 package model
 
 import (
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
@@ -12,6 +11,8 @@ import (
 
 type K8sResourceInfo struct {
 	ResourceName string
+	Group        string
+	Version      string
 	KindName     string
 	Object       runtime.Object
 }
@@ -43,22 +44,11 @@ type IK8sModel interface {
 	SetK8sObject(runtime.Object) IK8sModel
 	GetK8sObject() runtime.Object
 
-	GetObjectMeta() api.ObjectMeta
 	GetTypeMeta() api.TypeMeta
+
+	IOwnerModel
 }
 
 type IOwnerModel interface {
-	GetObjectMeta() api.ObjectMeta
-}
-
-type IPodOwnerModel interface {
-	IK8sModel
-
-	GetRawPods() ([]*v1.Pod, error)
-}
-
-type IServiceOwnerModel interface {
-	IK8sModel
-
-	GetRawServices() ([]*v1.Service, error)
+	GetObjectMeta() (api.ObjectMeta, error)
 }

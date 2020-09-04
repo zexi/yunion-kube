@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	//"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kubectl/pkg/scheme"
 
@@ -40,9 +42,16 @@ import (
 type SClusterResourceBaseManager struct {
 	db.SStatusDomainLevelResourceBaseManager
 	db.SExternalizedResourceBaseManager
+
+	SK8sOwnedResourceBaseManager
+
 	*SSyncableManager
 	// resourceName is kubernetes resource name
 	resourceName string
+	// groupName is kubernetes resource group
+	groupName string
+	// versionName string kubernetes resource version
+	versionName string
 	// kindName is kubernetes resource kind
 	kindName string
 	// RawObject is kubernetes runtime object
@@ -55,12 +64,16 @@ func NewClusterResourceBaseManager(
 	keyword string,
 	keywordPlural string,
 	resName string,
+	groupName string,
+	versionName string,
 	kind string,
 	object runtime.Object) SClusterResourceBaseManager {
 	return SClusterResourceBaseManager{
 		SStatusDomainLevelResourceBaseManager: db.NewStatusDomainLevelResourceBaseManager(
 			dt, tableName, keyword, keywordPlural),
 		resourceName:     resName,
+		groupName:        groupName,
+		versionName:      versionName,
 		kindName:         kind,
 		rawObject:        object,
 		SSyncableManager: newSyncableManager(),
@@ -88,6 +101,8 @@ type IClusterModelManager interface {
 
 	NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error)
 	CreateRemoteObject(model IClusterModel, cli *client.ClusterManager, remoteObj interface{}) (interface{}, error)
+
+	InitOwnedManager(man IClusterModelManager)
 }
 
 type IClusterModel interface {
@@ -109,9 +124,28 @@ type IClusterModel interface {
 	GetDetails(cli *client.ClusterManager, baseDetails interface{}, k8sObj runtime.Object, isList bool) interface{}
 
 	// RemoteObject operator interfaces
-	GetRemoteObject(cli *client.ClusterManager) (interface{}, error)
-	UpdateRemoteObject(cli *client.ClusterManager, remoteObj interface{}) (interface{}, error)
-	DeleteRemoteObject(cli *client.ClusterManager) error
+	GetRemoteObject() (interface{}, error)
+	UpdateRemoteObject(remoteObj interface{}) (interface{}, error)
+	DeleteRemoteObject() error
+}
+
+func (m *SClusterResourceBaseManager) InitOwnedManager(man IClusterModelManager) {
+	m.SK8sOwnedResourceBaseManager = newK8sOwnedResourceManager(man)
+}
+
+func (_ SClusterResourceBaseManager) GetOwnerModel(userCred mcclient.TokenCredential, manager model.IModelManager, cluster model.ICluster, namespace string, name string) (model.IOwnerModel, error) {
+	if namespace != "" {
+		nsObj, err := GetNamespaceManager().GetByIdOrName(userCred, cluster.GetId(), namespace)
+		if err != nil {
+			return nil, errors.Wrapf(err, "get namespace %s", namespace)
+		}
+		namespace = nsObj.GetId()
+	}
+	modelObj, err := FetchClusterResourceByIdOrName(manager.(IClusterModelManager), userCred, cluster.GetId(), namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	return modelObj.(model.IOwnerModel), nil
 }
 
 func (m SClusterResourceBaseManager) IsNamespaceScope() bool {
@@ -121,6 +155,8 @@ func (m SClusterResourceBaseManager) IsNamespaceScope() bool {
 func (m SClusterResourceBaseManager) GetK8sResourceInfo() model.K8sResourceInfo {
 	return model.K8sResourceInfo{
 		ResourceName: m.resourceName,
+		Group:        m.groupName,
+		Version:      m.versionName,
 		KindName:     m.kindName,
 		Object:       m.rawObject,
 	}
@@ -270,6 +306,22 @@ func (m *SClusterResourceBaseManager) GetByIdOrName(userCred mcclient.IIdentityP
 
 func (m *SClusterResourceBaseManager) GetByName(userCred mcclient.IIdentityProvider, clusterId string, resId string) (IClusterModel, error) {
 	return FetchClusterResourceByName(m, userCred, clusterId, "", resId)
+}
+
+func NewObjectMeta(res IClusterModel) (api.ObjectMeta, error) {
+	kObj, err := GetK8sObject(res)
+	if err != nil {
+		return api.ObjectMeta{}, errors.Wrap(err, "get k8s object")
+	}
+	cluster, err := res.GetCluster()
+	if err != nil {
+		return api.ObjectMeta{}, errors.Wrap(err, "get cluster")
+	}
+	return model.NewObjectMeta(kObj, cluster)
+}
+
+func (res SClusterResourceBase) GetObjectMeta() (api.ObjectMeta, error) {
+	return NewObjectMeta(&res)
 }
 
 func (res *SClusterResourceBase) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -522,8 +574,12 @@ func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCred
 		log.Warningf("object %s/%s status is %s, skip deleted it", dbObj.Keyword(), dbObj.GetName(), dbObj.GetStatus())
 		return nil
 	}
+	log.Errorf("++++try delete model %s/%s", dbObj.Keyword(), dbObj.GetName())
+	if err := dbObj.RealDelete(ctx, userCred); err != nil {
+		return errors.Wrapf(err, "SyncRemovedClusterResource ")
+	}
 
-	if err := dbObj.ValidateDeleteCondition(ctx); err != nil {
+	/*if err := dbObj.ValidateDeleteCondition(ctx); err != nil {
 		err := errors.Wrapf(err, "ValidateDeleteCondition")
 		dbObj.SetStatus(userCred, api.ClusterResourceStatusDeleteFail, err.Error())
 		return err
@@ -541,6 +597,7 @@ func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCred
 		return err
 	}
 	dbObj.PostDelete(ctx, userCred)
+	*/
 	return nil
 }
 
@@ -571,14 +628,28 @@ func SyncUpdatedClusterResource(
 func (m *SClusterResourceBaseManager) ListRemoteObjects(clsCli *client.ClusterManager) ([]interface{}, error) {
 	resInfo := m.GetK8sResourceInfo()
 	k8sCli := clsCli.GetHandler()
-	k8sObjs, err := k8sCli.List(resInfo.ResourceName, "", labels.Everything().String())
+	objs, err := k8sCli.List(resInfo.ResourceName, "", labels.Everything().String())
 	if err != nil {
 		return nil, errors.Wrapf(err, "list k8s %s remote objects", resInfo.KindName)
 	}
-	ret := make([]interface{}, len(k8sObjs))
-	for i := range k8sObjs {
-		ret[i] = k8sObjs[i]
+	ret := make([]interface{}, len(objs))
+	for i := range objs {
+		ret[i] = objs[i]
 	}
+	/*cli := clsCli.GetClient()
+	objs, err := cli.K8S().List(resInfo.Group, resInfo.Version, resInfo.KindName, "")
+	if err != nil {
+		return nil, errors.Wrapf(err, "list k8s %s remote objects", resInfo.ResourceName)
+	}
+
+	ret := make([]interface{}, len(objs))
+	for i := range objs {
+		newObj := resInfo.Object.DeepCopyObject()
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(objs[i].(*unstructured.Unstructured).Object, newObj); err != nil {
+			return nil, errors.Wrap(err, "convert from unstructured")
+		}
+		ret[i] = newObj
+	}*/
 	return ret, nil
 }
 
@@ -588,10 +659,14 @@ func (m *SClusterResourceBaseManager) GetRemoteObjectGlobalId(cluster *SCluster,
 
 func (m *SClusterResourceBaseManager) IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error) {
 	metaObj := obj.(metav1.Object)
-	if localObj, _ := m.GetByName(userCred, cluster.GetId(), metaObj.GetName()); localObj != nil {
-		return localObj, true, nil
+	localObj, err := m.GetByName(userCred, cluster.GetId(), metaObj.GetName())
+	if err != nil {
+		if errors.Cause(err) == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, errors.Wrapf(err, "get cluster %s %s/%s", cluster.GetName(), m.Keyword(), metaObj.GetName())
 	}
-	return nil, false, nil
+	return localObj, true, nil
 }
 
 func (m *SClusterResourceBaseManager) NewFromRemoteObject(
@@ -694,6 +769,35 @@ func FetchClusterResourceCustomizeColumns(
 	return ret
 }
 
+type iPurgeClusterResource interface {
+	GetId() string
+	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
+}
+
+func (m *SClusterResourceBaseManager) PurgeAllByCluster(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error {
+	// objs := make([]IClusterModel, 0)
+	objs := make([]interface{}, 0)
+	q := m.Query().Equals("cluster_id", cluster.GetId())
+	if err := db.FetchModelObjects(m, q, &objs); err != nil {
+		return errors.Wrapf(err, "Fetch all %s objects when purge all", m.KeywordPlural())
+	}
+	// ptr wraps the given value with pointer: V => *V, *V => **V, etc.
+	ptr := func(v reflect.Value) reflect.Value {
+		pt := reflect.PtrTo(v.Type())
+		pv := reflect.New(pt.Elem())
+		pv.Elem().Set(v)
+		return pv
+	}
+	for i := range objs {
+		obj := objs[i]
+		objPtr := ptr(reflect.ValueOf(obj)).Interface().(iPurgeClusterResource)
+		if err := objPtr.RealDelete(ctx, userCred); err != nil {
+			return errors.Wrapf(err, "delete %s object %s", m.Keyword(), objPtr.GetId())
+		}
+	}
+	return nil
+}
+
 func (obj *SClusterResourceBase) GetDetails(
 	cli *client.ClusterManager,
 	base interface{},
@@ -746,7 +850,7 @@ func GetK8sObject(res IClusterModel) (runtime.Object, error) {
 	}
 	k8sObj, err := cli.GetHandler().Get(info.ResourceName, namespaceName, res.GetName())
 	if err != nil {
-		return nil, errors.Wrapf(err, "get object from k8s %s/%s", info.ResourceName, res.GetName())
+		return nil, errors.Wrapf(err, "get object from k8s %s/%s/%s", info.ResourceName, namespaceName, res.GetName())
 	}
 	return k8sObj, nil
 }
@@ -877,7 +981,7 @@ func UpdateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, 
 	if err != nil {
 		return nil, errors.Wrap(err, "get cluster client")
 	}
-	extObj, err := model.GetRemoteObject(cli)
+	extObj, err := model.GetRemoteObject()
 	if err != nil {
 		return nil, errors.Wrap(err, "get remote object")
 	}
@@ -885,11 +989,11 @@ func UpdateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, 
 	if err != nil {
 		return nil, errors.Wrap(err, "NewRemoteObjectForUpdate")
 	}
-	extObj, err = model.UpdateRemoteObject(cli, extObj)
+	extObj, err = model.UpdateRemoteObject(extObj)
 	if err != nil {
 		return nil, errors.Wrap(err, "UpdateRemoteObject")
 	}
-	extObj, err = model.GetRemoteObject(cli)
+	extObj, err = model.GetRemoteObject()
 	if err != nil {
 		return nil, errors.Wrap(err, "get remote object after updated")
 	}
@@ -918,7 +1022,6 @@ func DeleteRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, 
 	 *     return errors.Wrap(err, "DeleteRemoteObject")
 	 * }
 	 */
-	log.Errorf("++++try delete model %s/%s", model.Keyword(), model.GetName())
 	return nil
 }
 
@@ -930,25 +1033,29 @@ func (obj *SClusterResourceBase) GetClusterModelManager() IClusterModelManager {
 	return obj.GetModelManager().(IClusterModelManager)
 }
 
-func (obj *SClusterResourceBase) GetRemoteObject(cli *client.ClusterManager) (interface{}, error) {
+func (obj *SClusterResourceBase) GetRemoteObject() (interface{}, error) {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, errors.Wrapf(err, "get %s/%s cluster client", obj.Keyword(), obj.GetName())
+	}
 	resInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 	k8sCli := cli.GetHandler()
 	return k8sCli.Get(resInfo.ResourceName, "", obj.GetName())
 }
 
 func (obj *SClusterResourceBase) GetK8sObject() (runtime.Object, error) {
-	cli, err := obj.GetClusterClient()
-	if err != nil {
-		return nil, err
-	}
-	ret, err := obj.GetRemoteObject(cli)
+	ret, err := obj.GetRemoteObject()
 	if err != nil {
 		return nil, err
 	}
 	return ret.(runtime.Object), nil
 }
 
-func (obj *SClusterResourceBase) UpdateRemoteObject(cli *client.ClusterManager, remoteObj interface{}) (interface{}, error) {
+func (obj *SClusterResourceBase) UpdateRemoteObject(remoteObj interface{}) (interface{}, error) {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, errors.Wrapf(err, "get %s/%s cluster client", obj.Keyword(), obj.GetName())
+	}
 	resInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 	k8sCli := cli.GetHandler()
 	return k8sCli.UpdateV2(resInfo.ResourceName, remoteObj.(runtime.Object))
@@ -967,7 +1074,11 @@ func (obj *SClusterResourceBase) RealDelete(ctx context.Context, userCred mcclie
 	return obj.SStatusDomainLevelResourceBase.Delete(ctx, userCred)
 }
 
-func (obj *SClusterResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {
+func (obj *SClusterResourceBase) DeleteRemoteObject() error {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return errors.Wrapf(err, "get %s/%s cluster client", obj.Keyword(), obj.GetName())
+	}
 	resInfo := obj.GetClusterModelManager().GetK8sResourceInfo()
 	if err := cli.GetHandler().Delete(resInfo.ResourceName, "", obj.GetName(), &metav1.DeleteOptions{}); err != nil {
 		if kerrors.IsNotFound(err) {
@@ -985,6 +1096,18 @@ func (_ *SClusterResourceBase) StartCreateTask(resObj IClusterModel, ctx context
 	}
 	task.ScheduleRun(nil)
 	return nil
+}
+
+func (obj *SClusterResourceBase) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.ClusterResourceUpdateInput) (*api.ClusterResourceUpdateInput, error) {
+	if input.Name != "" {
+		return nil, httperrors.NewInputParameterError("can not update cluster resource name")
+	}
+	bInput, err := obj.SStatusDomainLevelResourceBase.ValidateUpdateData(ctx, userCred, query, input.StatusDomainLevelResourceBaseUpdateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.StatusDomainLevelResourceBaseUpdateInput = bInput
+	return input, nil
 }
 
 func (_ *SClusterResourceBase) StartUpdateTask(resObj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentId string) error {
@@ -1005,39 +1128,22 @@ func (_ *SClusterResourceBase) StartDeleteTask(resObj IClusterModel, ctx context
 	return nil
 }
 
-func (m *SClusterResourceBaseManager) OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
-	// lockman.LockClass(ctx, m, db.GetLockClassKey(m, userCred))
-	// defer lockman.ReleaseClass(ctx, m, db.GetLockClassKey(m, userCred))
-
-	// resMan := m.GetClusterModelManager()
-	// OnRemoteObjectCreate(resMan, ctx, userCred, cluster, obj)
-	m.OnCreateOrUpdateByRemoteObject(ctx, userCred, cluster, obj)
+// OnRemoteObjectCreate invoked when remote object created
+func (m *SClusterResourceBaseManager) OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, obj runtime.Object) {
+	processCreateOrUpdateByRemoteObject(ctx, userCred, cluster, resMan.(IClusterModelManager), obj)
 }
 
-func (m *SClusterResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, _, newObj runtime.Object) {
-	// resMan := m.GetClusterModelManager()
-	// metaObj := newObj.(metav1.Object)
-	// objName := metaObj.GetName()
-	// dbObj, err := m.GetByName(userCred, cluster.GetId(), objName)
-	// if err != nil {
-	// log.Errorf("OnRemoteObjectUpdate get %s local object %s error: %v", resMan.Keyword(), objName, err)
-	// return
-	// }
-
-	// lockman.LockObject(ctx, dbObj)
-	// defer lockman.ReleaseObject(ctx, dbObj)
-
-	// OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, newObj)
-	m.OnCreateOrUpdateByRemoteObject(ctx, userCred, cluster, newObj)
+// OnRemoteObjectUpdate invoked when remote resource updated
+func (m *SClusterResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, _, newObj runtime.Object) {
+	processCreateOrUpdateByRemoteObject(ctx, userCred, cluster, resMan.(IClusterModelManager), newObj)
 }
 
-func (m *SClusterResourceBaseManager) OnCreateOrUpdateByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
-	resMan := m.GetClusterModelManager()
+func processCreateOrUpdateByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan IClusterModelManager, obj runtime.Object) {
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
 	dbObj, exist, err := resMan.IsRemoteObjectLocalExist(userCred, cluster.(*SCluster), obj)
 	if err != nil {
-		log.Errorf("Create or update by remote object %s/%s/%s error: %v", metaObj.GetNamespace(), objName, err)
+		log.Errorf("Create or update by cluster %s remote object %s/%s/%s error: %v", cluster.GetName(), resMan.Keyword(), metaObj.GetNamespace(), objName, err)
 		return
 	}
 
@@ -1048,25 +1154,36 @@ func (m *SClusterResourceBaseManager) OnCreateOrUpdateByRemoteObject(ctx context
 		OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, obj)
 		return
 	} else {
-		lockman.LockClass(ctx, m, db.GetLockClassKey(m, userCred))
-		defer lockman.ReleaseClass(ctx, m, db.GetLockClassKey(m, userCred))
+		lockman.LockClass(ctx, resMan, db.GetLockClassKey(resMan, userCred))
+		defer lockman.ReleaseClass(ctx, resMan, db.GetLockClassKey(resMan, userCred))
 
 		OnRemoteObjectCreate(resMan, ctx, userCred, cluster, obj)
 		return
 	}
 }
 
-func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
-	resMan := m.GetClusterModelManager()
+func processRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan IClusterModelManager, obj runtime.Object) {
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
-	dbObj, err := m.GetByName(userCred, cluster.GetId(), objName)
+	objNamespace := metaObj.GetNamespace()
+	isNamespace := resMan.IsNamespaceScope()
+	dbNsId := ""
+	if isNamespace {
+		dbNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNamespace)
+		if err != nil {
+			log.Errorf("OnRemoteObjectDelete for cluster %s %s get namespace error: %v", cluster.GetName(), resMan.Keyword(), err)
+			return
+		}
+		dbNsId = dbNs.GetId()
+	}
+
+	dbObj, err := FetchClusterResourceByName(resMan, userCred, cluster.GetId(), dbNsId, objName)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
 			// local object already deleted
 			return
 		}
-		log.Errorf("OnRemoteObjectDelete get %s local object %s error: %v", resMan.Keyword(), objName, err)
+		log.Errorf("OnRemoteObjectDelete get cluster %s %s local object %s/%s error: %v", cluster.GetName(), resMan.Keyword(), dbNsId, objName, err)
 		return
 	}
 
@@ -1076,11 +1193,16 @@ func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, 
 	OnRemoteObjectDelete(resMan, ctx, userCred, dbObj)
 }
 
+// OnRemoteObjectDelete invoked when remote resource deleted
+func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, obj runtime.Object) {
+	processRemoteObjectDelete(ctx, userCred, cluster, resMan.(IClusterModelManager), obj)
+}
+
 func OnRemoteObjectCreate(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
 	objName := obj.(metav1.Object).GetName()
 	localObj, exist, err := resMan.IsRemoteObjectLocalExist(userCred, cluster.(*SCluster), obj)
 	if err != nil {
-		log.Errorf("check IsRemoteObjectLocalExist error: %v", err)
+		log.Errorf("check IsRemoteObjectLocalExist when create error: %v", err)
 		return
 	}
 	if exist {
@@ -1118,4 +1240,23 @@ func GetResourcesByClusters(man IClusterModelManager, clusterIds []string, ret i
 		return errors.Wrapf(err, "fetch %s resources by clusters")
 	}
 	return nil
+}
+
+func ValidateUpdateData(obj IClusterModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	if name, _ := data.GetString("name"); name != "" {
+		return nil, httperrors.NewInputParameterError("can not update cluster resource name")
+	}
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, errors.Wrapf(err, "get resource %s/%s cluster client", obj.Keyword(), obj.GetName())
+	}
+	extObj, err := obj.GetRemoteObject()
+	if err != nil {
+		return nil, errors.Wrapf(err, "get resource %s/%s remote object", obj.Keyword(), obj.GetName())
+	}
+	extObj, err = obj.NewRemoteObjectForUpdate(cli, extObj, data)
+	if err != nil {
+		return nil, errors.Wrapf(err, "NewRemoteObjectForUpdate for resource %s/%s", obj.Keyword(), obj.GetName())
+	}
+	return data, nil
 }

@@ -33,11 +33,13 @@ func GetDeploymentManager() *SDeploymentManager {
 		deploymentManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SDeploymentManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SDeployment),
+					SDeployment{},
 					"deployments_tbl",
 					"deployment",
 					"deployments",
 					api.ResourceNameDeployment,
+					apps.GroupName,
+					apps.SchemeGroupVersion.Version,
 					api.KindNameDeployment,
 					new(apps.Deployment),
 				),
@@ -132,7 +134,7 @@ func (obj *SDeployment) GetRawReplicaSets(cli *client.ClusterManager, deploy *ap
 
 func (obj *SDeployment) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
 	deploy := rawObj.(*apps.Deployment)
-	pods, err := PodManager.GetRawPods(cli, deploy.GetNamespace())
+	pods, err := GetPodManager().GetRawPods(cli, deploy.GetNamespace())
 	if err != nil {
 		return nil, errors.Wrapf(err, "get namespace %s pods", deploy.GetNamespace())
 	}
@@ -142,6 +144,19 @@ func (obj *SDeployment) GetRawPods(cli *client.ClusterManager, rawObj runtime.Ob
 	}
 	pods = FilterDeploymentPodsByOwnerReference(deploy, rss, pods)
 	return pods, nil
+}
+
+func (obj *SDeployment) GetRawDeployment() (*apps.Deployment, error) {
+	kObj, err := GetK8sObject(obj)
+	if err != nil {
+		return nil, err
+	}
+	return kObj.(*apps.Deployment), nil
+}
+
+func (obj *SDeployment) GetRawServices(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Service, error) {
+	deploy := rawObj.(*apps.Deployment)
+	return GetServiceManager().GetRawServicesByMatchLabels(cli, deploy.GetNamespace(), deploy.Spec.Selector.MatchLabels)
 }
 
 func (obj *SDeployment) GetPodInfo(cli *client.ClusterManager, deploy *apps.Deployment) (*api.PodInfo, error) {

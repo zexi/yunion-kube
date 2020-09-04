@@ -38,6 +38,8 @@ func GetNamespaceManager() *SNamespaceManager {
 					"namespace",
 					"namespaces",
 					api.ResourceNameNamespace,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
 					api.KindNameNamespace,
 					&v1.Namespace{}),
 			}
@@ -185,8 +187,8 @@ func (ns *SNamespace) Delete(ctx context.Context, userCred mcclient.TokenCredent
 		return err
 	}
 	for _, man := range []IClusterModelManager{
-		ReleaseManager,
-		PodManager,
+		GetReleaseManager(),
+		GetPodManager(),
 	} {
 		q := man.Query()
 		q.Equals("namespace_id", ns.GetId())

@@ -29,7 +29,7 @@ func (spec *FederatedRoleSpec) IsZero() bool {
 func (spec *FederatedRoleSpec) ToRole(objMeta metav1.ObjectMeta) *rbac.Role {
 	return &rbac.Role{
 		ObjectMeta: objMeta,
-		Rules: spec.Template.Rules,
+		Rules:      spec.Template.Rules,
 	}
 }
 
@@ -38,6 +38,6 @@ type FederatedRoleCreateInput struct {
 	Spec *FederatedRoleSpec `json:"spec"`
 }
 
-func (input FederatedRoleCreateInput) ToRole() *rbac.Role {
-	return input.Spec.ToRole(input.ToObjectMeta())
+func (input FederatedRoleCreateInput) ToRole(namespace string) *rbac.Role {
+	return input.Spec.ToRole(input.ToObjectMeta(namespace))
 }

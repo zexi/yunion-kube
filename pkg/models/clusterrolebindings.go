@@ -10,7 +10,6 @@ import (
 	"k8s.io/kubernetes/pkg/apis/rbac/validation"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
@@ -20,36 +19,45 @@ import (
 )
 
 var (
-	ClusterRoleBindingManager *SClusterRoleBindingManager
-	_                         db.IModel = new(SClusterRoleBinding)
+	clusterRoleBindingManager *SClusterRoleBindingManager
+	_                         IClusterModel = new(SClusterRoleBinding)
 )
 
 func init() {
-	ClusterRoleBindingManager = NewK8sModelManager(func() ISyncableManager {
-		return &SClusterRoleBindingManager{
-			SClusterResourceBaseManager: NewClusterResourceBaseManager(
-				new(SClusterRoleBinding),
-				"clusterrolebindings_tbl",
-				"rbacclusterrolebinding",
-				"rbacclusterrolebindings",
-				api.ResourceNameClusterRoleBinding,
-				api.KindNameClusterRoleBinding,
-				new(rbac.ClusterRoleBinding),
-			),
-		}
-	}).(*SClusterRoleBindingManager)
+	GetClusterRoleBindingManager()
+}
+
+func GetClusterRoleBindingManager() *SClusterRoleBindingManager {
+	if clusterRoleBindingManager == nil {
+		clusterRoleBindingManager = NewK8sModelManager(func() ISyncableManager {
+			return &SClusterRoleBindingManager{
+				SClusterResourceBaseManager: NewClusterResourceBaseManager(
+					SClusterRoleBinding{},
+					"clusterrolebindings_tbl",
+					"rbacclusterrolebinding",
+					"rbacclusterrolebindings",
+					api.ResourceNameClusterRoleBinding,
+					rbacv1.GroupName,
+					rbacv1.SchemeGroupVersion.Version,
+					api.KindNameClusterRoleBinding,
+					new(rbac.ClusterRoleBinding),
+				),
+			}
+		}).(*SClusterRoleBindingManager)
+	}
+	return clusterRoleBindingManager
 }
 
 // +onecloud:swagger-gen-model-singular=rbacclusterrolebinding
 // +onecloud:swagger-gen-model-plural=rbacclusterrolebindings
 type SClusterRoleBindingManager struct {
 	SClusterResourceBaseManager
-	SRoleRefResourceBaseManager
+	// SRoleRefResourceBaseManager
 }
 
 type SClusterRoleBinding struct {
 	SClusterResourceBase
-	SRoleRefResourceBase
+	// SRoleRefResourceBase
 }
 
 func (m *SClusterRoleBindingManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ClusterResourceListInput) (*sqlchemy.SQuery, error) {
@@ -61,7 +69,7 @@ func (m *SClusterRoleBindingManager) SyncResources(ctx context.Context, userCred
 }
 
 func (m *SClusterRoleBindingManager) ValidateClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) error {
-	return ValidateK8sObject(crb, new(rbac.ClusterRoleBinding), func(out interface{}) field.ErrorList {
+	return ValidateCreateK8sObject(crb, new(rbac.ClusterRoleBinding), func(out interface{}) field.ErrorList {
 		return validation.ValidateClusterRoleBinding(out.(*rbac.ClusterRoleBinding))
 	})
 }
@@ -73,9 +81,11 @@ func (m *SClusterRoleBindingManager) ValidateCreateData(ctx context.Context, use
 	}
 	input.ClusterResourceCreateInput = *cInput
 
-	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(GetClusterRoleManager(), userCred, &input.RoleRef); err != nil {
-		return nil, err
-	}
+	/*
+	 * if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(GetClusterRoleManager(), userCred, &input.RoleRef); err != nil {
+	 *     return nil, err
+	 * }
+	 */
 
 	crb := input.ToClusterRoleBinding()
 	if err := m.ValidateClusterRoleBinding(crb); err != nil {
@@ -92,9 +102,11 @@ func (obj *SClusterRoleBinding) CustomizeCreate(ctx context.Context, userCred mc
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "unmarshal clusterrolebinding create input")
 	}
-	if err := obj.SRoleRefResourceBase.CustomizeCreate(&input.RoleRef); err != nil {
-		return err
-	}
+	/*
+	 * if err := obj.SRoleRefResourceBase.CustomizeCreate(&input.RoleRef); err != nil {
+	 *     return err
+	 * }
+	 */
 	return nil
 }
 

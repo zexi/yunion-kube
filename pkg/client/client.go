@@ -5,14 +5,13 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/client-go/dynamic"
+	// "k8s.io/apimachinery/pkg/api/meta"
+	// "k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
+	// "k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -36,11 +35,6 @@ const (
 var (
 	ErrNotExist = errors.Error("cluster not exist.")
 	ErrStatus   = errors.Error("cluster invalid status, please try again later.")
-)
-
-var (
-	clusterManagerSets = &sync.Map{}
-	buildLock          = sync.Mutex{}
 )
 
 type ClusterManager struct {
@@ -109,177 +103,21 @@ func (c ClusterManager) Close() {
 	c.KubeClient.Close()
 }
 
-func BuildApiserverClient() {
-	buildLock.Lock()
-	defer buildLock.Unlock()
-
-	newClusters, err := manager.ClusterManager().GetRunningClusters()
-	if err != nil {
-		log.Errorf("build apiserver client get all cluster error.", err)
-		return
-	}
-
-	changed := clusterChanged(newClusters)
-	if !changed {
-		return
-	}
-	log.Infof("cluster changed, so resync info...")
-
-	shouldRemoveClusters(newClusters)
-	// build new clientManager
-	for i := 0; i < len(newClusters); i++ {
-		cluster := newClusters[i]
-		apiServer, err := cluster.GetAPIServer()
-		if err != nil {
-			log.Warningf("get cluster %s apiserver: %v", cluster.GetName(), err)
-			continue
-		}
-		kubeconfig, err := cluster.GetKubeconfig()
-		if err != nil {
-			log.Warningf("get cluster %s kubeconfig: %v", cluster.GetName(), err)
-			continue
-		}
-		clientSet, config, err := BuildClient(apiServer, kubeconfig)
-		if err != nil {
-			log.Warningf("build cluster (%s) client error: %v", cluster.GetName(), err)
-			continue
-		}
-		kubeconfigPath, err := BuildKubeConfigPath(cluster, kubeconfig)
-		if err != nil {
-			log.Warningf("build cluster %s kubeconfig path: %v", cluster.GetName(), err)
-			continue
-		}
-		dc := clientSet.Discovery()
-		restMapperRes, err := restmapper.GetAPIGroupResources(dc)
-		if err != nil {
-			log.Warningf("cluster %s get api group resources: %v", cluster.GetName(), err)
-			continue
-		}
-		restMapper := restmapper.NewDiscoveryRESTMapper(restMapperRes)
-		dclient, err := dynamic.NewForConfig(config)
-		if err != nil {
-			log.Warningf("build cluster (%s) dynamic client error: %v", err)
-			continue
-		}
-		cacheFactory, err := buildCacheController(cluster, clientSet, dclient, restMapper.(meta.PriorityRESTMapper))
-		if err != nil {
-			log.Warningf("build cluster (%s) cache controller error: %v", cluster.GetName(), err)
-			continue
-		}
-		resHandler, err := NewResourceHandler(clientSet, dclient, restMapper, cacheFactory)
-		if err != nil {
-			log.Warningf("build cluster (%s) resource handler error: %v", cluster.GetName(), err)
-			continue
-		}
-
-		cliv2, err := clientv2.NewClient(kubeconfig)
-		if err != nil {
-			log.Warningf("build cluster (%s) client v2 error: %v", cluster.GetName())
-			continue
-		}
-
-		clusterManager := &ClusterManager{
-			Cluster:        cluster,
-			Config:         config,
-			KubeClient:     resHandler,
-			APIServer:      apiServer,
-			KubeConfig:     kubeconfig,
-			kubeConfigPath: kubeconfigPath,
-			ClientV2:       cliv2,
-		}
-		managerInterface, ok := clusterManagerSets.Load(cluster.GetId())
-		if ok {
-			// close old cluster
-			man := managerInterface.(*ClusterManager)
-			man.Close()
-		}
-
-		clusterManagerSets.Store(cluster.GetId(), clusterManager)
-	}
-	log.Infof("resync cluster finished!")
-}
-
-func SyncMapLen(m *sync.Map) int {
-	length := 0
-	m.Range(func(key, value interface{}) bool {
-		length++
-		return true
-	})
-	return length
-}
-
-func clusterChanged(clusters []manager.ICluster) bool {
-	if SyncMapLen(clusterManagerSets) != len(clusters) {
-		log.Infof("cluster length (%d) changed to (%d).", SyncMapLen(clusterManagerSets), len(clusters))
-		return true
-	}
-
-	for _, cluster := range clusters {
-		manInterface, ok := clusterManagerSets.Load(cluster.GetId())
-		if !ok {
-			// maybe add new cluster
-			return true
-		}
-		man := manInterface.(*ClusterManager)
-		// apiserver changed, the cluster is changed, ignore others
-		apiServer, err := cluster.GetAPIServer()
-		if err != nil {
-			log.Warningf("get cluster %s apiserver: %v", cluster.GetName(), err)
-			return true
-		}
-		kubeconfig, err := cluster.GetKubeconfig()
-		if err != nil {
-			log.Warningf("get cluster %s kubeconfig: %v", cluster.GetName(), err)
-			return true
-		}
-		if man.APIServer != apiServer {
-			log.Infof("cluster apiserver %q changed to %q.", man.APIServer, apiServer)
-			return true
-		}
-		if man.KubeConfig != kubeconfig {
-			log.Infof("cluster kubeConfig %q changed to %q", man.KubeConfig, kubeconfig)
-			return true
-		}
-		if man.Cluster.GetStatus() != cluster.GetStatus() {
-			log.Infof("cluster status %q changed to %q", man.Cluster.GetStatus(), cluster.GetStatus())
-			return true
-		}
-	}
-	return false
-}
-
-// deal with deleted cluster
-func shouldRemoveClusters(changedClusters []manager.ICluster) {
-	changedClusterMap := make(map[string]struct{})
-	for _, cluster := range changedClusters {
-		changedClusterMap[cluster.GetId()] = struct{}{}
-	}
-
-	clusterManagerSets.Range(func(key, value interface{}) bool {
-		if _, ok := changedClusterMap[key.(string)]; !ok {
-			manInterface, _ := clusterManagerSets.Load(key)
-			man := manInterface.(*ClusterManager)
-			man.Close()
-			clusterManagerSets.Delete(key)
-		}
-		return true
-	})
-}
-
 func GetManagerByCluster(c manager.ICluster) (*ClusterManager, error) {
 	return GetManager(c.GetId())
 }
 
 func GetManager(cluster string) (*ClusterManager, error) {
-	manInterface, exist := clusterManagerSets.Load(cluster)
-	if !exist {
-		BuildApiserverClient()
-		manInterface, exist = clusterManagerSets.Load(cluster)
-		if !exist {
-			return nil, errors.Wrapf(ErrNotExist, "cluster %s", cluster)
-		}
+	// manInterface, exist := clusterManagerSets.Load(cluster)
+	man := clustersManager.getManager(cluster)
+	if man == nil {
+		// BuildApiserverClient()
+		// manInterface, exist = clusterManagerSets.Load(cluster)
+		// if !exist {
+		// return nil, errors.Wrapf(ErrNotExist, "cluster %s", cluster)
+		// }
+		return nil, errors.Wrapf(ErrNotExist, "cluster %s", cluster)
 	}
-	man := manInterface.(*ClusterManager)
 	status := man.Cluster.GetStatus()
 	if status != api.ClusterStatusRunning {
 		return nil, errors.Wrapf(ErrStatus, "cluster %s status %s", cluster, status)

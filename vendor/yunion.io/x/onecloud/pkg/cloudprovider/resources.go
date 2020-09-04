@@ -156,7 +156,7 @@ type ICloudZone interface {
 }
 
 type ICloudImage interface {
-	ICloudResource
+	IVirtualResource
 
 	Delete(ctx context.Context) error
 	GetIStoragecache() ICloudStoragecache
@@ -173,6 +173,7 @@ type ICloudImage interface {
 	GetImageFormat() string
 	GetCreatedAt() time.Time
 	UEFI() bool
+	GetPublicScope() rbacutils.TRbacScope
 }
 
 type ICloudStoragecache interface {
@@ -487,6 +488,7 @@ type ICloudHostNetInterface interface {
 	GetIpAddr() string
 	GetMtu() int32
 	GetNicType() string
+	GetBridge() string
 }
 
 type ICloudLoadbalancer interface {
@@ -968,8 +970,14 @@ type IClouduser interface {
 	GetICloudgroups() ([]ICloudgroup, error)
 
 	GetISystemCloudpolicies() ([]ICloudpolicy, error)
-	AttachSystemPolicy(policyType string) error
-	DetachSystemPolicy(policyId string) error
+	GetICustomCloudpolicies() ([]ICloudpolicy, error)
+
+	AttachSystemPolicy(policyName string) error
+	DetachSystemPolicy(policyName string) error
+
+	AttachCustomPolicy(policyName string) error
+	DetachCustomPolicy(policyName string) error
+
 	Delete() error
 
 	ResetPassword(password string) error
@@ -980,8 +988,12 @@ type IClouduser interface {
 type ICloudpolicy interface {
 	GetGlobalId() string
 	GetName() string
-	//GetPolicyType() string
 	GetDescription() string
+
+	GetDocument() (*jsonutils.JSONDict, error)
+	UpdateDocument(*jsonutils.JSONDict) error
+
+	Delete() error
 }
 
 // 公有云用户组
@@ -990,13 +1002,51 @@ type ICloudgroup interface {
 	GetName() string
 	GetDescription() string
 	GetISystemCloudpolicies() ([]ICloudpolicy, error)
+	GetICustomCloudpolicies() ([]ICloudpolicy, error)
 	GetICloudusers() ([]IClouduser, error)
 
 	AddUser(name string) error
 	RemoveUser(name string) error
 
-	AttachSystemPolicy(policyId string) error
-	DetachSystemPolicy(policyId string) error
+	AttachSystemPolicy(policyName string) error
+	DetachSystemPolicy(policyName string) error
+
+	AttachCustomPolicy(policyName string) error
+	DetachCustomPolicy(policyName string) error
 
 	Delete() error
+}
+
+type ICloudDnsZone interface {
+	ICloudResource
+
+	GetZoneType() TDnsZoneType
+	GetOptions() *jsonutils.JSONDict
+
+	GetICloudVpcIds() ([]string, error)
+	AddVpc(*SPrivateZoneVpc) error
+	RemoveVpc(*SPrivateZoneVpc) error
+
+	GetIDnsRecordSets() ([]ICloudDnsRecordSet, error)
+	SyncDnsRecordSets(common, add, del, update []DnsRecordSet) error
+
+	Delete() error
+
+	GetDnsProductType() TDnsProductType
+}
+
+type ICloudDnsRecordSet interface {
+	GetGlobalId() string
+
+	GetDnsName() string
+	GetStatus() string
+	GetEnabled() bool
+	GetDnsType() TDnsType
+	GetDnsValue() string
+	GetTTL() int64
+	GetMxPriority() int64
+
+	GetPolicyType() TDnsPolicyType
+	GetPolicyValue() TDnsPolicyValue
+	GetPolicyOptions() *jsonutils.JSONDict
 }

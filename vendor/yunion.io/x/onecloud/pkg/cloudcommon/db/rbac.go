@@ -15,8 +15,6 @@
 package db
 
 import (
-	"fmt"
-
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -43,7 +41,7 @@ func isObjectRbacAllowed(model IModel, userCred mcclient.TokenCredential, action
 	case rbacutils.ScopeSystem:
 		requireScope = rbacutils.ScopeSystem
 	case rbacutils.ScopeDomain:
-		if ownerId != nil && objOwnerId != nil && (ownerId.GetUserId() == objOwnerId.GetUserId()) {
+		if ownerId != nil && objOwnerId != nil && (ownerId.GetUserId() == objOwnerId.GetUserId() && action == policy.PolicyActionGet) {
 			requireScope = rbacutils.ScopeUser
 		} else if ownerId != nil && objOwnerId != nil && (ownerId.GetProjectDomainId() == objOwnerId.GetProjectDomainId() || objOwnerId.GetProjectDomainId() == "" || (model.IsSharable(ownerId) && action == policy.PolicyActionGet)) {
 			requireScope = rbacutils.ScopeDomain
@@ -72,7 +70,7 @@ func isObjectRbacAllowed(model IModel, userCred mcclient.TokenCredential, action
 	if !requireScope.HigherThan(scope) {
 		return nil
 	}
-	return httperrors.NewForbiddenError(fmt.Sprintf("not enough privilege(require:%s,allow:%s:resource:%s)", requireScope, scope, resScope))
+	return httperrors.NewForbiddenError("not enough privilege (require:%s,allow:%s:resource:%s)", requireScope, scope, resScope)
 }
 
 func isJointObjectRbacAllowed(item IJointModel, userCred mcclient.TokenCredential, action string, extra ...string) error {
@@ -124,7 +122,7 @@ func isClassRbacAllowed(manager IModelManager, userCred mcclient.TokenCredential
 	if !requireScope.HigherThan(allowScope) {
 		return nil
 	}
-	return httperrors.NewForbiddenError(fmt.Sprintf("not enough privilege(require:%s,allow:%s)", requireScope, allowScope))
+	return httperrors.NewForbiddenError("not enough privilege (require:%s,allow:%s)", requireScope, allowScope)
 }
 
 type IResource interface {

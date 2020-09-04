@@ -31,11 +31,13 @@ func GetStatefulSetManager() *SStatefulSetManager {
 		statefulSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SStatefulSetManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SStatefulSet),
+					SStatefulSet{},
 					"statefulsets_tbl",
 					"statefulset",
 					"statefulsets",
 					api.ResourceNameStatefulSet,
+					apps.GroupName,
+					apps.SchemeGroupVersion.Version,
 					api.KindNameStatefulSet,
 					new(apps.StatefulSet),
 				),
@@ -45,6 +47,8 @@ func GetStatefulSetManager() *SStatefulSetManager {
 	return statefulSetManager
 }
 
+// +onecloud:swagger-gen-model-singular=statefulset
+// +onecloud:swagger-gen-model-plural=statefulsets
 type SStatefulSetManager struct {
 	SNamespaceResourceBaseManager
 }
@@ -89,7 +93,7 @@ func (obj *SStatefulSet) GetExtraDetails(ctx context.Context, userCred mcclient.
 
 func (obj *SStatefulSet) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
 	ss := rawObj.(*apps.StatefulSet)
-	pods, err := PodManager.GetRawPods(cli, ss.GetNamespace())
+	pods, err := GetPodManager().GetRawPods(cli, ss.GetNamespace())
 	if err != nil {
 		return nil, errors.Wrap(err, "statefulset get raw pods")
 	}

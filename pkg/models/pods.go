@@ -30,30 +30,37 @@ import (
 )
 
 var (
-	PodManager *SPodManager
+	podManager *SPodManager
 	_          IClusterModel = new(SPod)
 )
 
 func init() {
-	PodManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SPodManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SPod),
-				"pods_tbl",
-				"pod",
-				"pods",
-				api.ResourceNamePod,
-				api.KindNamePod,
-				new(v1.Pod),
-			),
-		}
-	}).(*SPodManager)
-	PodManager.SK8sOwnedResourceBaseManager = SK8sOwnedResourceBaseManager{PodManager}
+	GetPodManager()
+}
+
+func GetPodManager() *SPodManager {
+	if podManager == nil {
+		podManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SPodManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SPod{},
+					"pods_tbl",
+					"pod",
+					"pods",
+					api.ResourceNamePod,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNamePod,
+					new(v1.Pod),
+				),
+			}
+		}).(*SPodManager)
+	}
+	return podManager
 }
 
 type SPodManager struct {
 	SNamespaceResourceBaseManager
-	SK8sOwnedResourceBaseManager
 }
 
 type SPod struct {
@@ -337,8 +344,8 @@ func (p *SPod) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj r
 	out := api.PodDetailV2{
 		NamespaceResourceDetail: p.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail),
 		Warnings:                warnings,
-		PodStatus:               PodManager.getPodStatus(pod),
-		RestartCount:            PodManager.getRestartCount(pod),
+		PodStatus:               GetPodManager().getPodStatus(pod),
+		RestartCount:            GetPodManager().getRestartCount(pod),
 		PodIP:                   pod.Status.PodIP,
 		QOSClass:                string(pod.Status.QOSClass),
 		ContainerImages:         GetContainerImages(&pod.Spec),

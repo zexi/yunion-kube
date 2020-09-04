@@ -31,3 +31,8 @@ func (input RoleCreateInput) ToRole(namespaceName string) (*rbac.Role, error) {
 		Rules:      input.Rules,
 	}, nil
 }
+
+type RoleUpdateInput struct {
+	NamespaceResourceUpdateInput
+	Rules []rbac.PolicyRule `json:"rules"`
+}

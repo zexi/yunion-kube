@@ -32,11 +32,13 @@ func GetClusterRoleManager() *SClusterRoleManager {
 		clusterRoleManager = NewK8sModelManager(func() ISyncableManager {
 			return &SClusterRoleManager{
 				SClusterResourceBaseManager: NewClusterResourceBaseManager(
-					new(SClusterRole),
+					SClusterRole{},
 					"clusterroles_tbl",
 					"rbacclusterrole",
 					"rbacclusterroles",
 					api.ResourceNameClusterRole,
+					rbacv1.GroupName,
+					rbacv1.SchemeGroupVersion.Version,
 					api.KindNameClusterRole,
 					new(rbacv1.ClusterRole),
 				),
@@ -69,7 +71,7 @@ func (m *SClusterRoleManager) SyncResources(ctx context.Context, userCred mcclie
 }
 
 func (m *SClusterRoleManager) ValidateClusterRoleObject(obj *rbacv1.ClusterRole) error {
-	return ValidateK8sObject(obj, new(rbac.ClusterRole), func(out interface{}) field.ErrorList {
+	return ValidateCreateK8sObject(obj, new(rbac.ClusterRole), func(out interface{}) field.ErrorList {
 		return validation.ValidateClusterRole(out.(*rbac.ClusterRole))
 	})
 }

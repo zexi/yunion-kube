@@ -30,9 +30,9 @@ type FederatedNamespaceResourceCreateInput struct {
 	Federatednamespace   string `json:"-"`
 }
 
-func (input FederatedNamespaceResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
+func (input FederatedNamespaceResourceCreateInput) ToObjectMeta(namespace string) metav1.ObjectMeta {
 	objMeta := input.FederatedResourceCreateInput.ToObjectMeta()
-	objMeta.Namespace = input.Federatednamespace
+	objMeta.Namespace = namespace
 	return objMeta
 }
 
@@ -50,9 +50,15 @@ type FederatedJointCluster struct {
 	Name string `json:"name"`
 }
 
-type FederatedJointClusterResourceDetails struct {
+type FedJointClusterResourceDetails struct {
 	apis.JointResourceBaseDetails
-	Cluster   string `json:"cluster"`
-	Namespace string `json:"namespace"`
-	Resource  string `json:"resource"`
+	Cluster           string `json:"cluster"`
+	FederatedResource string `json:"federatedresource"`
+	Namespace         string `json:"namespace"`
+	Resource          string `json:"resource"`
+}
+
+type FedNamespaceJointClusterResourceDetails struct {
+	FedJointClusterResourceDetails
+	FederatedNamespace string `json:"federatednamespace"`
 }

@@ -215,17 +215,13 @@ func (d *SYunionVMDriver) ValidateCreateMachines(
 	return nil
 }
 
-func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, data); err != nil {
+func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, createData *api.ClusterCreateInput) error {
+	if err := d.sClusterAPIDriver.ValidateCreateData(ctx, userCred, ownerId, query, createData); err != nil {
 		return err
-	}
-	createData := api.ClusterCreateInput{}
-	if err := data.Unmarshal(&createData); err != nil {
-		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
 	}
 	ms := createData.Machines
 	controls, _ := drivers.GetControlplaneMachineDatas("", ms)
-	if len(controls) == 0 && createData.Provider != string(api.ProviderTypeOnecloud) {
+	if len(controls) == 0 && createData.Provider != api.ProviderTypeOnecloud {
 		return httperrors.NewInputParameterError("No controlplane nodes")
 	}
 
@@ -234,8 +230,8 @@ func (d *SYunionVMDriver) ValidateCreateData(ctx context.Context, userCred mccli
 	if err := d.ValidateCreateMachines(ctx, userCred, nil, imageRepo, ms); err != nil {
 		return err
 	}
+	createData.Machines = ms
 
-	data.Set("machines", jsonutils.Marshal(ms))
 	return nil
 }
 

@@ -35,6 +35,13 @@ type ClusterResourceListInput struct {
 	Cluster string `json:"cluster"`
 }
 
+type ClusterResourceUpdateInput struct {
+	apis.StatusDomainLevelResourceBaseUpdateInput
+
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
 type ClusterK8SResourceMetaDetail struct {
 	metav1.TypeMeta
 	// An opaque value that represents the internal version of this object that can

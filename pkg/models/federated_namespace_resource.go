@@ -11,6 +11,12 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
+type IFederatedNamespaceModel interface {
+	IFederatedModel
+
+	GetFedNamespace() (*SFederatedNamespace, error)
+}
+
 // +onecloud:swagger-gen-ignore
 type SFederatedNamespaceResourceManager struct {
 	SFederatedResourceBaseManager
@@ -65,4 +71,8 @@ func (m *SFederatedNamespaceResourceManager) ListItemFilter(ctx context.Context,
 		q = q.Equals("federatednamespace_id", ns.GetId())
 	}
 	return q, nil
+}
+
+func (obj *SFederatedNamespaceResource) GetFedNamespace() (*SFederatedNamespace, error) {
+	return GetFedNamespaceManager().GetFedNamespace(obj.FederatednamespaceId)
 }

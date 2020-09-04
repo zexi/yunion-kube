@@ -109,9 +109,12 @@ func (obj *SEvent) IsOwnedBy(owner model.IOwnerModel) (bool, error) {
 
 func (obj SEvent) GetAPIObject() (*api.Event, error) {
 	e := obj.GetRawEvent()
+	objMeta, err := obj.GetObjectMeta()
+	if err != nil {
+		return nil, err
+	}
 	return &api.Event{
-		DepObjectMeta:       obj.GetObjectMeta(),
-		ObjectMeta:          obj.GetObjectMeta(),
+		ObjectMeta:          objMeta,
 		TypeMeta:            obj.GetTypeMeta(),
 		Message:             e.Message,
 		SourceComponent:     e.Source.Component,

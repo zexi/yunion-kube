@@ -27,11 +27,13 @@ func GetSecretManager() *SSecretManager {
 		secretManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SSecretManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SSecret),
+					SSecret{},
 					"secrets_tbl",
 					"secret",
 					"secrets",
 					api.ResourceNameSecret,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
 					api.KindNameSecret,
 					new(v1.Secret),
 				),
@@ -92,7 +94,7 @@ func (m *SSecretManager) ValidateCreateData(ctx context.Context, userCred mcclie
 }
 
 func (obj *SSecret) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
-	rawPods, err := PodManager.GetRawPodsByObjectNamespace(cli, rawObj)
+	rawPods, err := GetPodManager().GetRawPodsByObjectNamespace(cli, rawObj)
 	if err != nil {
 		return nil, err
 	}

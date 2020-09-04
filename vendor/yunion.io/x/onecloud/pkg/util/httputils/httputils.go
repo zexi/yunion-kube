@@ -99,16 +99,25 @@ func newJsonClientErrorFromRequest2(method string, urlStr string, hdrs http.Head
 	jce.Request.Method = strings.ToUpper(method)
 	jce.Request.Url = urlStr
 	jce.Request.Headers = make(map[string]string)
-	excludeHdrs := []string{}
+	excludeHdrs := []string{
+		"Accept",
+		"Accept-Encoding",
+	}
 	authHdrs := []string{
 		http.CanonicalHeaderKey("authorization"),
 		http.CanonicalHeaderKey("x-auth-token"),
 		http.CanonicalHeaderKey("x-subject-token"),
 	}
+	const (
+		MAX_BODY   = 128
+		FIRST_PART = 100
+	)
 	switch jce.Request.Method {
 	case "PUT", "POST", "PATCH":
 		contType := hdrs.Get(http.CanonicalHeaderKey("content-type"))
-		if strings.Contains(contType, "json") {
+		if len(body) > MAX_BODY {
+			jce.Request.Body = jsonutils.NewString(body[:FIRST_PART] + "..." + body[len(body)-MAX_BODY+FIRST_PART+3:])
+		} else if strings.Contains(contType, "json") {
 			jce.Request.Body, _ = jsonutils.ParseString(body)
 		} else if strings.Contains(contType, "xml") ||
 			strings.Contains(contType, "x-www-form-urlencoded") {
@@ -411,11 +420,11 @@ func GetAdaptiveTimeoutClient() *http.Client {
 var defaultHttpClient *http.Client
 
 func init() {
-	defaultHttpClient = GetClient(true, time.Second*15)
+	defaultHttpClient = GetDefaultClient()
 }
 
 func GetDefaultClient() *http.Client {
-	return defaultHttpClient
+	return GetClient(true, time.Second*15)
 }
 
 func Request(client *http.Client, ctx context.Context, method THttpMethod, urlStr string, header http.Header, body io.Reader, debug bool) (*http.Response, error) {
@@ -786,6 +795,12 @@ func ParseJSONResponse(reqBody string, resp *http.Response, err error, debug boo
 	}
 }
 
-func JoinPath(ep string, path string) string {
-	return strings.TrimRight(ep, "/") + "/" + strings.TrimLeft(path, "/")
+func JoinPath(ep string, paths ...string) string {
+	buf := strings.Builder{}
+	buf.WriteString(strings.TrimRight(ep, "/"))
+	for _, path := range paths {
+		buf.WriteByte('/')
+		buf.WriteString(strings.Trim(path, "/"))
+	}
+	return buf.String()
 }

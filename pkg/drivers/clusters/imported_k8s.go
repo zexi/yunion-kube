@@ -8,6 +8,7 @@ import (
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 type importK8sDriver struct{}
@@ -22,4 +23,12 @@ func (d *importK8sDriver) GetDistribution() string {
 
 func (d *importK8sDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, input *api.ClusterCreateInput, config *rest.Config) error {
 	return nil
+}
+
+func (d *importK8sDriver) GetClusterUsers(cluster *models.SCluster, config *rest.Config) ([]api.ClusterUser, error) {
+	return nil, nil
+}
+
+func (d *importK8sDriver) GetClusterUserGroups(cluster *models.SCluster, config *rest.Config) ([]api.ClusterUserGroup, error) {
+	return nil, nil
 }

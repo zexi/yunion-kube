@@ -3,6 +3,8 @@ package models
 import (
 	"context"
 
+	"k8s.io/client-go/rest"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
@@ -25,7 +27,7 @@ type IClusterDriver interface {
 	// GetKubeconfig get current cluster kubeconfig
 	GetKubeconfig(cluster *SCluster) (string, error)
 
-	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error
+	ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerProjId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.ClusterCreateInput) error
 	ValidateDeleteCondition() error
 	ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine) error
 	RequestDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, machines []manager.IMachine, task taskman.ITask) error
@@ -48,6 +50,10 @@ type IClusterDriver interface {
 	NeedCreateMachines() bool
 
 	GetMachineDriver(resourceType api.MachineResourceType) IMachineDriver
+	// GetClusterUsers query users resource from remote k8s cluster
+	GetClusterUsers(cluster *SCluster, restCfg *rest.Config) ([]api.ClusterUser, error)
+	// GetClusterUserGroups query groups resource from remote k8s cluster
+	GetClusterUserGroups(cluster *SCluster, restCfg *rest.Config) ([]api.ClusterUserGroup, error)
 }
 
 var clusterDrivers *drivers.DriverManager

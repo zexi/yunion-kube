@@ -13,26 +13,37 @@ import (
 )
 
 var (
-	PVCManager *SPVCManager
+	pvcManager *SPVCManager
 	_          IClusterModel = new(SPVC)
 )
 
 func init() {
-	PVCManager = NewK8sModelManager(func() ISyncableManager {
-		return &SPVCManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SPVC),
-				"persistentvolumeclaims_tbl",
-				"persistentvolumeclaim",
-				"persistentvolumeclaims",
-				api.ResourceNamePersistentVolumeClaim,
-				api.KindNamePersistentVolumeClaim,
-				new(v1.PersistentVolumeClaim),
-			),
-		}
-	}).(*SPVCManager)
+	GetPVCManager()
 }
 
+func GetPVCManager() *SPVCManager {
+	if pvcManager == nil {
+		pvcManager = NewK8sModelManager(func() ISyncableManager {
+			return &SPVCManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SPVC{},
+					"persistentvolumeclaims_tbl",
+					"persistentvolumeclaim",
+					"persistentvolumeclaims",
+					api.ResourceNamePersistentVolumeClaim,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNamePersistentVolumeClaim,
+					new(v1.PersistentVolumeClaim),
+				),
+			}
+		}).(*SPVCManager)
+	}
+	return pvcManager
+}
+
+// +onecloud:swagger-gen-model-singular=persistentvolumeclaim
+// +onecloud:swagger-gen-model-plural=persistentvolumeclaims
 type SPVCManager struct {
 	SNamespaceResourceBaseManager
 }
@@ -80,13 +91,13 @@ func (_ *SPVCManager) GetPVCVolumes(vols []v1.Volume) []v1.Volume {
 }
 
 func (obj *SPVC) getMountRawPods(cli *client.ClusterManager, pvc *v1.PersistentVolumeClaim) ([]*v1.Pod, error) {
-	pods, err := PodManager.GetRawPodsByObjectNamespace(cli, pvc)
+	pods, err := GetPodManager().GetRawPodsByObjectNamespace(cli, pvc)
 	if err != nil {
 		return nil, err
 	}
 	mPods := make([]*v1.Pod, 0)
 	for _, pod := range pods {
-		pvcs := PVCManager.GetPVCVolumes(pod.Spec.Volumes)
+		pvcs := GetPVCManager().GetPVCVolumes(pod.Spec.Volumes)
 		for _, pvc := range pvcs {
 			if pvc.PersistentVolumeClaim.ClaimName == obj.GetName() {
 				mPods = append(mPods, pod)

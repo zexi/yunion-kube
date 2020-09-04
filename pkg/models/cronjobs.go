@@ -29,11 +29,13 @@ func GetCronJobManager() *SCronJobManager {
 		cronJobManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SCronJobManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SCronJob),
+					SCronJob{},
 					"cronjobs_tbl",
 					"cronjob",
 					"cronjobs",
 					api.ResourceNameCronJob,
+					batch2.GroupName,
+					batch2.SchemeGroupVersion.Version,
 					api.KindNameCronJob,
 					new(batch2.CronJob),
 				),

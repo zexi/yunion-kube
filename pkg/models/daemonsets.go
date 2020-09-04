@@ -19,24 +19,33 @@ import (
 )
 
 var (
-	DaemonSetManager *SDaemonSetManager
+	daemonSetManager *SDaemonSetManager
 	_                IClusterModel = new(SDaemonSet)
 )
 
 func init() {
-	DaemonSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SDaemonSetManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SDaemonSet),
-				"daemonsets_tbl",
-				"daemonset",
-				"daemonsets",
-				api.ResourceNameDaemonSet,
-				api.KindNameDaemonSet,
-				new(apps.DaemonSet),
-			),
-		}
-	}).(*SDaemonSetManager)
+	GetDaemonSetManager()
+}
+
+func GetDaemonSetManager() *SDaemonSetManager {
+	if daemonSetManager == nil {
+		daemonSetManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SDaemonSetManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SDaemonSet{},
+					"daemonsets_tbl",
+					"daemonset",
+					"daemonsets",
+					api.ResourceNameDaemonSet,
+					apps.GroupName,
+					apps.SchemeGroupVersion.Version,
+					api.KindNameDaemonSet,
+					new(apps.DaemonSet),
+				),
+			}
+		}).(*SDaemonSetManager)
+	}
+	return daemonSetManager
 }
 
 type SDaemonSetManager struct {

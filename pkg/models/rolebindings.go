@@ -34,11 +34,13 @@ func GetRoleBindingManager() *SRoleBindingManager {
 		roleBindingManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SRoleBindingManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SRoleBinding),
+					SRoleBinding{},
 					"rolebindings_tbl",
 					"rbacrolebinding",
 					"rbacrolebindings",
 					api.ResourceNameRoleBinding,
+					rbacv1.GroupName,
+					rbacv1.SchemeGroupVersion.Version,
 					api.KindNameRoleBinding,
 					new(rbac.RoleBinding),
 				),
@@ -57,7 +59,7 @@ type SRoleBindingManager struct {
 
 type SRoleBinding struct {
 	SNamespaceResourceBase
-	SRoleRefResourceBase
+	// SRoleRefResourceBase
 }
 
 func (m *SRoleBindingManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.NamespaceResourceListInput) (*sqlchemy.SQuery, error) {
@@ -69,7 +71,7 @@ func (m *SRoleBindingManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQ
 }
 
 func (m *SRoleBindingManager) ValidateRoleBinding(rb *rbacv1.RoleBinding) error {
-	return ValidateK8sObject(rb, new(rbac.RoleBinding), func(out interface{}) field.ErrorList {
+	return ValidateCreateK8sObject(rb, new(rbac.RoleBinding), func(out interface{}) field.ErrorList {
 		return validation.ValidateRoleBinding(out.(*rbac.RoleBinding))
 	})
 }
@@ -81,17 +83,19 @@ func (m *SRoleBindingManager) ValidateCreateData(ctx context.Context, userCred m
 	}
 	input.NamespaceResourceCreateInput = *nInput
 
-	var roleMan IRoleBaseManager
+	// var roleMan IRoleBaseManager
 	if input.RoleRef.Kind == api.KindNameRole {
-		roleMan = GetRoleManager()
+		// roleMan = GetRoleManager()
 	} else if input.RoleRef.Kind == api.KindNameClusterRole {
-		roleMan = GetClusterRoleManager()
+		// roleMan = GetClusterRoleManager()
 	} else {
 		return nil, httperrors.NewNotAcceptableError("not support role ref kind %s", input.RoleRef.Kind)
 	}
-	if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(roleMan, userCred, &input.RoleRef); err != nil {
-		return nil, err
-	}
+	/*
+	 * if err := m.SRoleRefResourceBaseManager.ValidateRoleRef(roleMan, userCred, &input.RoleRef); err != nil {
+	 *     return nil, err
+	 * }
+	 */
 
 	rb, err := input.ToRoleBinding(input.Namespace)
 	if err := m.ValidateRoleBinding(rb); err != nil {
@@ -108,9 +112,11 @@ func (obj *SRoleBinding) CustomizeCreate(ctx context.Context, userCred mcclient.
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "unmarshal rolebinding create input")
 	}
-	if err := obj.SRoleRefResourceBase.CustomizeCreate(&input.RoleRef); err != nil {
-		return err
-	}
+	/*
+	 * if err := obj.SRoleRefResourceBase.CustomizeCreate(&input.RoleRef); err != nil {
+	 *     return err
+	 * }
+	 */
 	return nil
 }
 

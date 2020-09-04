@@ -15,26 +15,37 @@ import (
 )
 
 var (
-	LimitRangeManager *SLimitRangeManager
+	limitRangeManager *SLimitRangeManager
 	_                 IClusterModel = new(SLimitRange)
 )
 
 func init() {
-	LimitRangeManager = NewK8sNamespaceModelManager(func() ISyncableManager {
-		return &SLimitRangeManager{
-			SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-				new(SLimitRange),
-				"limitranges_tbl",
-				"limitrange",
-				"limitranges",
-				api.ResourceNameLimitRange,
-				api.KindNameLimitRange,
-				new(v1.LimitRange),
-			),
-		}
-	}).(*SLimitRangeManager)
+	GetLimitRangeManager()
 }
 
+func GetLimitRangeManager() *SLimitRangeManager {
+	if limitRangeManager == nil {
+		limitRangeManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SLimitRangeManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SLimitRange{},
+					"limitranges_tbl",
+					"limitrange",
+					"limitranges",
+					api.ResourceNameLimitRange,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
+					api.KindNameLimitRange,
+					new(v1.LimitRange),
+				),
+			}
+		}).(*SLimitRangeManager)
+	}
+	return limitRangeManager
+}
+
+// +onecloud:swagger-gen-model-singular=limitrange
+// +onecloud:swagger-gen-model-plural=limitranges
 type SLimitRangeManager struct {
 	SNamespaceResourceBaseManager
 }

@@ -11,6 +11,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -31,11 +32,13 @@ func GetRoleManager() *SRoleManager {
 		roleManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SRoleManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					&SRole{},
+					SRole{},
 					"roles_tbl",
 					"rbacrole",
 					"rbacroles",
 					api.ResourceNameRole,
+					rbacv1.GroupName,
+					rbacv1.SchemeGroupVersion.Version,
 					api.KindNameRole,
 					new(rbacv1.Role),
 				),
@@ -68,7 +71,7 @@ func (m *SRoleManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, u
 }
 
 func (m *SRoleManager) ValidateRoleObject(role *rbacv1.Role) error {
-	return ValidateK8sObject(role, new(rbac.Role), func(out interface{}) field.ErrorList {
+	return ValidateCreateK8sObject(role, new(rbac.Role), func(out interface{}) field.ErrorList {
 		return validation.ValidateRole(out.(*rbac.Role))
 	})
 }
@@ -99,6 +102,29 @@ func (m *SRoleManager) NewRemoteObjectForCreate(obj IClusterModel, _ *client.Clu
 		return nil, err
 	}
 	return input.ToRole(nsName)
+}
+
+func (obj *SRole) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.RoleUpdateInput) (*api.RoleUpdateInput, error) {
+	if _, err := ValidateUpdateData(obj, ctx, userCred, input.JSON(input)); err != nil {
+		return nil, err
+	}
+	return input, nil
+}
+
+func (m *SRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	input := new(api.RoleUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, errors.Wrap(err, "unmarshal json")
+	}
+	oldObj := remoteObj.(*rbacv1.Role)
+	newObj := oldObj.DeepCopyObject().(*rbacv1.Role)
+	newObj.Rules = input.Rules
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.Role), new(rbac.Role), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateRoleUpdate(oldObj.(*rbac.Role), newObj.(*rbac.Role))
+	}); err != nil {
+		return nil, err
+	}
+	return newObj, nil
 }
 
 func (m *SRoleManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {

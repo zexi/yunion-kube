@@ -52,8 +52,8 @@ func (_ OrderFieldCreationTimestamp) GetFieldName() string {
 }
 
 func (_ OrderFieldCreationTimestamp) Compare(obj1, obj2 IK8sModel) bool {
-	m1 := obj1.GetObjectMeta()
-	m2 := obj2.GetObjectMeta()
+	m1, _ := obj1.GetObjectMeta()
+	m2, _ := obj2.GetObjectMeta()
 	return !m1.CreationTimestamp.Before(&m2.CreationTimestamp)
 }
 
@@ -78,8 +78,10 @@ func (f orderFieldStringF) GetFieldName() string {
 }
 
 func (f orderFieldStringF) Compare(obj1, obj2 IK8sModel) bool {
-	v1 := reflect.ValueOf(obj1.GetObjectMeta())
-	v2 := reflect.ValueOf(obj2.GetObjectMeta())
+	meta1, _ := obj1.GetObjectMeta()
+	meta2, _ := obj2.GetObjectMeta()
+	v1 := reflect.ValueOf(meta1)
+	v2 := reflect.ValueOf(meta2)
 	name1, _ := reflectutils.FindStructFieldInterface(v1, f.name)
 	name2, _ := reflectutils.FindStructFieldInterface(v2, f.name)
 

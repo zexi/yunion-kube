@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/object"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
@@ -94,34 +95,38 @@ func (m *SK8sModelBase) GetNamespace() string {
 	return ""
 }
 
-func (m *SK8sModelBase) GetObjectMeta() api.ObjectMeta {
-	kObj := m.GetK8sObject()
+func NewObjectMeta(kObj runtime.Object, cluster api.ICluster) (api.ObjectMeta, error) {
 	unstructObj, isUnstruct := kObj.(runtime.Unstructured)
 	meta := metav1.ObjectMeta{}
 	if isUnstruct {
 		metaObj := unstructObj.UnstructuredContent()["metadata"]
 		if metaObj == nil {
-			panic(fmt.Sprintf("unstructed object not contains metadata"))
+			return api.ObjectMeta{}, errors.Error("unstructed object not contains metadata")
 		}
 		metaBytes, err := json.Marshal(metaObj)
 		if err != nil {
-			panic(err)
+			return api.ObjectMeta{}, errors.Wrap(err, "json.Marshal object")
 		}
 		if err := json.Unmarshal(metaBytes, &meta); err != nil {
-			panic(err)
+			return api.ObjectMeta{}, errors.Wrap(err, "json unmarshal")
 		}
 	} else {
 		v := reflect.ValueOf(kObj)
 		f := reflect.Indirect(v).FieldByName("ObjectMeta")
 		if !f.IsValid() {
-			panic(fmt.Sprintf("get invalid object meta %#v", kObj))
+			return api.ObjectMeta{}, errors.Errorf("get invalid object meta %#v", kObj)
 		}
 		meta = f.Interface().(metav1.ObjectMeta)
 	}
 	return api.ObjectMeta{
 		ObjectMeta:  meta,
-		ClusterMeta: api.NewClusterMeta(m.GetCluster()),
-	}
+		ClusterMeta: api.NewClusterMeta(cluster),
+	}, nil
+}
+
+func (m *SK8sModelBase) GetObjectMeta() (api.ObjectMeta, error) {
+	kObj := m.GetK8sObject()
+	return NewObjectMeta(kObj, m.GetCluster())
 }
 
 func (m *SK8sModelBase) GetTypeMeta() api.TypeMeta {

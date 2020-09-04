@@ -778,7 +778,7 @@ func getModelExtraDetails(item IModel, ctx context.Context, showReason bool) api
 	if err != nil {
 		out.CanDelete = false
 		if showReason {
-			out.DeleteFailReason = err.Error()
+			out.DeleteFailReason = httperrors.NewErrorFromGeneralError(ctx, err)
 		}
 	}
 	err = item.ValidateUpdateCondition(ctx)
@@ -1124,25 +1124,30 @@ func _doCreateItem(
 		log.Errorf("doCreateItem: fail to decode json data %s", data)
 		return nil, fmt.Errorf("fail to decode json data %s", data)
 	}
+
 	var err error
 
-	generateName, _ := dataDict.GetString("generate_name")
-	if len(generateName) > 0 {
-		dataDict.Remove("generate_name")
-		newName, err := GenerateName2(manager, ownerId, generateName, nil, baseIndex)
+	info := struct {
+		GenerateName string
+		Name         string
+	}{}
+	dataDict.Unmarshal(&info)
+	if !manager.EnableGenerateName() {
+		if len(info.GenerateName) > 0 && len(info.Name) == 0 {
+			info.Name = info.GenerateName
+		}
+		info.GenerateName = ""
+	}
+
+	if len(info.GenerateName) > 0 {
+		info.Name, err = GenerateName2(manager, ownerId, info.GenerateName, nil, baseIndex)
 		if err != nil {
 			return nil, err
 		}
-		dataDict.Add(jsonutils.NewString(newName), "name")
-	} /*else {
-		name, _ := data.GetString("name")
-		if len(name) > 0 {
-			err = NewNameValidator(manager, ownerId, name)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}*/
+	}
+
+	dataDict.Set("name", jsonutils.NewString(info.Name))
+	dataDict.Remove("generate_name")
 
 	if batchCreate {
 		dataDict, err = manager.BatchCreateValidateCreateData(ctx, userCred, ownerId, query, dataDict)
@@ -1154,10 +1159,9 @@ func _doCreateItem(
 		return nil, httperrors.NewGeneralError(err)
 	}
 	// run name validation after validate create data
-	parentId := manager.FetchParentId(ctx, dataDict)
-	name, _ := dataDict.GetString("name")
-	if len(name) > 0 {
-		err = NewNameValidator(manager, ownerId, name, parentId)
+	uniqValues := manager.FetchUniqValues(ctx, dataDict)
+	if len(info.Name) > 0 {
+		err = NewNameValidator(manager, ownerId, info.Name, uniqValues)
 		if err != nil {
 			return nil, err
 		}
@@ -1165,7 +1169,7 @@ func _doCreateItem(
 
 	err = jsonutils.CheckRequiredFields(dataDict, createRequireFields(manager, userCred))
 	if err != nil {
-		return nil, httperrors.NewInputParameterError(err.Error())
+		return nil, httperrors.NewInputParameterError("%v", err)
 	}
 	model, err := NewModelObject(manager)
 	if err != nil {
@@ -1185,9 +1189,9 @@ func _doCreateItem(
 		return nil, httperrors.NewGeneralError(err)
 	}
 	// save generateName
-	if len(generateName) > 0 {
+	if len(info.GenerateName) > 0 {
 		if standaloneMode, ok := model.(IStandaloneModel); ok {
-			standaloneMode.SetMetadata(ctx, "generate_name", generateName, userCred)
+			standaloneMode.SetMetadata(ctx, "generate_name", info.GenerateName, userCred)
 		}
 	}
 	// HACK: set data same as dataDict
@@ -1398,7 +1402,7 @@ func (dispatcher *DBModelDispatcher) BatchCreate(ctx context.Context, query json
 			body, err := getItemDetails(manager, res.model, ctx, userCred, query)
 			if err != nil {
 				result.Status = 500
-				result.Data = jsonutils.NewString(err.Error())
+				result.Data = jsonutils.NewString(err.Error()) // no translation here
 			} else {
 				result.Status = 200
 				result.Data = body
@@ -1474,7 +1478,7 @@ func (dispatcher *DBModelDispatcher) PerformClassAction(ctx context.Context, act
 
 func (dispatcher *DBModelDispatcher) PerformAction(ctx context.Context, idStr string, action string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
-	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, query)
+	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, nil)
 	if err == sql.ErrNoRows {
 		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
@@ -1535,9 +1539,8 @@ func reflectDispatcherInternal(
 	if !funcValue.IsValid() || funcValue.IsNil() {
 		funcValue = modelValue.MethodByName(generalFuncName)
 		if !funcValue.IsValid() || funcValue.IsNil() {
-			msg := fmt.Sprintf("%s %s %s not found", dispatcher.Keyword(), operator, spec)
-			log.Errorf(msg)
-			return nil, httperrors.NewActionNotFoundError(msg)
+			return nil, httperrors.NewActionNotFoundError("%s %s %s not found",
+				dispatcher.Keyword(), operator, spec)
 		} else {
 			isGeneral = true
 			funcName = generalFuncName
@@ -1572,9 +1575,8 @@ func reflectDispatcherInternal(
 		allowFuncName := "Allow" + funcName
 		allowFuncValue := modelValue.MethodByName(allowFuncName)
 		if !allowFuncValue.IsValid() || allowFuncValue.IsNil() {
-			msg := fmt.Sprintf("%s allow %s %s not found", dispatcher.Keyword(), operator, spec)
-			log.Errorf(msg)
-			return nil, httperrors.NewActionNotFoundError(msg)
+			return nil, httperrors.NewActionNotFoundError("%s allow %s %s not found",
+				dispatcher.Keyword(), operator, spec)
 		}
 
 		outs, err := callFunc(allowFuncValue, allowFuncName, params...)
@@ -1663,7 +1665,7 @@ func (dispatcher *DBModelDispatcher) FetchUpdateHeaderData(ctx context.Context, 
 
 func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, query jsonutils.JSONObject, data jsonutils.JSONObject, ctxIds []dispatcher.SResourceContext) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
-	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, query)
+	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, nil)
 	if err == sql.ErrNoRows {
 		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
@@ -1696,7 +1698,7 @@ func (dispatcher *DBModelDispatcher) Update(ctx context.Context, idStr string, q
 
 func (dispatcher *DBModelDispatcher) UpdateSpec(ctx context.Context, idStr string, spec string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
-	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, query)
+	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idStr, nil)
 	if err == sql.ErrNoRows {
 		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idStr)
 	} else if err != nil {
@@ -1741,7 +1743,7 @@ func deleteItem(manager IModelManager, model IModel, ctx context.Context, userCr
 	err = CustomizeDelete(model, ctx, userCred, query, data)
 	if err != nil {
 		log.Errorf("customize delete error: %s", err)
-		return nil, httperrors.NewNotAcceptableError(err.Error())
+		return nil, httperrors.NewNotAcceptableError("%v", err)
 	}
 
 	details, err := getItemDetails(manager, model, ctx, userCred, query)
@@ -1766,7 +1768,7 @@ func deleteItem(manager IModelManager, model IModel, ctx context.Context, userCr
 
 func (dispatcher *DBModelDispatcher) Delete(ctx context.Context, idstr string, query jsonutils.JSONObject, data jsonutils.JSONObject, ctxIds []dispatcher.SResourceContext) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
-	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idstr, query)
+	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idstr, nil)
 	if err == sql.ErrNoRows {
 		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idstr)
 	} else if err != nil {
@@ -1800,7 +1802,7 @@ func (dispatcher *DBModelDispatcher) Delete(ctx context.Context, idstr string, q
 
 func (dispatcher *DBModelDispatcher) DeleteSpec(ctx context.Context, idstr string, spec string, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	userCred := fetchUserCredential(ctx)
-	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idstr, query)
+	model, err := fetchItem(dispatcher.modelManager, ctx, userCred, idstr, nil)
 	if err == sql.ErrNoRows {
 		return nil, httperrors.NewResourceNotFoundError2(dispatcher.modelManager.Keyword(), idstr)
 	} else if err != nil {

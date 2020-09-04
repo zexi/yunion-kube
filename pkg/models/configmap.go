@@ -30,11 +30,13 @@ func GetConfigMapManager() *SConfigMapManager {
 		configMapManager = NewK8sNamespaceModelManager(func() ISyncableManager {
 			return &SConfigMapManager{
 				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-					new(SConfigMap),
+					SConfigMap{},
 					"configmaps_tbl",
 					"configmap",
 					"configmaps",
 					api.ResourceNameConfigMap,
+					v1.GroupName,
+					v1.SchemeGroupVersion.Version,
 					api.KindNameConfigMap,
 					new(v1.ConfigMap),
 				),
@@ -44,6 +46,8 @@ func GetConfigMapManager() *SConfigMapManager {
 	return configMapManager
 }
 
+// +onecloud:swagger-gen-model-singular=configmap
+// +onecloud:swagger-gen-model-plural=configmaps
 type SConfigMapManager struct {
 	SNamespaceResourceBaseManager
 }
@@ -96,7 +100,7 @@ func (m *SConfigMap) NewRemoteObjectForUpdate(cli *client.ClusterManager, remote
 
 func (obj *SConfigMap) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
 	cfgName := obj.GetName()
-	rawPods, err := PodManager.GetRawPodsByObjectNamespace(cli, rawObj)
+	rawPods, err := GetPodManager().GetRawPodsByObjectNamespace(cli, rawObj)
 	if err != nil {
 		return nil, err
 	}
