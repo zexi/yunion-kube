@@ -134,12 +134,34 @@ type Service struct {
 	Type string `json:"type"`
 }
 
+type GrafanaIngress struct {
+	Enabled bool            `json:"enabled"`
+	Path    string          `json:"path"`
+	Host    string          `json:"host,allowempty"`
+	Secret  *api.TLSKeyPair `json:"secret"`
+
+	TLS []*api.IngressTLS `json:"tls"`
+}
+
+type GrafanaIniServer struct {
+	RootUrl          string `json:"root_url"`
+	ServeFromSubPath bool   `json:"serve_from_sub_path"`
+}
+
+type GrafanaIni struct {
+	Server *GrafanaIniServer `json:"server"`
+}
+
 type Grafana struct {
-	Sidecar GrafanaSidecar `json:"sidecar"`
+	AdminUser     string         `json:"adminUser"`
+	AdminPassword string         `json:"adminPassword"`
+	Sidecar       GrafanaSidecar `json:"sidecar"`
 	// image: grafana/grafana:6.7.1
-	Image   Image    `json:"image"`
-	Storage *Storage `json:"persistence"`
-	Service *Service `json:"service"`
+	Image      Image           `json:"image"`
+	Storage    *Storage        `json:"persistence"`
+	Service    *Service        `json:"service"`
+	Ingress    *GrafanaIngress `json:"ingress"`
+	GrafanaIni *GrafanaIni     `json:"grafana.ini"`
 }
 
 type Loki struct {

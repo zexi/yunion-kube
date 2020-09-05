@@ -79,17 +79,32 @@ func (s ComponentStorage) GetAccessModes() []string {
 	return []string{"ReadWriteOnce"}
 }
 
+type IngressTLS struct {
+	SecretName string `json:"secretName"`
+}
+
+type TLSKeyPair struct {
+	Name        string `json:"name"`
+	Certificate string `json:"certificate"`
+	Key         string `json:"key"`
+}
+
 type ComponentSettingMonitorGrafana struct {
 	// grafana 登录用户名
-	//
 	// default: admin
 	AdminUser string `json:"adminUser"`
+
 	// grafana 登录用户密码
-	//
 	// default: prom-operator
 	AdminPassword string `json:"adminPassword"`
 	// grafana 持久化存储配置
 	Storage *ComponentStorage `json:"storage"`
+	// grafana ingress public address
+	PublicAddress string `json:"publicAddress"`
+	// grafana ingress host
+	Host string `json:"host"`
+	// Ingress expose https key pair
+	TLSKeyPair *TLSKeyPair `json:"tls_key_pair"`
 }
 
 type ComponentSettingMonitorLoki struct {
