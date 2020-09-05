@@ -104,7 +104,7 @@ type ComponentSettingMonitorGrafana struct {
 	// grafana ingress host
 	Host string `json:"host"`
 	// Ingress expose https key pair
-	TLSKeyPair *TLSKeyPair `json:"tls_key_pair"`
+	TLSKeyPair *TLSKeyPair `json:"tlsKeyPair"`
 }
 
 type ComponentSettingMonitorLoki struct {
