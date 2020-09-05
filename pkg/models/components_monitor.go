@@ -87,6 +87,28 @@ func (c componentDriverMonitor) validateGrafana(conf *api.ComponentSettingMonito
 			return err
 		}
 	}
+	if conf.Host == "" && conf.PublicAddress == "" {
+		return httperrors.NewInputParameterError("grafana public address or host must provide")
+	}
+	if conf.TLSKeyPair == nil {
+		return httperrors.NewInputParameterError("grafana tls key pair must provide")
+	}
+	if err := c.validateGrafanaTLSKeyPair(conf.TLSKeyPair); err != nil {
+		return errors.Wrap(err, "validate tls key pair")
+	}
+	return nil
+}
+
+func (c componentDriverMonitor) validateGrafanaTLSKeyPair(pair *api.TLSKeyPair) error {
+	if pair.Certificate == "" {
+		return httperrors.NewInputParameterError("tls certificate not provide")
+	}
+	if pair.Key == "" {
+		return httperrors.NewInputParameterError("tls key not provide")
+	}
+	if pair.Name == "" {
+		pair.Name = "grafana-ingress-tls"
+	}
 	return nil
 }
 
@@ -167,12 +189,32 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *api.
 	if err != nil {
 		return nil, errors.Wrapf(err, "get cluster %s repo", cluster.GetName())
 	}
+	input := setting.Monitor
+	if input.Grafana.AdminUser == "" {
+		input.Grafana.AdminUser = "admin"
+	}
+	if input.Grafana.AdminPassword == "" {
+		input.Grafana.AdminPassword = "prom-operator"
+	}
 	repo := imgRepo.Url
 	mi := func(name, tag string) components.Image {
 		return components.Image{
 			Repository: fmt.Sprintf("%s/%s", repo, name),
 			Tag:        tag,
 		}
+	}
+	grafanaHost := input.Grafana.Host
+	if grafanaHost == "" {
+		grafanaHost = input.Grafana.PublicAddress
+	}
+	grafanaProto := "https"
+	if input.Grafana.TLSKeyPair == nil {
+		return nil, errors.Errorf("grafana tls key pair not provided")
+	}
+	grafanaIngressTLS := []*api.IngressTLS{
+		{
+			SecretName: input.Grafana.TLSKeyPair.Name,
+		},
 	}
 	conf := components.MonitorStack{
 		Prometheus: components.Prometheus{
@@ -192,12 +234,27 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *api.
 			Image: mi("kube-state-metrics", "v1.9.4"),
 		},
 		Grafana: components.Grafana{
+			AdminUser:     input.Grafana.AdminUser,
+			AdminPassword: input.Grafana.AdminPassword,
 			Sidecar: components.GrafanaSidecar{
 				Image: mi("k8s-sidecar", "0.1.99"),
 			},
 			Image: mi("grafana", "6.7.1"),
 			Service: &components.Service{
-				Type: string(v1.ServiceTypeLoadBalancer),
+				Type: string(v1.ServiceTypeClusterIP),
+			},
+			Ingress: &components.GrafanaIngress{
+				Enabled: true,
+				Path:    "/grafana",
+				Host:    input.Grafana.Host,
+				Secret:  input.Grafana.TLSKeyPair,
+				TLS:     grafanaIngressTLS,
+			},
+			GrafanaIni: &components.GrafanaIni{
+				Server: &components.GrafanaIniServer{
+					ServeFromSubPath: true,
+					RootUrl:          fmt.Sprintf("%s://%s/grafana/", grafanaProto, grafanaHost),
+				},
 			},
 		},
 		Loki: components.Loki{
@@ -222,7 +279,6 @@ func (m SMonitorComponentManager) getHelmValues(cluster *SCluster, setting *api.
 			},
 		},
 	}
-	input := setting.Monitor
 	if input.Prometheus.Storage != nil && input.Prometheus.Storage.Enabled {
 		spec, err := components.NewPrometheusStorageSpec(*input.Prometheus.Storage)
 		if err != nil {

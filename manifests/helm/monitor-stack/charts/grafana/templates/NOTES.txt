@@ -23,9 +23,9 @@
    Or grafana would always crash.
 
    From outside the cluster, the server URL(s) are:
-{{- range .Values.ingress.hosts }}
-     http://{{ . }}
-{{- end }}
+{{ if .Values.ingress.host }}
+     http://{{ .Values.ingress.host }}
+{{ end }}
 {{ else }}
    Get the Grafana URL to visit by running these commands in the same shell:
 {{ if contains "NodePort" .Values.service.type -}}
