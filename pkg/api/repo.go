@@ -31,6 +31,7 @@ type RepoListInput struct {
 type RepoDetail struct {
 	apis.StatusInfrasResourceBaseDetails
 
-	Url  string `json:"url"`
-	Type string `json:"type"`
+	Url          string `json:"url"`
+	Type         string `json:"type"`
+	ReleaseCount int    `json:"release_count"`
 }

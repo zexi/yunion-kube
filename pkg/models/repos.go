@@ -8,6 +8,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -94,10 +95,15 @@ func (man *SRepoManager) FetchCustomizeColumns(
 	svRows := man.SStatusInfrasResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	for i := range svRows {
 		rObj := objs[i].(*SRepo)
+		rlsCnt, err := rObj.GetReleaseCount()
+		if err != nil {
+			log.Errorf("Get repo release count error: %v", err)
+		}
 		detail := api.RepoDetail{
 			StatusInfrasResourceBaseDetails: svRows[i],
 			Url:                             rObj.Url,
 			Type:                            rObj.Type,
+			ReleaseCount:                    rlsCnt,
 		}
 		rows[i] = detail
 	}
@@ -189,8 +195,16 @@ func (r *SRepo) ToEntry() *repo.Entry {
 	}
 }
 
-func (r *SRepo) ValidateDeleteCondition(ctx context.Context) error {
+func (r *SRepo) GetReleaseCount() (int, error) {
 	rlsCnt, err := GetReleaseManager().Query().Equals("repo_id", r.GetId()).CountWithError()
+	if err != nil {
+		return 0, errors.Wrapf(err, "get repo %s release count", r.GetName())
+	}
+	return rlsCnt, nil
+}
+
+func (r *SRepo) ValidateDeleteCondition(ctx context.Context) error {
+	rlsCnt, err := r.GetReleaseCount()
 	if err != nil {
 		return errors.Wrap(err, "check release count")
 	}

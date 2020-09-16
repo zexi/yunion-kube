@@ -9,7 +9,6 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
@@ -19,35 +18,31 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type IFederatedModelManager interface {
+type IFedModelManager interface {
 	db.IModelManager
 
-	GetJointModelManager() IFederatedJointClusterManager
-	SetJointModelManager(man IFederatedJointClusterManager)
-
-	PerformAttachCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFederatedJointClusterModel, error)
-	PerformDetachCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error
-	PerformSyncCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error
+	GetJointModelManager() IFedJointClusterManager
+	SetJointModelManager(man IFedJointClusterManager)
 }
 
-type IFederatedModel interface {
+type IFedModel interface {
 	db.IModel
 
-	GetManager() IFederatedModelManager
+	GetManager() IFedModelManager
 	GetDetails(baseDetails interface{}, isList bool) interface{}
-	ValidateJointCluster(userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFederatedJointClusterModel, jsonutils.JSONObject, error)
-	GetJointModelManager() IFederatedJointClusterManager
+	ValidateJointCluster(userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFedJointClusterModel, jsonutils.JSONObject, error)
+	GetJointModelManager() IFedJointClusterManager
 	ValidateAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 	ValidateDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 }
 
 // +onecloud:swagger-gen-ignore
-type SFederatedResourceBaseManager struct {
+type SFedResourceBaseManager struct {
 	db.SStatusDomainLevelResourceBaseManager
-	jointManager IFederatedJointClusterManager
+	jointManager IFedJointClusterManager
 }
 
-type SFederatedResourceBase struct {
+type SFedResourceBase struct {
 	db.SStatusDomainLevelResourceBase
 }
 
@@ -56,30 +51,30 @@ func NewFedResourceBaseManager(
 	tableName string,
 	keyword string,
 	keywordPlural string,
-) SFederatedResourceBaseManager {
-	return SFederatedResourceBaseManager{
+) SFedResourceBaseManager {
+	return SFedResourceBaseManager{
 		SStatusDomainLevelResourceBaseManager: db.NewStatusDomainLevelResourceBaseManager(
 			dt, tableName, keyword, keywordPlural),
 	}
 }
 
-func (m *SFederatedResourceBaseManager) SetJointModelManager(man IFederatedJointClusterManager) {
+func (m *SFedResourceBaseManager) SetJointModelManager(man IFedJointClusterManager) {
 	m.jointManager = man
 }
 
-func (m *SFederatedResourceBaseManager) GetJointModelManager() IFederatedJointClusterManager {
+func (m *SFedResourceBaseManager) GetJointModelManager() IFedJointClusterManager {
 	return m.jointManager
 }
 
-func (m *SFederatedResourceBase) GetJointModelManager() IFederatedJointClusterManager {
+func (m *SFedResourceBase) GetJointModelManager() IFedJointClusterManager {
 	return m.GetManager().GetJointModelManager()
 }
 
-func (m *SFederatedResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedResourceListInput) (*sqlchemy.SQuery, error) {
+func (m *SFedResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedResourceListInput) (*sqlchemy.SQuery, error) {
 	return m.SStatusDomainLevelResourceBaseManager.ListItemFilter(ctx, q, userCred, input.StatusDomainLevelResourceListInput)
 }
 
-func (m *SFederatedResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedResourceCreateInput) (*api.FederatedResourceCreateInput, error) {
+func (m *SFedResourceBaseManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedResourceCreateInput) (*api.FederatedResourceCreateInput, error) {
 	dInput, err := m.SStatusDomainLevelResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, input.StatusDomainLevelResourceCreateInput)
 	if err != nil {
 		return nil, err
@@ -88,7 +83,7 @@ func (m *SFederatedResourceBaseManager) ValidateCreateData(ctx context.Context, 
 	return input, nil
 }
 
-func (m *SFederatedResourceBaseManager) FetchCustomizeColumns(
+func (m *SFedResourceBaseManager) FetchCustomizeColumns(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	query jsonutils.JSONObject,
@@ -102,7 +97,7 @@ func (m *SFederatedResourceBaseManager) FetchCustomizeColumns(
 	}
 	ret := make([]interface{}, len(objs))
 	for idx := range objs {
-		obj := objs[idx].(IFederatedModel)
+		obj := objs[idx].(IFedModel)
 		baseDetail := baseGet(obj)
 		out := obj.GetDetails(baseDetail, isList)
 		ret[idx] = out
@@ -110,21 +105,21 @@ func (m *SFederatedResourceBaseManager) FetchCustomizeColumns(
 	return ret
 }
 
-func (obj *SFederatedResourceBase) GetManager() IFederatedModelManager {
-	return obj.GetModelManager().(IFederatedModelManager)
+func (obj *SFedResourceBase) GetManager() IFedModelManager {
+	return obj.GetModelManager().(IFedModelManager)
 }
 
-func (obj *SFederatedResourceBase) GetClustersQuery() *sqlchemy.SQuery {
+func (obj *SFedResourceBase) GetClustersQuery() *sqlchemy.SQuery {
 	jointMan := obj.GetJointModelManager()
 	return jointMan.Query().Equals(jointMan.GetMasterFieldName(), obj.GetId())
 }
 
-func (obj *SFederatedResourceBase) GetClustersCount() (int, error) {
+func (obj *SFedResourceBase) GetClustersCount() (int, error) {
 	q := obj.GetClustersQuery()
 	return q.CountWithError()
 }
 
-func (obj *SFederatedResourceBase) GetDetails(base interface{}, isList bool) interface{} {
+func (obj *SFedResourceBase) GetDetails(base interface{}, isList bool) interface{} {
 	out := api.FederatedResourceDetails{
 		StatusDomainLevelResourceDetails: base.(apis.StatusDomainLevelResourceDetails),
 	}
@@ -135,11 +130,7 @@ func (obj *SFederatedResourceBase) GetDetails(base interface{}, isList bool) int
 	return out
 }
 
-func (obj *SFederatedResourceBase) AllowPerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return db.IsDomainAllowPerform(userCred, obj, "attach-cluster")
-}
-
-func (obj *SFederatedResourceBase) ValidateJointCluster(userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFederatedJointClusterModel, jsonutils.JSONObject, error) {
+func (obj *SFedResourceBase) ValidateJointCluster(userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFedJointClusterModel, jsonutils.JSONObject, error) {
 	jointMan := obj.GetJointModelManager()
 	clusterId, _ := data.GetString("cluster_id")
 	if clusterId == "" {
@@ -155,7 +146,7 @@ func (obj *SFederatedResourceBase) ValidateJointCluster(userCred mcclient.TokenC
 	return jointModel, data, err
 }
 
-func (obj *SFederatedResourceBase) ValidateAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (obj *SFedResourceBase) ValidateAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	jointModel, data, err := obj.ValidateJointCluster(userCred, data)
 	if err != nil && errors.Cause(err) != sql.ErrNoRows {
 		return data, err
@@ -167,87 +158,13 @@ func (obj *SFederatedResourceBase) ValidateAttachCluster(ctx context.Context, us
 	return data, nil
 }
 
-func (m *SFederatedResourceBaseManager) GetJointModel(model IFederatedModel, clusterId string) (IFederatedJointClusterModel, error) {
-	jointMan := model.GetJointModelManager()
-	jointModel, err := GetFederatedJointClusterModel(jointMan, model.GetId(), clusterId)
-	if err != nil && errors.Cause(err) != sql.ErrNoRows {
-		return nil, err
-	}
-	return jointModel, nil
-}
-
-func (m *SFederatedResourceBaseManager) IsAttach2Cluster(model IFederatedModel, clusterId string) (bool, error) {
-	jointModel, err := m.GetJointModel(model, clusterId)
-	if err != nil {
-		return false, err
-	}
-	return jointModel != nil, nil
-}
-
-func (m *SFederatedResourceBaseManager) PerformAttachCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFederatedJointClusterModel, error) {
-	data, err := model.ValidateAttachCluster(ctx, userCred, data)
-	if err != nil {
-		return nil, err
-	}
-	clusterId, err := data.GetString("cluster_id")
-	if err != nil {
-		return nil, err
-	}
-	jointObj, err := m.attachCluster(model, ctx, userCred, clusterId)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.performSyncCluster(jointObj, ctx, userCred); err != nil {
-		return nil, err
-	}
-	return jointObj, nil
-}
-
-func (m *SFederatedResourceBaseManager) attachCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFederatedJointClusterModel, error) {
-	defer lockman.ReleaseObject(ctx, model)
-	lockman.LockObject(ctx, model)
-
-	cls, err := GetClusterManager().GetCluster(clusterId)
-	if err != nil {
-		return nil, errors.Wrapf(err, "get cluster %s", clusterId)
-	}
-
-	attached, err := m.IsAttach2Cluster(model, clusterId)
-	if err != nil {
-		return nil, errors.Wrap(err, "check IsAttach2Cluster")
-	}
-	if attached {
-		return nil, errors.Errorf("%s %s has been attached to cluster %s", model.Keyword(), model.GetId(), clusterId)
-	}
-	jointMan := model.GetJointModelManager()
-	jointModel, err := db.NewModelObject(jointMan)
-	if err != nil {
-		return nil, errors.Wrapf(err, "new joint model %s", jointMan.Keyword())
-	}
-	data := jsonutils.NewDict()
-	data.Add(jsonutils.NewString(model.GetId()), jointMan.GetMasterFieldName())
-	data.Add(jsonutils.NewString(clusterId), jointMan.GetSlaveFieldName())
-	if err := data.Unmarshal(jointModel); err != nil {
-		return nil, httperrors.NewGeneralError(err)
-	}
-	if err := jointMan.TableSpec().Insert(ctx, jointModel); err != nil {
-		return nil, errors.Wrap(err, "insert joint model")
-	}
-	db.OpsLog.LogAttachEvent(ctx, model, cls, userCred, nil)
-	return jointModel.(IFederatedJointClusterModel), nil
-}
-
-func (obj *SFederatedResourceBase) GetK8sObjectMeta() metav1.ObjectMeta {
+func (obj *SFedResourceBase) GetK8sObjectMeta() metav1.ObjectMeta {
 	return metav1.ObjectMeta{
 		Name: obj.Name,
 	}
 }
 
-func (obj *SFederatedResourceBase) AllowPerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return db.IsDomainAllowPerform(userCred, obj, "detach-cluster")
-}
-
-func (obj *SFederatedResourceBase) ValidateDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+func (obj *SFedResourceBase) ValidateDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
 	jointModel, input, err := obj.ValidateJointCluster(userCred, data)
 	if err != nil && errors.Cause(err) != sql.ErrNoRows {
 		return input, err
@@ -259,56 +176,44 @@ func (obj *SFederatedResourceBase) ValidateDetachCluster(ctx context.Context, us
 	return input, nil
 }
 
-func (m *SFederatedResourceBaseManager) PerformDetachCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
-	data, err := model.ValidateDetachCluster(ctx, userCred, data)
+func (obj *SFedResourceBase) GetElemModel() (IFedModel, error) {
+	m := obj.GetManager()
+	elemObj, err := db.FetchById(m, obj.GetId())
 	if err != nil {
-		return err
+		return nil, err
 	}
-	clusterId, _ := data.GetString("cluster_id")
-	return m.detachCluster(model, ctx, userCred, clusterId)
+	return elemObj.(IFedModel), nil
 }
 
-func (m *SFederatedResourceBaseManager) detachCluster(model IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) error {
-	defer lockman.ReleaseObject(ctx, model)
-	lockman.LockObject(ctx, model)
-
-	attached, err := m.IsAttach2Cluster(model, clusterId)
+func (obj *SFedResourceBase) PerformSyncCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
+	elemObj, err := obj.GetElemModel()
 	if err != nil {
-		return errors.Wrap(err, "check IsAttach2Cluster")
+		return nil, err
 	}
-	if !attached {
-		return nil
-	}
+	return nil, GetFedDBAPI().PerformSyncCluster(elemObj, ctx, userCred, data.JSON(data))
+}
 
-	jointModel, err := m.GetJointModel(model, clusterId)
+func (obj *SFedResourceBase) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	elemObj, err := obj.GetElemModel()
 	if err != nil {
-		return errors.Wrap(err, "detach get joint model")
+		return nil, err
 	}
-
-	// TODO: start task todo it
-	return jointModel.Detach(ctx, userCred)
+	if _, err := GetFedDBAPI().PerformAttachCluster(elemObj, ctx, userCred, data); err != nil {
+		return nil, err
+	}
+	return nil, nil
 }
 
-func (m *SFederatedResourceBaseManager) PerformSyncCluster(obj IFederatedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
-	jointObj, data, err := obj.ValidateJointCluster(userCred, data)
+func (obj *SFedResourceBase) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	elemObj, err := obj.GetElemModel()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return m.performSyncCluster(jointObj, ctx, userCred)
+	return nil, GetFedDBAPI().PerformDetachCluster(elemObj, ctx, userCred, data)
 }
 
-func (m *SFederatedResourceBaseManager) performSyncCluster(jointObj IFederatedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
-	if err := jointObj.GetManager().PerformSyncResource(jointObj, ctx, userCred); err != nil {
-		return errors.Wrapf(err, "PerformSyncResource for %s", jointObj.Keyword())
-	}
-	return nil
-}
-
-func (m *SFederatedResourceBase) PerformSyncCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
-	return nil, m.GetManager().PerformSyncCluster(m, ctx, userCred, data.JSON(data))
-}
-
-func (m *SFederatedResourceBase) GetAttachedClusters(ctx context.Context) ([]SCluster, error) {
+// TODO: move to api interface
+func (m *SFedResourceBase) GetAttachedClusters(ctx context.Context) ([]SCluster, error) {
 	jm := m.GetJointModelManager()
 	clusters := make([]SCluster, 0)
 	q := GetClusterManager().Query()
@@ -320,13 +225,29 @@ func (m *SFederatedResourceBase) GetAttachedClusters(ctx context.Context) ([]SCl
 	return clusters, nil
 }
 
-func (m *SFederatedResourceBase) ValidateDeleteCondition(ctx context.Context) error {
+func (m *SFedResourceBase) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.FedResourceUpdateInput) (*api.FedResourceUpdateInput, error) {
+	bInput, err := m.SStatusDomainLevelResourceBase.ValidateUpdateData(ctx, userCred, query, input.StatusDomainLevelResourceBaseUpdateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.StatusDomainLevelResourceBaseUpdateInput = bInput
+	if input.Name != "" {
+		return nil, httperrors.NewInputParameterError("Can not update name")
+	}
+	return input, nil
+}
+
+func (m *SFedResourceBase) ValidateDeleteCondition(ctx context.Context) error {
 	clusters, err := m.GetAttachedClusters(ctx)
 	if err != nil {
 		return errors.Wrap(err, "get attached clusters")
 	}
+	clsName := make([]string, len(clusters))
+	for i := range clusters {
+		clsName[i] = clusters[i].GetName()
+	}
 	if len(clusters) != 0 {
-		return httperrors.NewNotEmptyError("federated resource %s attached to %d clusters", m.Keyword(), len(clusters))
+		return httperrors.NewNotEmptyError("federated resource %s attached to cluster %v", m.Keyword(), clsName)
 	}
 	return nil
 }

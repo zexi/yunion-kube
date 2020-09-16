@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -258,9 +257,11 @@ func FetchClusterResourceById(manager IClusterModelManager, clusterId string, na
 	if len(clusterId) == 0 {
 		return nil, errors.Errorf("cluster id must provided")
 	}
-	if manager.IsNamespaceScope() && namespaceId == "" {
-		return nil, errors.Errorf("namespace id must provided for %s", manager.Keyword())
-	}
+	/*
+	 * if manager.IsNamespaceScope() && namespaceId == "" {
+	 *     return nil, errors.Errorf("namespace id must provided for %s", manager.Keyword())
+	 * }
+	 */
 	q := manager.Query()
 	q = manager.FilterById(q, resId)
 	q = q.Equals("cluster_id", clusterId)
@@ -781,16 +782,9 @@ func (m *SClusterResourceBaseManager) PurgeAllByCluster(ctx context.Context, use
 	if err := db.FetchModelObjects(m, q, &objs); err != nil {
 		return errors.Wrapf(err, "Fetch all %s objects when purge all", m.KeywordPlural())
 	}
-	// ptr wraps the given value with pointer: V => *V, *V => **V, etc.
-	ptr := func(v reflect.Value) reflect.Value {
-		pt := reflect.PtrTo(v.Type())
-		pv := reflect.New(pt.Elem())
-		pv.Elem().Set(v)
-		return pv
-	}
 	for i := range objs {
 		obj := objs[i]
-		objPtr := ptr(reflect.ValueOf(obj)).Interface().(iPurgeClusterResource)
+		objPtr := GetObjectPtr(obj).(iPurgeClusterResource)
 		if err := objPtr.RealDelete(ctx, userCred); err != nil {
 			return errors.Wrapf(err, "delete %s object %s", m.Keyword(), objPtr.GetId())
 		}

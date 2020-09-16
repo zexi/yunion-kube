@@ -52,13 +52,25 @@ type FederatedJointCluster struct {
 
 type FedJointClusterResourceDetails struct {
 	apis.JointResourceBaseDetails
-	Cluster           string `json:"cluster"`
-	FederatedResource string `json:"federatedresource"`
-	Namespace         string `json:"namespace"`
-	Resource          string `json:"resource"`
+	Cluster                  string `json:"cluster"`
+	FederatedResource        string `json:"federatedresource"`
+	FederatedResourceKeyword string `json:"federatedresource_keyword"`
+	NamespaceId              string `json:"namespace_id"`
+	Namespace                string `json:"namespace"`
+	Resource                 string `json:"resource"`
+	ResourceKeyword          string `json:"resource_keyword"`
+	ResourceStatus           string `json:"resource_status"`
 }
 
 type FedNamespaceJointClusterResourceDetails struct {
 	FedJointClusterResourceDetails
 	FederatedNamespace string `json:"federatednamespace"`
+}
+
+type FedResourceUpdateInput struct {
+	apis.StatusDomainLevelResourceBaseUpdateInput
+}
+
+type FedNamespaceResourceUpdateInput struct {
+	FedResourceUpdateInput
 }

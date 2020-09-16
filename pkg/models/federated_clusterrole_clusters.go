@@ -13,16 +13,16 @@ import (
 )
 
 var (
-	FedClusterRoleClusterManager *SFederatedClusterRoleClusterManager
-	_                            IFederatedJointClusterModel = new(SFederatedClusterRoleCluster)
+	FedClusterRoleClusterManager *SFedClusterRoleClusterManager
+	_                            IFedJointClusterModel = new(SFedClusterRoleCluster)
 )
 
 func init() {
 	db.InitManager(func() {
-		FedClusterRoleClusterManager = NewFederatedJointManager(func() db.IJointModelManager {
-			return &SFederatedClusterRoleClusterManager{
-				SFederatedJointClusterManager: NewFederatedJointClusterManager(
-					SFederatedClusterRoleCluster{},
+		FedClusterRoleClusterManager = NewFedJointManager(func() db.IJointModelManager {
+			return &SFedClusterRoleClusterManager{
+				SFedJointClusterManager: NewFedJointClusterManager(
+					SFedClusterRoleCluster{},
 					"federatedclusterroleclusters_tbl",
 					"federatedclusterrolecluster",
 					"federatedclusterroleclusters",
@@ -30,7 +30,7 @@ func init() {
 					GetClusterRoleManager(),
 				),
 			}
-		}).(*SFederatedClusterRoleClusterManager)
+		}).(*SFedClusterRoleClusterManager)
 		GetFedClusterRoleManager().SetJointModelManager(FedClusterRoleClusterManager)
 		RegisterFedJointClusterManager(GetFedClusterRoleManager(), FedClusterRoleClusterManager)
 	})
@@ -38,39 +38,41 @@ func init() {
 
 // +onecloud:swagger-gen-model-singular=federatedclusterrolecluster
 // +onecloud:swagger-gen-model-plural=federatedclusterroleclusters
-type SFederatedClusterRoleClusterManager struct {
-	SFederatedJointClusterManager
+type SFedClusterRoleClusterManager struct {
+	SFedJointClusterManager
 }
 
-type SFederatedClusterRoleCluster struct {
-	SFederatedJointCluster
-
-	FederatedclusterroleId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
+type SFedClusterRoleCluster struct {
+	SFedJointCluster
 }
 
-func (m *SFederatedClusterRoleClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedClusterRoleClusterListInput) (*sqlchemy.SQuery, error) {
-	q, err := m.SFederatedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FedJointClusterListInput)
+func (m *SFedClusterRoleClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedClusterRoleClusterListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FedJointClusterListInput)
 	if err != nil {
 		return nil, err
 	}
 	return q, nil
 }
 
-func (obj *SFederatedClusterRoleCluster) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {
+func (obj *SFedClusterRoleCluster) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFederatedClusterRoleCluster) GetFedClusterRole() (*SFederatedClusterRole, error) {
-	return GetFedClusterRoleManager().GetFedClusterRole(obj.FederatedclusterroleId)
+func (obj *SFedClusterRoleCluster) GetFedClusterRole() (*SFedClusterRole, error) {
+	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
+	if err != nil {
+		return nil, err
+	}
+	return fedObj.(*SFedClusterRole), nil
 }
 
-func (obj *SFederatedClusterRoleCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.ClusterResourceCreateInput) (jsonutils.JSONObject, error) {
+func (obj *SFedClusterRoleCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
 	fedObj, err := obj.GetFedClusterRole()
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated cluster role object")
 	}
 	input := api.ClusterRoleCreateInput{
-		ClusterResourceCreateInput: base,
+		ClusterResourceCreateInput: base.ClusterResourceCreateInput,
 		Rules:                      fedObj.Spec.Template.Rules,
 	}
 	return input.JSON(input), nil

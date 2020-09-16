@@ -43,7 +43,7 @@ require (
 	yunion.io/x/code-generator v0.0.0-20200801025920-d006db774f0f
 	yunion.io/x/jsonutils v0.0.0-20200814075449-927b118adbd8
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
-	yunion.io/x/onecloud v0.0.0-20200915022712-e197ff815ad7
+	yunion.io/x/onecloud v0.0.0-20200917023357-9047c8de39ad
 	yunion.io/x/pkg v0.0.0-20200814072949-4f1b541857d6
 	yunion.io/x/sqlchemy v0.0.0-20200909073353-606d1fe76db5
 )

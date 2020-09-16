@@ -19,60 +19,60 @@ import (
 )
 
 var (
-	fedNamespaceManager *SFederatedNamespaceManager
-	_                   IFederatedModelManager = new(SFederatedNamespaceManager)
-	_                   IFederatedModel        = new(SFederatedNamespace)
+	fedNamespaceManager *SFedNamespaceManager
+	_                   IFedModelManager = new(SFedNamespaceManager)
+	_                   IFedModel        = new(SFedNamespace)
 )
 
 func init() {
 	GetFedNamespaceManager()
 }
 
-func GetFedNamespaceManager() *SFederatedNamespaceManager {
+func GetFedNamespaceManager() *SFedNamespaceManager {
 	if fedNamespaceManager == nil {
 		fedNamespaceManager = newModelManager(func() db.IModelManager {
-			return &SFederatedNamespaceManager{
-				SFederatedResourceBaseManager: NewFedResourceBaseManager(
-					SFederatedNamespace{},
+			return &SFedNamespaceManager{
+				SFedResourceBaseManager: NewFedResourceBaseManager(
+					SFedNamespace{},
 					"federatednamespaces_tbl",
 					"federatednamespace",
 					"federatednamespaces",
 				),
 			}
-		}).(*SFederatedNamespaceManager)
+		}).(*SFedNamespaceManager)
 	}
 	return fedNamespaceManager
 }
 
 // +onecloud:swagger-gen-model-singular=federatednamespace
 // +onecloud:swagger-gen-model-plural=federatednamespaces
-type SFederatedNamespaceManager struct {
-	SFederatedResourceBaseManager
+type SFedNamespaceManager struct {
+	SFedResourceBaseManager
 }
 
-type SFederatedNamespace struct {
-	SFederatedResourceBase
+type SFedNamespace struct {
+	SFedResourceBase
 	Spec *api.FederatedNamespaceSpec `list:"user" update:"user" create:"required"`
 }
 
-func (m *SFederatedNamespaceManager) GetFedNamespace(id string) (*SFederatedNamespace, error) {
+func (m *SFedNamespaceManager) GetFedNamespace(id string) (*SFedNamespace, error) {
 	obj, err := m.FetchById(id)
 	if err != nil {
 		return nil, err
 	}
-	return obj.(*SFederatedNamespace), nil
+	return obj.(*SFedNamespace), nil
 }
 
-func (m *SFederatedNamespaceManager) GetFedNamespaceByIdOrName(userCred mcclient.IIdentityProvider, id string) (*SFederatedNamespace, error) {
+func (m *SFedNamespaceManager) GetFedNamespaceByIdOrName(userCred mcclient.IIdentityProvider, id string) (*SFedNamespace, error) {
 	obj, err := m.FetchByIdOrName(userCred, id)
 	if err != nil {
 		return nil, err
 	}
-	return obj.(*SFederatedNamespace), nil
+	return obj.(*SFedNamespace), nil
 }
 
-func (m *SFederatedNamespaceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedNamespaceCreateInput) (*api.FederatedNamespaceCreateInput, error) {
-	rInput, err := m.SFederatedResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedResourceCreateInput)
+func (m *SFedNamespaceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedNamespaceCreateInput) (*api.FederatedNamespaceCreateInput, error) {
+	rInput, err := m.SFedResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -89,25 +89,43 @@ func (m *SFederatedNamespaceManager) ValidateCreateData(ctx context.Context, use
 	return input, nil
 }
 
-func (obj *SFederatedNamespace) GetDetails(base interface{}, isList bool) interface{} {
+func (obj *SFedNamespace) GetDetails(base interface{}, isList bool) interface{} {
 	out := api.FederatedNamespaceDetails{
-		FederatedResourceDetails: obj.SFederatedResourceBase.GetDetails(base, isList).(api.FederatedResourceDetails),
+		FederatedResourceDetails: obj.SFedResourceBase.GetDetails(base, isList).(api.FederatedResourceDetails),
 	}
 	return out
 }
 
-func (obj *SFederatedNamespace) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedNamespaceAttachClusterInput) (*api.FederatedNamespaceAttachClusterInput, error) {
-	_, err := obj.GetManager().PerformAttachCluster(obj, ctx, userCred, data.JSON(data))
+// ValidateDeleteCondition check steps:
+// 1. no releated clusters attached
+// 2. no releated federated namespace scope resource
+func (obj *SFedNamespace) ValidateDeleteCondition(ctx context.Context) error {
+	if err := obj.SFedResourceBase.ValidateDeleteCondition(ctx); err != nil {
+		return err
+	}
+	fedNsMans := GetFedJointNamespaceScopeManager()
+	fedApi := GetFedDBAPI().JointDBAPI().NamespaceScope()
+	for _, m := range fedNsMans {
+		objs, err := fedApi.FetchModelsByFednamespace(m, obj.GetId())
+		if err != nil {
+			return errors.Wrapf(err, "fetch %s models by fednamespace", m.Keyword())
+		}
+		if len(objs) > 0 {
+			return httperrors.NewNotEmptyError("federatednamespace %s has %d related %s attached", obj.GetName(), m.Keyword(), len(objs))
+		}
+	}
+	return nil
+}
+
+func (obj *SFedNamespace) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedNamespaceAttachClusterInput) (*api.FederatedNamespaceAttachClusterInput, error) {
+	_, err := obj.SFedResourceBase.PerformAttachCluster(ctx, userCred, query, data.JSON(data))
 	if err != nil {
 		return nil, err
 	}
 	return nil, nil
 }
 
-func (obj *SFederatedNamespace) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedNamespaceDetachClusterInput) (*api.FederatedNamespaceDetachClusterInput, error) {
-	err := obj.GetManager().PerformDetachCluster(obj, ctx, userCred, data.JSON(data))
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
+func (obj *SFedNamespace) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedNamespaceDetachClusterInput) (*api.FederatedNamespaceDetachClusterInput, error) {
+	_, err := obj.SFedResourceBase.PerformDetachCluster(ctx, userCred, query, data.JSON(data))
+	return nil, err
 }

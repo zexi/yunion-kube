@@ -76,9 +76,9 @@ func SetHTTPRedirectLocationHeader(w http.ResponseWriter, location string) {
 }
 
 type Error struct {
-	Code    int    `json:"code"`
-	Class   string `json:"class"`
-	Details string `json:"details"`
+	Code    int    `json:"code,omitzero"`
+	Class   string `json:"class,omitempty"`
+	Details string `json:"details,omitempty"`
 }
 
 func NewErrorFromJCError(ctx context.Context, je *httputils.JSONClientError) Error {
@@ -100,15 +100,7 @@ func formatDetails(ctx context.Context, errData httputils.Error, msg string) str
 	if errData.Id == "" {
 		details = msg
 	} else {
-		var (
-			langv = ctx.Value(ctxLangKey)
-			lang  language.Tag
-		)
-		if langv != nil {
-			lang = langv.(language.Tag)
-		} else {
-			lang = language.English
-		}
+		lang := Lang(ctx)
 		a := make([]interface{}, len(errData.Fields))
 		for i := range errData.Fields {
 			a[i] = errData.Fields[i]
@@ -116,6 +108,19 @@ func formatDetails(ctx context.Context, errData httputils.Error, msg string) str
 		details = P(lang, errData.Id, a...)
 	}
 	return details
+}
+
+func Lang(ctx context.Context) language.Tag {
+	var (
+		langv = ctx.Value(ctxLangKey)
+		lang  language.Tag
+	)
+	if langv != nil {
+		lang = langv.(language.Tag)
+	} else {
+		lang = language.English
+	}
+	return lang
 }
 
 func HTTPError(ctx context.Context, w http.ResponseWriter, msg string, statusCode int, class string, errData httputils.Error) {

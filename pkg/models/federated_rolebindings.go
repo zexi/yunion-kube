@@ -11,46 +11,46 @@ import (
 )
 
 var (
-	fedRoleBindingManager *SFederatedRoleBindingManager
-	_                     IFederatedModelManager = new(SFederatedRoleBindingManager)
-	_                     IFederatedModel        = new(SFederatedRoleBinding)
+	fedRoleBindingManager *SFedRoleBindingManager
+	_                     IFedModelManager = new(SFedRoleBindingManager)
+	_                     IFedModel        = new(SFedRoleBinding)
 )
 
 func init() {
 	GetFedRoleBindingManager()
 }
 
-func GetFedRoleBindingManager() *SFederatedRoleBindingManager {
+func GetFedRoleBindingManager() *SFedRoleBindingManager {
 	if fedRoleBindingManager == nil {
 		fedRoleBindingManager = newModelManager(func() db.IModelManager {
-			return &SFederatedRoleBindingManager{
-				SFederatedNamespaceResourceManager: NewFedNamespaceResourceManager(
-					SFederatedRoleBinding{},
+			return &SFedRoleBindingManager{
+				SFedNamespaceResourceManager: NewFedNamespaceResourceManager(
+					SFedRoleBinding{},
 					"federatedrolebindings_tbl",
 					"federatedrolebinding",
 					"federatedrolebindings",
 				),
 			}
-		}).(*SFederatedRoleBindingManager)
+		}).(*SFedRoleBindingManager)
 	}
 	return fedRoleBindingManager
 }
 
 // +onecloud:swagger-gen-model-singular=federatedrolebinding
 // +onecloud:swagger-gen-model-plural=federatedrolebindings
-type SFederatedRoleBindingManager struct {
-	SFederatedNamespaceResourceManager
+type SFedRoleBindingManager struct {
+	SFedNamespaceResourceManager
 	// SRoleRefResourceBase
 }
 
-type SFederatedRoleBinding struct {
-	SFederatedNamespaceResource
+type SFedRoleBinding struct {
+	SFedNamespaceResource
 	Spec *api.FederatedRoleBindingSpec `list:"user" update:"user" create:"required"`
 	// SRoleRefResourceBase
 }
 
-func (m *SFederatedRoleBindingManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedRoleBindingCreateInput) (*api.FederatedRoleBindingCreateInput, error) {
-	nInput, err := m.SFederatedNamespaceResourceManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedNamespaceResourceCreateInput)
+func (m *SFedRoleBindingManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedRoleBindingCreateInput) (*api.FederatedRoleBindingCreateInput, error) {
+	nInput, err := m.SFedNamespaceResourceManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedNamespaceResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -62,16 +62,4 @@ func (m *SFederatedRoleBindingManager) ValidateCreateData(ctx context.Context, u
 		return nil, err
 	}
 	return input, nil
-}
-
-func (obj *SFederatedRoleBinding) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
-	_, err := obj.GetManager().PerformAttachCluster(obj, ctx, userCred, data.JSON(data))
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (obj *SFederatedRoleBinding) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
-	return nil, obj.GetManager().PerformDetachCluster(obj, ctx, userCred, data.JSON(data))
 }

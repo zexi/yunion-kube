@@ -11,44 +11,44 @@ import (
 )
 
 var (
-	fedRoleManager *SFederatedRoleManager
-	_              IFederatedModelManager = new(SFederatedRoleManager)
-	_              IFederatedModel        = new(SFederatedRole)
+	fedRoleManager *SFedRoleManager
+	_              IFedModelManager = new(SFedRoleManager)
+	_              IFedModel        = new(SFedRole)
 )
 
 func init() {
 	GetFedRoleManager()
 }
 
-func GetFedRoleManager() *SFederatedRoleManager {
+func GetFedRoleManager() *SFedRoleManager {
 	if fedRoleManager == nil {
 		fedRoleManager = newModelManager(func() db.IModelManager {
-			return &SFederatedRoleManager{
-				SFederatedNamespaceResourceManager: NewFedNamespaceResourceManager(
-					SFederatedRole{},
+			return &SFedRoleManager{
+				SFedNamespaceResourceManager: NewFedNamespaceResourceManager(
+					SFedRole{},
 					"federatedroles_tbl",
 					"federatedrole",
 					"federatedroles",
 				),
 			}
-		}).(*SFederatedRoleManager)
+		}).(*SFedRoleManager)
 	}
 	return fedRoleManager
 }
 
 // +onecloud:swagger-gen-model-singular=federatedrole
 // +onecloud:swagger-gen-model-plural=federatedroles
-type SFederatedRoleManager struct {
-	SFederatedNamespaceResourceManager
+type SFedRoleManager struct {
+	SFedNamespaceResourceManager
 }
 
-type SFederatedRole struct {
-	SFederatedNamespaceResource
+type SFedRole struct {
+	SFedNamespaceResource
 	Spec *api.FederatedRoleSpec `list:"user" update:"user" create:"required"`
 }
 
-func (m *SFederatedRoleManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedRoleCreateInput) (*api.FederatedRoleCreateInput, error) {
-	nInput, err := m.SFederatedNamespaceResourceManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedNamespaceResourceCreateInput)
+func (m *SFedRoleManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedRoleCreateInput) (*api.FederatedRoleCreateInput, error) {
+	nInput, err := m.SFedNamespaceResourceManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedNamespaceResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (m *SFederatedRoleManager) ValidateCreateData(ctx context.Context, userCred
 	return input, nil
 }
 
-func (m *SFederatedRoleManager) GetPropertyApiResources(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterAPIGroupResources, error) {
+func (m *SFedRoleManager) GetPropertyApiResources(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterAPIGroupResources, error) {
 	ret, err := GetFedClustersApiResources(ctx, userCred, query)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func (m *SFederatedRoleManager) GetPropertyApiResources(ctx context.Context, use
 	return ret.(api.ClusterAPIGroupResources), nil
 }
 
-func (m *SFederatedRoleManager) GetPropertyClusterUsers(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterUsers, error) {
+func (m *SFedRoleManager) GetPropertyClusterUsers(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterUsers, error) {
 	ret, err := GetFedClustersUsers(ctx, userCred, query)
 	if err != nil {
 		return nil, err
@@ -75,22 +75,10 @@ func (m *SFederatedRoleManager) GetPropertyClusterUsers(ctx context.Context, use
 	return ret.(api.ClusterUsers), nil
 }
 
-func (m *SFederatedRoleManager) GetPropertyClusterUserGroups(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterUserGroups, error) {
+func (m *SFedRoleManager) GetPropertyClusterUserGroups(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (api.ClusterUserGroups, error) {
 	ret, err := GetFedClustersUserGroups(ctx, userCred, query)
 	if err != nil {
 		return nil, err
 	}
 	return ret.(api.ClusterUserGroups), nil
-}
-
-func (obj *SFederatedRole) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
-	_, err := obj.GetManager().PerformAttachCluster(obj, ctx, userCred, data.JSON(data))
-	if err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (obj *SFederatedRole) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
-	return nil, obj.GetManager().PerformDetachCluster(obj, ctx, userCred, data.JSON(data))
 }

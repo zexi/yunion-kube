@@ -16,16 +16,16 @@ import (
 )
 
 var (
-	FedNamespaceClusterManager *SFederatedNamespaceClusterManager
-	_                          IFederatedJointClusterModel = new(SFederatedNamespaceCluster)
+	FedNamespaceClusterManager *SFedNamespaceClusterManager
+	_                          IFedJointClusterModel = new(SFedNamespaceCluster)
 )
 
 func init() {
 	db.InitManager(func() {
-		FedNamespaceClusterManager = NewFederatedJointManager(func() db.IJointModelManager {
-			return &SFederatedNamespaceClusterManager{
-				SFederatedJointClusterManager: NewFederatedJointClusterManager(
-					SFederatedNamespaceCluster{},
+		FedNamespaceClusterManager = NewFedJointManager(func() db.IJointModelManager {
+			return &SFedNamespaceClusterManager{
+				SFedJointClusterManager: NewFedJointClusterManager(
+					SFedNamespaceCluster{},
 					"federatednamespaceclusters_tbl",
 					"federatednamespacecluster",
 					"federatednamespaceclusters",
@@ -33,7 +33,7 @@ func init() {
 					GetNamespaceManager(),
 				),
 			}
-		}).(*SFederatedNamespaceClusterManager)
+		}).(*SFedNamespaceClusterManager)
 		GetFedNamespaceManager().SetJointModelManager(FedNamespaceClusterManager)
 		RegisterFedJointClusterManager(GetFedNamespaceManager(), FedNamespaceClusterManager)
 	})
@@ -41,42 +41,42 @@ func init() {
 
 // +onecloud:swagger-gen-model-singular=federatednamespacecluster
 // +onecloud:swagger-gen-model-plural=federatednamespaceclusters
-type SFederatedNamespaceClusterManager struct {
-	SFederatedJointClusterManager
+type SFedNamespaceClusterManager struct {
+	SFedJointClusterManager
 }
 
-type SFederatedNamespaceCluster struct {
-	SFederatedJointCluster
+type SFedNamespaceCluster struct {
+	SFedJointCluster
 }
 
-func (m *SFederatedNamespaceClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedNamespaceClusterListInput) (*sqlchemy.SQuery, error) {
-	q, err := m.SFederatedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FedJointClusterListInput)
+func (m *SFedNamespaceClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedNamespaceClusterListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FedJointClusterListInput)
 	if err != nil {
 		return nil, err
 	}
 	return q, nil
 }
 
-func (obj *SFederatedNamespaceCluster) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {
+func (obj *SFedNamespaceCluster) Detach(ctx context.Context, userCred mcclient.TokenCredential) error {
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFederatedNamespaceCluster) GetFedNamespace() (*SFederatedNamespace, error) {
-	fObj, err := obj.GetFedResourceModel()
+func (obj *SFedNamespaceCluster) GetFedNamespace() (*SFedNamespace, error) {
+	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated namespace")
 	}
-	return fObj.(*SFederatedNamespace), nil
+	return fedObj.(*SFedNamespace), nil
 }
 
-func (obj *SFederatedNamespaceCluster) GetDetails(base interface{}, isList bool) interface{} {
+func (obj *SFedNamespaceCluster) GetDetails(base api.FedJointClusterResourceDetails, isList bool) interface{} {
 	out := api.FederatedNamespaceClusterDetails{
-		FedJointClusterResourceDetails: obj.SFederatedJointCluster.GetDetails(base, isList).(api.FedJointClusterResourceDetails),
+		FedJointClusterResourceDetails: obj.SFedJointCluster.GetDetails(base, isList).(api.FedJointClusterResourceDetails),
 	}
 	return out
 }
 
-func (obj *SFederatedNamespaceCluster) GetK8sResource() (runtime.Object, error) {
+func (obj *SFedNamespaceCluster) GetK8sResource() (runtime.Object, error) {
 	fedNs, err := obj.GetFedNamespace()
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated namespace")
@@ -88,13 +88,13 @@ func (obj *SFederatedNamespaceCluster) GetK8sResource() (runtime.Object, error) 
 	return ns, nil
 }
 
-func (obj *SFederatedNamespaceCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.ClusterResourceCreateInput) (jsonutils.JSONObject, error) {
+func (obj *SFedNamespaceCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
 	input := api.NamespaceCreateInputV2{
-		ClusterResourceCreateInput: base,
+		ClusterResourceCreateInput: base.ClusterResourceCreateInput,
 	}
 	return input.JSON(input), nil
 }
 
-func (obj *SFederatedNamespaceCluster) UpdateResource(resObj IClusterModel) error {
+func (obj *SFedNamespaceCluster) UpdateResource(resObj IClusterModel) error {
 	return nil
 }

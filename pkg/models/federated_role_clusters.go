@@ -13,14 +13,14 @@ import (
 
 var (
 	FedRoleClusterManager *SFedRoleClusterManager
-	_                     IFederatedJointClusterModel = new(SFedRoleCluster)
+	_                     IFedJointClusterModel = new(SFedRoleCluster)
 )
 
 func init() {
 	db.InitManager(func() {
-		FedRoleClusterManager = NewFederatedJointManager(func() db.IJointModelManager {
+		FedRoleClusterManager = NewFedJointManager(func() db.IJointModelManager {
 			return &SFedRoleClusterManager{
-				SFederatedNamespaceJointClusterManager: NewFedNamespaceJointClusterManager(
+				SFedNamespaceJointClusterManager: NewFedNamespaceJointClusterManager(
 					SFedRoleCluster{},
 					"federatedroleclusters_tbl",
 					"federatedrolecluster",
@@ -38,7 +38,7 @@ func init() {
 // +onecloud:swagger-gen-model-singular=federatedrolecluster
 // +onecloud:swagger-gen-model-plural=federatedroleclusters
 type SFedRoleClusterManager struct {
-	SFederatedNamespaceJointClusterManager
+	SFedNamespaceJointClusterManager
 }
 
 type SFedRoleCluster struct {
@@ -49,25 +49,21 @@ func (obj *SFedRoleCluster) Detach(ctx context.Context, userCred mcclient.TokenC
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFedRoleCluster) GetFedRole() (*SFederatedRole, error) {
-	fedObj, err := obj.GetFedResourceModel()
+func (obj *SFedRoleCluster) GetFedRole() (*SFedRole, error) {
+	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, err
 	}
-	return fedObj.(*SFederatedRole), nil
+	return fedObj.(*SFedRole), nil
 }
 
-func (obj *SFedRoleCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.ClusterResourceCreateInput) (jsonutils.JSONObject, error) {
+func (obj *SFedRoleCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
 	fedObj, err := obj.GetFedRole()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get federated role object")
 	}
-	nsBase, err := obj.SFederatedNamespaceJointCluster.GetResourceCreateInput(userCred, base)
-	if err != nil {
-		return nil, errors.Wrapf(err, "get cluster namespace base create input")
-	}
 	input := api.RoleCreateInput{
-		NamespaceResourceCreateInput: nsBase,
+		NamespaceResourceCreateInput: base,
 		Rules:                        fedObj.Spec.Template.Rules,
 	}
 	return input.JSON(input), nil

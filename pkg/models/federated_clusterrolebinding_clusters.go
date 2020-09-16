@@ -18,9 +18,9 @@ var (
 
 func init() {
 	db.InitManager(func() {
-		FedClusterRoleBindingClusterManager = NewFederatedJointManager(func() db.IJointModelManager {
+		FedClusterRoleBindingClusterManager = NewFedJointManager(func() db.IJointModelManager {
 			return &SFedClusterRoleBindingClusterManager{
-				SFederatedJointClusterManager: NewFederatedJointClusterManager(
+				SFedJointClusterManager: NewFedJointClusterManager(
 					SFedClusterRoleBindingCluster{},
 					"federatedclusterrolebindingclusters_tbl",
 					"federatedclusterrolebindingcluster",
@@ -38,15 +38,15 @@ func init() {
 // +onecloud:swagger-gen-model-singular=federatedclusterrolebindingcluster
 // +onecloud:swagger-gen-model-plural=federatedclusterrolebindingclusters
 type SFedClusterRoleBindingClusterManager struct {
-	SFederatedJointClusterManager
+	SFedJointClusterManager
 }
 
 type SFedClusterRoleBindingCluster struct {
-	SFederatedJointCluster
+	SFedJointCluster
 }
 
 func (m *SFedClusterRoleBindingClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FedClusterRoleBindingClusterListInput) (*sqlchemy.SQuery, error) {
-	q, err := m.SFederatedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FedJointClusterListInput)
+	q, err := m.SFedJointClusterManager.ListItemFilter(ctx, q, userCred, &input.FedJointClusterListInput)
 	if err != nil {
 		return nil, err
 	}
@@ -57,21 +57,21 @@ func (obj *SFedClusterRoleBindingCluster) Detach(ctx context.Context, userCred m
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFedClusterRoleBindingCluster) GetFedClusterRoleBinding() (*SFederatedClusterRoleBinding, error) {
-	fObj, err := obj.GetFedResourceModel()
+func (obj *SFedClusterRoleBindingCluster) GetFedClusterRoleBinding() (*SFedClusterRoleBinding, error) {
+	fObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated clusterrolebinding")
 	}
-	return fObj.(*SFederatedClusterRoleBinding), nil
+	return fObj.(*SFedClusterRoleBinding), nil
 }
 
-func (obj *SFedClusterRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.ClusterResourceCreateInput) (jsonutils.JSONObject, error) {
+func (obj *SFedClusterRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
 	fedObj, err := obj.GetFedClusterRoleBinding()
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated clusterrolebinding object")
 	}
 	input := api.ClusterRoleBindingCreateInput{
-		ClusterResourceCreateInput: base,
+		ClusterResourceCreateInput: base.ClusterResourceCreateInput,
 		Subjects:                   fedObj.Spec.Template.Subjects,
 		RoleRef:                    api.RoleRef(fedObj.Spec.Template.RoleRef),
 	}

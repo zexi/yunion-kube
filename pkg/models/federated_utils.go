@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"reflect"
 
 	"golang.org/x/sync/errgroup"
 	rbac "k8s.io/api/rbac/v1"
@@ -107,7 +108,7 @@ func GetFedClustersUserGroups(ctx context.Context, userCred mcclient.TokenCreden
 func ValidateFederatedRoleRef(ctx context.Context, userCred mcclient.TokenCredential, roleRef rbac.RoleRef) error {
 	roleKind := roleRef.Kind
 	roleName := roleRef.Name
-	var man IFederatedModelManager
+	var man IFedModelManager
 	if roleKind == api.KindNameClusterRole {
 		man = GetFedClusterRoleManager()
 	} else if roleKind == api.KindNameRole {
@@ -120,4 +121,13 @@ func ValidateFederatedRoleRef(ctx context.Context, userCred mcclient.TokenCreden
 		return errors.Wrapf(err, "Not found federated %s role object by name: %s", roleKind, roleName)
 	}
 	return nil
+}
+
+// GetObjectPtr wraps the given value with pointer: V => *V, *V => **V, etc.
+func GetObjectPtr(obj interface{}) interface{} {
+	v := reflect.ValueOf(obj)
+	pt := reflect.PtrTo(v.Type())
+	pv := reflect.New(pt.Elem())
+	pv.Elem().Set(v)
+	return pv.Interface()
 }

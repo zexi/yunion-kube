@@ -2,13 +2,10 @@ package models
 
 import (
 	"context"
-	"database/sql"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
-	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
@@ -18,122 +15,136 @@ import (
 )
 
 var (
-	globalFedJointClusterManagers map[string]IFederatedJointClusterManager
+	globalFedJointClusterManagers map[string]IFedJointClusterManager
 )
 
-func RegisterFedJointClusterManager(masterMan IFederatedModelManager, jointMan IFederatedJointClusterManager) {
+func RegisterFedJointClusterManager(masterMan IFedModelManager, jointMan IFedJointClusterManager) {
 	if globalFedJointClusterManagers == nil {
-		globalFedJointClusterManagers = make(map[string]IFederatedJointClusterManager)
+		globalFedJointClusterManagers = make(map[string]IFedJointClusterManager)
 	}
 	globalFedJointClusterManagers[masterMan.Keyword()] = jointMan
 }
 
-func GetFedJointClusterManager(keyword string) IFederatedJointClusterManager {
+func GetFedJointClusterManager(keyword string) IFedJointClusterManager {
 	return globalFedJointClusterManagers[keyword]
 }
 
-type IFederatedJointModel interface {
-	db.IJointModel
-
-	GetDetails(baseDetails interface{}, isList bool) interface{}
+// GetFedJointNamespaceScopeManager return federated namespace scope manager,
+// e.g:
+// - GetFedRoleManager()
+// - GetFedRoleBindingManager()
+func GetFedJointNamespaceScopeManager() []IFedNamespaceJointClusterManager {
+	ret := make([]IFedNamespaceJointClusterManager, 0)
+	for _, m := range globalFedJointClusterManagers {
+		if _, ok := m.(IFedNamespaceJointClusterManager); ok {
+			ret = append(ret, m)
+		}
+	}
+	return ret
 }
 
-type IFederatedJointManager interface {
+type IFedJointModel interface {
+	db.IJointModel
+}
+
+type IFedJointManager interface {
 	db.IJointModelManager
 }
 
-type IFederatedJointClusterManager interface {
-	IFederatedJointManager
-	GetFedManager() IFederatedModelManager
+type IFedJointClusterManager interface {
+	IFedJointManager
+	GetFedManager() IFedModelManager
 	GetResourceManager() IClusterModelManager
 	ClusterQuery(clusterId string) *sqlchemy.SQuery
-
-	PerformSyncResource(jointObj IFederatedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error
 }
 
-type IFederatedJointClusterModel interface {
-	IFederatedJointModel
+type IFedJointClusterModel interface {
+	IFedJointModel
 
-	GetManager() IFederatedJointClusterManager
+	// GetClusterId() get object cluster_id
+	GetClusterId() string
+	// GetResourceId get object resource_id
+	GetResourceId() string
+	// GetFedResourceId get object federatedresource_id
+	GetFedResourceId() string
+	GetManager() IFedJointClusterManager
 	GetCluster() (*SCluster, error)
 	GetResourceManager() IClusterModelManager
-	IsNamespaceScope() bool
-	IsResourceExist() (IClusterModel, bool, error)
 	SetResource(resObj IClusterModel) error
-	GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, baseInput api.ClusterResourceCreateInput) (jsonutils.JSONObject, error)
-	UpdateResource(resObj IClusterModel) error
+	GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, baseInput api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error)
+	GetDetails(base api.FedJointClusterResourceDetails, isList bool) interface{}
 }
 
 // +onecloud:swagger-gen-ignore
-type SFederatedJointResourceBaseManager struct {
+type SFedJointResourceBaseManager struct {
 	db.SJointResourceBaseManager
 }
 
-type SFederatedJointResourceBase struct {
+type SFedJointResourceBase struct {
 	db.SJointResourceBase
 }
 
-func NewFederatedJointResourceBaseManager(dt interface{}, tableName string, keyword string, keywordPlural string, master IFederatedModelManager, slave db.IStandaloneModelManager) SFederatedJointResourceBaseManager {
-	return SFederatedJointResourceBaseManager{
+func NewFedJointResourceBaseManager(dt interface{}, tableName string, keyword string, keywordPlural string, master IFedModelManager, slave db.IStandaloneModelManager) SFedJointResourceBaseManager {
+	return SFedJointResourceBaseManager{
 		SJointResourceBaseManager: db.NewJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master.(db.IStandaloneModelManager), slave),
 	}
 }
 
-func NewFederatedJointClusterManager(
+func NewFedJointClusterManager(
 	dt interface{}, tableName string,
 	keyword string, keywordPlural string,
-	master IFederatedModelManager,
+	master IFedModelManager,
 	resourceMan IClusterModelManager,
-) SFederatedJointClusterManager {
-	base := NewFederatedJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master, GetClusterManager())
-	man := SFederatedJointClusterManager{
-		SFederatedJointResourceBaseManager: base,
-		resourceManager:                    resourceMan,
+) SFedJointClusterManager {
+	base := NewFedJointResourceBaseManager(dt, tableName, keyword, keywordPlural, master, GetClusterManager())
+	man := SFedJointClusterManager{
+		SFedJointResourceBaseManager: base,
+		resourceManager:              resourceMan,
 	}
 	return man
 }
 
-func NewFederatedJointManager(factory func() db.IJointModelManager) db.IJointModelManager {
+func NewFedJointManager(factory func() db.IJointModelManager) db.IJointModelManager {
 	man := factory()
 	man.SetVirtualObject(man)
 	return man
 }
 
-type SFederatedJointClusterManager struct {
-	SFederatedJointResourceBaseManager
+type SFedJointClusterManager struct {
+	SFedJointResourceBaseManager
 	resourceManager IClusterModelManager
 }
 
-type SFederatedJointCluster struct {
-	SFederatedJointResourceBase
+type SFedJointCluster struct {
+	SFedJointResourceBase
 
 	FederatedresourceId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 	ClusterId           string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
-	NamespaceId         string `width:"36" charset:"ascii" list:"user" index:"true"`
-	ResourceId          string `width:"36" charset:"ascii" list:"user" index:"true"`
+	// NamespaceId should be calculated by cluster and federated resource
+	ResourceId string `width:"36" charset:"ascii" list:"user" index:"true"`
 }
 
-func (m SFederatedJointClusterManager) GetFedManager() IFederatedModelManager {
-	return m.GetMasterManager().(IFederatedModelManager)
+func (m SFedJointClusterManager) GetFedManager() IFedModelManager {
+	return m.GetMasterManager().(IFedModelManager)
 }
 
-func (m SFederatedJointClusterManager) GetResourceManager() IClusterModelManager {
+func (m SFedJointClusterManager) GetResourceManager() IClusterModelManager {
 	return m.resourceManager
 }
 
-func (m SFederatedJointClusterManager) GetMasterFieldName() string {
+func (m SFedJointClusterManager) GetMasterFieldName() string {
 	return "federatedresource_id"
 }
 
-func (m SFederatedJointClusterManager) GetSlaveFieldName() string {
+func (m SFedJointClusterManager) GetSlaveFieldName() string {
 	return "cluster_id"
 }
 
-func (m *SFederatedJointClusterManager) ClusterQuery(clsId string) *sqlchemy.SQuery {
+func (m *SFedJointClusterManager) ClusterQuery(clsId string) *sqlchemy.SQuery {
 	return m.Query().Equals("cluster_id", clsId)
 }
 
-func GetFederatedJointClusterModel(man IFederatedJointClusterManager, masterId string, clusterId string) (IFederatedJointClusterModel, error) {
+func GetFederatedJointClusterModel(man IFedJointClusterManager, masterId string, clusterId string) (IFedJointClusterModel, error) {
 	q := man.ClusterQuery(clusterId).Equals(man.GetMasterFieldName(), masterId)
 	obj, err := db.NewModelObject(man)
 	if err != nil {
@@ -142,31 +153,36 @@ func GetFederatedJointClusterModel(man IFederatedJointClusterManager, masterId s
 	if err := q.First(obj); err != nil {
 		return nil, err
 	}
-	return obj.(IFederatedJointClusterModel), nil
+	return obj.(IFedJointClusterModel), nil
 }
 
-func (obj *SFederatedJointCluster) GetManager() IFederatedJointClusterManager {
-	return obj.GetJointModelManager().(IFederatedJointClusterManager)
+func (obj *SFedJointCluster) GetManager() IFedJointClusterManager {
+	return obj.GetJointModelManager().(IFedJointClusterManager)
 }
 
-func (obj *SFederatedJointCluster) GetResourceManager() IClusterModelManager {
+func (obj *SFedJointCluster) GetResourceManager() IClusterModelManager {
 	return obj.GetManager().GetResourceManager()
 }
 
-func (obj *SFederatedJointCluster) GetFedResourceManager() IFederatedModelManager {
+func (obj *SFedJointCluster) GetFedResourceManager() IFedModelManager {
 	return obj.GetManager().GetFedManager()
 }
 
-func (obj *SFederatedJointCluster) IsNamespaceScope() bool {
-	return obj.GetResourceManager().IsNamespaceScope()
+func (obj *SFedJointCluster) GetClusterId() string {
+	return obj.ClusterId
 }
 
-func (obj *SFederatedJointCluster) SetResource(resObj IClusterModel) error {
+func (obj *SFedJointCluster) GetFedResourceId() string {
+	return obj.FederatedresourceId
+}
+
+func (obj *SFedJointCluster) GetResourceId() string {
+	return obj.ResourceId
+}
+
+func (obj *SFedJointCluster) SetResource(resObj IClusterModel) error {
 	_, err := db.Update(obj, func() error {
 		obj.ResourceId = resObj.GetId()
-		if obj.IsNamespaceScope() {
-			obj.NamespaceId = resObj.(INamespaceModel).GetNamespaceId()
-		}
 		return nil
 	})
 	if err != nil {
@@ -175,19 +191,13 @@ func (obj *SFederatedJointCluster) SetResource(resObj IClusterModel) error {
 	return nil
 }
 
-func (obj *SFederatedJointCluster) UpdateResource(resObj IClusterModel) error {
-	return nil
-}
-
-func (m *SFederatedJointClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FedJointClusterListInput) (*sqlchemy.SQuery, error) {
-	q, err := m.SFederatedJointResourceBaseManager.ListItemFilter(ctx, q, userCred, input.JointResourceBaseListInput)
+func (m *SFedJointClusterManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FedJointClusterListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFedJointResourceBaseManager.ListItemFilter(ctx, q, userCred, input.JointResourceBaseListInput)
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("====input: %#v", input)
 	if len(input.FederatedResourceId) > 0 {
 		masterMan := m.GetMasterManager()
-		log.Errorf("==masterMan: %v", masterMan)
 		fedObj, err := masterMan.FetchByIdOrName(userCred, input.FederatedResourceId)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get %s object", masterMan.Keyword())
@@ -208,176 +218,38 @@ func (m *SFederatedJointClusterManager) ListItemFilter(ctx context.Context, q *s
 		}
 		q = q.Equals("resource_id", resObj.GetId())
 	}
-	if len(input.NamespaceId) > 0 {
-		nsObj, err := GetNamespaceManager().FetchByIdOrName(userCred, input.NamespaceId)
-		if err != nil {
-			return nil, errors.Wrap(err, "Get namespace")
-		}
-		q = q.Equals("namespace_id", nsObj.GetId())
-	}
+	/*
+	 * if len(input.NamespaceId) > 0 {
+	 *     nsObj, err := GetNamespaceManager().FetchByIdOrName(userCred, input.NamespaceId)
+	 *     if err != nil {
+	 *         return nil, errors.Wrap(err, "Get namespace")
+	 *     }
+	 *     q = q.Equals("namespace_id", nsObj.GetId())
+	 * }
+	 */
 	return q, nil
 }
 
-func (m *SFederatedJointClusterManager) FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []interface{}, fields stringutils2.SSortedStrings, isList bool) []interface{} {
+func (m *SFedJointClusterManager) FetchCustomizeColumns(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, objs []interface{}, fields stringutils2.SSortedStrings, isList bool) []interface{} {
 	baseGet := func(obj interface{}) interface{} {
 		jRows := m.SJointResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, []interface{}{obj}, fields, isList)
 		return jRows[0]
 	}
 	ret := make([]interface{}, len(objs))
+	fedApi := GetFedDBAPI()
 	for idx := range objs {
-		obj := objs[idx].(IFederatedJointModel)
+		obj := objs[idx].(IFedJointClusterModel)
 		baseDetail := baseGet(obj)
-		out := obj.GetDetails(baseDetail, isList)
+		out := fedApi.JointDBAPI().GetDetails(obj, userCred, baseDetail.(apis.JointResourceBaseDetails), isList)
 		ret[idx] = out
 	}
 	return ret
 }
 
-func (obj *SFederatedJointCluster) GetCluster() (*SCluster, error) {
+func (obj *SFedJointCluster) GetCluster() (*SCluster, error) {
 	return GetClusterManager().GetCluster(obj.ClusterId)
 }
 
-func (obj *SFederatedJointCluster) GetDetails(base interface{}, isList bool) interface{} {
-	out := api.FedJointClusterResourceDetails{
-		JointResourceBaseDetails: base.(apis.JointResourceBaseDetails),
-	}
-	if cluster, err := obj.GetCluster(); err != nil {
-		log.Errorf("get cluster %s object error: %v", obj.ClusterId, err)
-	} else {
-		out.Cluster = cluster.GetName()
-	}
-	if fedObj, err := obj.GetFedResourceModel(); err != nil {
-		log.Errorf("get federated resource %s object error: %v", obj.FederatedresourceId, err)
-	} else {
-		out.FederatedResource = fedObj.GetName()
-	}
-	if obj.IsNamespaceScope() {
-		if obj.NamespaceId != "" {
-			nsObj, err := GetNamespaceManager().FetchById(obj.NamespaceId)
-			if err == nil && nsObj != nil {
-				out.Namespace = nsObj.GetName()
-			}
-		}
-	}
-	if obj.ResourceId != "" {
-		resObj, err := obj.GetResourceModel()
-		if err == nil && resObj != nil {
-			out.Resource = resObj.GetName()
-		}
-	}
-	return out
-}
-
-func (obj *SFederatedJointCluster) GetFedResourceModel() (IFederatedModel, error) {
-	fObj, err := obj.GetFedResourceManager().FetchById(obj.FederatedresourceId)
-	if err != nil {
-		return nil, errors.Wrap(err, "get federated resource model")
-	}
-	return fObj.(IFederatedModel), nil
-}
-
-func (obj *SFederatedJointCluster) GetResourceModel() (IClusterModel, error) {
-	man := obj.GetResourceManager()
-	return FetchClusterResourceById(man, obj.ClusterId, obj.NamespaceId, obj.ResourceId)
-}
-
-func (obj *SFederatedJointCluster) IsResourceExist() (IClusterModel, bool, error) {
-	if obj.ResourceId == "" {
-		return nil, false, nil
-	}
-	resObj, err := obj.GetResourceModel()
-	if err != nil {
-		if errors.Cause(err) == sql.ErrNoRows {
-			return nil, false, nil
-		}
-		return nil, false, errors.Wrap(err, "GetResourceModel")
-	}
-	if resObj == nil {
-		return nil, false, nil
-	}
-	return resObj, true, nil
-}
-
-func (m *SFederatedJointClusterManager) PerformSyncResource(
-	jointObj IFederatedJointClusterModel,
-	ctx context.Context,
-	userCred mcclient.TokenCredential,
-) error {
-	return m.ReconcileResource(jointObj, ctx, userCred)
-}
-
-func (m *SFederatedJointClusterManager) ReconcileResource(
-	jointObj IFederatedJointClusterModel,
-	ctx context.Context,
-	userCred mcclient.TokenCredential,
-) error {
-	resObj, exist, err := jointObj.IsResourceExist()
-	if err != nil {
-		return errors.Wrap(err, "Check cluster resource exist")
-	}
-	cluster, err := jointObj.GetCluster()
-	if err != nil {
-		return errors.Wrap(err, "get joint object cluster")
-	}
-	ownerId := cluster.GetOwnerId()
-	fedObj := db.JointMaster(jointObj).(IFederatedModel)
-	if exist {
-		if err := m.UpdateResource(ctx, userCred, jointObj, resObj); err != nil {
-			return errors.Wrap(err, "UpdateClusterResource")
-		}
-		return nil
-	}
-	if err := m.CreateResource(ctx, userCred, ownerId, jointObj, fedObj, cluster); err != nil {
-		return errors.Wrap(err, "CreateClusterResource")
-	}
-	return nil
-}
-
-func (m *SFederatedJointClusterManager) CreateResource(
-	ctx context.Context,
-	userCred mcclient.TokenCredential,
-	ownerId mcclient.IIdentityProvider,
-	jointObj IFederatedJointClusterModel,
-	fedObj IFederatedModel,
-	cluster *SCluster,
-) error {
-	baseInput := new(api.ClusterResourceCreateInput)
-	baseInput.Name = fedObj.GetName()
-	baseInput.ClusterId = cluster.GetId()
-	baseInput.ProjectDomainId = cluster.DomainId
-	data, err := jointObj.GetResourceCreateData(ctx, userCred, *baseInput)
-	if err != nil {
-		return errors.Wrap(err, "GetResourceCreateData")
-	}
-	resObj, err := db.DoCreate(jointObj.GetResourceManager(), ctx, userCred, nil, data, ownerId)
-	if err != nil {
-		return errors.Wrap(err, "create local resource object")
-	}
-	if err := jointObj.SetResource(resObj.(IClusterModel)); err != nil {
-		return errors.Wrapf(err, "set %s resource object", jointObj.Keyword())
-	}
-	func() {
-		lockman.LockObject(ctx, resObj)
-		defer lockman.ReleaseObject(ctx, resObj)
-
-		resObj.PostCreate(ctx, userCred, ownerId, nil, data)
-	}()
-	return nil
-}
-
-func (m *SFederatedJointClusterManager) UpdateResource(
-	ctx context.Context,
-	userCred mcclient.TokenCredential,
-	jointObj IFederatedJointClusterModel,
-	resObj IClusterModel,
-) error {
-	diff, err := db.UpdateWithLock(ctx, resObj, func() error {
-		return jointObj.UpdateResource(resObj)
-	})
-	if err != nil {
-		return errors.Wrap(err, "UpdateResource")
-	}
-	db.OpsLog.LogEvent(resObj, db.ACT_UPDATE, diff, userCred)
-	resObj.PostUpdate(ctx, userCred, nil, jsonutils.NewDict())
-	return nil
+func (obj *SFedJointCluster) GetDetails(base api.FedJointClusterResourceDetails, isList bool) interface{} {
+	return base
 }

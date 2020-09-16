@@ -11,19 +11,19 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type IFederatedNamespaceModel interface {
-	IFederatedModel
+type IFedNamespaceModel interface {
+	IFedModel
 
-	GetFedNamespace() (*SFederatedNamespace, error)
+	GetFedNamespace() (*SFedNamespace, error)
 }
 
 // +onecloud:swagger-gen-ignore
-type SFederatedNamespaceResourceManager struct {
-	SFederatedResourceBaseManager
+type SFedNamespaceResourceManager struct {
+	SFedResourceBaseManager
 }
 
-type SFederatedNamespaceResource struct {
-	SFederatedResourceBase
+type SFedNamespaceResource struct {
+	SFedResourceBase
 
 	FederatednamespaceId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 }
@@ -33,14 +33,14 @@ func NewFedNamespaceResourceManager(
 	tableName string,
 	keyword string,
 	keywordPlural string,
-) SFederatedNamespaceResourceManager {
-	return SFederatedNamespaceResourceManager{
-		SFederatedResourceBaseManager: NewFedResourceBaseManager(dt, tableName, keyword, keywordPlural),
+) SFedNamespaceResourceManager {
+	return SFedNamespaceResourceManager{
+		SFedResourceBaseManager: NewFedResourceBaseManager(dt, tableName, keyword, keywordPlural),
 	}
 }
 
-func (m *SFederatedNamespaceResourceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedNamespaceResourceCreateInput) (*api.FederatedNamespaceResourceCreateInput, error) {
-	rInput, err := m.SFederatedResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedResourceCreateInput)
+func (m *SFedNamespaceResourceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.FederatedNamespaceResourceCreateInput) (*api.FederatedNamespaceResourceCreateInput, error) {
+	rInput, err := m.SFedResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, query, &input.FederatedResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +58,8 @@ func (m *SFederatedNamespaceResourceManager) ValidateCreateData(ctx context.Cont
 	return input, nil
 }
 
-func (m *SFederatedNamespaceResourceManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedNamespaceResourceListInput) (*sqlchemy.SQuery, error) {
-	q, err := m.SFederatedResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.FederatedResourceListInput)
+func (m *SFedNamespaceResourceManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedNamespaceResourceListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SFedResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.FederatedResourceListInput)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +73,6 @@ func (m *SFederatedNamespaceResourceManager) ListItemFilter(ctx context.Context,
 	return q, nil
 }
 
-func (obj *SFederatedNamespaceResource) GetFedNamespace() (*SFederatedNamespace, error) {
+func (obj *SFedNamespaceResource) GetFedNamespace() (*SFedNamespace, error) {
 	return GetFedNamespaceManager().GetFedNamespace(obj.FederatednamespaceId)
 }

@@ -13,14 +13,14 @@ import (
 
 var (
 	FedRoleBindingClusterManager *SFedRoleBindingClusterManager
-	_                            IFederatedJointClusterModel = new(SFedRoleBindingCluster)
+	_                            IFedJointClusterModel = new(SFedRoleBindingCluster)
 )
 
 func init() {
 	db.InitManager(func() {
-		FedRoleBindingClusterManager = NewFederatedJointManager(func() db.IJointModelManager {
+		FedRoleBindingClusterManager = NewFedJointManager(func() db.IJointModelManager {
 			return &SFedRoleBindingClusterManager{
-				SFederatedNamespaceJointClusterManager: NewFedNamespaceJointClusterManager(
+				SFedNamespaceJointClusterManager: NewFedNamespaceJointClusterManager(
 					SFedRoleBindingCluster{},
 					"federatedrolebindingclusters_tbl",
 					"federatedrolebindingcluster",
@@ -38,7 +38,7 @@ func init() {
 // +onecloud:swagger-gen-model-singular=federatedrolebindingcluster
 // +onecloud:swagger-gen-model-plural=federatedrolebindingclusters
 type SFedRoleBindingClusterManager struct {
-	SFederatedNamespaceJointClusterManager
+	SFedNamespaceJointClusterManager
 }
 
 type SFedRoleBindingCluster struct {
@@ -49,25 +49,21 @@ func (obj *SFedRoleBindingCluster) Detach(ctx context.Context, userCred mcclient
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFedRoleBindingCluster) GetFedRoleBinding() (*SFederatedRoleBinding, error) {
-	fedObj, err := obj.GetFedResourceModel()
+func (obj *SFedRoleBindingCluster) GetFedRoleBinding() (*SFedRoleBinding, error) {
+	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, err
 	}
-	return fedObj.(*SFederatedRoleBinding), nil
+	return fedObj.(*SFedRoleBinding), nil
 }
 
-func (obj *SFedRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.ClusterResourceCreateInput) (jsonutils.JSONObject, error) {
+func (obj *SFedRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
 	fedObj, err := obj.GetFedRoleBinding()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get federated rolebinding object")
 	}
-	nsBase, err := obj.SFederatedNamespaceJointCluster.GetResourceCreateInput(userCred, base)
-	if err != nil {
-		return nil, errors.Wrapf(err, "get cluster namespace base create input")
-	}
 	input := api.RoleBindingCreateInput{
-		NamespaceResourceCreateInput: nsBase,
+		NamespaceResourceCreateInput: base,
 		Subjects:                     fedObj.Spec.Template.Subjects,
 	}
 	return input.JSON(input), nil
