@@ -16,3 +16,16 @@ type ReplicaSet struct {
 	// Init Container images of the Replica Set.
 	InitContainerImages []ContainerImage `json:"initContainerImages"`
 }
+
+type ReplicaSetDetail struct {
+	NamespaceResourceDetail
+
+	// Aggregate information about pods belonging to this Replica Set.
+	Pods PodInfo `json:"pods"`
+
+	// Container images of the Replica Set.
+	ContainerImages []ContainerImage `json:"containerImages"`
+
+	// Init Container images of the Replica Set.
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
+}

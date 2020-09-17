@@ -96,13 +96,13 @@ func chartlistHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	}
 	cq, dsq, err := getQuery(ctx, w, r)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	userCred := policy.FetchUserCredential(ctx)
 	list, err := chart.ChartManager.List(userCred, cq, dsq)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, common.ListResource2JSONWithKey(list, "charts"))
@@ -112,20 +112,20 @@ func chartShowHandler(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	params, query, _ := _fetchEnv(ctx, w, r)
 	repoName, _ := query.GetString("repo")
 	if repoName == "" {
-		httperrors.InvalidInputError(w, "repo not provided")
+		httperrors.InvalidInputError(ctx, w, "repo not provided")
 		return
 	}
 	chartName := params["<name>"]
 	userCred := getUserCredential(ctx)
 	repo, err := models.RepoManager.FetchRepoByIdOrName(userCred, repoName)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	version, _ := query.GetString("version")
 	resp, err := chart.ChartManager.Show(repo.Name, chartName, version)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, wrapBody(resp, "chart"))

@@ -16,6 +16,7 @@ import (
 func init() {
 	for _, t := range []interface{}{
 		ClusterResourceCreateTask{},
+		ClusterResourceUpdateTask{},
 		ClusterResourceDeleteTask{},
 	} {
 		taskman.RegisterTask(t)
@@ -51,12 +52,37 @@ func (t *ClusterResourceCreateTask) OnInit(ctx context.Context, obj db.IStandalo
 }
 
 func (t *ClusterResourceCreateTask) OnCreateComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
-	obj.SetStatus(t.UserCred, api.ClusterResourceStatusCreated, "create resource")
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterResourceCreateTask) OnCreateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusCreateFail, reason.String())
+}
+
+type ClusterResourceUpdateTask struct {
+	ClusterResourceBaseTask
+}
+
+func (t *ClusterResourceUpdateTask) OnInit(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+	resObj, _ := t.getModelManager(obj)
+	resObj.SetStatus(t.UserCred, api.ClusterResourceStatusUpdating, "update resource")
+	t.SetStage("OnUpdateComplete", nil)
+	taskman.LocalTaskRun(t, func() (jsonutils.JSONObject, error) {
+		obj, err := models.UpdateRemoteObject(ctx, t.UserCred, resObj, t.GetParams())
+		if err != nil {
+			log.Errorf("UpdateRemoteObject error: %v", err)
+			return nil, errors.Wrap(err, "UpdateRemoteObject")
+		}
+		return jsonutils.Marshal(obj), nil
+	})
+}
+
+func (t *ClusterResourceUpdateTask) OnUpdateComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
+	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterResourceUpdateTask) OnUpdateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
+	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusUpdateFail, reason.String())
 }
 
 type ClusterResourceDeleteTask struct {
@@ -84,6 +110,6 @@ func (t *ClusterResourceDeleteTask) OnDeleteComplete(ctx context.Context, obj mo
 	t.SetStageComplete(ctx, nil)
 }
 
-func (t *ClusterResourceDeleteTask) OnDeleteComplateFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
+func (t *ClusterResourceDeleteTask) OnDeleteCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusDeleteFail, reason.String())
 }

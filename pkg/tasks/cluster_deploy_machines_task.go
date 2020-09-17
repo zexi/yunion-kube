@@ -63,5 +63,5 @@ func (t *ClusterDeployMachinesTask) OnDeployMachinesFailed(ctx context.Context, 
 
 func (t *ClusterDeployMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err string) {
 	cluster.SetStatus(t.UserCred, api.ClusterStatusError, err)
-	t.SetStageFailed(ctx, err)
+	t.SetStageFailed(ctx, jsonutils.NewString(err))
 }

@@ -88,7 +88,7 @@ func listHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 func handleList(ctx context.Context, w http.ResponseWriter, handler IK8sResourceHandler, query jsonutils.JSONObject) {
 	result, err := handler.List(ctx, query.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, common.ListResource2JSONWithKey(result, handler.KeywordPlural()))
@@ -115,7 +115,7 @@ func getHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	handler, params, query, _ := fetchEnv(ctx, w, r)
 	result, err := handler.Get(ctx, params["<resid>"], query.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	appsrv.SendJSON(w, wrapJBody(jsonutils.Marshal(result), handler.Keyword()))
@@ -125,7 +125,7 @@ func getSpecHandler(ctx context.Context, w http.ResponseWriter, r *http.Request)
 	handler, params, query, _ := fetchEnv(ctx, w, r)
 	result, err := handler.GetSpecific(ctx, params["<resid>"], params["<spec>"], query.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -150,7 +150,7 @@ func performClassActionHandler(ctx context.Context, w http.ResponseWriter, r *ht
 	}
 	result, err := handler.PerformClassAction(ctx, params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.KeywordPlural()))
@@ -170,7 +170,7 @@ func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}
 	result, err := handler.PerformAction(ctx, params["<resid>"], params["<action>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -179,12 +179,12 @@ func performActionHandler(ctx context.Context, w http.ResponseWriter, r *http.Re
 func handleCreate(ctx context.Context, w http.ResponseWriter, handler IK8sResourceHandler, query, body jsonutils.JSONObject) {
 	data, err := body.Get(handler.Keyword())
 	if err != nil {
-		httperrors.InvalidInputError(w, fmt.Sprintf("No request key: %s", handler.Keyword()))
+		httperrors.InvalidInputError(ctx, w, fmt.Sprintf("No request key: %s", handler.Keyword()))
 		return
 	}
 	result, err := handler.Create(ctx, query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -194,12 +194,12 @@ func updateHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	handler, params, query, body := fetchEnv(ctx, w, r)
 	data, err := body.Get(handler.Keyword())
 	if err != nil {
-		httperrors.InvalidInputError(w, fmt.Sprintf("No Request key: %s", handler.Keyword()))
+		httperrors.InvalidInputError(ctx, w, fmt.Sprintf("No Request key: %s", handler.Keyword()))
 		return
 	}
 	result, err := handler.Update(ctx, params["<resid>"], query.(*jsonutils.JSONDict), data.(*jsonutils.JSONDict))
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, wrapBody(result, handler.Keyword()))
@@ -212,7 +212,7 @@ func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	if body != nil {
 		data, err = body.Get(handler.Keyword())
 		if err != nil {
-			httperrors.InvalidInputError(w, fmt.Sprintf("No request key: %s", handler.Keyword()))
+			httperrors.InvalidInputError(ctx, w, fmt.Sprintf("No request key: %s", handler.Keyword()))
 			return
 		}
 	}
@@ -227,7 +227,7 @@ func deleteHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	}
 	err = handler.Delete(ctx, params["<resid>"], q, d)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

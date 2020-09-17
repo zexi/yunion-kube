@@ -19,11 +19,20 @@ import (
 	storage "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"yunion.io/x/onecloud/pkg/appsrv"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/pkg/errors"
 
+	// kapi "yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client/api"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
+)
+
+var (
+	eventWorkMan = appsrv.NewWorkerManager("K8SEventHandlerWorkerManager", 4, 10240, true)
 )
 
 type CacheFactory struct {
@@ -51,13 +60,15 @@ func buildCacheController(
 		if err != nil {
 			return nil, err
 		}
-		informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
 		resMan := cluster.GetK8sResourceManager(value.GroupVersionResourceKind.Kind)
 		if resMan != nil {
+			// if value.GroupVersionResourceKind.Kind == kapi.KindNamePod {
 			// register informer event handler
 			genericInformer.Informer().AddEventHandler(newEventHandler(cluster, resMan))
+			informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
+			// }
 		}
-		// go genericInformer.Informer().Run(stop)
+		go genericInformer.Informer().Run(stop)
 	}
 
 	// Start all dynamic rest mapper resource
@@ -207,20 +218,32 @@ func newEventHandler(cluster manager.ICluster, man manager.IK8sResourceManager) 
 	}
 }
 
-func (h eventHandler) OnAdd(obj interface{}) {
+func (h eventHandler) run(f func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster)) {
 	adminCred := auth.AdminCredential()
 	ctx := context.Background()
-	h.manager.OnRemoteObjectCreate(ctx, adminCred, h.cluster, obj.(runtime.Object))
+	lockman.LockClass(ctx, h.manager, db.GetLockClassKey(h.manager, adminCred))
+	defer lockman.ReleaseClass(ctx, h.manager, db.GetLockClassKey(h.manager, adminCred))
+
+	// eventWorkMan.Run(func() {
+	// f(ctx, adminCred, h.cluster)
+	// }, nil, nil)
+	f(ctx, adminCred, h.cluster)
+}
+
+func (h eventHandler) OnAdd(obj interface{}) {
+	h.run(func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster) {
+		h.manager.OnRemoteObjectCreate(ctx, userCred, cls, h.manager, obj.(runtime.Object))
+	})
 }
 
 func (h eventHandler) OnUpdate(oldObj, newObj interface{}) {
-	adminCred := auth.AdminCredential()
-	ctx := context.Background()
-	h.manager.OnRemoteObjectUpdate(ctx, adminCred, h.cluster, oldObj.(runtime.Object), newObj.(runtime.Object))
+	h.run(func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster) {
+		h.manager.OnRemoteObjectUpdate(ctx, userCred, cls, h.manager, oldObj.(runtime.Object), newObj.(runtime.Object))
+	})
 }
 
 func (h eventHandler) OnDelete(obj interface{}) {
-	adminCred := auth.AdminCredential()
-	ctx := context.Background()
-	h.manager.OnRemoteObjectDelete(ctx, adminCred, h.cluster, obj.(runtime.Object))
+	h.run(func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster) {
+		h.manager.OnRemoteObjectDelete(ctx, userCred, cls, h.manager, obj.(runtime.Object))
+	})
 }

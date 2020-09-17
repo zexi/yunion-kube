@@ -26,8 +26,7 @@ type ServicePort struct {
 }
 
 type EndpointDetail struct {
-	ObjectMeta
-	TypeMeta
+	NamespaceResourceDetail
 
 	// Hostname, either as a domain name or IP address.
 	Host string `json:"host"`

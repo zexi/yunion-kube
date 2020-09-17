@@ -1,7 +1,6 @@
 package model
 
 import (
-	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
@@ -10,25 +9,25 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type K8SResourceInfo struct {
+type K8sResourceInfo struct {
 	ResourceName string
+	Group        string
+	Version      string
 	KindName     string
 	Object       runtime.Object
 }
 
-type IK8SModelManager interface {
-	lockman.ILockedClass
-	object.IObject
+type IK8sModelManager interface {
+	IModelManager
 
-	Factory() *SK8SObjectFactory
+	Factory() *SK8sObjectFactory
 	KeywordPlural() string
-	GetK8SResourceInfo() K8SResourceInfo
 	GetQuery(cluster ICluster) IQuery
 	GetOrderFields() OrderFields
 	RegisterOrderFields(fields ...IOrderField)
 }
 
-type IK8SModel interface {
+type IK8sModel interface {
 	lockman.ILockedObject
 	object.IObject
 
@@ -36,27 +35,20 @@ type IK8SModel interface {
 	GetNamespace() string
 	KeywordPlural() string
 
-	GetModelManager() IK8SModelManager
-	SetModelManager(manager IK8SModelManager, model IK8SModel) IK8SModel
+	GetModelManager() IK8sModelManager
+	SetModelManager(manager IK8sModelManager, model IK8sModel) IK8sModel
 
 	GetCluster() ICluster
-	SetCluster(cluster ICluster) IK8SModel
+	SetCluster(cluster ICluster) IK8sModel
 
-	SetK8SObject(runtime.Object) IK8SModel
-	GetK8SObject() runtime.Object
+	SetK8sObject(runtime.Object) IK8sModel
+	GetK8sObject() runtime.Object
 
-	GetObjectMeta() api.ObjectMeta
 	GetTypeMeta() api.TypeMeta
+
+	IOwnerModel
 }
 
-type IPodOwnerModel interface {
-	IK8SModel
-
-	GetRawPods() ([]*v1.Pod, error)
-}
-
-type IServiceOwnerModel interface {
-	IK8SModel
-
-	GetRawServices() ([]*v1.Service, error)
+type IOwnerModel interface {
+	GetObjectMeta() (api.ObjectMeta, error)
 }

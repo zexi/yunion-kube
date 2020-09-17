@@ -44,7 +44,7 @@ type SModelBase struct {
 type SModelBaseManager struct {
 	object.SObject
 
-	tableSpec     *sqlchemy.STableSpec
+	tableSpec     ITableSpec
 	keyword       string
 	keywordPlural string
 	alias         string
@@ -52,7 +52,7 @@ type SModelBaseManager struct {
 }
 
 func NewModelBaseManager(model interface{}, tableName string, keyword string, keywordPlural string) SModelBaseManager {
-	ts := sqlchemy.NewTableSpecFromStruct(model, tableName)
+	ts := newTableSpec(model, tableName)
 	modelMan := SModelBaseManager{tableSpec: ts, keyword: keyword, keywordPlural: keywordPlural}
 	return modelMan
 }
@@ -64,7 +64,7 @@ func (manager *SModelBaseManager) IsStandaloneManager() bool {
 func (manager *SModelBaseManager) GetIModelManager() IModelManager {
 	virt := manager.GetVirtualObject()
 	if virt == nil {
-		panic(fmt.Sprintf("Forgot to call SetVirtualObject?"))
+		panic(fmt.Sprintf("[%s] Forgot to call SetVirtualObject?", manager.Keyword()))
 	}
 	r, ok := virt.(IModelManager)
 	if !ok {
@@ -78,7 +78,7 @@ func (manager *SModelBaseManager) SetAlias(alias string, aliasPlural string) {
 	manager.aliasPlural = aliasPlural
 }
 
-func (manager *SModelBaseManager) TableSpec() *sqlchemy.STableSpec {
+func (manager *SModelBaseManager) TableSpec() ITableSpec {
 	return manager.tableSpec
 }
 
@@ -104,6 +104,10 @@ func (manager *SModelBaseManager) AliasPlural() string {
 
 func (manager *SModelBaseManager) ValidateName(name string) error {
 	return nil
+}
+
+func (manager *SModelBaseManager) EnableGenerateName() bool {
+	return true
 }
 
 func (model *SModelBase) MarkDeletePreventionOn() {
@@ -196,7 +200,7 @@ func (manager *SModelBaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQu
 	return q
 }
 
-func (manager *SModelBaseManager) FilterByParentId(q *sqlchemy.SQuery, parentId string) *sqlchemy.SQuery {
+func (manager *SModelBaseManager) FilterByUniqValues(q *sqlchemy.SQuery, uniqValues jsonutils.JSONObject) *sqlchemy.SQuery {
 	return q
 }
 
@@ -308,8 +312,8 @@ func (manager *SModelBaseManager) FetchOwnerId(ctx context.Context, data jsonuti
 	return nil, nil
 }
 
-func (manager *SModelBaseManager) FetchParentId(ctx context.Context, data jsonutils.JSONObject) string {
-	return ""
+func (manager *SModelBaseManager) FetchUniqValues(ctx context.Context, data jsonutils.JSONObject) jsonutils.JSONObject {
+	return nil
 }
 
 func (manager *SModelBaseManager) NamespaceScope() rbacutils.TRbacScope {
@@ -497,6 +501,13 @@ func (model *SModelBase) PerformAction(ctx context.Context, userCred mcclient.To
 	return nil, httperrors.NewActionNotFoundError("Action %s not found", action)
 }
 
+func (model *SModelBase) PreCheckPerformAction(
+	ctx context.Context, userCred mcclient.TokenCredential,
+	action string, query jsonutils.JSONObject, data jsonutils.JSONObject,
+) error {
+	return nil
+}
+
 // update hooks
 func (model *SModelBase) AllowUpdateItem(ctx context.Context, userCred mcclient.TokenCredential) bool {
 	return false
@@ -562,8 +573,8 @@ func (model *SModelBase) GetOwnerId() mcclient.IIdentityProvider {
 	return nil
 }
 
-func (model *SModelBase) GetParentId() string {
-	return ""
+func (model *SModelBase) GetUniqValues() jsonutils.JSONObject {
+	return nil
 }
 
 func (model *SModelBase) IsSharable(ownerId mcclient.IIdentityProvider) bool {

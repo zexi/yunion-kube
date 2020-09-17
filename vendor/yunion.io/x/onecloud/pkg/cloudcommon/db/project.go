@@ -100,11 +100,18 @@ func (manager *SProjectizedResourceBaseManager) ListItemFilter(
 	if err != nil {
 		return nil, errors.Wrap(err, "SDomainizedResourceBaseManager.ListItemFilter")
 	}
-	if len(query.Projects) > 0 {
+	if len(query.ProjectIds) > 0 {
+		// make sure ids are not utf8 string
+		idList := make([]string, 0)
+		for _, pid := range query.ProjectIds {
+			if !stringutils2.IsUtf8(pid) {
+				idList = append(idList, pid)
+			}
+		}
 		tenants := TenantCacheManager.GetTenantQuery().SubQuery()
 		subq := tenants.Query(tenants.Field("id")).Filter(sqlchemy.OR(
-			sqlchemy.In(tenants.Field("id"), query.Projects),
-			sqlchemy.In(tenants.Field("name"), query.Projects),
+			sqlchemy.In(tenants.Field("id"), idList),
+			sqlchemy.In(tenants.Field("name"), query.ProjectIds),
 		)).SubQuery()
 		q = q.In("tenant_id", subq)
 	}
@@ -203,15 +210,15 @@ func fetchProjects(ctx context.Context, projectIds []string, isDomain bool) map[
 }
 
 func ValidateProjectizedResourceInput(ctx context.Context, input apis.ProjectizedResourceInput) (*STenant, apis.ProjectizedResourceInput, error) {
-	tenant, err := DefaultProjectFetcher(ctx, input.Project)
+	tenant, err := DefaultProjectFetcher(ctx, input.ProjectId)
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
-			return nil, input, httperrors.NewResourceNotFoundError2("project", input.Project)
+			return nil, input, httperrors.NewResourceNotFoundError2("project", input.ProjectId)
 		} else {
 			return nil, input, errors.Wrap(err, "TenantCacheManager.FetchTenantByIdOrName")
 		}
 	}
-	input.Project = tenant.GetId()
+	input.ProjectId = tenant.GetId()
 	return tenant, input, nil
 }
 

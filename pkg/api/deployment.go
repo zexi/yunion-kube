@@ -114,9 +114,36 @@ type DeploymentDetail struct {
 }
 
 type DeploymentCreateInput struct {
-	K8sNamespaceResourceCreateInput
+	// K8sNamespaceResourceCreateInput
+	NamespaceResourceCreateInput
 
 	apps.DeploymentSpec
 
 	Service *ServiceCreateOption `json:"service"`
+}
+
+type DeploymentListInput struct {
+	NamespaceResourceListInput
+}
+
+type DeploymentDetailV2 struct {
+	NamespaceResourceDetail
+	// Aggregate information about pods belonging to this deployment
+	Pods     PodInfo `json:"podsInfo"`
+	Replicas *int32  `json:"replicas"`
+	// Container images of the Deployment
+	ContainerImages []ContainerImage `json:"containerImages"`
+	// Init Container images of deployment
+	InitContainerImages []ContainerImage  `json:"initContainerImages"`
+	Selector            map[string]string `json:"selector"`
+	DeploymentStatus
+	// Rolling update strategy containing maxSurge and maxUnavailable
+	RollingUpdateStrategy *RollingUpdateStrategy `json:"rollingUpdateStrategy,omitempty"`
+	// The deployment strategy to use to replace existing pods with new ones.
+	// Valid options: Recreate, RollingUpdate
+	Strategy apps.DeploymentStrategyType `json:"strategy"`
+	// Min ready seconds
+	MinReadySeconds int32 `json:"minReadySeconds"`
+	// Optional field that specifies the number of old Replica Sets to retain to allow rollback.
+	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit"`
 }

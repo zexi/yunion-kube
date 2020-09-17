@@ -5,12 +5,12 @@ import (
 )
 
 type SClusterJointsManager struct {
-	db.SVirtualJointResourceBaseManager
+	db.SJointResourceBaseManager
 }
 
 func NewClusterJointsManager(dt interface{}, tableName string, keyword string, keywordPlural string, slave db.IVirtualModelManager) SClusterJointsManager {
 	return SClusterJointsManager{
-		SVirtualJointResourceBaseManager: db.NewVirtualJointResourceBaseManager(
+		SJointResourceBaseManager: db.NewJointResourceBaseManager(
 			dt,
 			tableName,
 			keyword,
@@ -22,7 +22,7 @@ func NewClusterJointsManager(dt interface{}, tableName string, keyword string, k
 }
 
 type SClusterJointsBase struct {
-	db.SVirtualJointResourceBase
+	db.SJointResourceBase
 
 	ClusterId string `width:"36" charset:"ascii" nullable:"false" list:"user" create:"required" index:"true"`
 }

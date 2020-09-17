@@ -2,11 +2,14 @@ package clientv2
 
 import (
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/resource"
 	"k8s.io/client-go/discovery"
 	cacheddiscovery "k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
@@ -118,6 +121,10 @@ func newK8sClient(kubeconfig string) (*K8sClient, error) {
 	}, nil
 }
 
+func (c *K8sClient) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return c.Factory.ToDiscoveryClient()
+}
+
 func (c *K8sClient) IsReachable() error {
 	client, _ := c.Factory.KubernetesClientSet()
 	_, err := client.ServerVersion()
@@ -145,4 +152,43 @@ func (c *K8sClient) Get(resourceType string, namespace string, name string) (run
 		return nil, err
 	}
 	return infos[0].Object, nil
+}
+
+func (c *K8sClient) DynamicClient() (dynamic.Interface, error) {
+	return c.Factory.DynamicClient()
+}
+
+func (c *K8sClient) RESTMapper() (meta.RESTMapper, error) {
+	return c.Factory.ToRESTMapper()
+}
+
+func (c *K8sClient) List(group string, version string, kind string, namespace string) ([]runtime.Object, error) {
+	mapper, err := c.RESTMapper()
+	if err != nil {
+		return nil, errors.Wrap(err, "get rest mapper")
+	}
+	mapping, err := mapper.RESTMapping(schema.GroupKind{
+		Group: group,
+		Kind:  kind,
+	}, version)
+	if err != nil {
+		return nil, err
+	}
+	dCli, err := c.DynamicClient()
+	if err != nil {
+		return nil, err
+	}
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		namespace = ""
+	}
+	objList, err := dCli.Resource(mapping.Resource).Namespace(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	objs := objList.Items
+	ret := make([]runtime.Object, len(objs))
+	for i := range objs {
+		ret[i] = &objs[i]
+	}
+	return ret, nil
 }

@@ -23,6 +23,7 @@ import (
 
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/billing"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
 type ICloudResource interface {
@@ -70,7 +71,7 @@ type ICloudRegion interface {
 	GetIDiskById(id string) (ICloudDisk, error)
 
 	GetISecurityGroupById(secgroupId string) (ICloudSecurityGroup, error)
-	GetISecurityGroupByName(vpcId string, name string) (ICloudSecurityGroup, error)
+	GetISecurityGroupByName(opts *SecurityGroupFilterOptions) (ICloudSecurityGroup, error)
 	CreateISecurityGroup(conf *SecurityGroupCreateInput) (ICloudSecurityGroup, error)
 
 	CreateIVpc(name string, desc string, cidr string) (ICloudVpc, error)
@@ -155,7 +156,7 @@ type ICloudZone interface {
 }
 
 type ICloudImage interface {
-	ICloudResource
+	IVirtualResource
 
 	Delete(ctx context.Context) error
 	GetIStoragecache() ICloudStoragecache
@@ -172,6 +173,7 @@ type ICloudImage interface {
 	GetImageFormat() string
 	GetCreatedAt() time.Time
 	UEFI() bool
+	GetPublicScope() rbacutils.TRbacScope
 }
 
 type ICloudStoragecache interface {
@@ -308,6 +310,9 @@ type ICloudVM interface {
 
 	Renew(bc billing.SBillingCycle) error
 
+	MigrateVM(hostid string) error
+	LiveMigrateVM(hostid string) error
+
 	GetError() error
 }
 
@@ -342,7 +347,7 @@ type ICloudEIP interface {
 }
 
 type ICloudSecurityGroup interface {
-	ICloudResource
+	IVirtualResource
 
 	GetDescription() string
 	GetRules() ([]SecurityRule, error)
@@ -450,7 +455,7 @@ type ICloudWire interface {
 
 	GetINetworkById(netid string) (ICloudNetwork, error)
 
-	CreateINetwork(name string, cidr string, desc string) (ICloudNetwork, error)
+	CreateINetwork(opts *SNetworkCreateOptions) (ICloudNetwork, error)
 }
 
 type ICloudNetwork interface {
@@ -463,8 +468,11 @@ type ICloudNetwork interface {
 	GetIpMask() int8
 	GetGateway() string
 	GetServerType() string
-	// GetIsPublic() bool
-	// GetPublicScope() rbacutils.TRbacScope
+	//GetIsPublic() bool
+	// 仅私有云有用，公有云无效
+	// 1. scope = none 非共享, network仅会属于一个项目,并且私有
+	// 2. scope = system 系统共享 云账号共享会跟随云账号共享，云账号非共享,会共享到network所在域
+	GetPublicScope() rbacutils.TRbacScope
 
 	Delete() error
 
@@ -480,6 +488,7 @@ type ICloudHostNetInterface interface {
 	GetIpAddr() string
 	GetMtu() int32
 	GetNicType() string
+	GetBridge() string
 }
 
 type ICloudLoadbalancer interface {
@@ -951,4 +960,93 @@ type ICloudQuota interface {
 	GetQuotaType() string
 	GetMaxQuotaCount() int
 	GetCurrentQuotaUsedCount() int
+}
+
+// 公有云子账号
+type IClouduser interface {
+	GetGlobalId() string
+	GetName() string
+
+	GetICloudgroups() ([]ICloudgroup, error)
+
+	GetISystemCloudpolicies() ([]ICloudpolicy, error)
+	GetICustomCloudpolicies() ([]ICloudpolicy, error)
+
+	AttachSystemPolicy(policyName string) error
+	DetachSystemPolicy(policyName string) error
+
+	AttachCustomPolicy(policyName string) error
+	DetachCustomPolicy(policyName string) error
+
+	Delete() error
+
+	ResetPassword(password string) error
+	IsConsoleLogin() bool
+}
+
+// 公有云子账号权限
+type ICloudpolicy interface {
+	GetGlobalId() string
+	GetName() string
+	GetDescription() string
+
+	GetDocument() (*jsonutils.JSONDict, error)
+	UpdateDocument(*jsonutils.JSONDict) error
+
+	Delete() error
+}
+
+// 公有云用户组
+type ICloudgroup interface {
+	GetGlobalId() string
+	GetName() string
+	GetDescription() string
+	GetISystemCloudpolicies() ([]ICloudpolicy, error)
+	GetICustomCloudpolicies() ([]ICloudpolicy, error)
+	GetICloudusers() ([]IClouduser, error)
+
+	AddUser(name string) error
+	RemoveUser(name string) error
+
+	AttachSystemPolicy(policyName string) error
+	DetachSystemPolicy(policyName string) error
+
+	AttachCustomPolicy(policyName string) error
+	DetachCustomPolicy(policyName string) error
+
+	Delete() error
+}
+
+type ICloudDnsZone interface {
+	ICloudResource
+
+	GetZoneType() TDnsZoneType
+	GetOptions() *jsonutils.JSONDict
+
+	GetICloudVpcIds() ([]string, error)
+	AddVpc(*SPrivateZoneVpc) error
+	RemoveVpc(*SPrivateZoneVpc) error
+
+	GetIDnsRecordSets() ([]ICloudDnsRecordSet, error)
+	SyncDnsRecordSets(common, add, del, update []DnsRecordSet) error
+
+	Delete() error
+
+	GetDnsProductType() TDnsProductType
+}
+
+type ICloudDnsRecordSet interface {
+	GetGlobalId() string
+
+	GetDnsName() string
+	GetStatus() string
+	GetEnabled() bool
+	GetDnsType() TDnsType
+	GetDnsValue() string
+	GetTTL() int64
+	GetMxPriority() int64
+
+	GetPolicyType() TDnsPolicyType
+	GetPolicyValue() TDnsPolicyValue
+	GetPolicyOptions() *jsonutils.JSONDict
 }

@@ -51,12 +51,13 @@ const (
 	CITY_FU_ZHOU       = "Fuzhou"      //福州
 	CITY_WU_HAN        = "Wuhan"       //武汉
 	CITY_CHANG_SHA     = "Changsha"    //长沙
-	CITY_SHU_ZHOU      = "Shuzhou"     //苏州
+	CITY_SU_ZHOU       = "Suzhou"      //苏州
 	CITY_BAO_DING      = "Baoding"     //保定
 	CITY_NAN_JING      = "Nanjing"     //南京
 	CITY_FO_SHAN       = "Foshan"      //佛山
 	CITY_QUAN_ZHOU     = "Quanzhou"    //泉州
 	CITY_NEI_MENG_GU   = "Neimenggu"   //内蒙古
+	CITY_WU_LAN_CHA_BU = "Wulanchabu"  //乌兰察布
 
 	// 日本
 	CITY_TOKYO = "Tokyo" //东京

@@ -29,7 +29,7 @@ func NewOrderField(f IOrderField, order OrderType) OrderField {
 type IOrderField interface {
 	GetFieldName() string
 	// default compare order is desc
-	Compare(obj1, obj2 IK8SModel) bool
+	Compare(obj1, obj2 IK8sModel) bool
 }
 
 type OrderFields map[string]IOrderField
@@ -51,9 +51,9 @@ func (_ OrderFieldCreationTimestamp) GetFieldName() string {
 	return "creationTimestamp"
 }
 
-func (_ OrderFieldCreationTimestamp) Compare(obj1, obj2 IK8SModel) bool {
-	m1 := obj1.GetObjectMeta()
-	m2 := obj2.GetObjectMeta()
+func (_ OrderFieldCreationTimestamp) Compare(obj1, obj2 IK8sModel) bool {
+	m1, _ := obj1.GetObjectMeta()
+	m2, _ := obj2.GetObjectMeta()
 	return !m1.CreationTimestamp.Before(&m2.CreationTimestamp)
 }
 
@@ -77,9 +77,11 @@ func (f orderFieldStringF) GetFieldName() string {
 	return f.name
 }
 
-func (f orderFieldStringF) Compare(obj1, obj2 IK8SModel) bool {
-	v1 := reflect.ValueOf(obj1.GetObjectMeta())
-	v2 := reflect.ValueOf(obj2.GetObjectMeta())
+func (f orderFieldStringF) Compare(obj1, obj2 IK8sModel) bool {
+	meta1, _ := obj1.GetObjectMeta()
+	meta2, _ := obj2.GetObjectMeta()
+	v1 := reflect.ValueOf(meta1)
+	v2 := reflect.ValueOf(meta2)
 	name1, _ := reflectutils.FindStructFieldInterface(v1, f.name)
 	name2, _ := reflectutils.FindStructFieldInterface(v2, f.name)
 

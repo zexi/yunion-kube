@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,8 +10,6 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
-	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
-	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
@@ -22,9 +19,9 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
-	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
+// +onecloud:swagger-gen-ignore
 type SNamespaceResourceBaseManager struct {
 	SClusterResourceBaseManager
 }
@@ -41,10 +38,12 @@ func NewNamespaceResourceBaseManager(
 	keyword string,
 	keywordPlural string,
 	resName string,
+	groupName string,
+	versionName string,
 	kind string,
 	object runtime.Object) SNamespaceResourceBaseManager {
 	return SNamespaceResourceBaseManager{
-		SClusterResourceBaseManager: NewClusterResourceBaseManager(dt, tableName, keyword, keywordPlural, resName, kind, object),
+		SClusterResourceBaseManager: NewClusterResourceBaseManager(dt, tableName, keyword, keywordPlural, resName, groupName, versionName, kind, object),
 	}
 }
 
@@ -67,15 +66,19 @@ func (m SNamespaceResourceBaseManager) ValidateCreateData(ctx context.Context, u
 	}
 	data.ClusterResourceCreateInput = *cData
 
-	if data.Namespace == "" {
+	if data.NamespaceId == "" {
 		return nil, httperrors.NewNotEmptyError("namespace is empty")
 	}
-	nsObj, err := NamespaceManager.GetByIdOrName(userCred, data.Cluster, data.Namespace)
+	nsObj, err := GetNamespaceManager().GetByIdOrName(userCred, data.ClusterId, data.NamespaceId)
 	if err != nil {
-		return nil, NewCheckIdOrNameError("namespace", data.Namespace, err)
+		return nil, NewCheckIdOrNameError("namespace_id", data.NamespaceId, err)
 	}
-	data.Namespace = nsObj.GetId()
-
+	data.NamespaceId = nsObj.GetId()
+	data.Namespace = nsObj.GetName()
+	remoteNs, err := nsObj.GetRemoteObject()
+	if err != nil {
+		return nil, errors.Wrapf(err, "get remote namespace %s", remoteNs.(metav1.Object).GetName())
+	}
 	return data, nil
 }
 
@@ -87,32 +90,52 @@ func (res *SNamespaceResourceBase) CustomizeCreate(ctx context.Context, userCred
 	if err := data.Unmarshal(input); err != nil {
 		return errors.Wrap(err, "namespace resource unmarshal data")
 	}
-	res.NamespaceId = input.Namespace
+	res.NamespaceId = input.NamespaceId
 	return nil
 }
 
+func (res *SNamespaceResourceBase) GetNamespaceId() string {
+	return res.NamespaceId
+}
+
 func (res *SNamespaceResourceBase) GetNamespace() (*SNamespace, error) {
-	obj, err := NamespaceManager.FetchById(res.NamespaceId)
+	obj, err := GetNamespaceManager().FetchById(res.NamespaceId)
 	if err != nil {
 		return nil, errors.Wrapf(err, "fetch namespace %s", res.NamespaceId)
 	}
 	return obj.(*SNamespace), nil
 }
 
+func (res *SNamespaceResourceBase) GetNamespaceName() (string, error) {
+	ns, err := res.GetNamespace()
+	if err != nil {
+		return "", err
+	}
+	return ns.GetName(), nil
+}
+
 type INamespaceModel interface {
 	IClusterModel
 
+	GetNamespaceId() string
 	GetNamespace() (*SNamespace, error)
 	SetNamespace(userCred mcclient.TokenCredential, ns *SNamespace)
+}
+
+func (m SNamespaceResourceBaseManager) IsNamespaceScope() bool {
+	return true
 }
 
 func (m *SNamespaceResourceBaseManager) IsRemoteObjectLocalExist(userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, bool, error) {
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
 	objNs := metaObj.GetNamespace()
-	localNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), objNs)
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNs)
 	if err != nil {
-		return nil, false, errors.Wrapf(err, "get namespace %s", objNs)
+		if errors.Cause(err) == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, errors.Wrapf(err, "get cluster %s namespace %s for %s", cluster.GetId(), objNs, m.Keyword())
 	}
 	if localObj, _ := m.GetByName(userCred, cluster.GetId(), localNs.GetId(), objName); localObj != nil {
 		return localObj, true, nil
@@ -131,7 +154,7 @@ func (res *SNamespaceResourceBaseManager) NewFromRemoteObject(
 	}
 	localObj := clsObj.(INamespaceModel)
 	ns := remoteObj.(metav1.Object).GetNamespace()
-	localNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), ns)
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), ns)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get local namespace by name %s", ns)
 	}
@@ -145,7 +168,7 @@ func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *s
 		return nil, err
 	}
 	if input.Namespace != "" {
-		ns, err := NamespaceManager.GetByIdOrName(userCred, input.Cluster, input.Namespace)
+		ns, err := GetNamespaceManager().GetByIdOrName(userCred, input.Cluster, input.Namespace)
 		if err != nil {
 			return nil, err
 		}
@@ -154,44 +177,34 @@ func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *s
 	return q, nil
 }
 
+func (res SNamespaceResourceBase) GetObjectMeta() (api.ObjectMeta, error) {
+	return NewObjectMeta(&res)
+}
+
 func (res *SNamespaceResourceBase) SetNamespace(userCred mcclient.TokenCredential, ns *SNamespace) {
 	res.NamespaceId = ns.GetId()
 }
 
 func (m *SNamespaceResourceBaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
-	q = m.SStatusStandaloneResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
-	input := new(api.NamespaceResourceListInput)
-	if err := query.Unmarshal(input); err != nil {
-		panic(fmt.Sprintf("unmarshal namespace resource list input error: %v", err))
-	}
-	isSystem := false
-	if input.System != nil {
-		var isAllow bool
-		if consts.IsRbacEnabled() {
-			allowScope := policy.PolicyManager.AllowScope(userCred, consts.GetServiceType(), m.KeywordPlural(), policy.PolicyActionList, "system")
-			if !scope.HigherThan(allowScope) {
-				isAllow = true
-			}
-		} else {
-			if userCred.HasSystemAdminPrivilege() {
-				isAllow = true
-			}
-		}
-		if !isAllow {
-			isSystem = false
-		}
-	}
-	nsQ := NamespaceManager.Query("id")
-	nsSq := nsQ.Equals("name", userCred.GetProjectId()).IsTrue("is_system")
-	if !isSystem {
-		q = q.Filter(
-			sqlchemy.OR(
-				sqlchemy.In(q.Field("namespace_id"), nsSq.SubQuery()),
-				sqlchemy.OR(sqlchemy.IsNull(q.Field("is_system")), sqlchemy.IsFalse(q.Field("is_system"))),
-			),
-		)
-	}
-	return q
+	return m.SClusterResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
+	//input := new(api.NamespaceResourceListInput)
+	//if err := query.Unmarshal(input); err != nil {
+	//log.Errorf("unmarshal namespace resource list input error: %v", err)
+	//}
+	//isSystem := false
+	//if input.System != nil {
+	//isSystem = *input.System
+	//}
+	//nsQ := NamespaceManager.Query("id")
+	//nsSq := nsQ.Equals("name", userCred.GetProjectId())
+	//if !isSystem {
+	//q = q.Filter(
+	//sqlchemy.OR(
+	//sqlchemy.In(q.Field("namespace_id"), nsSq.SubQuery()),
+	//),
+	//)
+	//}
+	//return q
 }
 
 func (m *SNamespaceResourceBaseManager) FetchCustomizeColumns(
@@ -201,33 +214,44 @@ func (m *SNamespaceResourceBaseManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []api.NamespaceResourceDetail {
-	rows := make([]api.NamespaceResourceDetail, len(objs))
-	cRows := m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	for i := range cRows {
-		detail := api.NamespaceResourceDetail{
-			ClusterResourceDetail: cRows[i],
-		}
-		resObj := objs[i].(INamespaceModel)
-		ns, err := resObj.GetNamespace()
-		if err != nil {
-			log.Errorf("Get resource %s namespace error: %v", resObj.GetId(), err)
-		} else {
-			detail.Namespace = ns.GetName()
-			detail.NamespaceId = ns.GetId()
-		}
-		rows[i] = detail
+) []interface{} {
+	return m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+}
+
+func (obj *SNamespaceResourceBase) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	out := api.NamespaceResourceDetail{
+		ClusterResourceDetail: obj.SClusterResourceBase.GetDetails(cli, base, k8sObj, isList).(api.ClusterResourceDetail),
 	}
-	return rows
+	ns, err := obj.GetNamespace()
+	if err != nil {
+		log.Errorf("Get resource %s namespace error: %v", obj.GetName(), err)
+	} else {
+		out.Namespace = ns.GetName()
+		out.NamespaceId = ns.GetId()
+	}
+	return out
 }
 
-func (res *SNamespaceResourceBase) PostDelete(obj INamespaceModel, ctx context.Context, userCred mcclient.TokenCredential) {
-	res.SClusterResourceBase.PostDelete(ctx, userCred)
-	res.StartDeleteTask(obj, ctx, userCred)
+func (res *SNamespaceResourceBase) GetRemoteObject() (interface{}, error) {
+	cli, err := res.GetClusterClient()
+	if err != nil {
+		return nil, err
+	}
+	ns, err := res.GetNamespace()
+	if err != nil {
+		return nil, errors.Wrap(err, "get namespace")
+	}
+	resInfo := res.GetClusterModelManager().GetK8sResourceInfo()
+	k8sCli := cli.GetHandler()
+	return k8sCli.Get(resInfo.ResourceName, ns.GetName(), res.GetName())
 }
 
-func (res *SNamespaceResourceBase) DeleteRemoteObject(cli *client.ClusterManager) error {
-	resInfo := res.GetClusterModelManager().GetK8SResourceInfo()
+func (res *SNamespaceResourceBase) DeleteRemoteObject() error {
+	resInfo := res.GetClusterModelManager().GetK8sResourceInfo()
+	cli, err := res.GetClusterClient()
+	if err != nil {
+		return err
+	}
 	ns, err := res.GetNamespace()
 	if err != nil {
 		return errors.Wrap(err, "get namespace")
@@ -241,49 +265,28 @@ func (res *SNamespaceResourceBase) DeleteRemoteObject(cli *client.ClusterManager
 	return nil
 }
 
-// OnRemoteObjectCreate invoked when remote object created
-func (m *SNamespaceResourceBaseManager) OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
-	m.SClusterResourceBaseManager.OnRemoteObjectCreate(ctx, userCred, cluster, obj)
+func (res *SNamespaceResourceBase) AllowGetDetailsRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
+	//return res.AllowGetDetails()
+	// TODO: use rbac to check
+	return true
 }
 
-// OnRemoteObjectUpdate invoked when remote resource updated
-func (m *SNamespaceResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, oldObj, newObj runtime.Object) {
-	resMan := m.GetClusterModelManager()
-	metaObj := newObj.(metav1.Object)
-	objName := metaObj.GetName()
-	objNamespace := metaObj.GetNamespace()
-	dbNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), objNamespace)
+func (res *SNamespaceResourceBase) GetDetailsRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	k8sObj, err := GetK8sObject(res)
 	if err != nil {
-		log.Errorf("OnRemoteObjectUpdate for %s get namespace error: %v", resMan.Keyword(), err)
-		return
+		return nil, err
 	}
-	dbObj, err := m.GetByName(userCred, cluster.GetId(), dbNs.GetId(), objName)
-	if err != nil {
-		log.Errorf("OnRemoteObjectUpdate get %s local object %s error: %v", resMan.Keyword(), objName, err)
-		return
-	}
-	OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, newObj)
+	return K8SObjectToJSONObject(k8sObj), nil
 }
 
-// OnRemoteObjectDelete invoked when remote resource deleted
-func (m *SNamespaceResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
-	resMan := m.GetClusterModelManager()
-	metaObj := obj.(metav1.Object)
-	objName := metaObj.GetName()
-	objNamespace := metaObj.GetNamespace()
-	dbNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), objNamespace)
+func (res *SNamespaceResourceBase) AllowUpdateRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
+	return true
+}
+
+func (res *SNamespaceResourceBase) UpdateRawdata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	k8sObj, err := UpdateK8sObject(res, data)
 	if err != nil {
-		log.Errorf("OnRemoteObjectDelete for %s get namespace error: %v", resMan.Keyword(), err)
-		return
+		return nil, err
 	}
-	dbObj, err := m.GetByName(userCred, cluster.GetId(), dbNs.GetId(), objName)
-	if err != nil {
-		if errors.Cause(err) == sql.ErrNoRows {
-			// local object already deleted
-			return
-		}
-		log.Errorf("OnRemoteObjectDelete get %s local object %s error: %v", resMan.Keyword(), objName, err)
-		return
-	}
-	OnRemoteObjectDelete(resMan, ctx, userCred, dbObj)
+	return K8SObjectToJSONObject(k8sObj), nil
 }

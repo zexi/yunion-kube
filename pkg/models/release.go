@@ -2,13 +2,15 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"strings"
 	"time"
 
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/helm/pkg/strvals"
 	"sigs.k8s.io/yaml"
 
@@ -17,6 +19,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
@@ -28,22 +31,32 @@ import (
 )
 
 var (
-	ReleaseManager *SReleaseManager
+	releaseManager *SReleaseManager
 )
 
 func init() {
-	ReleaseManager = &SReleaseManager{
-		SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
-			&SRelease{},
-			"releases_tbl",
-			"release",
-			"releases",
-			"",
-			"",
-			nil),
-		driverManager: drivers.NewDriverManager(""),
+	GetReleaseManager()
+}
+
+func GetReleaseManager() *SReleaseManager {
+	if releaseManager == nil {
+		releaseManager = NewK8sNamespaceModelManager(func() ISyncableManager {
+			return &SReleaseManager{
+				SNamespaceResourceBaseManager: NewNamespaceResourceBaseManager(
+					SRelease{},
+					"releases_tbl",
+					"release",
+					"releases",
+					"",
+					"",
+					"",
+					"",
+					nil),
+				driverManager: drivers.NewDriverManager(""),
+			}
+		}).(*SReleaseManager)
 	}
-	ReleaseManager.SetVirtualObject(ReleaseManager)
+	return releaseManager
 }
 
 type SReleaseManager struct {
@@ -166,23 +179,21 @@ func (m *SReleaseManager) FetchCustomizeColumns(
 	objs []interface{},
 	fields stringutils2.SSortedStrings,
 	isList bool,
-) []api.ReleaseDetailV2 {
-	rows := make([]api.ReleaseDetailV2, len(objs))
-	nRows := m.SNamespaceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
-	for i := range nRows {
-		detail := api.ReleaseDetailV2{
-			ReleaseV2: api.ReleaseV2{
-				NamespaceResourceDetail: nRows[i],
-			},
-		}
-		var err error
-		detail, err = objs[i].(*SRelease).fillReleaseDetail(detail, isList)
-		if err != nil {
-			log.Errorf("Get release detail error: %v", err)
-		}
-		rows[i] = detail
+) []interface{} {
+	return m.SNamespaceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
+}
+
+func (rls *SRelease) GetDetails(cli *client.ClusterManager, base interface{}, _ runtime.Object, isList bool) interface{} {
+	detail := api.ReleaseDetailV2{
+		ReleaseV2: api.ReleaseV2{
+			NamespaceResourceDetail: base.(api.NamespaceResourceDetail),
+		},
 	}
-	return rows
+	detail, err := rls.fillReleaseDetail(detail, isList)
+	if err != nil {
+		log.Errorf("get release detail err: %v", err)
+	}
+	return detail
 }
 
 func (rls *SRelease) fillReleaseDetail(detail api.ReleaseDetailV2, isList bool) (api.ReleaseDetailV2, error) {
@@ -266,7 +277,7 @@ func (r *SRelease) GetDriver() (IReleaseDriver, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "get type")
 	}
-	return ReleaseManager.GetDriver(typ)
+	return GetReleaseManager().GetDriver(typ)
 }
 
 func (r *SRelease) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) error {
@@ -298,7 +309,7 @@ func (r *SRelease) CustomizeCreate(ctx context.Context, userCred mcclient.TokenC
 
 func (r *SRelease) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
 	r.SNamespaceResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
-	r.StartCreateTask(r, ctx, userCred, ownerId, query, data)
+	r.StartCreateTask(r, ctx, userCred, ownerId, data.(*jsonutils.JSONDict), "")
 }
 
 func (m *SReleaseManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
@@ -386,7 +397,7 @@ func (r *SRelease) GetChartClient() (*helm.ChartClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReleaseManager.GetChartClient(repo), nil
+	return GetReleaseManager().GetChartClient(repo), nil
 }
 
 func (r *SRelease) GetChart() (*chart.Chart, error) {
@@ -394,7 +405,7 @@ func (r *SRelease) GetChart() (*chart.Chart, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReleaseManager.ShowChart(repo, r.Chart, r.ChartVersion)
+	return GetReleaseManager().ShowChart(repo, r.Chart, r.ChartVersion)
 }
 
 func (r *SRelease) GetHelmRelease(isList bool) (*api.ReleaseDetail, error) {
@@ -462,6 +473,23 @@ func (m *SReleaseManager) ListRemoteObjects(cli *client.ClusterManager) ([]inter
 	return ret, nil
 }
 
+func (obj *SRelease) GetRemoteObject() (interface{}, error) {
+	cli, err := obj.GetClusterClient()
+	if err != nil {
+		return nil, err
+	}
+	ns, err := obj.GetNamespace()
+	if err != nil {
+		return nil, errors.Wrap(err, "get release namespace")
+	}
+	helmCli, err := NewHelmClient(cli.Cluster.(*SCluster), ns.GetName())
+	if err != nil {
+		return nil, errors.Wrap(err, "new helm client")
+	}
+	getAct := helmCli.Release().Get()
+	return getAct.Run(obj.GetName())
+}
+
 func (m *SReleaseManager) getRemoteReleaseGlobalId(clusterId, namespace, name string) string {
 	return fmt.Sprintf("%s/%s/%s", clusterId, namespace, name)
 }
@@ -475,7 +503,14 @@ func (m *SReleaseManager) IsRemoteObjectLocalExist(userCred mcclient.TokenCreden
 	rls := obj.(*release.Release)
 	objNs := rls.Namespace
 	objName := rls.Name
-	if localObj, _ := m.GetByName(userCred, cluster.GetId(), objNs, objName); localObj != nil {
+	localObj, err := m.GetByName(userCred, cluster.GetId(), objNs, objName)
+	if err != nil {
+		if errors.Cause(err) == sql.ErrNoRows {
+			return nil, false, nil
+		}
+		return nil, false, errors.Wrapf(err, "get cluster %s namespace %s release %s", cluster.GetName(), objNs, objName)
+	}
+	if localObj != nil {
 		return localObj, true, nil
 	}
 	return nil, false, nil
@@ -495,12 +530,21 @@ func (m *SReleaseManager) NewFromRemoteObject(
 	dbObj.(IClusterModel).SetName(rls.Name)
 	dbObj.(IClusterModel).SetCluster(userCred, cluster)
 	// set local db namespace object
-	localNs, err := NamespaceManager.GetByName(userCred, cluster.GetId(), rls.Namespace)
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), rls.Namespace)
 	if err != nil {
 		return nil, err
 	}
 	dbObj.(INamespaceModel).SetNamespace(userCred, localNs.(*SNamespace))
 	return dbObj.(IClusterModel), nil
+}
+
+func (m *SReleaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	q = m.SStatusDomainLevelResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
+	return q
+	//input := new(api.ReleaseListInputV2)
+
+	//nsQ := NamespaceManager.Query("id")
+	//nsSq := nsQ.Equals("name", userCred.GetProjectId())
 }
 
 func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ReleaseListInputV2) (*sqlchemy.SQuery, error) {
@@ -520,11 +564,7 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 	return q, nil
 }
 
-func (obj *SRelease) PostDelete(ctx context.Context, userCred mcclient.TokenCredential) {
-	obj.SNamespaceResourceBase.PostDelete(obj, ctx, userCred)
-}
-
-func (obj *SRelease) DeleteRemoteObject(_ *client.ClusterManager) error {
+func (obj *SRelease) DeleteRemoteObject() error {
 	helmCli, err := obj.GetHelmClient()
 	if err != nil {
 		return errors.Wrap(err, "get helm client when delete")

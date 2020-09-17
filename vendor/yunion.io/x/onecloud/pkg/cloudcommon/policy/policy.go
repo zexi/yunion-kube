@@ -16,7 +16,7 @@ package policy
 
 import (
 	"context"
-	"runtime/debug"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -27,13 +27,14 @@ import (
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud/pkg/apis"
-	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
+	"yunion.io/x/onecloud/pkg/cloudcommon/syncman/watcher"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 	"yunion.io/x/onecloud/pkg/util/hashcache"
+	"yunion.io/x/onecloud/pkg/util/nopanic"
 	"yunion.io/x/onecloud/pkg/util/rbacutils"
 )
 
@@ -54,8 +55,6 @@ type PolicyFetchFunc func(ctx context.Context) (map[rbacutils.TRbacScope][]rbacu
 var (
 	PolicyManager        *SPolicyManager
 	DefaultPolicyFetcher PolicyFetchFunc
-
-	syncWorkerManager *appsrv.SWorkerManager
 )
 
 func init() {
@@ -63,16 +62,14 @@ func init() {
 		lock: &sync.Mutex{},
 	}
 	DefaultPolicyFetcher = remotePolicyFetcher
-
-	// no need to queue many sync tasks
-	syncWorkerManager = appsrv.NewWorkerManagerIgnoreOverflow("sync_policy_worker", 1, 2, true, true)
 }
 
 type SPolicyManager struct {
+	watcher.SInformerSyncManager
+
 	// policies        map[rbacutils.TRbacScope]map[string]*rbacutils.SRbacPolicy
 	policies        map[rbacutils.TRbacScope][]rbacutils.SPolicyInfo
 	defaultPolicies map[rbacutils.TRbacScope][]*rbacutils.SRbacPolicy
-	lastSync        time.Time
 
 	failedRetryInterval time.Duration
 	refreshInterval     time.Duration
@@ -172,8 +169,9 @@ func remotePolicyFetcher(ctx context.Context) (map[rbacutils.TRbacScope][]rbacut
 
 func (manager *SPolicyManager) start(refreshInterval time.Duration, retryInterval time.Duration) {
 	log.Infof("PolicyManager start to fetch policies ...")
-	manager.refreshInterval = refreshInterval
 	manager.failedRetryInterval = retryInterval
+	manager.refreshInterval = refreshInterval
+	manager.InitSync(manager)
 	if len(predefinedDefaultPolicies) > 0 {
 		policiesMap := make(map[rbacutils.TRbacScope][]*rbacutils.SRbacPolicy)
 		for i := range predefinedDefaultPolicies {
@@ -189,49 +187,54 @@ func (manager *SPolicyManager) start(refreshInterval time.Duration, retryInterva
 		// log.Debugf("%#v", manager.defaultPolicies)
 	}
 
-	manager.cache = hashcache.NewCache(2048, manager.refreshInterval/2)
+	manager.cache = hashcache.NewCache(2048, refreshInterval/2)
 
-	manager.SyncOnce()
+	defaultFetcherFuncAddr := reflect.ValueOf(DefaultPolicyFetcher).Pointer()
+	remoteFetcherFuncAddr := reflect.ValueOf(remotePolicyFetcher).Pointer()
+	log.Debugf("DefaultPolicyFetcher: %x RemotePolicyFetcher: %x", defaultFetcherFuncAddr, remoteFetcherFuncAddr)
+	if defaultFetcherFuncAddr == remoteFetcherFuncAddr {
+		// remote fetcher, so start watcher
+		manager.StartWatching(&modules.Policies)
+	}
+
+	err := manager.FirstSync()
+	if err != nil {
+		log.Errorf("PolicyManager first sync fail %s", err)
+	}
 }
 
-func (manager *SPolicyManager) SyncOnce() {
-	syncWorkerManager.Run(manager.sync, nil, nil)
-}
+func (manager *SPolicyManager) DoSync(first bool) (time.Duration, error) {
+	var err error
 
-func (manager *SPolicyManager) doSync() error {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("policyManager doSync error %s", r)
-			debug.PrintStack()
+	nopanic.Run(func() {
+		var policies map[rbacutils.TRbacScope][]rbacutils.SPolicyInfo
+		policies, err = DefaultPolicyFetcher(context.Background())
+		if err == nil {
+			manager.lock.Lock()
+			defer manager.lock.Unlock()
+			manager.policies = policies
+			manager.cache.Invalidate()
+		} else {
+			log.Errorf("sync rbac policy failed: %s", err)
 		}
-	}()
+	})
 
-	policies, err := DefaultPolicyFetcher(context.Background())
+	var nextInterval time.Duration
 	if err != nil {
-		log.Errorf("sync rbac policy failed: %s", err)
-		return errors.Wrap(err, "DefaultPolicyFetcher")
+		nextInterval = manager.failedRetryInterval
+	} else {
+		nextInterval = manager.refreshInterval
 	}
 
-	manager.lock.Lock()
-	defer manager.lock.Unlock()
-
-	manager.policies = policies
-
-	manager.lastSync = time.Now()
-	manager.cache.Invalidate()
-
-	return nil
+	return nextInterval, err
 }
 
-func (manager *SPolicyManager) sync() {
-	err := manager.doSync()
-	var interval time.Duration
-	if err != nil {
-		interval = manager.failedRetryInterval
-	} else {
-		interval = manager.refreshInterval
-	}
-	time.AfterFunc(interval, manager.SyncOnce)
+func (manager *SPolicyManager) NeedSync(dat *jsonutils.JSONDict) bool {
+	return true
+}
+
+func (manager *SPolicyManager) Name() string {
+	return "PolicyManager"
 }
 
 func queryKey(scope rbacutils.TRbacScope, userCred mcclient.TokenCredential, service string, resource string, action string, extra ...string) string {
@@ -425,9 +428,13 @@ func (manager *SPolicyManager) allowWithoutCache(scope rbacutils.TRbacScope, use
 	return result
 }
 
-func explainPolicy(ctx context.Context, userCred mcclient.TokenCredential, policyReq jsonutils.JSONObject, name string) ([]string, rbacutils.TRbacResult, error) {
-	_, request, result, err := explainPolicyInternal(ctx, userCred, policyReq, name)
-	return request, result, err
+//
+// result: allow/deny for the named policy
+// userResult: allow/deny for the matched policies of userCred
+//
+func explainPolicy(ctx context.Context, userCred mcclient.TokenCredential, policyReq jsonutils.JSONObject, name string) ([]string, rbacutils.TRbacResult, rbacutils.TRbacResult, error) {
+	_, request, result, userResult, err := explainPolicyInternal(ctx, userCred, policyReq, name)
+	return request, result, userResult, err
 }
 
 func fetchPolicyByIdOrName(ctx context.Context, id string) (rbacutils.SPolicyInfo, error) {
@@ -439,10 +446,10 @@ func fetchPolicyByIdOrName(ctx context.Context, id string) (rbacutils.SPolicyInf
 	return parseJsonPolicy(data, false)
 }
 
-func explainPolicyInternal(ctx context.Context, userCred mcclient.TokenCredential, policyReq jsonutils.JSONObject, name string) (rbacutils.TRbacScope, []string, rbacutils.TRbacResult, error) {
+func explainPolicyInternal(ctx context.Context, userCred mcclient.TokenCredential, policyReq jsonutils.JSONObject, name string) (rbacutils.TRbacScope, []string, rbacutils.TRbacResult, rbacutils.TRbacResult, error) {
 	policySeq, err := policyReq.GetArray()
 	if err != nil {
-		return rbacutils.ScopeSystem, nil, rbacutils.Deny, httperrors.NewInputParameterError("invalid format")
+		return rbacutils.ScopeSystem, nil, rbacutils.Deny, rbacutils.Deny, httperrors.NewInputParameterError("invalid format")
 	}
 	service := rbacutils.WILD_MATCH
 	resource := rbacutils.WILD_MATCH
@@ -473,32 +480,34 @@ func explainPolicyInternal(ctx context.Context, userCred mcclient.TokenCredentia
 	scope := rbacutils.String2Scope(scopeStr)
 	if !consts.IsRbacEnabled() {
 		if scope == rbacutils.ScopeProject || (scope == rbacutils.ScopeSystem && userCred.HasSystemAdminPrivilege()) {
-			return scope, reqStrs, rbacutils.Allow, nil
+			return scope, reqStrs, rbacutils.Allow, rbacutils.Allow, nil
 		} else {
-			return scope, reqStrs, rbacutils.Deny, httperrors.NewForbiddenError("operation not allowed")
+			return scope, reqStrs, rbacutils.Deny, rbacutils.Deny, httperrors.NewForbiddenError("operation not allowed")
 		}
 	}
 
-	if len(name) == 0 {
-		return scope, reqStrs, PolicyManager.Allow(scope, userCred, service, resource, action, extra...), nil
-	}
+	userResult := PolicyManager.Allow(scope, userCred, service, resource, action, extra...)
+	result := userResult
 
-	policy := PolicyManager.findPolicyByName(scope, name)
-	if policy == nil {
-		// policy not found locally, remote fetch
-		sp, err := fetchPolicyByIdOrName(ctx, name)
-		if err != nil {
-			return scope, reqStrs, rbacutils.Deny, httperrors.NewNotFoundError("policy %s not found: %s", name, err)
+	if len(name) > 0 {
+		policy := PolicyManager.findPolicyByName(scope, name)
+		if policy == nil {
+			// policy not found locally, remote fetch
+			sp, err := fetchPolicyByIdOrName(ctx, name)
+			if err != nil {
+				return scope, reqStrs, rbacutils.Deny, rbacutils.Deny, httperrors.NewNotFoundError("policy %s not found: %s", name, err)
+			}
+			policy = sp.Policy
 		}
-		policy = sp.Policy
+
+		rule := policy.GetMatchRule(service, resource, action, extra...)
+		result = rbacutils.Deny
+		if rule != nil {
+			result = rule.Result
+		}
 	}
 
-	rule := policy.GetMatchRule(service, resource, action, extra...)
-	result := rbacutils.Deny
-	if rule != nil {
-		result = rule.Result
-	}
-	return scope, reqStrs, result, nil
+	return scope, reqStrs, result, userResult, nil
 }
 
 func ExplainRpc(ctx context.Context, userCred mcclient.TokenCredential, params jsonutils.JSONObject, name string) (jsonutils.JSONObject, error) {
@@ -508,11 +517,14 @@ func ExplainRpc(ctx context.Context, userCred mcclient.TokenCredential, params j
 	}
 	ret := jsonutils.NewDict()
 	for key, policyReq := range paramDict {
-		reqStrs, result, err := explainPolicy(ctx, userCred, policyReq, name)
+		reqStrs, result, userResult, err := explainPolicy(ctx, userCred, policyReq, name)
 		if err != nil {
 			return nil, err
 		}
 		reqStrs = append(reqStrs, string(result))
+		if len(name) > 0 {
+			reqStrs = append(reqStrs, string(userResult))
+		}
 		ret.Add(jsonutils.NewStringArray(reqStrs), key)
 	}
 	return ret, nil

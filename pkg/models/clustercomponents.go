@@ -95,8 +95,8 @@ func (joint *SClusterComponent) GetComponent() (*SComponent, error) {
 	return obj.(*SComponent), nil
 }
 
-func (joint *SClusterComponent) DoSave() error {
-	if err := ClusterComponentManager.TableSpec().Insert(joint); err != nil {
+func (joint *SClusterComponent) DoSave(ctx context.Context) error {
+	if err := ClusterComponentManager.TableSpec().Insert(ctx, joint); err != nil {
 		return err
 	}
 	joint.SetModelManager(ClusterComponentManager, joint)

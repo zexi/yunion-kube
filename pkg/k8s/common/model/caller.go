@@ -177,7 +177,7 @@ func (p *param) convert() reflect.Value {
 	return val.Elem()
 }
 
-func K8SObjectToJSONObject(obj runtime.Object) jsonutils.JSONObject {
+func K8sObjectToJSONObject(obj runtime.Object) jsonutils.JSONObject {
 	ov := reflect.ValueOf(obj)
 	return ValueToJSONDict(ov)
 }
@@ -224,7 +224,7 @@ func mergeInputOutputData(data *jsonutils.JSONDict, resVal reflect.Value) *jsonu
 	return data
 }
 
-func ValidateCreateData(manager IK8SModelManager, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func ValidateCreateData(manager IK8sModelManager, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	ret, err := call(manager, DMethodValidateCreateData, ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -239,7 +239,7 @@ func ValidateCreateData(manager IK8SModelManager, ctx *RequestContext, query *js
 	return mergeInputOutputData(data, resVal), nil
 }
 
-func NewK8SRawObjectForCreate(manager IK8SModelManager, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
+func NewK8SRawObjectForCreate(manager IK8sModelManager, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
 	ret, err := call(manager, DMethodNewK8SRawObjectForCreate, ctx, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -253,7 +253,7 @@ func NewK8SRawObjectForCreate(manager IK8SModelManager, ctx *RequestContext, dat
 	return ret[0].Interface().(runtime.Object), nil
 }
 
-func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, query *jsonutils.JSONDict) (IQuery, error) {
+func ListItemFilter(ctx *RequestContext, manager IK8sModelManager, q IQuery, query *jsonutils.JSONDict) (IQuery, error) {
 	ret, err := call(manager, DMethodListItemFilter, ctx, q, query)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -267,7 +267,7 @@ func ListItemFilter(ctx *RequestContext, manager IK8SModelManager, q IQuery, que
 	return ret[0].Interface().(IQuery), nil
 }
 
-func GetObject(model IK8SModel) (*jsonutils.JSONDict, error) {
+func GetObject(model IK8sModel) (*jsonutils.JSONDict, error) {
 	ret, err := call(model, DMethodGetAPIObject)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -281,7 +281,7 @@ func GetObject(model IK8SModel) (*jsonutils.JSONDict, error) {
 	return ValueToJSONDict(ret[0]), nil
 }
 
-func GetDetails(model IK8SModel) (*jsonutils.JSONDict, error) {
+func GetDetails(model IK8sModel) (*jsonutils.JSONDict, error) {
 	ret, err := call(model, DMethodGetAPIDetailObject)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -329,7 +329,7 @@ func GetDetails(model IK8SModel) (*jsonutils.JSONDict, error) {
 	return retVal, nil
 }*/
 
-func ValidateUpdateData(model IK8SModel, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
+func ValidateUpdateData(model IK8sModel, ctx *RequestContext, query *jsonutils.JSONDict, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	ret, err := call(model, DMethodValidateUpdateData, ctx, query, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -344,7 +344,7 @@ func ValidateUpdateData(model IK8SModel, ctx *RequestContext, query *jsonutils.J
 	return mergeInputOutputData(data, resVal), nil
 }
 
-func NewK8SRawObjectForUpdate(model IK8SModel, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
+func NewK8SRawObjectForUpdate(model IK8sModel, ctx *RequestContext, data *jsonutils.JSONDict) (runtime.Object, error) {
 	ret, err := call(model, DMethodNewK8SRawObjectForUpdate, ctx, data)
 	if err != nil {
 		return nil, httperrors.NewGeneralError(err)
@@ -358,7 +358,7 @@ func NewK8SRawObjectForUpdate(model IK8SModel, ctx *RequestContext, data *jsonut
 	return ret[0].Interface().(runtime.Object), nil
 }
 
-func ValidateDeleteCondition(model IK8SModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
+func ValidateDeleteCondition(model IK8sModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
 	ret, err := call(model, DMethodValidateDeleteCondition, ctx, query, data)
 	if err != nil {
 		return httperrors.NewGeneralError(err)
@@ -369,7 +369,7 @@ func ValidateDeleteCondition(model IK8SModel, ctx *RequestContext, query, data *
 	return ValueToError(ret[0])
 }
 
-func CustomizeDelete(model IK8SModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
+func CustomizeDelete(model IK8sModel, ctx *RequestContext, query, data *jsonutils.JSONDict) error {
 	ret, err := call(model, DMethodCustomizeDelete, ctx, query, data)
 	if err != nil {
 		return httperrors.NewGeneralError(err)

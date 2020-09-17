@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/log"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -20,15 +21,16 @@ type ICluster interface {
 	GetAPIServer() (string, error)
 	GetKubeconfig() (string, error)
 	GetStatus() string
-	GetProjectId() string
 	GetK8sResourceManager(kindName string) IK8sResourceManager
 }
 
 // bidirect sync callback
 type IK8sResourceManager interface {
-	OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
-	OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, oldObj, newObj runtime.Object)
-	OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, obj runtime.Object)
+	db.IModelManager
+
+	OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, resMan IK8sResourceManager, obj runtime.Object)
+	OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, resMan IK8sResourceManager, oldObj, newObj runtime.Object)
+	OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster ICluster, resMan IK8sResourceManager, obj runtime.Object)
 }
 
 type IClusterManager interface {

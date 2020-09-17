@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
@@ -35,17 +34,12 @@ func (d *SDefaultSystemImportDriver) GetK8sVersions() []string {
 	return []string{}
 }
 
-func (d *SDefaultSystemImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
-	// test kubeconfig is work
-	createData := api.ClusterCreateInput{}
-	if err := data.Unmarshal(&createData); err != nil {
-		return httperrors.NewInputParameterError("Unmarshal to CreateClusterData: %v", err)
-	}
-	apiServer := createData.ApiServer
+func (d *SDefaultSystemImportDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, createData *api.ClusterCreateInput) error {
+	apiServer := createData.ImportData.ApiServer
 	if apiServer == "" {
 		return httperrors.NewInputParameterError("ApiServer must provide")
 	}
-	kubeconfig := createData.Kubeconfig
+	kubeconfig := createData.ImportData.Kubeconfig
 	cli, _, err := client.BuildClient(apiServer, kubeconfig)
 	if err != nil {
 		return httperrors.NewNotAcceptableError("Invalid imported kubeconfig: %v", err)
@@ -54,8 +48,7 @@ func (d *SDefaultSystemImportDriver) ValidateCreateData(ctx context.Context, use
 	if err != nil {
 		return httperrors.NewGeneralError(errors.Wrap(err, "Get kubernetes version"))
 	}
-	// TODO: inject version info
-	log.Infof("Get version: %#v", version)
+	createData.Version = version.String()
 	return nil
 }
 

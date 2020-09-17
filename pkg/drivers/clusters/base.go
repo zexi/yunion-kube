@@ -2,17 +2,18 @@ package clusters
 
 import (
 	"context"
-	"yunion.io/x/yunion-kube/pkg/models"
 
-	"github.com/pkg/errors"
+	"k8s.io/client-go/rest"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/drivers"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -47,7 +48,7 @@ func (d *SBaseDriver) GetMachineDriver(mT api.MachineResourceType) models.IMachi
 	return drv
 }
 
-func (d *SBaseDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *jsonutils.JSONDict) error {
+func (d *SBaseDriver) ValidateCreateData(userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.ClusterCreateInput) error {
 	return nil
 }
 
@@ -124,4 +125,12 @@ func (d *SBaseDriver) RequestDeployMachines(ctx context.Context, userCred mcclie
 
 func (d *SBaseDriver) ValidateDeleteMachines(ctx context.Context, userCred mcclient.TokenCredential, cluster *models.SCluster, machines []manager.IMachine) error {
 	return nil
+}
+
+func (d *SBaseDriver) GetClusterUsers(cluster *models.SCluster, config *rest.Config) ([]api.ClusterUser, error) {
+	return nil, nil
+}
+
+func (d *SBaseDriver) GetClusterUserGroups(cluster *models.SCluster, config *rest.Config) ([]api.ClusterUserGroup, error) {
+	return nil, nil
 }

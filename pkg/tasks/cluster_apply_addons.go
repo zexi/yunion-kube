@@ -34,7 +34,7 @@ func (t *ClusterApplyAddonsTask) OnApplyAddons(ctx context.Context, cluster *mod
 }
 
 func (t *ClusterApplyAddonsTask) OnApplyAddonsFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	t.OnError(ctx, cluster, data.String())
+	t.OnError(ctx, cluster, data)
 }
 
 func ApplyAddons(cluster *models.SCluster) error {
@@ -56,7 +56,7 @@ func ApplyAddons(cluster *models.SCluster) error {
 	return cli.Apply(manifest)
 }
 
-func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *models.SCluster, err string) {
+func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *models.SCluster, err jsonutils.JSONObject) {
 	t.SetStageFailed(ctx, err)
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err, t.UserCred, false)
 }
