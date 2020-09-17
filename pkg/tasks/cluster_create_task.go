@@ -79,7 +79,7 @@ func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *mode
 }
 
 func (t *ClusterCreateTask) OnMachinesCreatedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetFailed(ctx, obj, data.String())
+	t.SetFailed(ctx, obj, data)
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -90,7 +90,7 @@ func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IS
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsCompleteFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetFailed(ctx, obj, data.String())
+	t.SetFailed(ctx, obj, data)
 }
 
 func (t *ClusterCreateTask) OnSyncStatus(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -99,16 +99,16 @@ func (t *ClusterCreateTask) OnSyncStatus(ctx context.Context, obj db.IStandalone
 }
 
 func (t *ClusterCreateTask) OnSyncStatusFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetFailed(ctx, obj, data.String())
+	t.SetFailed(ctx, obj, data)
 }
 
 func (t *ClusterCreateTask) onError(ctx context.Context, cluster db.IStandaloneModel, err error) {
-	t.SetFailed(ctx, cluster, err.Error())
+	t.SetFailed(ctx, cluster, jsonutils.NewString(err.Error()))
 }
 
-func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
+func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
-	cluster.SetStatus(t.UserCred, api.ClusterStatusCreateFail, reason)
+	cluster.SetStatus(t.UserCred, api.ClusterStatusCreateFail, reason.String())
 	t.STask.SetStageFailed(ctx, reason)
 	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterCreate, reason, t.UserCred, false)
 }

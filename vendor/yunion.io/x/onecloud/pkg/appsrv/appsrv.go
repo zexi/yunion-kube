@@ -143,8 +143,8 @@ func (app *Application) getRoot(method string) *RadixNode {
 	return v
 }
 
-func (app *Application) AddReverseProxyHandler(prefix string, ef *proxy.SEndpointFactory) {
-	handler := proxy.NewHTTPReverseProxy(ef).ServeHTTP
+func (app *Application) AddReverseProxyHandler(prefix string, ef *proxy.SEndpointFactory, m proxy.RequestManipulator) {
+	handler := proxy.NewHTTPReverseProxy(ef, m).ServeHTTP
 	for _, method := range []string{"GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"} {
 		app.AddHandler(method, prefix, handler)
 	}
@@ -184,7 +184,6 @@ func (lrw *loggingResponseWriter) Hijack() (rwc net.Conn, buf *bufio.ReadWriter,
 }
 
 func (lrw *loggingResponseWriter) WriteHeader(code int) {
-	log.Debugf("XXXX loggingResponseWriter WriteHeader %d", code)
 	if code < 100 || code >= 600 {
 		log.Errorf("Invalud status code %d, set code to 598", code)
 		code = 598
@@ -284,6 +283,7 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 			if cancel != nil {
 				defer cancel()
 			}
+			ctx = httperrors.WithRequestLang(ctx, r)
 			session := hand.workerMan
 			if session == nil {
 				if r.Method == "GET" || r.Method == "HEAD" {
@@ -322,7 +322,7 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 				},
 				currentWorker,
 				func(err error) {
-					httperrors.InternalServerError(&fw, "Internal server error: %s", err)
+					httperrors.InternalServerError(ctx, &fw, "Internal server error: %s", err)
 					fw.closeChannels()
 				},
 			)
@@ -331,20 +331,20 @@ func (app *Application) defaultHandle(w http.ResponseWriter, r *http.Request, ri
 				switch runErr.(type) {
 				case *httputils.JSONClientError:
 					je := runErr.(*httputils.JSONClientError)
-					httperrors.GeneralServerError(w, je)
+					httperrors.GeneralServerError(ctx, w, je)
 				default:
-					httperrors.InternalServerError(w, "Internal server error")
+					httperrors.InternalServerError(ctx, w, "Internal server error")
 				}
 			}
 			fw.closeChannels()
 			return hand, appParams
 		} else {
-			log.Errorf("Invalid handler for %s", r.URL)
-			httperrors.InternalServerError(w, "Invalid handler %s", r.URL)
+			ctx := httperrors.WithRequestLang(context.TODO(), r)
+			httperrors.InternalServerError(ctx, w, "Invalid handler %s", r.URL)
 		}
 	} else if !isCors {
-		log.Errorf("Handler not found")
-		httperrors.NotFoundError(w, "Handler not found")
+		ctx := httperrors.WithRequestLang(context.TODO(), r)
+		httperrors.NotFoundError(ctx, w, "Handler not found")
 	}
 	return nil, nil
 }

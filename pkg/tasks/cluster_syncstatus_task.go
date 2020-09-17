@@ -3,14 +3,15 @@ package tasks
 import (
 	"context"
 
-	"yunion.io/x/yunion-kube/pkg/models"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/client"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
@@ -46,13 +47,18 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 			return nil, err
 		}
 		log.Infof("Get %s cluster k8s version: %#v", cluster.GetName(), info)
-		cluster.SetK8sVersion(info.String())
+		if err := cluster.SetStatus(t.UserCred, api.ClusterStatusRunning, ""); err != nil {
+			return nil, errors.Wrap(err, "set status to running")
+		}
+		if err := client.GetClustersManager().AddClient(cluster); err != nil {
+			return nil, errors.Wrap(err, "add cluster to client manager")
+		}
+		cluster.SetK8sVersion(ctx, info.String())
 		return nil, nil
 	})
 }
 
 func (t *ClusterSyncstatusTask) OnSyncStatus(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	cluster.SetStatus(t.UserCred, api.ClusterStatusRunning, "")
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -61,11 +67,11 @@ func (t *ClusterSyncstatusTask) OnSyncStatusFailed(ctx context.Context, cluster 
 }
 
 func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandaloneModel, err string) {
-	t.SetFailed(ctx, cluster, err)
+	t.SetFailed(ctx, cluster, jsonutils.NewString(err))
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, err, t.UserCred, false)
 }
 
-func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason string) {
+func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, api.ClusterStatusUnknown, "")
 	t.STask.SetStageFailed(ctx, reason)

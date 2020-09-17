@@ -29,12 +29,12 @@ func ReportUsage(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	userCred := auth.FetchUserCredential(ctx, policy.FilterPolicyCredential)
 	ownerId, scope, err := db.FetchUsageOwnerScope(ctx, userCred, query)
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		httperrors.GeneralServerError(ctx, w, err)
 		return
 	}
 	usage, err := DoReportUsage(ctx, scope, ownerId, query.(*jsonutils.JSONDict))
 	if err != nil {
-		httperrors.GeneralServerError(w, err)
+		httperrors.GeneralServerError(ctx, w, err)
 		return
 	}
 	usageJson := jsonutils.Marshal(usage)

@@ -11,7 +11,7 @@ var (
 func init() {
 	syncClusterWorker = appsrv.NewWorkerManager(
 		"clusterSyncWorkerManager",
-		1,
+		4,
 		2048,
 		true,
 	)

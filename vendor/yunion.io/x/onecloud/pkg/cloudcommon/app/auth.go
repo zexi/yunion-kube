@@ -19,15 +19,14 @@ import (
 	"time"
 
 	"yunion.io/x/log"
-	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 
+	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/apis/identity"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
 	"yunion.io/x/onecloud/pkg/cloudcommon/notifyclient"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/onecloud/pkg/cloudcommon/policy"
-	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 )
@@ -63,7 +62,7 @@ func InitAuth(options *common_options.CommonOptions, authComplete auth.AuthCompl
 
 	if options.SessionEndpointType != "" {
 		if !utils.IsInStringArray(options.SessionEndpointType,
-			[]string{auth.PublicEndpointType, auth.InternalEndpointType}) {
+			[]string{identity.EndpointInterfacePublic, identity.EndpointInterfaceInternal}) {
 			log.Fatalf("Invalid session endpoint type %s", options.SessionEndpointType)
 		}
 		auth.SetEndpointType(options.SessionEndpointType)
@@ -78,17 +77,25 @@ func InitAuth(options *common_options.CommonOptions, authComplete auth.AuthCompl
 	}
 	notifyclient.FetchNotifyAdminRecipients(context.Background(), options.Region, users, groups)
 
-	authComplete()
+	if authComplete != nil {
+		authComplete()
+	}
 
 	consts.SetTenantCacheExpireSeconds(options.TenantCacheExpireSeconds)
 
 	InitBaseAuth(&options.BaseOptions)
+
+	watcher := newEndpointChangeManager()
+	watcher.StartWatching(&modules.EndpointsV3)
+
+	startEtcdEndpointPuller()
 }
 
 func InitBaseAuth(options *common_options.BaseOptions) {
 	if options.EnableRbac {
-		policy.EnableGlobalRbac(time.Duration(options.RbacPolicySyncPeriodSeconds)*time.Second,
-			time.Duration(options.RbacPolicySyncFailedRetrySeconds)*time.Second,
+		policy.EnableGlobalRbac(
+			time.Second*time.Duration(options.RbacPolicySyncPeriodSeconds),
+			time.Second*time.Duration(options.RbacPolicySyncFailedRetrySeconds),
 			options.RbacDebug,
 		)
 	}
@@ -97,16 +104,19 @@ func InitBaseAuth(options *common_options.BaseOptions) {
 
 func FetchEtcdServiceInfo() (*identity.EndpointDetails, error) {
 	s := auth.GetAdminSession(context.Background(), "", "")
-	ret, err := modules.EndpointsV3.GetByName(s, identity.ENDPOINT_ETCD_INTERNAL, nil)
-	if err != nil && errors.Cause(err) == httperrors.ErrNotFound {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	endpoint := new(identity.EndpointDetails)
-	err = ret.Unmarshal(endpoint)
+	return s.GetCommonEtcdEndpoint()
+}
+
+func startEtcdEndpointPuller() {
+	retryInterval := 60
+	etecdUrl, err := auth.GetServiceURL(apis.SERVICE_TYPE_ETCD, consts.GetRegion(), "", "")
 	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal endpoint")
+		log.Errorf("[etcd] GetServiceURL fail %s, retry after %d seconds", err, retryInterval)
+	} else if len(etecdUrl) == 0 {
+		log.Errorf("[etcd] no service url found, retry after %d seconds", retryInterval)
+	} else {
+		return
 	}
-	return endpoint, nil
+	auth.ReAuth()
+	time.AfterFunc(time.Second*time.Duration(retryInterval), startEtcdEndpointPuller)
 }

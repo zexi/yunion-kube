@@ -14,8 +14,10 @@
 
 package identity
 
+import "yunion.io/x/onecloud/pkg/apis"
+
 const (
-	SERVICE_TYPE = "identity"
+	SERVICE_TYPE = apis.SERVICE_TYPE_KEYSTONE
 
 	DEFAULT_DOMAIN_ID   = "default"
 	DEFAULT_DOMAIN_NAME = "Default"
@@ -32,6 +34,9 @@ const (
 	AUTH_METHOD_TOKEN    = "token"
 	AUTH_METHOD_AKSK     = "aksk"
 	AUTH_METHOD_CAS      = "cas"
+	AUTH_METHOD_SAML     = "saml"
+	AUTH_METHOD_OIDC     = "oidc"
+	AUTH_METHOD_OAuth2   = "oauth2"
 
 	// AUTH_METHOD_ID_PASSWORD = 1
 	// AUTH_METHOD_ID_TOKEN    = 2
@@ -55,9 +60,12 @@ const (
 	IdMappingEntityGroup  = "group"
 	IdMappingEntityDomain = "domain"
 
-	IdentityDriverSQL  = "sql"
-	IdentityDriverLDAP = "ldap"
-	IdentityDriverCAS  = "cas"
+	IdentityDriverSQL    = "sql"
+	IdentityDriverLDAP   = "ldap"
+	IdentityDriverCAS    = "cas"
+	IdentityDriverSAML   = "saml"
+	IdentityDriverOIDC   = "oidc"   // OpenID Connect
+	IdentityDriverOAuth2 = "oauth2" // OAuth2.0
 
 	IdentityDriverStatusConnected    = "connected"
 	IdentityDriverStatusDisconnected = "disconnected"

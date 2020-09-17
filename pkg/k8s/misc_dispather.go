@@ -29,7 +29,7 @@ func AddMiscDispatcher(prefix string, app *appsrv.Application) {
 }
 
 func handleExecShell(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	httperrors.GeneralServerError(w, fmt.Errorf("Not impl"))
+	httperrors.GeneralServerError(ctx, w, fmt.Errorf("Not impl"))
 	return
 	/*params, query, data := _fetchEnv(ctx, w, r)
 	request, err := NewCloudK8sRequest(ctx, query.(*jsonutils.JSONDict), nil)

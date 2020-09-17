@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
 	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 
@@ -277,3 +278,27 @@ func (h *resourceHandler) List(kind string, namespace string, labelSelector stri
 
 	return objs, nil
 }
+
+// LListNoCache list objects from k8s directly
+/*func (h *resourceHandler) ListNoCache(kind string, namespace string, labelSelector string) ([]runtime.Object, error) {
+	resource, ok := api.KindToResourceMap[kind]
+	if !ok {
+		return nil, fmt.Errorf("Resource kind (%s) not support yet.", kind)
+	}
+	kubeClient := h.getClientByGroupVersion(resource.GroupVersionResourceKind.GroupVersionResource)
+	req := kubeClient.Get().Resource(kind).Timeout
+
+	if resource.Namespaced {
+		req.Namespace(namespace)
+	}
+
+	for i := range objs {
+		objs[i].GetObjectKind().SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   resource.GroupVersionResourceKind.Group,
+			Version: resource.GroupVersionResourceKind.Version,
+			Kind:    resource.GroupVersionResourceKind.Kind,
+		})
+	}
+
+	return objs, nil
+}*/

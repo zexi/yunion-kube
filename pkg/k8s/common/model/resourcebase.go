@@ -1,32 +1,31 @@
 package model
 
 import (
-	"reflect"
 	"strings"
 
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
 
-type SK8SClusterResourceBase struct {
-	SK8SModelBase
+type SK8sClusterResourceBase struct {
+	SK8sModelBase
 
 	Cluster string `json:"cluster"`
 }
 
-type SK8SClusterResourceBaseManager struct {
-	SK8SModelBaseManager
+type SK8sClusterResourceBaseManager struct {
+	SK8sModelBaseManager
 }
 
-func NewK8SClusterResourceBaseManager(dt interface{}, keyword, keywordPlural string) SK8SClusterResourceBaseManager {
-	m := SK8SClusterResourceBaseManager{
-		NewK8SModelBaseManager(dt, keyword, keywordPlural),
+func NewK8SClusterResourceBaseManager(dt interface{}, keyword, keywordPlural string) SK8sClusterResourceBaseManager {
+	m := SK8sClusterResourceBaseManager{
+		NewK8sModelBaseManager(dt, keyword, keywordPlural),
 	}
 	m.RegisterOrderFields(
 		OrderFieldCreationTimestamp{},
@@ -34,16 +33,20 @@ func NewK8SClusterResourceBaseManager(dt interface{}, keyword, keywordPlural str
 	return m
 }
 
-func (m *SK8SClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SClusterBase) (IQuery, error) {
+func (_ SK8sClusterResourceBaseManager) GetOwnerModel(userCred mcclient.TokenCredential, manager IModelManager, cluster ICluster, namespace string, nameOrId string) (IOwnerModel, error) {
+	return NewK8SModelObjectByName(manager.(IK8sModelManager), cluster, namespace, nameOrId)
+}
+
+func (m *SK8sClusterResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SClusterBase) (IQuery, error) {
 	if query.Name != "" {
-		q.AddFilter(func(obj IK8SModel) (bool, error) {
+		q.AddFilter(func(obj IK8sModel) (bool, error) {
 			return obj.GetName() == query.Name || strings.Contains(obj.GetName(), query.Name), nil
 		})
 	}
-	return m.SK8SModelBaseManager.ListItemFilter(ctx, q, query.ListInputK8SBase)
+	return m.SK8sModelBaseManager.ListItemFilter(ctx, q, query.ListInputK8SBase)
 }
 
-func (m *SK8SClusterResourceBaseManager) ValidateCreateData(
+func (m *SK8sClusterResourceBaseManager) ValidateCreateData(
 	ctx *RequestContext,
 	_ *jsonutils.JSONDict,
 	input *api.K8sClusterResourceCreateInput) (*api.K8sClusterResourceCreateInput, error) {
@@ -53,55 +56,56 @@ func (m *SK8SClusterResourceBaseManager) ValidateCreateData(
 	return input, nil
 }
 
-func (m *SK8SClusterResourceBase) ValidateUpdateData(
+func (m *SK8sClusterResourceBase) ValidateUpdateData(
 	_ *RequestContext, query, data *jsonutils.JSONDict) (*jsonutils.JSONDict, error) {
 	return nil, httperrors.NewNotAcceptableError("%s not support update", m.Keyword())
 }
 
-func (m *SK8SClusterResourceBase) ValidateDeleteCondition(
+func (m *SK8sClusterResourceBase) ValidateDeleteCondition(
 	_ *RequestContext, _, _ *jsonutils.JSONDict) error {
 	return nil
 }
 
-func (m *SK8SClusterResourceBase) CustomizeDelete(
+func (m *SK8sClusterResourceBase) CustomizeDelete(
 	ctx *RequestContext, _, _ *jsonutils.JSONDict) error {
 	return nil
 }
 
-func (m *SK8SClusterResourceBase) GetName() string {
-	return m.GetObjectMeta().GetName()
+func (m *SK8sClusterResourceBase) GetName() string {
+	meta, _ := m.GetObjectMeta()
+	return meta.GetName()
 }
 
-type SK8SNamespaceResourceBase struct {
-	SK8SClusterResourceBase
+type SK8sNamespaceResourceBase struct {
+	SK8sClusterResourceBase
 }
 
-type SK8SNamespaceResourceBaseManager struct {
-	SK8SClusterResourceBaseManager
+type SK8sNamespaceResourceBaseManager struct {
+	SK8sClusterResourceBaseManager
 }
 
-func NewK8SNamespaceResourceBaseManager(dt interface{}, keyword string, keywordPlural string) SK8SNamespaceResourceBaseManager {
-	man := SK8SNamespaceResourceBaseManager{NewK8SClusterResourceBaseManager(dt, keyword, keywordPlural)}
+func NewK8sNamespaceResourceBaseManager(dt interface{}, keyword string, keywordPlural string) SK8sNamespaceResourceBaseManager {
+	man := SK8sNamespaceResourceBaseManager{NewK8SClusterResourceBaseManager(dt, keyword, keywordPlural)}
 	man.RegisterOrderFields(
 		OrderFieldNamespace(),
 		OrderFieldStatus())
 	return man
 }
 
-func (m *SK8SNamespaceResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SNamespaceBase) (IQuery, error) {
+func (m *SK8sNamespaceResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputK8SNamespaceBase) (IQuery, error) {
 	if query.Namespace != "" {
 		q.Namespace(query.Namespace)
 		/*q.AddFilter(func(obj metav1.Object) bool {
 			return obj.GetNamespace() != query.Namespace
 		})*/
 	}
-	return m.SK8SClusterResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SClusterBase)
+	return m.SK8sClusterResourceBaseManager.ListItemFilter(ctx, q, query.ListInputK8SClusterBase)
 }
 
-func (m SK8SNamespaceResourceBaseManager) ValidateCreateData(
+func (m SK8sNamespaceResourceBaseManager) ValidateCreateData(
 	ctx *RequestContext, query *jsonutils.JSONDict,
 	input *api.K8sNamespaceResourceCreateInput) (*api.K8sNamespaceResourceCreateInput, error) {
-	cInput, err := m.SK8SClusterResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sClusterResourceCreateInput)
+	cInput, err := m.SK8sClusterResourceBaseManager.ValidateCreateData(ctx, query, &input.K8sClusterResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -110,72 +114,51 @@ func (m SK8SNamespaceResourceBaseManager) ValidateCreateData(
 	return input, nil
 }
 
-func (m SK8SNamespaceResourceBase) GetNamespace() string {
+func (m SK8sNamespaceResourceBase) GetNamespace() string {
 	return m.GetMetaObject().GetNamespace()
 }
 
-type SK8SOwnerResourceBaseManager struct{}
+type SK8sOwnedResourceBaseManager struct{}
 
-type IK8SOwnerResource interface {
-	IsOwnerBy(ownerModel IK8SModel) (bool, error)
+type IK8sOwnedResource interface {
+	IsOwnedBy(ownerModel IOwnerModel) (bool, error)
 }
 
-func (m SK8SOwnerResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputOwner) (IQuery, error) {
+func (m SK8sOwnedResourceBaseManager) ListItemFilter(ctx *RequestContext, q IQuery, query api.ListInputOwner) (IQuery, error) {
 	if !query.ShouldDo() {
 		return q, nil
 	}
-	q.AddFilter(m.ListOwnerFilter(query))
+	q.AddFilter(m.ListOwnerFilter(ctx.UserCred(), query))
 	return q, nil
 }
 
-func (m SK8SOwnerResourceBaseManager) ListOwnerFilter(query api.ListInputOwner) QueryFilter {
-	return func(obj IK8SModel) (bool, error) {
-		man := GetK8SModelManagerByKind(query.OwnerKind)
+func (m SK8sOwnedResourceBaseManager) ListOwnerFilter(userCred mcclient.TokenCredential, query api.ListInputOwner) QueryFilter {
+	return func(obj IK8sModel) (bool, error) {
+		man := GetK8sModelManagerByKind(query.OwnerKind)
 		if man == nil {
 			return false, httperrors.NewNotFoundError("Not found owner_kind %s", query.OwnerKind)
 		}
-		ownerModel, err := NewK8SModelObjectByName(man, obj.GetCluster(), obj.GetNamespace(), query.OwnerName)
+		ownerModel, err := man.GetOwnerModel(userCred, man, obj.GetCluster(), obj.GetNamespace(), query.OwnerName)
 		if err != nil {
 			return false, err
 		}
-		return obj.(IK8SOwnerResource).IsOwnerBy(ownerModel)
+		return obj.(IK8sOwnedResource).IsOwnedBy(ownerModel)
 	}
 }
 
-func IsPodOwner(model IPodOwnerModel, pod *v1.Pod) (bool, error) {
-	pods, err := model.GetRawPods()
+func IsEventOwner(model IOwnerModel, event *v1.Event) (bool, error) {
+	metaObj, err := model.GetObjectMeta()
 	if err != nil {
 		return false, err
 	}
-	return IsObjectContains(pod, pods), nil
-}
-
-func IsServiceOwner(model IServiceOwnerModel, svc *v1.Service) (bool, error) {
-	svcs, err := model.GetRawServices()
-	if err != nil {
-		return false, err
-	}
-	return IsObjectContains(svc, svcs), nil
-}
-
-func IsObjectContains(obj metav1.Object, objs interface{}) bool {
-	objsV := reflect.ValueOf(objs)
-	for i := 0; i < objsV.Len(); i++ {
-		ov := objsV.Index(i).Interface().(metav1.Object)
-		if obj.GetUID() == ov.GetUID() {
-			return true
-		}
-	}
-	return false
-}
-
-func IsEventOwner(model IK8SModel, event *v1.Event) (bool, error) {
-	metaObj := model.GetObjectMeta()
 	return event.InvolvedObject.UID == metaObj.GetUID(), nil
 }
 
-func IsJobOwner(model IK8SModel, job *batch.Job) (bool, error) {
-	metaObj := model.GetObjectMeta()
+func IsJobOwner(model IK8sModel, job *batch.Job) (bool, error) {
+	metaObj, err := model.GetObjectMeta()
+	if err != nil {
+		return false, err
+	}
 	for _, i := range job.OwnerReferences {
 		if i.UID == metaObj.GetUID() {
 			return true, nil

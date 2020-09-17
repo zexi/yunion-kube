@@ -28,12 +28,24 @@ type NamespaceDetail struct {
 	ResourceLimits []*LimitRange `json:"limitRanges"`
 }
 
+type NamespaceSpec struct {
+	v1.NamespaceSpec
+}
+
 type NamespaceCreateInput struct {
 	K8sClusterResourceCreateInput
 }
 
 type NamespaceCreateInputV2 struct {
 	ClusterResourceCreateInput
+	Spec *NamespaceSpec `json:"spec"`
+}
+
+func (input NamespaceCreateInputV2) ToNamespace() *v1.Namespace {
+	return &v1.Namespace{
+		ObjectMeta: input.ToObjectMeta(),
+		Spec:       input.Spec.NamespaceSpec,
+	}
 }
 
 type NamespaceListInput struct {

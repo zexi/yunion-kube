@@ -16,7 +16,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 
 	"yunion.io/x/jsonutils"
@@ -109,7 +108,7 @@ func callObject(modelVal reflect.Value, fName string, inputs ...interface{}) ([]
 
 func callFunc(funcVal reflect.Value, fName string, inputs ...interface{}) ([]reflect.Value, error) {
 	if !funcVal.IsValid() || funcVal.IsNil() {
-		return nil, httperrors.NewActionNotFoundError(fmt.Sprintf("%s method not found", fName))
+		return nil, httperrors.NewActionNotFoundError("%s method not found", fName)
 	}
 	funcType := funcVal.Type()
 	paramLen := funcType.NumIn()
@@ -120,16 +119,23 @@ func callFunc(funcVal reflect.Value, fName string, inputs ...interface{}) ([]ref
 	for i := range inputs {
 		params[i] = newParam(funcType.In(i), inputs[i])
 	}
-	args := convertParams(params)
+	args, err := convertParams(params)
+	if err != nil {
+		return nil, err
+	}
 	return funcVal.Call(args), nil
 }
 
-func convertParams(params []*param) []reflect.Value {
+func convertParams(params []*param) ([]reflect.Value, error) {
 	ret := make([]reflect.Value, 0)
 	for _, p := range params {
-		ret = append(ret, p.convert())
+		val, err := p.convert()
+		if err != nil {
+			return ret, err
+		}
+		ret = append(ret, val)
 	}
-	return ret
+	return ret, nil
 }
 
 type param struct {
@@ -153,18 +159,21 @@ func isJSONObject(input interface{}) (jsonutils.JSONObject, bool) {
 	return obj, true
 }
 
-func (p *param) convert() reflect.Value {
+func (p *param) convert() (reflect.Value, error) {
 	if p.input == nil {
-		return reflect.New(p.pType).Elem()
+		return reflect.New(p.pType).Elem(), nil
 	}
 	obj, ok := isJSONObject(p.input)
 	if !ok {
-		return reflect.ValueOf(p.input)
+		return reflect.ValueOf(p.input), nil
 	}
 	// generate object by type
 	val := reflect.New(p.pType)
-	obj.Unmarshal(val.Interface())
-	return val.Elem()
+	err := obj.Unmarshal(val.Interface())
+	if err != nil {
+		return reflect.Value{}, errors.Wrapf(err, "unable to convert '%v' to Type %q", p.input, p.pType.Name())
+	}
+	return val.Elem(), nil
 }
 
 func ValueToJSONObject(out reflect.Value) jsonutils.JSONObject {

@@ -23,13 +23,23 @@ import (
 type HostSpec struct {
 	apis.Meta
 
-	Cpu         int            `json:"cpu"`
-	Mem         int            `json:"mem"`
-	NicCount    int            `json:"nic_count"`
-	Manufacture string         `json:"manufacture"`
-	Model       string         `json:"model"`
-	Disk        DiskDriverSpec `json:"disk"`
-	Driver      string         `json:"driver"`
+	Cpu             int                  `json:"cpu"`
+	Mem             int                  `json:"mem"`
+	NicCount        int                  `json:"nic_count"`
+	Manufacture     string               `json:"manufacture"`
+	Model           string               `json:"model"`
+	Disk            DiskDriverSpec       `json:"disk"`
+	Driver          string               `json:"driver"`
+	IsolatedDevices []IsolatedDeviceSpec `json:"isolated_devices"`
+}
+
+type IsolatedDeviceSpec struct {
+	apis.Meta
+
+	DevType string `json:"dev_type"`
+	Model   string `json:"model"`
+	PciId   string `json:"pci_id"`
+	Vendor  string `json:"vendor"`
 }
 
 type DiskDriverSpec map[string]DiskAdapterSpec
@@ -108,6 +118,8 @@ type HostListInput struct {
 	Uuid []string `json:"uuid"`
 	// 主机启动模式, 可能值位PXE和ISO
 	BootMode []string `json:"boot_mode"`
+	// 虚拟机所在的二层网络
+	ServerIdForNetwork string `json:"server_id_for_network"`
 }
 
 type HostDetails struct {
@@ -119,9 +131,10 @@ type HostDetails struct {
 
 	Schedtags []SchedtagShortDescDetails `json:"schedtags"`
 
-	ServerId  string `json:"server_id"`
-	Server    string `json:"server"`
-	ServerIps string `json:"server_ips"`
+	ServerId             string `json:"server_id"`
+	Server               string `json:"server"`
+	ServerIps            string `json:"server_ips"`
+	ServerPendingDeleted bool   `json:"server_pending_deleted"`
 	// 网卡数量
 	NicCount int `json:"nic_count"`
 	// 网卡详情
@@ -138,7 +151,7 @@ type HostDetails struct {
 	NonsystemGuests int `json:"nonsystem_guests"`
 	// 运行中云主机数量
 	// example: 2
-	RunningGuests int `json:"running_geusts"`
+	RunningGuests int `json:"running_guests"`
 	// CPU超分率
 	CpuCommitRate float64 `json:"cpu_commit_rate"`
 	// 内存超分率
@@ -164,7 +177,18 @@ type HostDetails struct {
 	CanPrepare        bool                `json:"can_prepare"`
 	PrepareFailReason string              `json:"prepare_fail_reason"`
 	// 允许开启宿主机健康检查
-	AllowHealthCheck bool `json:"allow_health_check"`
+	AllowHealthCheck      bool `json:"allow_health_check"`
+	AutoMigrateOnHostDown bool `json:"auto_migrate_on_host_down"`
+
+	// reserved resource for isolated device
+	ReservedResourceForGpu IsolatedDeviceReservedResourceInput `json:"reserved_resource_for_gpu"`
+	// isolated device count
+	IsolatedDeviceCount int
+
+	// host init warnning
+	SysWarn string `json:"sys_warn"`
+	// host init error info
+	SysError string `json:"sys_error"`
 
 	// 标签
 	Metadata map[string]string `json:"metadata"`
@@ -219,11 +243,11 @@ type HostFilterListInputBase struct {
 
 type HostResourceInput struct {
 	// 宿主机或物理机（ID或Name）
-	Host string `json:"host"`
+	HostId string `json:"host_id"`
 	// swagger:ignore
 	// Deprecated
 	// filter by host_id
-	HostId string `json:"host_id" "yunion:deprecated-by":"host"`
+	Host string `json:"host" yunion-deprecated-by:"host_id"`
 }
 
 type HostRegisterMetadata struct {
@@ -231,6 +255,8 @@ type HostRegisterMetadata struct {
 
 	OnKubernetes bool   `json:"on_kubernetes"`
 	Hostname     string `json:"hostname"`
+	SysError     string `json:"sys_error,allowempty"`
+	SysWarn      string `json:"sys_warn,allowempty"`
 }
 
 type HostAccessAttributes struct {

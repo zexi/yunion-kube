@@ -3,15 +3,14 @@ package tasks
 import (
 	"context"
 
-	"yunion.io/x/yunion-kube/pkg/api"
-	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/utils/logclient"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
+	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 type ClusterDeleteMachinesTask struct {
@@ -80,6 +79,6 @@ func (t *ClusterDeleteMachinesTask) OnSyncStatusFailed(ctx context.Context, clus
 
 func (t *ClusterDeleteMachinesTask) OnError(ctx context.Context, cluster *models.SCluster, err string) {
 	cluster.SetStatus(t.UserCred, api.ClusterStatusError, err)
-	t.SetStageFailed(ctx, err)
+	t.SetStageFailed(ctx, jsonutils.NewString(err))
 	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDeleteMachine, err, t.UserCred, false)
 }

@@ -128,12 +128,12 @@ func (env *verberEnv) Delete() error {
 func getResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	env, err := fetchVerberEnv(ctx, w, r)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	obj, err := env.Get()
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendJSON(w, obj)
@@ -142,12 +142,12 @@ func getResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Requ
 func getResourceYAMLHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	env, err := fetchVerberEnv(ctx, w, r)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	obj, err := env.Get()
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	SendYAML(w, obj)
@@ -156,12 +156,12 @@ func getResourceYAMLHandler(ctx context.Context, w http.ResponseWriter, r *http.
 func putResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	env, err := fetchVerberEnv(ctx, w, r)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	err = env.Put()
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -170,12 +170,12 @@ func putResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Requ
 func deleteResourceHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	env, err := fetchVerberEnv(ctx, w, r)
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	err = env.Delete()
 	if err != nil {
-		errors.GeneralServerError(w, err)
+		errors.GeneralServerError(ctx, w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	models.ReleaseManager.RegisterDriver(newExternalDriver())
+	models.GetReleaseManager().RegisterDriver(newExternalDriver())
 }
 
 func newExternalDriver() models.IReleaseDriver {
@@ -26,19 +26,19 @@ func (d *externalDriver) GetType() api.RepoType {
 }
 
 func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, data *api.ReleaseCreateInput) (*api.ReleaseCreateInput, error) {
-	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred, data.Cluster)
+	cluster, err := models.ClusterManager.FetchClusterByIdOrName(userCred, data.ClusterId)
 	if err != nil {
 		return nil, err
 	}
-	data.Cluster = cluster.GetId()
+	data.ClusterId = cluster.GetId()
 	_, err = client.GetManagerByCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
-	if data.Namespace == "" {
+	if data.NamespaceId == "" {
 		return nil, httperrors.NewNotEmptyError("namespace")
 	}
-	nInput, err := models.ReleaseManager.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, nil, &data.NamespaceResourceCreateInput)
+	nInput, err := models.GetReleaseManager().SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerCred, nil, &data.NamespaceResourceCreateInput)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +47,6 @@ func (d *externalDriver) ValidateCreateData(ctx context.Context, userCred mcclie
 }
 
 func (d *externalDriver) CustomizeCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerCred mcclient.IIdentityProvider, release *models.SRelease, data *api.ReleaseCreateInput) error {
-	release.ClusterId = data.Cluster
+	release.ClusterId = data.ClusterId
 	return nil
 }

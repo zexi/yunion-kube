@@ -69,6 +69,31 @@ type PodDetail struct {
 	Secrets                []*Secret                `json:"secrets"`
 }
 
+type PodDetailV2 struct {
+	NamespaceResourceDetail
+
+	// More info on pod status
+	PodStatus
+	PodIP string `json:"podIP"`
+	// Count of containers restarts
+	RestartCount int32 `json:"restartCount"`
+	// Pod warning events
+	Warnings       []*Event    `json:"warnings"`
+	QOSClass       string      `json:"qosClass"`
+	Containers     []Container `json:"containers"`
+	InitContainers []Container `json:"initContainers"`
+	// Container images of the Deployment
+	ContainerImages []ContainerImage `json:"containerImages"`
+	// Init Container images of deployment
+	InitContainerImages []ContainerImage `json:"initContainerImages"`
+	Conditions          []*Condition     `json:"conditions"`
+	/* Events                 []*Event                 `json:"events"`
+	 * Persistentvolumeclaims []*PersistentVolumeClaim `json:"persistentVolumeClaims"`
+	 * ConfigMaps             []*ConfigMap             `json:"configMaps"`
+	 * Secrets                []*Secret                `json:"secrets"`
+	 */
+}
+
 // Container represents a docker/rkt/etc. container that lives in a pod.
 type Container struct {
 	// Name of the container.
@@ -146,6 +171,6 @@ func (info PodInfo) GetStatus() string {
 }
 
 type PodListInput struct {
-	ListInputK8SNamespaceBase
+	NamespaceResourceListInput
 	ListInputOwner
 }

@@ -3,13 +3,13 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"yunion.io/x/yunion-kube/pkg/models"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/models"
 )
 
 func init() {
@@ -56,5 +56,5 @@ func (t *ComponentUpdateTask) OnUpdateCompleteFailed(ctx context.Context, obj *m
 func (t *ComponentUpdateTask) onError(ctx context.Context, obj *models.SComponent, err error) {
 	reason := err.Error()
 	obj.SetStatus(t.UserCred, api.ComponentStatusUpdateFail, reason)
-	t.STask.SetStageFailed(ctx, reason)
+	t.STask.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
 }

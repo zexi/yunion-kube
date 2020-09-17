@@ -46,9 +46,35 @@ type StatefulSetDetail struct {
 	Services []*Service `json:"services"`
 }
 
+type StatefulSetDetailV2 struct {
+	NamespaceResourceDetail
+
+	// Aggregate information about pods belonging to this Pet Set.
+	Pods     PodInfo `json:"podsInfo"`
+	Replicas *int32  `json:"replicas"`
+	// Container images of the Stateful Set.
+	ContainerImages []ContainerImage `json:"containerImages"`
+	// Init container images of the Stateful Set.
+	InitContainerImages []ContainerImage  `json:"initContainerImages"`
+	Selector            map[string]string `json:"selector"`
+	StatefulSetStatus
+	/*
+	 * PodList  []*Pod     `json:"pods"`
+	 * Events   []*Event   `json:"events"`
+	 * Services []*Service `json:"services"`
+	 */
+}
+
 type StatefulsetCreateInput struct {
 	K8sNamespaceResourceCreateInput
 
+	apps.StatefulSetSpec
+
+	Service *ServiceCreateOption `json:"service"`
+}
+
+type StatefulsetCreateInputV2 struct {
+	NamespaceResourceCreateInput
 	apps.StatefulSetSpec
 
 	Service *ServiceCreateOption `json:"service"`

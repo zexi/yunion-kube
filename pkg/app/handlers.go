@@ -9,16 +9,14 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
-	"yunion.io/x/yunion-kube/pkg/k8s"
-	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
-	"yunion.io/x/yunion-kube/pkg/k8smodels"
-	"yunion.io/x/yunion-kube/pkg/models"
-
 	_ "yunion.io/x/yunion-kube/pkg/drivers/machines"
+	"yunion.io/x/yunion-kube/pkg/k8s"
 	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
-	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/secret"
-	_ "yunion.io/x/yunion-kube/pkg/k8smodels/drivers/storageclass"
+	k8sdispatcher "yunion.io/x/yunion-kube/pkg/k8s/dispatcher"
+	"yunion.io/x/yunion-kube/pkg/models"
 	_ "yunion.io/x/yunion-kube/pkg/models/drivers/release"
+	_ "yunion.io/x/yunion-kube/pkg/models/drivers/secret"
+	_ "yunion.io/x/yunion-kube/pkg/models/drivers/storageclass"
 	"yunion.io/x/yunion-kube/pkg/usages"
 )
 
@@ -36,10 +34,6 @@ func InitHandlers(app *appsrv.Application) {
 		db.TenantCacheManager,
 		db.SharedResourceManager,
 		db.Metadata,
-
-		// only register this k8s model manager, not provides http handler
-		models.NodeManager,
-		models.PodManager,
 	} {
 		db.RegisterModelManager(man)
 	}
@@ -51,8 +45,41 @@ func InitHandlers(app *appsrv.Application) {
 		models.X509KeyPairManager,
 		models.ComponentManager,
 		models.MachineManager,
-		models.NamespaceManager,
-		models.ReleaseManager,
+
+		// k8s cluster resource manager
+		models.GetNodeManager(),
+		models.GetNamespaceManager(),
+		models.GetStorageClassManager(),
+		models.GetClusterRoleManager(),
+		models.GetClusterRoleBindingManager(),
+		models.GetPVManager(),
+
+		// k8s namespace resource manager
+		models.GetPVCManager(),
+		models.GetLimitRangeManager(),
+		models.GetResourceQuotaManager(),
+		models.GetRoleManager(),
+		models.GetRoleBindingManager(),
+		models.GetServiceManager(),
+		models.GetIngressManager(),
+		models.GetDeploymentManager(),
+		models.GetStatefulSetManager(),
+		models.GetDaemonSetManager(),
+		models.GetReplicaSetManager(),
+		models.GetJobManager(),
+		models.GetCronJobManager(),
+		models.GetPodManager(),
+		models.ServiceAccountManager,
+		models.GetSecretManager(),
+		models.GetConfigMapManager(),
+		models.GetReleaseManager(),
+
+		// federated resources
+		models.GetFedNamespaceManager(),
+		models.GetFedClusterRoleManager(),
+		models.GetFedClusterRoleBindingManager(),
+		models.GetFedRoleManager(),
+		models.GetFedRoleBindingManager(),
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewModelHandler(man)
@@ -62,63 +89,32 @@ func InitHandlers(app *appsrv.Application) {
 	for _, man := range []db.IJointModelManager{
 		models.ClusterX509KeyPairManager,
 		models.ClusterComponentManager,
+
+		// federated joint resources
+		models.FedNamespaceClusterManager,
+		models.FedClusterRoleClusterManager,
+		models.FedClusterRoleBindingClusterManager,
+		models.FedRoleClusterManager,
+		models.FedRoleBindingClusterManager,
 	} {
 		db.RegisterModelManager(man)
 		handler := db.NewJointModelHandler(man)
 		dispatcher.AddJointModelDispatcher(apiPrefix, app, handler)
 	}
 
-	// register model manager
-	for _, man := range []model.IK8SModelManager{} {
-		model.RegisterModelManager(man)
-	}
-
-	// v2 dispatcher
+	// k8s directly resource dispatcher
 	v2Dispatcher := k8sdispatcher.NewK8sModelDispatcher(apiPrefix, app)
-	for _, man := range []model.IK8SModelManager{
-		k8smodels.NodeManager,
-		//k8smodels.NamespaceManager,
-		k8smodels.LimitRangeManager,
-		k8smodels.ResourceQuotaManager,
-		k8smodels.PodManager,
-		k8smodels.JobManager,
-		k8smodels.CronJobManager,
-		k8smodels.ServiceManager,
-		k8smodels.IngressManager,
-		k8smodels.DeploymentManager,
-		k8smodels.StatefulSetManager,
-		k8smodels.DaemonSetManager,
-		k8smodels.SecretManager,
-		k8smodels.ConfigMapManager,
-		k8smodels.StorageClassManager,
-		k8smodels.PVManager,
-		k8smodels.PVCManager,
-		k8smodels.ClusterRoleManager,
-		k8smodels.ClusterRoleBindingManager,
-		k8smodels.RoleManager,
-		k8smodels.RoleBindingManager,
-		k8smodels.ServiceAccountManager,
-		k8smodels.EventManager,
+	for _, man := range []model.IK8sModelManager{
+		models.GetEventManager(),
+
 		// onecloud service operator resource manager
-		k8smodels.VirtualMachineManager,
-		k8smodels.AnsiblePlaybookManager,
-		k8smodels.AnsiblePlaybookTemplateManager,
+		models.GetVirtualMachineManager(),
+		models.GetAnsiblePlaybookManager(),
+		models.GetAnsiblePlaybookTemplateManager(),
 	} {
-		model.RegisterModelManager(man)
 		handler := model.NewK8SModelHandler(man)
 		log.Infof("Dispatcher register k8s resource manager %q", man.KeywordPlural())
 		v2Dispatcher.Add(handler)
-	}
-
-	helmAppPrefix := fmt.Sprintf("%s/releaseapps", apiPrefix)
-
-	for _, man := range []k8s.IK8sResourceManager{
-		//meter.MeterAppManager,
-		//servicetree.ServicetreeAppManager,
-		//notify.NotifyAppManager,
-	} {
-		handler := k8s.NewK8sResourceHandler(man)
-		k8s.AddResourceDispatcher(helmAppPrefix, app, handler)
 	}
 
 	k8s.AddHelmDispatcher(apiPrefix, app)

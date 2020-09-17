@@ -37,6 +37,7 @@ type IRepo interface {
 }
 
 type IRelease interface {
+	Get() *action.Get
 	List() *action.List
 	Create(*api.ReleaseCreateInput) (*release.Release, error)
 	Update(*api.ReleaseUpdateInput) (*release.Release, error)
@@ -107,6 +108,10 @@ type releaseClient struct {
 	client      *Client
 	repoClient  *RepoClient
 	chartClient *ChartClient
+}
+
+func (r releaseClient) Get() *action.Get {
+	return action.NewGet(r.client.GetConfig())
 }
 
 func (r releaseClient) List() *action.List {

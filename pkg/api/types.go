@@ -36,8 +36,8 @@ const (
 	KindNameResourceQuota           KindName = "ResourceQuota"
 
 	// onecloud service operator native kind
-	KindNameVirtualMachine KindName = "VirtualMachine"
-	KindNameAnsiblePlaybook KindName = "AnsiblePlaybook"
+	KindNameVirtualMachine          KindName = "VirtualMachine"
+	KindNameAnsiblePlaybook         KindName = "AnsiblePlaybook"
 	KindNameAnsiblePlaybookTemplate KindName = "AnsiblePlaybookTemplate"
 )
 
@@ -71,8 +71,8 @@ const (
 	ResourceNameResourceQuota           string = "resourcequotas"
 
 	// onecloud service operator resource
-	ResourceNameVirtualMachine  string = "virtualmachines"
-	ResourceNameAnsiblePlaybook string = "ansibleplaybooks"
+	ResourceNameVirtualMachine          string = "virtualmachines"
+	ResourceNameAnsiblePlaybook         string = "ansibleplaybooks"
 	ResourceNameAnsiblePlaybookTemplate string = "ansibleplaybooktemplates"
 )
 
@@ -120,15 +120,12 @@ func NewClusterMeta(cluster ICluster) *ClusterMeta {
 	return &ClusterMeta{
 		Cluster:   cluster.GetName(),
 		ClusterId: cluster.GetId(),
-		TenantId:  cluster.GetProjectId(),
-		ProjectId: cluster.GetProjectId(),
 	}
 }
 
 type ICluster interface {
 	GetId() string
 	GetName() string
-	GetProjectId() string
 }
 
 // NewObjectMeta returns internal endpoint name for the given service properties, e.g.,
@@ -151,9 +148,6 @@ type K8SBaseResource struct {
 
 // Event is a single event representation.
 type Event struct {
-	// Deprecated, for compatible, should be delete after v3.2
-	DepObjectMeta ObjectMeta `json:"objectMeta"`
-
 	ObjectMeta
 	TypeMeta
 

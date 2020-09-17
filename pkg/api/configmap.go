@@ -17,7 +17,7 @@ type ConfigMapDetail struct {
 }
 
 type ConfigMapCreateInput struct {
-	K8sNamespaceResourceCreateInput
+	NamespaceResourceCreateInput
 	// required: true
 	// Data contains the configuration data.
 	// Each key must be a valid DNS_SUBDOMAIN with an optional leading dot.
