@@ -183,10 +183,11 @@ func (m *SReleaseManager) FetchCustomizeColumns(
 	return m.SNamespaceResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 }
 
-func (rls *SRelease) GetDetails(cli *client.ClusterManager, base interface{}, _ runtime.Object, isList bool) interface{} {
+func (rls *SRelease) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
+	nsDetail := rls.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail)
 	detail := api.ReleaseDetailV2{
 		ReleaseV2: api.ReleaseV2{
-			NamespaceResourceDetail: base.(api.NamespaceResourceDetail),
+			NamespaceResourceDetail: nsDetail,
 		},
 	}
 	detail, err := rls.fillReleaseDetail(detail, isList)
@@ -305,11 +306,6 @@ func (r *SRelease) CustomizeCreate(ctx context.Context, userCred mcclient.TokenC
 		return errors.Wrap(err, "customize create get driver")
 	}
 	return drv.CustomizeCreate(ctx, userCred, ownerId, r, input)
-}
-
-func (r *SRelease) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
-	r.SNamespaceResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
-	r.StartCreateTask(r, ctx, userCred, ownerId, data.(*jsonutils.JSONDict), "")
 }
 
 func (m *SReleaseManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
@@ -538,17 +534,21 @@ func (m *SReleaseManager) NewFromRemoteObject(
 	return dbObj.(IClusterModel), nil
 }
 
+func (m *SReleaseManager) FilterBySystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
+	q = m.SStatusDomainLevelResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
+	// TODO: filter by type
+	// input := new(api.ReleaseListInputV2)
+	// query.Unmarshal(input)
+	return q
+}
+
 func (m *SReleaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject, scope rbacutils.TRbacScope) *sqlchemy.SQuery {
 	q = m.SStatusDomainLevelResourceBaseManager.FilterBySystemAttributes(q, userCred, query, scope)
 	return q
-	//input := new(api.ReleaseListInputV2)
-
-	//nsQ := NamespaceManager.Query("id")
-	//nsSq := nsQ.Equals("name", userCred.GetProjectId())
 }
 
 func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ReleaseListInputV2) (*sqlchemy.SQuery, error) {
-	q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
+	/*q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
 	if err != nil {
 		return nil, err
 	}
@@ -560,7 +560,7 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 			cond = sqlchemy.OR(cond, sqlchemy.IsNullOrEmpty(q.Field("repo_id")))
 		}
 		q.Filter(cond)
-	}
+	}*/
 	return q, nil
 }
 
