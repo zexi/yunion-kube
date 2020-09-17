@@ -121,16 +121,13 @@ func (obj *SPVC) GetMountPodNames(cli *client.ClusterManager, pvc *v1.Persistent
 
 func (obj *SPVC) GetDetails(cli *client.ClusterManager, base interface{}, k8sObj runtime.Object, isList bool) interface{} {
 	pvc := k8sObj.(*v1.PersistentVolumeClaim)
-	detail := api.PersistentVolumeClaimDetailV2{
+	detail := api.PersistentVolumeClaimDetail{
 		NamespaceResourceDetail: obj.SNamespaceResourceBase.GetDetails(cli, base, k8sObj, isList).(api.NamespaceResourceDetail),
 		Status:                  string(pvc.Status.Phase),
 		Volume:                  pvc.Spec.VolumeName,
 		Capacity:                pvc.Status.Capacity,
 		AccessModes:             pvc.Spec.AccessModes,
 		StorageClass:            pvc.Spec.StorageClassName,
-	}
-	if isList {
-		return detail
 	}
 	if podNames, err := obj.GetMountPodNames(cli, pvc); err != nil {
 		log.Errorf("get mount pods error: %v", err)
