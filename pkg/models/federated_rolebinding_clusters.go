@@ -50,7 +50,7 @@ func (obj *SFedRoleBindingCluster) Detach(ctx context.Context, userCred mcclient
 }
 
 func (obj *SFedRoleBindingCluster) GetFedRoleBinding() (*SFedRoleBinding, error) {
-	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
+	fedObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, err
 	}

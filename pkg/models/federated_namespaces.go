@@ -104,7 +104,7 @@ func (obj *SFedNamespace) ValidateDeleteCondition(ctx context.Context) error {
 		return err
 	}
 	fedNsMans := GetFedJointNamespaceScopeManager()
-	fedApi := GetFedDBAPI().JointDBAPI().NamespaceScope()
+	fedApi := GetFedResAPI().JointResAPI().NamespaceScope()
 	for _, m := range fedNsMans {
 		objs, err := fedApi.FetchModelsByFednamespace(m, obj.GetId())
 		if err != nil {

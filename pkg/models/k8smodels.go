@@ -57,6 +57,15 @@ func GetK8sResourceManagerByKind(kindName string) manager.IK8sResourceManager {
 	return nil
 }
 
+func GetK8sModelManagerByKind(kindName string) model.IK8sModelManager {
+	for rsInfo, man := range globalK8sModelManagers {
+		if rsInfo.KindName == kindName {
+			return man.(model.IK8sModelManager)
+		}
+	}
+	return nil
+}
+
 func newModelManager(factory func() db.IModelManager) db.IModelManager {
 	man := factory()
 	man.SetVirtualObject(man)

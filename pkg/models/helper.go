@@ -169,12 +169,11 @@ func GetReleaseResources(
 	ret := make(map[string][]interface{})
 	ress.Visit(func(info *resource.Info, err error) error {
 		gvk := info.Object.GetObjectKind().GroupVersionKind()
-		oman := model.GetK8sModelManagerByKind(gvk.Kind)
-		if oman == nil {
+		man := GetK8sModelManagerByKind(gvk.Kind)
+		if man == nil {
 			log.Warningf("not fond %s manager", gvk.Kind)
 			return nil
 		}
-		man := oman.(model.IK8sModelManager)
 		obj := info.Object.(*unstructured.Unstructured)
 		objGVK := obj.GroupVersionKind()
 		keyword := man.Keyword()

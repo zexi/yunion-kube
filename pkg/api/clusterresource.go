@@ -15,6 +15,8 @@ const (
 	ClusterResourceStatusUpdateFail = "update_fail"
 	ClusterResourceStatusDeleting   = "deleting"
 	ClusterResourceStatusDeleteFail = "delete_fail"
+	ClusterResourceStatusSyncing    = "syncing"
+	ClusterResourceStatusSyncFail   = "sync_fail"
 )
 
 type ClusterResourceCreateInput struct {

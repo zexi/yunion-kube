@@ -58,7 +58,7 @@ func (obj *SFedClusterRoleBindingCluster) Detach(ctx context.Context, userCred m
 }
 
 func (obj *SFedClusterRoleBindingCluster) GetFedClusterRoleBinding() (*SFedClusterRoleBinding, error) {
-	fObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
+	fObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated clusterrolebinding")
 	}
