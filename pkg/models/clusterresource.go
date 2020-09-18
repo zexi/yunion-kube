@@ -107,6 +107,8 @@ type IClusterModelManager interface {
 type IClusterModel interface {
 	db.IStatusDomainLevelModel
 
+	// LogPrefix return db object log short prefix string
+	LogPrefix() string
 	GetExternalId() string
 	SetExternalId(idStr string)
 
@@ -123,8 +125,11 @@ type IClusterModel interface {
 	GetDetails(cli *client.ClusterManager, baseDetails interface{}, k8sObj runtime.Object, isList bool) interface{}
 
 	// RemoteObject operator interfaces
+	// GetRemoteObject get remote object from cluster
 	GetRemoteObject() (interface{}, error)
+	// UpdateRemoteObject update remote object inside cluster
 	UpdateRemoteObject(remoteObj interface{}) (interface{}, error)
+	// DeleteRemoteObject delete remote object inside cluster
 	DeleteRemoteObject() error
 }
 
@@ -572,10 +577,10 @@ func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCred
 
 	status := dbObj.GetStatus()
 	if strings.HasSuffix(status, "_fail") || strings.HasSuffix(status, "_failed") {
-		log.Warningf("object %s/%s status is %s, skip deleted it", dbObj.Keyword(), dbObj.GetName(), dbObj.GetStatus())
+		log.Warningf("object %s status is %s, skip deleted it", dbObj.LogPrefix(), dbObj.GetStatus())
 		return nil
 	}
-	log.Errorf("++++try delete model %s/%s", dbObj.Keyword(), dbObj.GetName())
+	log.Errorf("++++try delete model %s", dbObj.LogPrefix())
 	if err := dbObj.RealDelete(ctx, userCred); err != nil {
 		return errors.Wrapf(err, "SyncRemovedClusterResource ")
 	}
@@ -609,18 +614,17 @@ func SyncUpdatedClusterResource(
 	dbObj IClusterModel, extObj interface{}) error {
 	diff, err := db.UpdateWithLock(ctx, dbObj, func() error {
 		if err := dbObj.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
-			return err
+			return errors.Wrap(err, "UpdateFromRemoteObject")
 		}
 		cls, err := dbObj.GetCluster()
 		if err != nil {
-			return err
+			return errors.Wrap(err, "GetCluster")
 		}
 		dbObj.SetExternalId(man.GetRemoteObjectGlobalId(cls, extObj))
 		return nil
 	})
 	if err != nil {
-		log.Errorf("Update from remote object error: %v", err)
-		return err
+		return errors.Wrapf(err, "Update from remote object error")
 	}
 	db.OpsLog.LogSyncUpdate(dbObj, diff, userCred)
 	return nil
@@ -1007,20 +1011,18 @@ func (m *SClusterResourceBaseManager) CreateRemoteObject(_ IClusterModel, cli *c
 }
 
 func DeleteRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, man IClusterModelManager, model IClusterModel, data jsonutils.JSONObject) error {
-	/*
-	 * cli, err := model.GetClusterClient()
-	 * if err != nil {
-	 *     return errors.Wrap(err, "get cluster client")
-	 * }
-	 * if err := model.DeleteRemoteObject(cli); err != nil {
-	 *     return errors.Wrap(err, "DeleteRemoteObject")
-	 * }
-	 */
+	if err := model.DeleteRemoteObject(); err != nil {
+		return errors.Wrap(err, "DeleteRemoteObject")
+	}
 	return nil
 }
 
 func (m *SClusterResourceBaseManager) GetClusterModelManager() IClusterModelManager {
 	return m.GetIModelManager().(IClusterModelManager)
+}
+
+func (obj *SClusterResourceBase) LogPrefix() string {
+	return fmt.Sprintf("cluster %s %s %s(%s)", obj.ClusterId, obj.Keyword(), obj.GetName(), obj.GetId())
 }
 
 func (obj *SClusterResourceBase) GetClusterModelManager() IClusterModelManager {
@@ -1124,39 +1126,57 @@ func (_ *SClusterResourceBase) StartDeleteTask(resObj IClusterModel, ctx context
 
 // OnRemoteObjectCreate invoked when remote object created
 func (m *SClusterResourceBaseManager) OnRemoteObjectCreate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, obj runtime.Object) {
-	processCreateOrUpdateByRemoteObject(ctx, userCred, cluster, resMan.(IClusterModelManager), obj)
+	// log.Debugf("Remote object create: %s", m.kObjLogPrefix(cluster, obj))
+	if err := processCreateOrUpdateByRemoteObject(ctx, userCred, cluster, resMan.(IClusterModelManager), obj); err != nil {
+		log.Errorf("OnRemoteObjectCreate %s error: %v", m.kObjLogPrefix(cluster, obj), err)
+	}
 }
 
 // OnRemoteObjectUpdate invoked when remote resource updated
 func (m *SClusterResourceBaseManager) OnRemoteObjectUpdate(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, _, newObj runtime.Object) {
-	processCreateOrUpdateByRemoteObject(ctx, userCred, cluster, resMan.(IClusterModelManager), newObj)
+	// log.Debugf("Remote object update: %s", m.kObjLogPrefix(cluster, newObj))
+	if err := processCreateOrUpdateByRemoteObject(ctx, userCred, cluster, resMan.(IClusterModelManager), newObj); err != nil {
+		log.Errorf("OnRemoteObjectUpdate %s error: %v", m.kObjLogPrefix(cluster, newObj), err)
+	}
 }
 
-func processCreateOrUpdateByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan IClusterModelManager, obj runtime.Object) {
+// OnRemoteObjectDelete invoked when remote resource deleted
+func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, obj runtime.Object) {
+	// log.Debugf("Remote object delete: %s", m.kObjLogPrefix(cluster, obj))
+	if err := processRemoteObjectDelete(ctx, userCred, cluster, resMan.(IClusterModelManager), obj); err != nil {
+		log.Errorf("processRemoteObjectDelete %s error: %v", m.kObjLogPrefix(cluster, obj), err)
+	}
+}
+
+func processCreateOrUpdateByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan IClusterModelManager, obj runtime.Object) error {
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
 	dbObj, exist, err := resMan.IsRemoteObjectLocalExist(userCred, cluster.(*SCluster), obj)
 	if err != nil {
-		log.Errorf("Create or update by cluster %s remote object %s/%s/%s error: %v", cluster.GetName(), resMan.Keyword(), metaObj.GetNamespace(), objName, err)
-		return
+		log.Errorf("Create or update by cluster %q remote object %s/%s/%s error: %v", cluster.GetName(), resMan.Keyword(), metaObj.GetNamespace(), objName, err)
+		return errors.Wrap(err, "check remote object is local exist")
 	}
 
 	if exist {
 		lockman.LockObject(ctx, dbObj)
 		defer lockman.ReleaseObject(ctx, dbObj)
 
-		OnRemoteObjectUpdate(resMan, ctx, userCred, dbObj, obj)
-		return
+		if err := onRemoteObjectUpdate(resMan, ctx, userCred, dbObj, obj); err != nil {
+			return errors.Wrap(err, "call onRemoteObjectUpdate")
+		}
+		return nil
 	} else {
 		lockman.LockClass(ctx, resMan, db.GetLockClassKey(resMan, userCred))
 		defer lockman.ReleaseClass(ctx, resMan, db.GetLockClassKey(resMan, userCred))
 
-		OnRemoteObjectCreate(resMan, ctx, userCred, cluster, obj)
-		return
+		if err := onRemoteObjectCreate(resMan, ctx, userCred, cluster, obj); err != nil {
+			return errors.Wrap(err, "call onRemoteObjectCreate")
+		}
+		return nil
 	}
 }
 
-func processRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan IClusterModelManager, obj runtime.Object) {
+func processRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan IClusterModelManager, obj runtime.Object) error {
 	metaObj := obj.(metav1.Object)
 	objName := metaObj.GetName()
 	objNamespace := metaObj.GetNamespace()
@@ -1165,8 +1185,7 @@ func processRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCrede
 	if isNamespace {
 		dbNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), objNamespace)
 		if err != nil {
-			log.Errorf("OnRemoteObjectDelete for cluster %s %s get namespace error: %v", cluster.GetName(), resMan.Keyword(), err)
-			return
+			return errors.Wrapf(err, "OnRemoteObjectDelete for cluster %s %s get namespace", cluster.GetName(), resMan.Keyword())
 		}
 		dbNsId = dbNs.GetId()
 	}
@@ -1175,57 +1194,47 @@ func processRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCrede
 	if err != nil {
 		if errors.Cause(err) == sql.ErrNoRows {
 			// local object already deleted
-			return
+			return nil
 		}
-		log.Errorf("OnRemoteObjectDelete get cluster %s %s local object %s/%s error: %v", cluster.GetName(), resMan.Keyword(), dbNsId, objName, err)
-		return
+		return errors.Wrapf(err, "FetchClusterResourceByName cluster %s %s %s/%s", cluster.GetName(), resMan.Keyword(), dbNsId, objName)
 	}
 
 	lockman.LockObject(ctx, dbObj)
 	defer lockman.ReleaseObject(ctx, dbObj)
 
-	OnRemoteObjectDelete(resMan, ctx, userCred, dbObj)
+	return OnRemoteObjectDelete(resMan, ctx, userCred, dbObj)
 }
 
-// OnRemoteObjectDelete invoked when remote resource deleted
-func (m *SClusterResourceBaseManager) OnRemoteObjectDelete(ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, resMan manager.IK8sResourceManager, obj runtime.Object) {
-	processRemoteObjectDelete(ctx, userCred, cluster, resMan.(IClusterModelManager), obj)
+func (m *SClusterResourceBaseManager) kObjLogPrefix(cluster manager.ICluster, obj runtime.Object) string {
+	kind := obj.GetObjectKind().GroupVersionKind().String()
+	kObj := obj.(metav1.Object)
+	return fmt.Sprintf("cluster %s(%s) remote object %s/%s/%s", cluster.GetName(), cluster.GetId(), kind, kObj.GetNamespace(), kObj.GetName())
 }
 
-func OnRemoteObjectCreate(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) {
+func onRemoteObjectCreate(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, cluster manager.ICluster, obj runtime.Object) error {
 	objName := obj.(metav1.Object).GetName()
-	localObj, exist, err := resMan.IsRemoteObjectLocalExist(userCred, cluster.(*SCluster), obj)
-	if err != nil {
-		log.Errorf("check IsRemoteObjectLocalExist when create error: %v", err)
-		return
+	// create localObj
+	log.Debugf("cluster %s remote object %s/%s created, sync to local", cluster.GetName(), resMan.Keyword(), objName)
+	if _, err := NewFromRemoteObject(ctx, userCred, resMan, cluster.(*SCluster), obj); err != nil {
+		return errors.Wrapf(err, "NewFromRemoteObject for %s", resMan.Keyword())
 	}
-	if exist {
-		// update localObj is already exists
-		OnRemoteObjectUpdate(resMan, ctx, userCred, localObj, obj)
-	} else {
-		// create localObj
-		log.Debugf("cluster %s remote object %s/%s created, sync to local", cluster.GetName(), resMan.Keyword(), objName)
-		if _, err := NewFromRemoteObject(ctx, userCred, resMan, cluster.(*SCluster), obj); err != nil {
-			log.Errorf("NewFromRemoteObject for %s error: %v", resMan.Keyword(), err)
-			return
-		}
-	}
+	return nil
 }
 
-func OnRemoteObjectUpdate(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, dbObj IClusterModel, newObj runtime.Object) {
-	log.Debugf("remote object %s/%s update, sync to local", resMan.Keyword(), dbObj.GetName())
+func onRemoteObjectUpdate(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, dbObj IClusterModel, newObj runtime.Object) error {
+	// log.Debugf("remote object %s/%s update, sync to local", resMan.Keyword(), dbObj.GetName())
 	if err := SyncUpdatedClusterResource(ctx, userCred, resMan, dbObj, newObj); err != nil {
-		log.Errorf("OnRemoteObjectUpdate SyncUpdatedClusterResource %s %s error: %v", resMan.Keyword(), dbObj.GetName(), err)
-		return
+		return errors.Wrapf(err, "onRemoteObjectUpdate SyncUpdatedClusterResource %s %s", resMan.Keyword(), dbObj.GetName())
 	}
+	return nil
 }
 
-func OnRemoteObjectDelete(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, dbObj IClusterModel) {
-	log.Infof("remote object %s/%s deleted, delete local", resMan.Keyword(), dbObj.GetName())
+func OnRemoteObjectDelete(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, dbObj IClusterModel) error {
+	// log.Debugf("remote object %s/%s deleted, delete local", resMan.Keyword(), dbObj.GetName())
 	if err := SyncRemovedClusterResource(ctx, userCred, dbObj); err != nil {
-		log.Errorf("OnRemoteObjectDelete %s %s SyncRemovedClusterResource error: %v", resMan.Keyword(), dbObj.GetName(), err)
-		return
+		return errors.Wrapf(err, "OnRemoteObjectDelete %s %s SyncRemovedClusterResource error: %v", resMan.Keyword(), dbObj.GetName())
 	}
+	return nil
 }
 
 func GetResourcesByClusters(man IClusterModelManager, clusterIds []string, ret interface{}) error {

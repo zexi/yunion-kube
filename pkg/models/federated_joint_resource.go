@@ -236,11 +236,11 @@ func (m *SFedJointClusterManager) FetchCustomizeColumns(ctx context.Context, use
 		return jRows[0]
 	}
 	ret := make([]interface{}, len(objs))
-	fedApi := GetFedDBAPI()
+	fedApi := GetFedResAPI()
 	for idx := range objs {
 		obj := objs[idx].(IFedJointClusterModel)
 		baseDetail := baseGet(obj)
-		out := fedApi.JointDBAPI().GetDetails(obj, userCred, baseDetail.(apis.JointResourceBaseDetails), isList)
+		out := fedApi.JointResAPI().GetDetails(obj, userCred, baseDetail.(apis.JointResourceBaseDetails), isList)
 		ret[idx] = out
 	}
 	return ret

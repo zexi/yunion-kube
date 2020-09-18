@@ -59,7 +59,7 @@ func (obj *SFedClusterRoleCluster) Detach(ctx context.Context, userCred mcclient
 }
 
 func (obj *SFedClusterRoleCluster) GetFedClusterRole() (*SFedClusterRole, error) {
-	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
+	fedObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, err
 	}

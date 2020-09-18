@@ -17,24 +17,24 @@ import (
 )
 
 var (
-	fedDBAPI IFedDBAPI
+	fedResAPI IFedResAPI
 )
 
 func init() {
-	GetFedDBAPI()
+	GetFedResAPI()
 }
 
-func GetFedDBAPI() IFedDBAPI {
-	if fedDBAPI == nil {
-		fedDBAPI = newFedDBAPI()
+func GetFedResAPI() IFedResAPI {
+	if fedResAPI == nil {
+		fedResAPI = newFedResAPI()
 	}
-	return fedDBAPI
+	return fedResAPI
 }
 
-type IFedDBAPI interface {
-	ClusterScope() IFedClusterDBAPI
-	NamespaceScope() IFedNamespaceDBAPI
-	JointDBAPI() IFedJointDBAPI
+type IFedResAPI interface {
+	ClusterScope() IFedClusterResAPI
+	NamespaceScope() IFedNamespaceResAPI
+	JointResAPI() IFedJointResAPI
 
 	// IsAttach2Cluster check federated object is attach to specified cluster
 	IsAttach2Cluster(obj IFedModel, clusterId string) (bool, error)
@@ -46,36 +46,36 @@ type IFedDBAPI interface {
 	PerformDetachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error
 }
 
-type sFedDBAPI struct {
-	clusterScope   IFedClusterDBAPI
-	namespaceScope IFedNamespaceDBAPI
-	jointDBAPI     IFedJointDBAPI
+type sFedResAPI struct {
+	clusterScope   IFedClusterResAPI
+	namespaceScope IFedNamespaceResAPI
+	jointResAPI    IFedJointResAPI
 }
 
-func newFedDBAPI() IFedDBAPI {
-	a := new(sFedDBAPI)
-	clusterScope := newFedClusterDBAPI()
-	namespaceScope := newFedNamespaceDBAPI()
-	jointDBAPI := newFedJointDBAPI()
+func newFedResAPI() IFedResAPI {
+	a := new(sFedResAPI)
+	clusterScope := newFedClusterResAPI()
+	namespaceScope := newFedNamespaceResAPI()
+	jointResAPI := newFedJointResAPI()
 	a.clusterScope = clusterScope
 	a.namespaceScope = namespaceScope
-	a.jointDBAPI = jointDBAPI
+	a.jointResAPI = jointResAPI
 	return a
 }
 
-func (a sFedDBAPI) ClusterScope() IFedClusterDBAPI {
+func (a sFedResAPI) ClusterScope() IFedClusterResAPI {
 	return a.clusterScope
 }
 
-func (a sFedDBAPI) NamespaceScope() IFedNamespaceDBAPI {
+func (a sFedResAPI) NamespaceScope() IFedNamespaceResAPI {
 	return a.namespaceScope
 }
 
-func (a sFedDBAPI) JointDBAPI() IFedJointDBAPI {
-	return a.jointDBAPI
+func (a sFedResAPI) JointResAPI() IFedJointResAPI {
+	return a.jointResAPI
 }
 
-func (a sFedDBAPI) GetJointModel(obj IFedModel, clusterId string) (IFedJointClusterModel, error) {
+func (a sFedResAPI) GetJointModel(obj IFedModel, clusterId string) (IFedJointClusterModel, error) {
 	jMan := obj.GetJointModelManager()
 	jObj, err := GetFederatedJointClusterModel(jMan, obj.GetId(), clusterId)
 	if err != nil && errors.Cause(err) != sql.ErrNoRows {
@@ -84,7 +84,7 @@ func (a sFedDBAPI) GetJointModel(obj IFedModel, clusterId string) (IFedJointClus
 	return jObj, nil
 }
 
-func (a sFedDBAPI) IsAttach2Cluster(obj IFedModel, clusterId string) (bool, error) {
+func (a sFedResAPI) IsAttach2Cluster(obj IFedModel, clusterId string) (bool, error) {
 	jObj, err := a.GetJointModel(obj, clusterId)
 	if err != nil {
 		return false, err
@@ -92,7 +92,7 @@ func (a sFedDBAPI) IsAttach2Cluster(obj IFedModel, clusterId string) (bool, erro
 	return jObj != nil, nil
 }
 
-func (a sFedDBAPI) PerformSyncCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
+func (a sFedResAPI) PerformSyncCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
 	jObj, data, err := obj.ValidateJointCluster(userCred, data)
 	if err != nil {
 		return err
@@ -100,11 +100,11 @@ func (a sFedDBAPI) PerformSyncCluster(obj IFedModel, ctx context.Context, userCr
 	return a.performSyncCluster(jObj, ctx, userCred)
 }
 
-func (a sFedDBAPI) performSyncCluster(jObj IFedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
-	return a.jointDBAPI.ReconcileResource(jObj, ctx, userCred)
+func (a sFedResAPI) performSyncCluster(jObj IFedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
+	return a.jointResAPI.ReconcileResource(jObj, ctx, userCred)
 }
 
-func (a sFedDBAPI) PerformAttachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFedJointClusterModel, error) {
+func (a sFedResAPI) PerformAttachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFedJointClusterModel, error) {
 	data, err := obj.ValidateAttachCluster(ctx, userCred, data)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (a sFedDBAPI) PerformAttachCluster(obj IFedModel, ctx context.Context, user
 	return jObj, err
 }
 
-func (a sFedDBAPI) attachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFedJointClusterModel, error) {
+func (a sFedResAPI) attachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFedJointClusterModel, error) {
 	defer lockman.ReleaseObject(ctx, obj)
 	lockman.LockObject(ctx, obj)
 
@@ -157,7 +157,7 @@ func (a sFedDBAPI) attachCluster(obj IFedModel, ctx context.Context, userCred mc
 	return jointModel.(IFedJointClusterModel), nil
 }
 
-func (a sFedDBAPI) PerformDetachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
+func (a sFedResAPI) PerformDetachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
 	data, err := obj.ValidateDetachCluster(ctx, userCred, data)
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func (a sFedDBAPI) PerformDetachCluster(obj IFedModel, ctx context.Context, user
 	return a.detachCluster(obj, ctx, userCred, clusterId)
 }
 
-func (a sFedDBAPI) detachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) error {
+func (a sFedResAPI) detachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) error {
 	defer lockman.ReleaseObject(ctx, obj)
 	lockman.LockObject(ctx, obj)
 
@@ -187,26 +187,26 @@ func (a sFedDBAPI) detachCluster(obj IFedModel, ctx context.Context, userCred mc
 	return jointModel.Detach(ctx, userCred)
 }
 
-type IFedClusterDBAPI interface {
+type IFedClusterResAPI interface {
 }
 
-type sFedClusterDBAPI struct{}
+type sFedClusterResAPI struct{}
 
-func newFedClusterDBAPI() IFedClusterDBAPI {
-	return &sFedClusterDBAPI{}
+func newFedClusterResAPI() IFedClusterResAPI {
+	return &sFedClusterResAPI{}
 }
 
-type IFedNamespaceDBAPI interface{}
+type IFedNamespaceResAPI interface{}
 
-type sFedNamespaceDBAPI struct{}
+type sFedNamespaceResAPI struct{}
 
-func newFedNamespaceDBAPI() IFedNamespaceDBAPI {
-	return &sFedNamespaceDBAPI{}
+func newFedNamespaceResAPI() IFedNamespaceResAPI {
+	return &sFedNamespaceResAPI{}
 }
 
-type IFedJointDBAPI interface {
-	ClusterScope() IFedJointClusterDBAPI
-	NamespaceScope() IFedNamespaceJointClusterDBAPI
+type IFedJointResAPI interface {
+	ClusterScope() IFedJointClusterResAPI
+	NamespaceScope() IFedNamespaceJointClusterResAPI
 
 	// IsResourceExist check joint federated object's resource whether exists in target cluster
 	IsResourceExist(jObj IFedJointClusterModel, userCred mcclient.TokenCredential) (IClusterModel, bool, error)
@@ -222,38 +222,38 @@ type IFedJointDBAPI interface {
 	GetDetails(jObj IFedJointClusterModel, userCred mcclient.TokenCredential, base apis.JointResourceBaseDetails, isList bool) interface{}
 }
 
-type sFedJointDBAPI struct {
-	clusterScope   IFedJointClusterDBAPI
-	namespaceScope IFedNamespaceJointClusterDBAPI
+type sFedJointResAPI struct {
+	clusterScope   IFedJointClusterResAPI
+	namespaceScope IFedNamespaceJointClusterResAPI
 }
 
-func newFedJointDBAPI() IFedJointDBAPI {
-	clsScope := newFedJointClusterDBAPI()
-	a := new(sFedJointDBAPI)
+func newFedJointResAPI() IFedJointResAPI {
+	clsScope := newFedJointClusterResAPI()
+	a := new(sFedJointResAPI)
 	a.clusterScope = clsScope
-	a.namespaceScope = newFedNamespaceJointClusterDBAPI(a)
+	a.namespaceScope = newFedNamespaceJointClusterResAPI(a)
 	return a
 }
 
-func (a sFedJointDBAPI) ClusterScope() IFedJointClusterDBAPI {
+func (a sFedJointResAPI) ClusterScope() IFedJointClusterResAPI {
 	return a.clusterScope
 }
 
-func (a sFedJointDBAPI) NamespaceScope() IFedNamespaceJointClusterDBAPI {
+func (a sFedJointResAPI) NamespaceScope() IFedNamespaceJointClusterResAPI {
 	return a.namespaceScope
 }
 
-func (a sFedJointDBAPI) IsNamespaceScope(jObj IFedJointClusterModel) bool {
+func (a sFedJointResAPI) IsNamespaceScope(jObj IFedJointClusterModel) bool {
 	return jObj.GetResourceManager().IsNamespaceScope()
 }
 
-func (a sFedJointDBAPI) FetchResourceModel(jObj IFedJointClusterModel) (IClusterModel, error) {
+func (a sFedJointResAPI) FetchResourceModel(jObj IFedJointClusterModel) (IClusterModel, error) {
 	man := jObj.GetResourceManager()
 	// namespace scope resource should also fetched by resourceId
 	return FetchClusterResourceById(man, jObj.GetClusterId(), "", jObj.GetResourceId())
 }
 
-func (a sFedJointDBAPI) GetDetails(jObj IFedJointClusterModel, userCred mcclient.TokenCredential, base apis.JointResourceBaseDetails, isList bool) interface{} {
+func (a sFedJointResAPI) GetDetails(jObj IFedJointClusterModel, userCred mcclient.TokenCredential, base apis.JointResourceBaseDetails, isList bool) interface{} {
 	out := api.FedJointClusterResourceDetails{
 		JointResourceBaseDetails: base,
 	}
@@ -288,7 +288,7 @@ func (a sFedJointDBAPI) GetDetails(jObj IFedJointClusterModel, userCred mcclient
 	return out
 }
 
-func (a sFedJointDBAPI) FetchResourceModelByName(jObj IFedJointClusterModel, userCred mcclient.TokenCredential) (IClusterModel, error) {
+func (a sFedJointResAPI) FetchResourceModelByName(jObj IFedJointClusterModel, userCred mcclient.TokenCredential) (IClusterModel, error) {
 	cluster, err := jObj.GetCluster()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get %s joint object cluster", jObj.Keyword())
@@ -321,7 +321,7 @@ func (a sFedJointDBAPI) FetchResourceModelByName(jObj IFedJointClusterModel, use
 	return nil, nil
 }
 
-func (a sFedJointDBAPI) IsResourceExist(jObj IFedJointClusterModel, userCred mcclient.TokenCredential) (IClusterModel, bool, error) {
+func (a sFedJointResAPI) IsResourceExist(jObj IFedJointClusterModel, userCred mcclient.TokenCredential) (IClusterModel, bool, error) {
 	if jObj.GetResourceId() == "" {
 		// check cluster related same name resource whether exists
 		resObj, err := a.FetchResourceModelByName(jObj, userCred)
@@ -347,7 +347,7 @@ func (a sFedJointDBAPI) IsResourceExist(jObj IFedJointClusterModel, userCred mcc
 	return resObj, true, nil
 }
 
-func (a sFedJointDBAPI) ReconcileResource(jObj IFedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
+func (a sFedJointResAPI) ReconcileResource(jObj IFedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
 	resObj, exist, err := a.IsResourceExist(jObj, userCred)
 	if err != nil {
 		return errors.Wrapf(err, "Check %s/%s cluster resource %s %s exist", jObj.Keyword(), jObj.GetName(), resObj.Keyword(), resObj.GetName())
@@ -370,7 +370,7 @@ func (a sFedJointDBAPI) ReconcileResource(jObj IFedJointClusterModel, ctx contex
 	return nil
 }
 
-func (a sFedJointDBAPI) createResource(
+func (a sFedJointResAPI) createResource(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	ownerId mcclient.IIdentityProvider,
@@ -409,7 +409,7 @@ func (a sFedJointDBAPI) createResource(
 	return nil
 }
 
-func (a sFedJointDBAPI) updateResource(
+func (a sFedJointResAPI) updateResource(
 	ctx context.Context,
 	userCred mcclient.TokenCredential,
 	jObj IFedJointClusterModel,
@@ -422,7 +422,7 @@ func (a sFedJointDBAPI) updateResource(
 	return nil
 }
 
-func (_ sFedJointDBAPI) FetchFedResourceModel(jObj IFedJointClusterModel) (IFedModel, error) {
+func (_ sFedJointResAPI) FetchFedResourceModel(jObj IFedJointClusterModel) (IFedModel, error) {
 	fedMan := jObj.GetManager().GetFedManager()
 	fObj, err := fedMan.FetchById(jObj.GetFedResourceId())
 	if err != nil {
@@ -431,42 +431,42 @@ func (_ sFedJointDBAPI) FetchFedResourceModel(jObj IFedJointClusterModel) (IFedM
 	return fObj.(IFedModel), nil
 }
 
-type IFedJointClusterDBAPI interface {
+type IFedJointClusterResAPI interface {
 }
 
-type fedJointClusterDBAPI struct{}
+type fedJointClusterResAPI struct{}
 
-func newFedJointClusterDBAPI() IFedJointClusterDBAPI {
-	return &fedJointClusterDBAPI{}
+func newFedJointClusterResAPI() IFedJointClusterResAPI {
+	return &fedJointClusterResAPI{}
 }
 
-type IFedNamespaceJointClusterDBAPI interface {
+type IFedNamespaceJointClusterResAPI interface {
 	FetchFedNamespace(jObj IFedNamespaceJointClusterModel) (*SFedNamespace, error)
 	FetchClusterNamespace(userCred mcclient.TokenCredential, jObj IFedNamespaceJointClusterModel, cluster *SCluster) (*SNamespace, error)
 	FetchModelsByFednamespace(man IFedNamespaceJointClusterManager, fednsId string) ([]IFedNamespaceJointClusterModel, error)
 }
 
-type fedNamespaceJointClusterDBAPI struct {
-	jointDBAPI IFedJointDBAPI
+type fedNamespaceJointClusterResAPI struct {
+	jointResAPI IFedJointResAPI
 }
 
-func newFedNamespaceJointClusterDBAPI(
-	jointDBAPI IFedJointDBAPI,
-) IFedNamespaceJointClusterDBAPI {
-	return &fedNamespaceJointClusterDBAPI{
-		jointDBAPI: jointDBAPI,
+func newFedNamespaceJointClusterResAPI(
+	jointResAPI IFedJointResAPI,
+) IFedNamespaceJointClusterResAPI {
+	return &fedNamespaceJointClusterResAPI{
+		jointResAPI: jointResAPI,
 	}
 }
 
-func (a fedNamespaceJointClusterDBAPI) FetchFedNamespace(jObj IFedNamespaceJointClusterModel) (*SFedNamespace, error) {
-	fedObj, err := a.jointDBAPI.FetchFedResourceModel(jObj)
+func (a fedNamespaceJointClusterResAPI) FetchFedNamespace(jObj IFedNamespaceJointClusterModel) (*SFedNamespace, error) {
+	fedObj, err := a.jointResAPI.FetchFedResourceModel(jObj)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get fed %s obj", jObj.GetModelManager().Keyword())
 	}
 	return fedObj.(IFedNamespaceModel).GetFedNamespace()
 }
 
-func (a fedNamespaceJointClusterDBAPI) FetchClusterNamespace(userCred mcclient.TokenCredential, jObj IFedNamespaceJointClusterModel, cluster *SCluster) (*SNamespace, error) {
+func (a fedNamespaceJointClusterResAPI) FetchClusterNamespace(userCred mcclient.TokenCredential, jObj IFedNamespaceJointClusterModel, cluster *SCluster) (*SNamespace, error) {
 	fedNs, err := a.FetchFedNamespace(jObj)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get %s federatednamespace", jObj.Keyword())
@@ -479,7 +479,7 @@ func (a fedNamespaceJointClusterDBAPI) FetchClusterNamespace(userCred mcclient.T
 	return nsObj.(*SNamespace), nil
 }
 
-func (_ fedNamespaceJointClusterDBAPI) FetchModelsByFednamespace(m IFedNamespaceJointClusterManager, fednsId string) ([]IFedNamespaceJointClusterModel, error) {
+func (_ fedNamespaceJointClusterResAPI) FetchModelsByFednamespace(m IFedNamespaceJointClusterManager, fednsId string) ([]IFedNamespaceJointClusterModel, error) {
 	objs := make([]interface{}, 0)
 	sq := m.GetFedManager().Query("id").Equals("federatednamespace_id", fednsId).SubQuery()
 	q := m.Query().In("federatedresource_id", sq)

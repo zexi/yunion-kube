@@ -50,7 +50,9 @@ func (m *SRepoManager) InitializeData() error {
 		tmpRepo := &r
 		if _, err := db.Update(tmpRepo, func() error {
 			tmpRepo.DomainId = userCred.GetProjectDomainId()
-			tmpRepo.Type = string(api.RepoTypeExternal)
+			if tmpRepo.Type == "" {
+				tmpRepo.Type = string(api.RepoTypeExternal)
+			}
 			return nil
 		}); err != nil {
 			return errors.Wrapf(err, "update empty project repo %s", tmpRepo.GetName())
