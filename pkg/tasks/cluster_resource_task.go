@@ -52,11 +52,23 @@ func (t *ClusterResourceCreateTask) OnInit(ctx context.Context, obj db.IStandalo
 }
 
 func (t *ClusterResourceCreateTask) OnCreateComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
-	t.SetStageComplete(ctx, nil)
+	cAPI := models.GetClusterResAPI()
+	t.SetStage("OnResourceSyncComplete", nil)
+	if err := cAPI.StartResourceSyncTask(obj, ctx, t.UserCred, data.(*jsonutils.JSONDict), t.GetId()); err != nil {
+		t.OnCreateCompleteFailed(ctx, obj, jsonutils.NewString(err.Error()))
+	}
 }
 
 func (t *ClusterResourceCreateTask) OnCreateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusCreateFail, reason.String())
+}
+
+func (t *ClusterResourceCreateTask) OnResourceSyncComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
+	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterResourceCreateTask) OnResourceSyncCompleteFailed(ctx context.Context, obj models.IClusterModel, err jsonutils.JSONObject) {
+	t.SetStageFailed(ctx, err)
 }
 
 type ClusterResourceUpdateTask struct {

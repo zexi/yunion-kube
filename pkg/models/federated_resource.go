@@ -190,7 +190,7 @@ func (obj *SFedResourceBase) PerformSyncCluster(ctx context.Context, userCred mc
 	if err != nil {
 		return nil, err
 	}
-	return nil, GetFedDBAPI().PerformSyncCluster(elemObj, ctx, userCred, data.JSON(data))
+	return nil, GetFedResAPI().PerformSyncCluster(elemObj, ctx, userCred, data.JSON(data))
 }
 
 func (obj *SFedResourceBase) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
@@ -198,7 +198,7 @@ func (obj *SFedResourceBase) PerformAttachCluster(ctx context.Context, userCred 
 	if err != nil {
 		return nil, err
 	}
-	if _, err := GetFedDBAPI().PerformAttachCluster(elemObj, ctx, userCred, data); err != nil {
+	if _, err := GetFedResAPI().PerformAttachCluster(elemObj, ctx, userCred, data); err != nil {
 		return nil, err
 	}
 	return nil, nil
@@ -209,7 +209,7 @@ func (obj *SFedResourceBase) PerformDetachCluster(ctx context.Context, userCred 
 	if err != nil {
 		return nil, err
 	}
-	return nil, GetFedDBAPI().PerformDetachCluster(elemObj, ctx, userCred, data)
+	return nil, GetFedResAPI().PerformDetachCluster(elemObj, ctx, userCred, data)
 }
 
 // TODO: move to api interface

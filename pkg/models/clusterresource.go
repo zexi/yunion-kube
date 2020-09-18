@@ -125,8 +125,11 @@ type IClusterModel interface {
 	GetDetails(cli *client.ClusterManager, baseDetails interface{}, k8sObj runtime.Object, isList bool) interface{}
 
 	// RemoteObject operator interfaces
+	// GetRemoteObject get remote object from cluster
 	GetRemoteObject() (interface{}, error)
+	// UpdateRemoteObject update remote object inside cluster
 	UpdateRemoteObject(remoteObj interface{}) (interface{}, error)
+	// DeleteRemoteObject delete remote object inside cluster
 	DeleteRemoteObject() error
 }
 

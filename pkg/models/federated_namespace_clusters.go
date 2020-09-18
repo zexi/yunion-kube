@@ -62,7 +62,7 @@ func (obj *SFedNamespaceCluster) Detach(ctx context.Context, userCred mcclient.T
 }
 
 func (obj *SFedNamespaceCluster) GetFedNamespace() (*SFedNamespace, error) {
-	fedObj, err := GetFedDBAPI().JointDBAPI().FetchFedResourceModel(obj)
+	fedObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(obj)
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated namespace")
 	}
