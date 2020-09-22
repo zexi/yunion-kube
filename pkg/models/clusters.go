@@ -280,6 +280,10 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 		}
 	}
 	for i := 0; i < 5; i++ {
+		sysCluster, err = GetClusterManager().GetSystemCluster()
+		if err != nil {
+			return errors.Wrap(err, "get system cluster")
+		}
 		if sysCluster.GetStatus() != api.ClusterStatusRunning {
 			log.Warningf("system cluster status %s != running", sysCluster.GetStatus())
 			time.Sleep(5 * time.Second)

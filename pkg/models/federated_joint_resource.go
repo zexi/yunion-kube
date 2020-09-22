@@ -36,7 +36,7 @@ func GetFedJointClusterManager(keyword string) IFedJointClusterManager {
 func GetFedJointNamespaceScopeManager() []IFedNamespaceJointClusterManager {
 	ret := make([]IFedNamespaceJointClusterManager, 0)
 	for _, m := range globalFedJointClusterManagers {
-		if _, ok := m.(IFedNamespaceJointClusterManager); ok {
+		if m.GetResourceManager().IsNamespaceScope() {
 			ret = append(ret, m)
 		}
 	}
