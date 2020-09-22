@@ -102,6 +102,8 @@ type IClusterModelManager interface {
 	CreateRemoteObject(model IClusterModel, cli *client.ClusterManager, remoteObj interface{}) (interface{}, error)
 
 	InitOwnedManager(man IClusterModelManager)
+
+	GetGCQuery() *sqlchemy.SQuery
 }
 
 type IClusterModel interface {
@@ -150,6 +152,12 @@ func (_ SClusterResourceBaseManager) GetOwnerModel(userCred mcclient.TokenCreden
 		return nil, err
 	}
 	return modelObj.(model.IOwnerModel), nil
+}
+
+func (m *SClusterResourceBaseManager) GetGCQuery() *sqlchemy.SQuery {
+	clusterIds := GetClusterManager().Query("id").SubQuery()
+	q := m.Query().NotIn("cluster_id", clusterIds)
+	return q
 }
 
 func (m SClusterResourceBaseManager) IsNamespaceScope() bool {
@@ -565,8 +573,8 @@ func NewFromRemoteObject(
 	if err := man.TableSpec().InsertOrUpdate(ctx, dbObj); err != nil {
 		return nil, errors.Wrapf(err, "Insert %#v to database", dbObj)
 	}
-	if err := dbObj.UpdateFromRemoteObject(ctx, userCred, obj); err != nil {
-		return nil, errors.Wrap(err, "UpdateFromRemoteObject")
+	if err := GetClusterResAPI().UpdateFromRemoteObject(dbObj, ctx, userCred, obj); err != nil {
+		return nil, errors.Wrap(err, "NewFromRemoteObject.UpdateFromRemoteObject")
 	}
 	return dbObj, nil
 }
@@ -580,10 +588,10 @@ func SyncRemovedClusterResource(ctx context.Context, userCred mcclient.TokenCred
 		log.Warningf("object %s status is %s, skip deleted it", dbObj.LogPrefix(), dbObj.GetStatus())
 		return nil
 	}
-	log.Errorf("++++try delete model %s", dbObj.LogPrefix())
 	if err := dbObj.RealDelete(ctx, userCred); err != nil {
 		return errors.Wrapf(err, "SyncRemovedClusterResource ")
 	}
+	log.Infof("Delete local db record %s", dbObj.LogPrefix())
 
 	/*if err := dbObj.ValidateDeleteCondition(ctx); err != nil {
 		err := errors.Wrapf(err, "ValidateDeleteCondition")
@@ -612,21 +620,9 @@ func SyncUpdatedClusterResource(
 	userCred mcclient.TokenCredential,
 	man IClusterModelManager,
 	dbObj IClusterModel, extObj interface{}) error {
-	diff, err := db.UpdateWithLock(ctx, dbObj, func() error {
-		if err := dbObj.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
-			return errors.Wrap(err, "UpdateFromRemoteObject")
-		}
-		cls, err := dbObj.GetCluster()
-		if err != nil {
-			return errors.Wrap(err, "GetCluster")
-		}
-		dbObj.SetExternalId(man.GetRemoteObjectGlobalId(cls, extObj))
-		return nil
-	})
-	if err != nil {
-		return errors.Wrapf(err, "Update from remote object error")
+	if err := GetClusterResAPI().UpdateFromRemoteObject(dbObj, ctx, userCred, extObj); err != nil {
+		return errors.Wrap(err, "SyncUpdatedClusterResource")
 	}
-	db.OpsLog.LogSyncUpdate(dbObj, diff, userCred)
 	return nil
 }
 
@@ -958,18 +954,8 @@ func CreateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, 
 	if err != nil {
 		return nil, errors.Wrap(err, "CreateRemoteObject")
 	}
-	if err := model.UpdateFromRemoteObject(ctx, userCred, obj); err != nil {
+	if err := GetClusterResAPI().UpdateFromRemoteObject(model, ctx, userCred, obj); err != nil {
 		return nil, errors.Wrap(err, "UpdateFromRemoteObject after CreateRemoteObject")
-	}
-	cls, err := model.GetCluster()
-	if err != nil {
-		return nil, errors.Wrap(err, "get cluster")
-	}
-	if _, err := db.Update(model, func() error {
-		model.SetExternalId(man.GetRemoteObjectGlobalId(cls, obj))
-		return nil
-	}); err != nil {
-		return nil, errors.Wrap(err, "set external id")
 	}
 	return obj, nil
 }
@@ -1224,7 +1210,7 @@ func onRemoteObjectCreate(resMan IClusterModelManager, ctx context.Context, user
 func onRemoteObjectUpdate(resMan IClusterModelManager, ctx context.Context, userCred mcclient.TokenCredential, dbObj IClusterModel, newObj runtime.Object) error {
 	// log.Debugf("remote object %s/%s update, sync to local", resMan.Keyword(), dbObj.GetName())
 	if err := SyncUpdatedClusterResource(ctx, userCred, resMan, dbObj, newObj); err != nil {
-		return errors.Wrapf(err, "onRemoteObjectUpdate SyncUpdatedClusterResource %s %s", resMan.Keyword(), dbObj.GetName())
+		return errors.Wrapf(err, "onRemoteObjectUpdate SyncUpdatedClusterResource %s", dbObj.LogPrefix())
 	}
 	return nil
 }

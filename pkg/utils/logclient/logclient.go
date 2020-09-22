@@ -10,6 +10,7 @@ const (
 	ActionClusterDelete         = "删除集群"
 	ActionClusterApplyAddons    = "部署插件"
 	ActionClusterSyncStatus     = "同步状态"
+	ActionClusterSync           = "同步"
 
 	ActionMachineCreate  = "创建机器"
 	ActionMachinePrepare = "准备机器"

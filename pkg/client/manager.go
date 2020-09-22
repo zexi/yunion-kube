@@ -24,6 +24,12 @@ var (
 	clustersManager *ClustersManager
 )
 
+type IClustersManager interface {
+	AddClient(dbCluster manager.ICluster) error
+	UpdateClient(dbCluster manager.ICluster) error
+	RemoveClient(clusterId string) error
+}
+
 type ClustersManager struct {
 	dbManager      manager.IClusterManager
 	clusterManager map[string]*ClusterManager
@@ -31,7 +37,7 @@ type ClustersManager struct {
 	actionLock     sync.Mutex
 }
 
-func GetClustersManager() *ClustersManager {
+func GetClustersManager() IClustersManager {
 	return clustersManager
 }
 
@@ -117,8 +123,8 @@ func (m *ClustersManager) RemoveClient(clusterId string) error {
 	if cm == nil {
 		return nil
 	}
-	cm.Close()
 	delete(m.clusterManager, clusterId)
+	cm.Close()
 	return nil
 }
 

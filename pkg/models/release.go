@@ -370,6 +370,15 @@ func (r *SRelease) UpdateFromRemoteObject(
 	if r.GetName() != rls.Name {
 		r.SetName(rls.Name)
 	}
+	cluster, err := r.GetCluster()
+	if err != nil {
+		return errors.Wrap(err, "SRelease.GetCluster")
+	}
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), rls.Namespace)
+	if err != nil {
+		return errors.Wrapf(err, "SRelease.GetNamespace by name %s", rls.Namespace)
+	}
+	r.SetNamespace(userCred, localNs.(*SNamespace))
 	if r.Status != string(rls.Info.Status) {
 		r.Status = string(rls.Info.Status)
 	}
@@ -548,7 +557,7 @@ func (m *SReleaseManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, use
 }
 
 func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.ReleaseListInputV2) (*sqlchemy.SQuery, error) {
-	/*q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
+	q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
 	if err != nil {
 		return nil, err
 	}
@@ -560,7 +569,7 @@ func (m *SReleaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery
 			cond = sqlchemy.OR(cond, sqlchemy.IsNullOrEmpty(q.Field("repo_id")))
 		}
 		q.Filter(cond)
-	}*/
+	}
 	return q, nil
 }
 
