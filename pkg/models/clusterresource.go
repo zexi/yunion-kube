@@ -232,7 +232,7 @@ func FetchClusterResourceByName(manager IClusterModelManager, userCred mcclient.
 	q := manager.Query()
 	q = manager.FilterByName(q, resId)
 	q = q.Equals("cluster_id", clusterId)
-	if namespaceId != "" {
+	if manager.IsNamespaceScope() && namespaceId != "" {
 		q = q.Equals("namespace_id", namespaceId)
 	}
 	count, err := q.CountWithError()
@@ -278,7 +278,7 @@ func FetchClusterResourceById(manager IClusterModelManager, clusterId string, na
 	q := manager.Query()
 	q = manager.FilterById(q, resId)
 	q = q.Equals("cluster_id", clusterId)
-	if namespaceId != "" {
+	if manager.IsNamespaceScope() && namespaceId != "" {
 		q = q.Equals("namespace_id", namespaceId)
 	}
 	count, err := q.CountWithError()

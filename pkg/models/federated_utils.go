@@ -73,6 +73,9 @@ func callFedClustersGetResFunc(
 		}
 		fRess = append(fRess, ress)
 	}
+	if len(fRess) == 0 {
+		return nil, nil
+	}
 
 	resources = fRess[0]
 	if len(fRess) == 1 {
