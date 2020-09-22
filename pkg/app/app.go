@@ -67,14 +67,14 @@ func Run(ctx context.Context) error {
 	opt := options.Options
 	httpsAddr := net.JoinHostPort(opt.Address, strconv.Itoa(opt.HttpsPort))
 
-	if err := models.ClusterManager.RegisterSystemCluster(); err != nil {
-		log.Fatalf("Register system cluster %v", err)
-	}
-
 	cron := cronman.InitCronJobManager(true, options.Options.CronJobWorkerCount)
 	initial.InitClient(cron)
 	cron.Start()
 	defer cron.Stop()
+
+	if err := models.ClusterManager.RegisterSystemCluster(); err != nil {
+		log.Fatalf("Register system cluster %v", err)
+	}
 
 	if err := server.Start(httpsAddr, app); err != nil {
 		return err
