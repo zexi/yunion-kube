@@ -389,3 +389,8 @@ func (rs ClusterUserGroups) Intersection(ors IClusterRemoteResources) IClusterRe
 func (rs ClusterUserGroups) Unionset(ors IClusterRemoteResources) IClusterRemoteResources {
 	return rs.operate(ors, true)
 }
+
+type ClusterPurgeInput struct {
+	apis.Meta
+	Force bool `json:"force"`
+}

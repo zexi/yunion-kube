@@ -8,10 +8,10 @@ import (
 
 type ISyncableManager interface {
 	IClusterModelManager
+	// GetSubManagers return sub resource manager
 	GetSubManagers() []ISyncableManager
 	// PurgeAllByCluster invoke when cluster deleted
 	PurgeAllByCluster(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error
-	// SyncResources(ctx context.Context, userCred mcclient.TokenCredential, cls *SCluster) error
 }
 
 type SSyncableManager struct {

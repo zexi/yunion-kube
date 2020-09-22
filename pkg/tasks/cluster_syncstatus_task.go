@@ -10,7 +10,6 @@ import (
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
-	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
@@ -50,15 +49,13 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 		if err := cluster.SetStatus(t.UserCred, api.ClusterStatusRunning, ""); err != nil {
 			return nil, errors.Wrap(err, "set status to running")
 		}
-		if err := client.GetClustersManager().AddClient(cluster); err != nil {
-			return nil, errors.Wrap(err, "add cluster to client manager")
-		}
 		cluster.SetK8sVersion(ctx, info.String())
 		return nil, nil
 	})
 }
 
 func (t *ClusterSyncstatusTask) OnSyncStatus(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 

@@ -75,7 +75,6 @@ func (t *ClusterCreateTask) CreateMachines(ctx context.Context, cluster *models.
 func (t *ClusterCreateTask) OnMachinesCreated(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
 	t.SetStage("OnApplyAddonsComplete", nil)
 	cluster.StartApplyAddonsTask(ctx, t.GetUserCred(), t.GetParams(), t.GetTaskId())
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterAddMachine, nil, t.UserCred, true)
 }
 
 func (t *ClusterCreateTask) OnMachinesCreatedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -84,22 +83,31 @@ func (t *ClusterCreateTask) OnMachinesCreatedFailed(ctx context.Context, obj db.
 
 func (t *ClusterCreateTask) OnApplyAddonsComplete(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	cluster := obj.(*models.SCluster)
-	t.SetStage("OnSyncStatus", nil)
+	t.SetStage("OnSyncStatusComplete", nil)
 	cluster.StartSyncStatus(ctx, t.UserCred, t.GetTaskId())
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, nil, t.UserCred, true)
 }
 
 func (t *ClusterCreateTask) OnApplyAddonsCompleteFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetFailed(ctx, obj, data)
 }
 
-func (t *ClusterCreateTask) OnSyncStatus(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
-	t.SetStageComplete(ctx, nil)
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterSyncStatus, nil, t.UserCred, true)
+func (t *ClusterCreateTask) OnSyncStatusComplete(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.SetStage("OnSyncComplete", nil)
+	if err := cluster.StartSyncTask(ctx, t.UserCred, nil, t.GetTaskId()); err != nil {
+		t.SetFailed(ctx, cluster, jsonutils.NewString(err.Error()))
+	}
 }
 
-func (t *ClusterCreateTask) OnSyncStatusFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
+func (t *ClusterCreateTask) OnSyncStatusCompleteFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	t.SetFailed(ctx, obj, data)
+}
+
+func (t *ClusterCreateTask) OnSyncComplete(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.SetStageComplete(ctx, nil)
+}
+
+func (t *ClusterCreateTask) OnSyncCompleteFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	t.SetFailed(ctx, cluster, data)
 }
 
 func (t *ClusterCreateTask) onError(ctx context.Context, cluster db.IStandaloneModel, err error) {

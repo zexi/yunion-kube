@@ -82,6 +82,13 @@ func (m *SPodManager) ValidateCreateData(ctx context.Context, userCred mcclient.
 	return nil, httperrors.NewBadRequestError("Not support pod create")
 }
 
+func (m *SPodManager) GetGCQuery() *sqlchemy.SQuery {
+	q := m.SNamespaceResourceBaseManager.GetGCQuery()
+	nodeIds := GetNodeManager().Query("id").SubQuery()
+	q = q.NotIn("node_id", nodeIds)
+	return q
+}
+
 func (m *SPodManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.PodListInput) (*sqlchemy.SQuery, error) {
 	q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
 	return q, err

@@ -244,6 +244,13 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 		if err != nil {
 			return errors.Wrap(err, "create cluster")
 		}
+		ctx := context.TODO()
+		func() {
+			lockman.LockObject(ctx, obj)
+			defer lockman.ReleaseObject(ctx, obj)
+
+			obj.PostCreate(ctx, userCred, userCred, nil, createData.JSON(createData))
+		}()
 		sysCluster = obj.(*SCluster)
 	}
 	// update system cluster
@@ -265,7 +272,17 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 	}); err != nil {
 		return errors.Wrap(err, "update system cluster")
 	}
-	return sysCluster.StartSyncStatus(context.TODO(), userCred, "")
+	return nil
+	// wait system cluster to be running
+	/*for i := 0; i < 5; i++ {
+		time.Sleep(5 * time.Second)
+		if sysCluster.GetStatus() != api.ClusterStatusRunning {
+			log.Warningf("system cluster status %s != %s", sysCluster.GetStatus(), api.ClusterStatusRunning)
+		} else {
+			return nil
+		}
+	}
+	return errors.Errorf("system cluster status %s is not %s", sysCluster.GetStatus(), api.ClusterStatusRunning)*/
 }
 
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
@@ -571,6 +588,19 @@ func (m *SClusterManager) GetPropertyUsableInstances(ctx context.Context, userCr
 	return ret, nil
 }
 
+// PerformGC cleanup clusters related orphan resources
+func (m *SClusterManager) PerformGc(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	go func() {
+		subMans := m.GetSubManagers()
+		for _, man := range subMans {
+			if err := GetClusterResAPI().PerformGC(man, ctx, userCred); err != nil {
+				log.Errorf("PerformGC %s %v", man.KeywordPlural(), err)
+			}
+		}
+	}()
+	return nil, nil
+}
+
 func (m *SClusterManager) IsClusterExists(userCred mcclient.TokenCredential, id string) (manager.ICluster, bool, error) {
 	obj, err := m.FetchByIdOrName(userCred, id)
 	if err != nil {
@@ -671,6 +701,10 @@ func (m *SClusterManager) ClusterHealthCheckTask(ctx context.Context, userCred m
 				if err := client.GetClustersManager().UpdateClient(c); err != nil {
 					log.Errorf("Update cluster %s client error: %v", c.GetName(), err)
 					c.SetStatus(userCred, prevStatus, err.Error())
+				} else {
+					if err := c.StartSyncTask(ctx, userCred, nil, ""); err != nil {
+						log.Errorf("cluster %s StartSyncTask when health check error: %v", c.GetId(), err)
+					}
 				}
 			}
 			continue
@@ -697,7 +731,7 @@ func (c *SCluster) GetMachinesCount() (int, error) {
 }
 
 func (c *SCluster) GetNodesCount() (int, error) {
-	cli, err := client.GetManagerByCluster(c)
+	cli, err := c.GetRemoteClient()
 	if err != nil {
 		return 0, errors.Wrap(err, "get cluster client")
 	}
@@ -996,9 +1030,6 @@ func (c *SCluster) ValidateDeleteCondition(ctx context.Context) error {
 	if err := c.GetDriver().ValidateDeleteCondition(); err != nil {
 		return err
 	}
-	//if err := c.CheckPVCEmpty(); err != nil {
-	//return err
-	//}
 	return nil
 }
 
@@ -1014,9 +1045,11 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 	if err := c.DeleteAllComponents(ctx, userCred); err != nil {
 		return errors.Wrapf(err, "DeleteClusterComponent")
 	}
-	if err := client.GetClustersManager().RemoveClient(c.GetId()); err != nil {
-		return errors.Wrap(err, "Delete from client")
-	}
+	/*
+	 * if err := client.GetClustersManager().RemoveClient(c.GetId()); err != nil {
+	 *     return errors.Wrap(err, "Delete from client")
+	 * }
+	 */
 	if err := c.PurgeAllClusterResource(ctx, userCred); err != nil {
 		return errors.Wrap(err, "Purge all k8s cluster db resources")
 	}
@@ -1032,7 +1065,7 @@ func (c *SCluster) purgeSubClusterResource(ctx context.Context, userCred mcclien
 		return nil
 	}
 	for _, resMan := range resMans {
-		log.Infof("Start purge cluster %s resources %s", c.GetName(), resMan.KeywordPlural())
+		log.Infof("Start purge cluster %s(%s) resources %s", c.GetName(), c.GetId(), resMan.KeywordPlural())
 		if err := c.purgeSubClusterResource(ctx, userCred, resMan.GetSubManagers()); err != nil {
 			return errors.Wrapf(err, "purge resource %s subresource", resMan.KeywordPlural())
 		}
@@ -1072,6 +1105,9 @@ func (c *SCluster) StartClusterDeleteTask(ctx context.Context, userCred mcclient
 	if err := c.SetStatus(userCred, api.ClusterStatusDeleting, ""); err != nil {
 		return err
 	}
+	if err := client.GetClustersManager().RemoveClient(c.GetId()); err != nil {
+		return errors.Wrap(err, "remove client before start delete task")
+	}
 	task, err := taskman.TaskManager.NewTask(ctx, "ClusterDeleteTask", c, userCred, data, parentTaskId, "", nil)
 	if err != nil {
 		return err
@@ -1088,15 +1124,17 @@ func (c *SCluster) allowGetSpec(userCred mcclient.TokenCredential, spec string) 
 	return db.IsDomainAllowGetSpec(userCred, c, spec)
 }
 
-func (c *SCluster) AllowPerformTerminate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
-	return c.allowPerformAction(userCred, "terminate")
+func (c *SCluster) AllowPerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
+	return userCred.HasSystemAdminPrivilege()
 }
 
-func (c *SCluster) PerformTerminate(ctx context.Context, userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
-	if err := c.ValidateDeleteCondition(ctx); err != nil {
-		return nil, err
+func (c *SCluster) PerformPurge(ctx context.Context, userCred mcclient.TokenCredential, query, input api.ClusterPurgeInput) (jsonutils.JSONObject, error) {
+	if !input.Force {
+		if err := c.ValidateDeleteCondition(ctx); err != nil {
+			return nil, err
+		}
 	}
-	return nil, c.RealDelete(ctx, userCred)
+	return nil, c.StartClusterDeleteTask(ctx, userCred, input.JSON(input), "")
 }
 
 func (c *SCluster) AllowGetDetailsKubeconfig(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -1801,12 +1839,34 @@ func (c *SCluster) PerformSync(ctx context.Context, userCred mcclient.TokenCrede
 	input := new(api.ClusterSyncInput)
 	data.Unmarshal(input)
 	if c.CanSync() || input.Force {
-		c.SubmitSyncTask(ctx, userCred, nil)
+		c.StartSyncTask(ctx, userCred, nil, "")
 	}
 	return nil, nil
 }
 
+func (c *SCluster) StartSyncTask(ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "ClusterSyncTask", c, userCred, data, parentId, "")
+	if err != nil {
+		return errors.Wrap(err, "New ClusterSyncTask")
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (c *SCluster) SyncCallSyncTask(ctx context.Context, userCred mcclient.TokenCredential) error {
+	waitCh := make(chan error)
+	c.SubmitSyncTask(ctx, userCred, waitCh)
+	return <-waitCh
+}
+
 func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCredential, waitChan chan error) {
+	if err := c.DisableBidirectionalSync(); err != nil {
+		if waitChan != nil {
+			log.Errorf("DisableBidirectionalSync before submic sync error: %s", err)
+			waitChan <- err
+		}
+		return
+	}
 	RunSyncClusterTask(func() {
 		log.Infof("start sync cluster %s", c.GetName())
 		if err := c.prepareStartSync(); err != nil {
@@ -1837,6 +1897,13 @@ func (c *SCluster) SubmitSyncTask(ctx context.Context, userCred mcclient.TokenCr
 		}
 		if err := c.MarkEndSync(ctx, userCred, c); err != nil {
 			log.Errorf("mark cluster %s sync end error: %v", c.GetId(), err)
+			if waitChan != nil {
+				waitChan <- err
+			}
+			return
+		}
+		if err := c.EnableBidirectionalSync(); err != nil {
+			log.Errorf("EnableBidirectionalSync cluster %s sync end error: %v", c.GetId(), err)
 			if waitChan != nil {
 				waitChan <- err
 			}
@@ -1957,4 +2024,22 @@ func (c *SCluster) GetDetailsClusterUserGroups(ctx context.Context, userCred mcc
 	}
 	drv := c.GetDriver()
 	return drv.GetClusterUserGroups(c, config)
+}
+
+func (c *SCluster) EnableBidirectionalSync() error {
+	cli, err := c.GetRemoteClient()
+	if err != nil {
+		return errors.Wrap(err, "GetRemoteClient")
+	}
+	cli.GetHandler().EnableBidirectionalSync()
+	return nil
+}
+
+func (c *SCluster) DisableBidirectionalSync() error {
+	cli, err := c.GetRemoteClient()
+	if err != nil {
+		return errors.Wrap(err, "GetRemoteClient")
+	}
+	cli.GetHandler().DisableBidirectionalSync()
+	return nil
 }

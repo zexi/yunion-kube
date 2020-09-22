@@ -26,7 +26,7 @@ type SSyncableK8sBaseResourceManager struct{}
 
 type SSyncableK8sBaseResource struct {
 	SyncStatus    string    `width:"20" charset:"ascii" default:"idle" list:"domain"`
-	SyncMessage   string    `width:"256" charset:"utf8" list:"domain"`
+	SyncMessage   string    `charset:"utf8" list:"domain"`
 	LastSync      time.Time `list:"domain"`
 	LastSyncEndAt time.Time `list:"domain"`
 }

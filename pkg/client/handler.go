@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
@@ -33,6 +34,9 @@ type ResourceHandler interface {
 
 	Dynamic(groupKind schema.GroupKind, versions ...string) (dynamic.NamespaceableResourceInterface, error)
 	DynamicGet(gvr schema.GroupVersionKind, namespace string, name string) (runtime.Object, error)
+
+	EnableBidirectionalSync()
+	DisableBidirectionalSync()
 }
 
 type resourceHandler struct {
@@ -57,6 +61,14 @@ func NewResourceHandler(
 	}, nil
 }
 
+func (h *resourceHandler) EnableBidirectionalSync() {
+	h.cacheFactory.EnableBidirectionalSync()
+}
+
+func (h *resourceHandler) DisableBidirectionalSync() {
+	h.cacheFactory.DisableBidirectionalSync()
+}
+
 func (h *resourceHandler) GetClientset() *kubernetes.Clientset {
 	return h.client
 }
@@ -66,7 +78,12 @@ func (h *resourceHandler) GetIndexer() *CacheFactory {
 }
 
 func (h *resourceHandler) Close() {
+	// TODO: figure out the root cause of panic
+	utilruntime.ReallyCrash = false
+	log.Errorf("============close called")
+	defer utilruntime.HandleCrash()
 	close(h.cacheFactory.stopChan)
+	log.Errorf("====close called finish")
 }
 
 func (h *resourceHandler) Create(kind string, namespace string, object *runtime.Unknown) (*runtime.Unknown, error) {
