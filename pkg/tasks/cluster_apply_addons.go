@@ -30,6 +30,7 @@ func (t *ClusterApplyAddonsTask) OnInit(ctx context.Context, obj db.IStandaloneM
 }
 
 func (t *ClusterApplyAddonsTask) OnApplyAddons(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterApplyAddons, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 

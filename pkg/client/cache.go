@@ -39,6 +39,7 @@ type CacheFactory struct {
 	stopChan               chan struct{}
 	sharedInformerFactory  informers.SharedInformerFactory
 	dynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+	bidirectionalSync      bool
 }
 
 func buildCacheController(
@@ -48,6 +49,10 @@ func buildCacheController(
 	restMapper meta.PriorityRESTMapper,
 ) (*CacheFactory, error) {
 	stop := make(chan struct{})
+	cacheF := &CacheFactory{
+		stopChan:          stop,
+		bidirectionalSync: false,
+	}
 	// sharedInformerFactory := informers.NewSharedInformerFactory(client, defaultResyncPeriod)
 	sharedInformerFactory := informers.NewSharedInformerFactory(client, 0)
 	// dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, defaultResyncPeriod)
@@ -62,13 +67,11 @@ func buildCacheController(
 		}
 		resMan := cluster.GetK8sResourceManager(value.GroupVersionResourceKind.Kind)
 		if resMan != nil {
-			// if value.GroupVersionResourceKind.Kind == kapi.KindNamePod {
 			// register informer event handler
-			genericInformer.Informer().AddEventHandler(newEventHandler(cluster, resMan))
+			genericInformer.Informer().AddEventHandler(newEventHandler(cacheF, cluster, resMan))
 			informerSyncs = append(informerSyncs, genericInformer.Informer().HasSynced)
-			// }
 		}
-		go genericInformer.Informer().Run(stop)
+		// go genericInformer.Informer().Run(stop)
 	}
 
 	// Start all dynamic rest mapper resource
@@ -90,12 +93,8 @@ func buildCacheController(
 	if !cache.WaitForCacheSync(stop, informerSyncs...) {
 		return nil, errors.Errorf("informers not synced")
 	}
-
-	return &CacheFactory{
-		stopChan:              stop,
-		sharedInformerFactory: sharedInformerFactory,
-		// dynamicInformerFactory: dynamicInformerFactory,
-	}, nil
+	cacheF.sharedInformerFactory = sharedInformerFactory
+	return cacheF, nil
 }
 
 func (c *CacheFactory) PodLister() v1.PodLister {
@@ -206,19 +205,34 @@ func (c *CacheFactory) ServiceAccountLister() v1.ServiceAccountLister {
 	return c.sharedInformerFactory.Core().V1().ServiceAccounts().Lister()
 }
 
-type eventHandler struct {
-	cluster manager.ICluster
-	manager manager.IK8sResourceManager
+func (c *CacheFactory) EnableBidirectionalSync() {
+	c.bidirectionalSync = true
 }
 
-func newEventHandler(cluster manager.ICluster, man manager.IK8sResourceManager) cache.ResourceEventHandler {
+func (c *CacheFactory) DisableBidirectionalSync() {
+	c.bidirectionalSync = false
+}
+
+type eventHandler struct {
+	cacheFactory *CacheFactory
+	cluster      manager.ICluster
+	manager      manager.IK8sResourceManager
+}
+
+func newEventHandler(cacheF *CacheFactory, cluster manager.ICluster, man manager.IK8sResourceManager) cache.ResourceEventHandler {
 	return &eventHandler{
-		cluster: cluster,
-		manager: man,
+		cacheFactory: cacheF,
+		cluster:      cluster,
+		manager:      man,
 	}
 }
 
 func (h eventHandler) run(f func(ctx context.Context, userCred mcclient.TokenCredential, cls manager.ICluster)) {
+	// cacheFactory must enable bidirectional sync
+	if !h.cacheFactory.bidirectionalSync {
+		return
+	}
+
 	adminCred := auth.AdminCredential()
 	ctx := context.Background()
 	lockman.LockClass(ctx, h.manager, db.GetLockClassKey(h.manager, adminCred))

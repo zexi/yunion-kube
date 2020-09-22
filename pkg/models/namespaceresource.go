@@ -162,6 +162,36 @@ func (res *SNamespaceResourceBaseManager) NewFromRemoteObject(
 	return localObj, nil
 }
 
+func (res *SNamespaceResourceBase) UpdateFromRemoteObject(
+	ctx context.Context,
+	userCred mcclient.TokenCredential,
+	extObj interface{},
+) error {
+	if err := res.SClusterResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+		return errors.Wrap(err, "SClusterResourceBase.UpdateFromRemoteObject")
+	}
+	cluster, err := res.GetCluster()
+	if err != nil {
+		return errors.Wrap(err, "SNamespaceResourceBase.GetCluster")
+	}
+	ns := extObj.(metav1.Object).GetNamespace()
+	localNs, err := GetNamespaceManager().GetByName(userCred, cluster.GetId(), ns)
+	if err != nil {
+		return errors.Wrapf(err, "get local namespace by name %s", ns)
+	}
+	res.SetNamespace(userCred, localNs.(*SNamespace))
+	return nil
+}
+
+func (m *SNamespaceResourceBaseManager) GetGCQuery() *sqlchemy.SQuery {
+	q := m.SClusterResourceBaseManager.GetGCQuery()
+	nsIds := GetNamespaceManager().Query("id").SubQuery()
+	q = q.Filter(sqlchemy.OR(
+		sqlchemy.NotIn(q.Field("namespace_id"), nsIds),
+	))
+	return q
+}
+
 func (m *SNamespaceResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.NamespaceResourceListInput) (*sqlchemy.SQuery, error) {
 	q, err := m.SClusterResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.ClusterResourceListInput)
 	if err != nil {
