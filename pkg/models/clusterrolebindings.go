@@ -114,6 +114,14 @@ func (m *SClusterRoleBindingManager) NewFromRemoteObject(ctx context.Context, us
 	return m.SClusterResourceBaseManager.NewFromRemoteObject(ctx, userCred, cluster, obj)
 }
 
+func (m *SClusterRoleBindingManager) NewRemoteObjectForCreate(obj IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
+	input := new(api.ClusterRoleBindingCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	return input.ToClusterRoleBinding(), nil
+}
+
 func (crb *SClusterRoleBinding) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	return crb.SClusterResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj)
 }

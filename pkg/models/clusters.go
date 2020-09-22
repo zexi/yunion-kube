@@ -158,7 +158,7 @@ func (m *SClusterManager) FilterByHiddenSystemAttributes(q *sqlchemy.SQuery, use
 func (m *SClusterManager) GetSystemCluster() (*SCluster, error) {
 	clusters := m.Query().SubQuery()
 	q := clusters.Query().Filter(sqlchemy.Equals(clusters.Field("provider"), string(api.ProviderTypeSystem)))
-	q = q.Filter(sqlchemy.IsTrue(q.Field("is_system")))
+	q = q.Equals("name", SystemClusterName)
 	objs := make([]SCluster, 0)
 	err := db.FetchModelObjects(m, q, &objs)
 	if err != nil {

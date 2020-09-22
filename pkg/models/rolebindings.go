@@ -145,3 +145,15 @@ func (rb *SRoleBinding) GetDetails(cli *client.ClusterManager, base interface{},
 	}
 	return out
 }
+
+func (m *SRoleBindingManager) NewRemoteObjectForCreate(obj IClusterModel, _ *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
+	input := new(api.RoleBindingCreateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	nsName, err := obj.(*SRoleBinding).GetNamespaceName()
+	if err != nil {
+		return nil, err
+	}
+	return input.ToRoleBinding(nsName)
+}
