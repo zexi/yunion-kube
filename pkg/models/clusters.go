@@ -234,6 +234,8 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 		return errors.Wrap(err, "get system cluster")
 	}
 	userCred := GetAdminCred()
+	newCreated := false
+	ctx := context.TODO()
 	if sysCluster == nil {
 		// create system cluster
 		createData, err := m.GetSystemClusterCreateData()
@@ -244,7 +246,6 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 		if err != nil {
 			return errors.Wrap(err, "create cluster")
 		}
-		ctx := context.TODO()
 		func() {
 			lockman.LockObject(ctx, obj)
 			defer lockman.ReleaseObject(ctx, obj)
@@ -252,6 +253,7 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 			obj.PostCreate(ctx, userCred, userCred, nil, createData.JSON(createData))
 		}()
 		sysCluster = obj.(*SCluster)
+		newCreated = true
 	}
 	// update system cluster
 	k8sInfo, err := m.GetSystemClusterK8SInfo()
@@ -272,17 +274,20 @@ func (m *SClusterManager) RegisterSystemCluster() error {
 	}); err != nil {
 		return errors.Wrap(err, "update system cluster")
 	}
-	return nil
-	// wait system cluster to be running
-	/*for i := 0; i < 5; i++ {
-		time.Sleep(5 * time.Second)
-		if sysCluster.GetStatus() != api.ClusterStatusRunning {
-			log.Warningf("system cluster status %s != %s", sysCluster.GetStatus(), api.ClusterStatusRunning)
-		} else {
-			return nil
+	if !newCreated {
+		if err := sysCluster.StartSyncStatus(ctx, userCred, ""); err != nil {
+			return errors.Wrap(err, "start sysCluster sync status task")
 		}
 	}
-	return errors.Errorf("system cluster status %s is not %s", sysCluster.GetStatus(), api.ClusterStatusRunning)*/
+	for i := 0; i < 5; i++ {
+		if sysCluster.GetStatus() != api.ClusterStatusRunning {
+			log.Warningf("system cluster status %s != running", sysCluster.GetStatus())
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		return nil
+	}
+	return errors.Errorf("system cluster status %s not running", sysCluster.GetStatus())
 }
 
 func SetJSONDataDefault(data *jsonutils.JSONDict, key string, defVal string) string {
