@@ -15,14 +15,15 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	common_options "yunion.io/x/onecloud/pkg/cloudcommon/options"
 	"yunion.io/x/pkg/util/runtime"
-
 	"yunion.io/x/pkg/util/signalutils"
+
 	"yunion.io/x/yunion-kube/pkg/api/constants"
 	"yunion.io/x/yunion-kube/pkg/controllers"
 	"yunion.io/x/yunion-kube/pkg/helm"
 	"yunion.io/x/yunion-kube/pkg/initial"
 	"yunion.io/x/yunion-kube/pkg/models"
 	"yunion.io/x/yunion-kube/pkg/options"
+	_ "yunion.io/x/yunion-kube/pkg/policy"
 	"yunion.io/x/yunion-kube/pkg/server"
 )
 
