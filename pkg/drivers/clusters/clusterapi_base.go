@@ -298,9 +298,11 @@ func (d *sClusterAPIDriver) GetCommonAddonsConfig(cluster *models.SCluster) (*ad
 		MetricsPluginConfig: &addons.MetricsPluginConfig{
 			MetricsServerImage: registry.MirrorImage(reg.Url, "metrics-server-amd64", "v0.3.1", ""),
 		},
-		HelmPluginConfig: &addons.HelmPluginConfig{
-			TillerImage: registry.MirrorImage(reg.Url, "tiller", "v2.11.0", ""),
-		},
+		/*
+		 * HelmPluginConfig: &addons.HelmPluginConfig{
+		 *     TillerImage: registry.MirrorImage(reg.Url, "tiller", "v2.11.0", ""),
+		 * },
+		 */
 		CloudProviderYunionConfig: &addons.CloudProviderYunionConfig{
 			YunionAuthConfig:   authConfig,
 			CloudProviderImage: registry.MirrorImage(reg.Url, "yunion-cloud-controller-manager", "v2.10.0", ""),

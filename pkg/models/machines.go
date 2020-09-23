@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	ocapis "yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
@@ -13,9 +15,6 @@ import (
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
-
-	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/tristate"
 	"yunion.io/x/pkg/util/netutils"
@@ -24,8 +23,6 @@ import (
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
-	"yunion.io/x/yunion-kube/pkg/client"
-	"yunion.io/x/yunion-kube/pkg/k8s/common/model"
 	"yunion.io/x/yunion-kube/pkg/models/manager"
 )
 
@@ -332,25 +329,29 @@ func (m *SMachineManager) FetchCustomizeColumns(
 	virtRows := m.SVirtualResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 	for i := range objs {
 		rows[i] = jsonutils.Marshal(virtRows[i]).(*jsonutils.JSONDict)
-		rows[i] = objs[i].(*SMachine).moreExtraInfo(rows[i])
+		rows[i] = objs[i].(*SMachine).moreExtraInfo(userCred, rows[i])
 	}
 	return rows
 }
 
-func (m *SMachine) GetK8sModelNode(cluster *SCluster) (*jsonutils.JSONDict, error) {
-	cm, err := client.GetManagerByCluster(cluster)
+func (m *SMachine) GetK8sModelNode(userCred mcclient.TokenCredential, cluster *SCluster) (jsonutils.JSONObject, error) {
+	obj, err := FetchClusterResourceByName(GetNodeManager(), userCred, cluster.GetId(), "", m.GetName())
 	if err != nil {
-		return nil, errors.Wrap(err, "client.GetManagerByCluster")
+		return nil, errors.Wrap(err, "get machine related k8s node")
 	}
-	return model.GetK8SModelObject(cm, api.KindNameNode, m.Name)
+	k8sObj, err := obj.GetRemoteObject()
+	if err != nil {
+		return nil, errors.Wrap(err, "get k8s node object")
+	}
+	return jsonutils.Marshal(k8sObj), nil
 }
 
-func (m *SMachine) moreExtraInfo(extra *jsonutils.JSONDict) *jsonutils.JSONDict {
+func (m *SMachine) moreExtraInfo(userCred mcclient.TokenCredential, extra *jsonutils.JSONDict) *jsonutils.JSONDict {
 	cluster, _ := m.GetCluster()
 	if cluster != nil {
 		extra.Add(jsonutils.NewString(cluster.Name), "cluster")
 
-		if nodeInfo, err := m.GetK8sModelNode(cluster); err == nil {
+		if nodeInfo, err := m.GetK8sModelNode(userCred, cluster); err == nil {
 			extra.Set("machine_node", nodeInfo)
 		} else {
 			log.Errorf("fetch k8s model node failed %s", err)
@@ -365,7 +366,7 @@ func (m *SMachine) GetExtraDetails(ctx context.Context, userCred mcclient.TokenC
 		return nil, err
 	}
 
-	return m.moreExtraInfo(jsonutils.Marshal(extra).(*jsonutils.JSONDict)), nil
+	return m.moreExtraInfo(userCred, jsonutils.Marshal(extra).(*jsonutils.JSONDict)), nil
 }
 
 func (m *SMachine) allowPerformAction(userCred mcclient.TokenCredential, query, data jsonutils.JSONObject) bool {
