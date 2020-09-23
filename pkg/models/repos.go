@@ -12,6 +12,7 @@ import (
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/onecloud/pkg/util/rbacutils"
 	"yunion.io/x/onecloud/pkg/util/stringutils2"
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
@@ -112,8 +113,8 @@ func (man *SRepoManager) FetchCustomizeColumns(
 	return rows
 }
 
-func (man *SRepoManager) AllowCreateItem(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return db.IsAdminAllowCreate(userCred, man)
+func (man *SRepoManager) ResourceScope() rbacutils.TRbacScope {
+	return rbacutils.ScopeDomain
 }
 
 func (man *SRepoManager) GetRepoDataDir(projectId string) string {
@@ -154,7 +155,7 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 		Name: data.Name,
 		URL:  data.Url,
 	}
-	cli, err := man.GetClient(ownerId.GetProjectId())
+	cli, err := man.GetClient(ownerId.GetProjectDomainId())
 	if err != nil {
 		return nil, err
 	}
@@ -225,10 +226,6 @@ func (r *SRepo) Delete(ctx context.Context, userCred mcclient.TokenCredential) e
 		return err
 	}
 	return r.SStatusInfrasResourceBase.Delete(ctx, userCred)
-}
-
-func (r *SRepo) AllowPerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) bool {
-	return db.IsAdminAllowPerform(userCred, r, "sync")
 }
 
 func (r *SRepo) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {

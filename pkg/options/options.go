@@ -26,3 +26,13 @@ type KubeServerOptions struct {
 
 	GuestDefaultTemplate string `help:"Guest kubernetes default image id" default:"k8s-centos7-base.qcow2"`
 }
+
+func OnOptionsChange(oldO, newO interface{}) bool {
+	oldOpts := oldO.(*KubeServerOptions)
+	newOpts := newO.(*KubeServerOptions)
+	changed := false
+	if common_options.OnCommonOptionsChange(&oldOpts.CommonOptions, &newOpts.CommonOptions) {
+		changed = true
+	}
+	return changed
+}
