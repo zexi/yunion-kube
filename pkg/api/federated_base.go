@@ -6,6 +6,10 @@ import (
 	"yunion.io/x/onecloud/pkg/apis"
 )
 
+const (
+	FederatedResourceStatusActive = "active"
+)
+
 type FederatedResourceCreateInput struct {
 	K8sResourceCreateInput
 }

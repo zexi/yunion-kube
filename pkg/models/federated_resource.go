@@ -119,6 +119,11 @@ func (obj *SFedResourceBase) GetClustersCount() (int, error) {
 	return q.CountWithError()
 }
 
+func (obj *SFedResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	obj.SStatusDomainLevelResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
+	obj.SetStatus(userCred, api.FederatedResourceStatusActive, "post create")
+}
+
 func (obj *SFedResourceBase) GetDetails(base interface{}, isList bool) interface{} {
 	out := api.FederatedResourceDetails{
 		StatusDomainLevelResourceDetails: base.(apis.StatusDomainLevelResourceDetails),
