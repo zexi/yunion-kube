@@ -10,6 +10,7 @@ import (
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 func init() {
@@ -35,8 +36,10 @@ func (t *ClusterResourceSyncTask) OnInit(ctx context.Context, obj db.IStandalone
 
 func (t *ClusterResourceSyncTask) OnSyncComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceSync, nil, t.GetUserCred(), true)
 }
 
 func (t *ClusterResourceSyncTask) OnSyncCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusSyncFail, reason.String())
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceSync, reason, t.GetUserCred(), false)
 }

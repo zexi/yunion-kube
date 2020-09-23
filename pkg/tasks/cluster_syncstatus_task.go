@@ -55,7 +55,7 @@ func (t *ClusterSyncstatusTask) OnInit(ctx context.Context, obj db.IStandaloneMo
 }
 
 func (t *ClusterSyncstatusTask) OnSyncStatus(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -65,7 +65,7 @@ func (t *ClusterSyncstatusTask) OnSyncStatusFailed(ctx context.Context, cluster 
 
 func (t *ClusterSyncstatusTask) onError(ctx context.Context, cluster db.IStandaloneModel, err string) {
 	t.SetFailed(ctx, cluster, jsonutils.NewString(err))
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, err, t.UserCred, false)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterSyncStatus, err, t.UserCred, false)
 }
 
 func (t *ClusterSyncstatusTask) SetFailed(ctx context.Context, obj db.IStandaloneModel, reason jsonutils.JSONObject) {
