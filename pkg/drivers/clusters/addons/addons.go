@@ -58,7 +58,7 @@ func (c yunionConfig) GenerateYAML() (string, error) {
 
 type YunionCommonPluginsConfig struct {
 	*MetricsPluginConfig
-	*HelmPluginConfig
+	// *HelmPluginConfig
 	*CloudProviderYunionConfig
 	*CSIYunionConfig
 	*IngressControllerYunionConfig
@@ -73,13 +73,15 @@ func (config *YunionCommonPluginsConfig) GetAllConfig() (*yunionConfig, error) {
 		}
 		allConfig.MetricsPlugin = ret
 	}
-	if config.HelmPluginConfig != nil {
-		ret, err := config.HelmPluginConfig.GenerateYAML()
-		if err != nil {
-			return nil, errors.Wrap(err, "Generate helm plugin")
-		}
-		allConfig.HelmPlugin = ret
-	}
+	/*
+	 * if config.HelmPluginConfig != nil {
+	 *     ret, err := config.HelmPluginConfig.GenerateYAML()
+	 *     if err != nil {
+	 *         return nil, errors.Wrap(err, "Generate helm plugin")
+	 *     }
+	 *     allConfig.HelmPlugin = ret
+	 * }
+	 */
 	if config.CloudProviderYunionConfig != nil {
 		ret, err := config.CloudProviderYunionConfig.GenerateYAML()
 		if err != nil {

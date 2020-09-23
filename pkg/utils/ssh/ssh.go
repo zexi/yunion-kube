@@ -23,8 +23,8 @@ func RemoteSSHBashScript(host string, port int, username string, passwd string, 
 	tmpFile := fmt.Sprintf("/tmp/script-%s", seclib.RandomPassword(8))
 	writeScript := fmt.Sprintf("echo '%s' | base64 -d > %s", content, tmpFile)
 	execScript := fmt.Sprintf("sudo bash %s", tmpFile)
-	rmScript := fmt.Sprintf("rm %s", tmpFile)
-	ret, err := cli.RawRun(writeScript, execScript, rmScript)
+	// rmScript := fmt.Sprintf("rm %s", tmpFile)
+	ret, err := cli.RawRun(writeScript, execScript) //, rmScript)
 	if err != nil {
 		return "", err
 	}
