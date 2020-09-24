@@ -111,7 +111,7 @@ func (obj *SRole) ValidateUpdateData(ctx context.Context, userCred mcclient.Toke
 	return input, nil
 }
 
-func (m *SRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+func (obj *SRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.RoleUpdateInput)
 	if err := data.Unmarshal(input); err != nil {
 		return nil, errors.Wrap(err, "unmarshal json")

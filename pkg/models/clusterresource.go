@@ -371,8 +371,28 @@ func (res *SClusterResourceBase) PostDelete(ctx context.Context, userCred mcclie
 	}
 }
 
-func (res *SClusterResourceBase) GetParentId() string {
-	return res.ClusterId
+func (r *SClusterResourceBase) GetUniqValues() jsonutils.JSONObject {
+	return jsonutils.Marshal(map[string]string{
+		"cluster_id": r.ClusterId,
+	})
+}
+
+func (m *SClusterResourceBaseManager) FetchUniqValues(ctx context.Context, data jsonutils.JSONObject) jsonutils.JSONObject {
+	clusterId, err := data.GetString("cluster_id")
+	if err != nil {
+		panic(fmt.Sprintf("get cluster_id from data %s error: %v", data, err))
+	}
+	return jsonutils.Marshal(map[string]string{
+		"cluster_id": clusterId,
+	})
+}
+
+func (m *SClusterResourceBaseManager) FilterByUniqValues(q *sqlchemy.SQuery, values jsonutils.JSONObject) *sqlchemy.SQuery {
+	clusterId, _ := values.GetString("cluster_id")
+	if len(clusterId) > 0 {
+		q = q.Equals("cluster_id", clusterId)
+	}
+	return q
 }
 
 func (res *SClusterResourceBase) GetCluster() (*SCluster, error) {

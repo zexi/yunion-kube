@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,8 +48,28 @@ func NewNamespaceResourceBaseManager(
 	}
 }
 
-func (r *SNamespaceResourceBase) GetParentId() string {
-	return r.NamespaceId
+func (r *SNamespaceResourceBase) GetUniqValues() jsonutils.JSONObject {
+	return jsonutils.Marshal(map[string]string{
+		"namespace_id": r.NamespaceId,
+	})
+}
+
+func (m *SNamespaceResourceBaseManager) FetchUniqValues(ctx context.Context, data jsonutils.JSONObject) jsonutils.JSONObject {
+	namespaceId, err := data.GetString("namespace_id")
+	if err != nil {
+		panic(fmt.Sprintf("get namespace_id from data %s error: %v", data, err))
+	}
+	return jsonutils.Marshal(map[string]string{
+		"namespace_id": namespaceId,
+	})
+}
+
+func (m *SNamespaceResourceBaseManager) FilterByUniqValues(q *sqlchemy.SQuery, values jsonutils.JSONObject) *sqlchemy.SQuery {
+	namespaceId, _ := values.GetString("namespace_id")
+	if len(namespaceId) > 0 {
+		q = q.Equals("namespace_id", namespaceId)
+	}
+	return q
 }
 
 func (m *SNamespaceResourceBaseManager) GetByIdOrName(userCred mcclient.IIdentityProvider, clusterId, namespaceId string, resId string) (IClusterModel, error) {

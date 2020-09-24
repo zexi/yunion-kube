@@ -1,6 +1,9 @@
 package logclient
 
 import (
+	"context"
+	"fmt"
+
 	"yunion.io/x/onecloud/pkg/cloudcommon"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -25,6 +28,8 @@ const (
 	ActionResourceUpdate TEventAction = "resource_update"
 	ActionResourceDelete TEventAction = "resource_delete"
 	ActionResourceSync   TEventAction = "resource_sync"
+	ActionResourceAttach TEventAction = "resource_attach"
+	ActionResourceDetach TEventAction = "resource_detach"
 )
 
 var (
@@ -49,15 +54,39 @@ func init() {
 		ActionResourceCreate:        "创建资源",
 		ActionResourceUpdate:        "更新资源",
 		ActionResourceDelete:        "删除资源",
+		ActionResourceAttach:        "绑定资源",
+		ActionResourceDetach:        "解绑资源",
+		ActionResourceSync:          "同步资源",
 	}
 }
 
-// LogWithStartable log record with start time
-func LogWithStartable(task cloudcommon.IStartable, obj db.IModel, eventAction TEventAction, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool) {
+type logFunc func(obj db.IModel, logAction string, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool)
+
+func logRecord(obj db.IModel, eventAction TEventAction, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool, f logFunc) {
 	logAction, ok := EventActionMap[eventAction]
 	if !ok {
 		logAction = string(eventAction)
 	}
-	db.OpsLog.LogEvent(obj, string(eventAction), iNotes, userCred)
-	logclient.AddActionLogWithStartable(task, obj, logAction, iNotes, userCred, isSuccess)
+	actionStr := string(eventAction)
+	if !isSuccess {
+		actionStr = fmt.Sprintf("%s_fail", actionStr)
+	}
+	db.OpsLog.LogEvent(obj, actionStr, iNotes, userCred)
+	f(obj, logAction, iNotes, userCred, isSuccess)
+}
+
+// LogWithStartable log record with start time
+func LogWithStartable(task cloudcommon.IStartable, obj db.IModel, eventAction TEventAction, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool) {
+	logRecord(obj, eventAction, iNotes, userCred, isSuccess,
+		func(obj db.IModel, logAction string, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool) {
+			logclient.AddActionLogWithStartable(task, obj, logAction, iNotes, userCred, isSuccess)
+		})
+}
+
+// LogWithContext log record with context
+func LogWithContext(ctx context.Context, obj db.IModel, eventAction TEventAction, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool) {
+	logRecord(obj, eventAction, iNotes, userCred, isSuccess,
+		func(obj db.IModel, logAction string, iNotes interface{}, userCred mcclient.TokenCredential, isSuccess bool) {
+			logclient.AddActionLogWithContext(ctx, obj, logAction, iNotes, userCred, isSuccess)
+		})
 }

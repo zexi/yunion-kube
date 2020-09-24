@@ -6,7 +6,6 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -57,21 +56,20 @@ func (obj *SFedClusterRoleBindingCluster) Detach(ctx context.Context, userCred m
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFedClusterRoleBindingCluster) GetFedClusterRoleBinding() (*SFedClusterRoleBinding, error) {
-	fObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(obj)
-	if err != nil {
-		return nil, errors.Wrap(err, "get federated clusterrolebinding")
-	}
-	return fObj.(*SFedClusterRoleBinding), nil
-}
-
-func (obj *SFedClusterRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
-	fedObj, err := obj.GetFedClusterRoleBinding()
-	if err != nil {
-		return nil, errors.Wrap(err, "get federated clusterrolebinding object")
-	}
+func (obj *SFedClusterRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
+	fedObj := fObj.(*SFedClusterRoleBinding)
 	input := api.ClusterRoleBindingCreateInput{
 		ClusterResourceCreateInput: base.ClusterResourceCreateInput,
+		Subjects:                   fedObj.Spec.Template.Subjects,
+		RoleRef:                    api.RoleRef(fedObj.Spec.Template.RoleRef),
+	}
+	return input.JSON(input), nil
+}
+
+func (obj *SFedClusterRoleBindingCluster) GetResourceUpdateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, resObj IClusterModel, base api.NamespaceResourceUpdateInput) (jsonutils.JSONObject, error) {
+	fedObj := fObj.(*SFedClusterRoleBinding)
+	input := api.ClusterRoleBindingUpdateInput{
+		ClusterResourceUpdateInput: base.ClusterResourceUpdateInput,
 		Subjects:                   fedObj.Spec.Template.Subjects,
 		RoleRef:                    api.RoleRef(fedObj.Spec.Template.RoleRef),
 	}

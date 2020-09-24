@@ -1980,13 +1980,15 @@ func (c *SCluster) GetDetailsApiResources(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, errors.Wrap(err, "get remote kubernetes client")
 	}
-	dCli, err := rCli.ClientV2.K8S().ToDiscoveryClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "get discoveryClient")
-	}
+	dCli := rCli.KubeClient.GetClientset().Discovery()
+	// dCli, err := rCli.ClientV2.K8S().ToDiscoveryClient()
+	// if err != nil {
+	// return nil, errors.Wrap(err, "get discoveryClient")
+	// }
 	lists, err := dCli.ServerPreferredResources()
 	if err != nil {
-		return nil, errors.Wrap(err, "get server preferred resources")
+		// return nil, errors.Wrap(err, "get server preferred resources")
+		log.Errorf("get server preferred resources error: %v", err)
 	}
 	resources := []api.ClusterAPIGroupResource{}
 	// ref code from kubernetes/pkg/kubectl/cmd/apiresources/apiresources.go

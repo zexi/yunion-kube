@@ -6,6 +6,7 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -75,4 +76,26 @@ func (m *SFedNamespaceResourceManager) ListItemFilter(ctx context.Context, q *sq
 
 func (obj *SFedNamespaceResource) GetFedNamespace() (*SFedNamespace, error) {
 	return GetFedNamespaceManager().GetFedNamespace(obj.FederatednamespaceId)
+}
+
+func (obj *SFedNamespaceResource) ValidateAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	data, err := obj.SFedResourceBase.ValidateAttachCluster(ctx, userCred, data)
+	if err != nil {
+		return nil, err
+	}
+	fedNs, err := obj.GetFedNamespace()
+	if err != nil {
+		return nil, errors.Wrap(err, "get federated namespace")
+	}
+	clusterId, err := data.GetString("cluster_id")
+	if err != nil {
+		return nil, errors.Wrap(err, "get cluster_id")
+	}
+	nsObj, err := GetNamespaceManager().GetByIdOrName(userCred, clusterId, fedNs.GetName())
+	if err != nil {
+		return nil, errors.Wrapf(err, "get cluster %s namespace %s", clusterId, fedNs.GetName())
+	}
+	data.(*jsonutils.JSONDict).Set("namespace_id", jsonutils.NewString(nsObj.GetId()))
+	data.(*jsonutils.JSONDict).Set("namespace_name", jsonutils.NewString(nsObj.GetName()))
+	return data, nil
 }

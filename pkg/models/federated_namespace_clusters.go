@@ -88,13 +88,14 @@ func (obj *SFedNamespaceCluster) GetK8sResource() (runtime.Object, error) {
 	return ns, nil
 }
 
-func (obj *SFedNamespaceCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
+func (obj *SFedNamespaceCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
 	input := api.NamespaceCreateInputV2{
 		ClusterResourceCreateInput: base.ClusterResourceCreateInput,
 	}
 	return input.JSON(input), nil
 }
 
-func (obj *SFedNamespaceCluster) UpdateResource(resObj IClusterModel) error {
-	return nil
+func (obj *SFedNamespaceCluster) GetResourceUpdateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, resObj IClusterModel, base api.NamespaceResourceUpdateInput) (jsonutils.JSONObject, error) {
+	// TODO: namespace should update spec
+	return base.JSON(base), nil
 }
