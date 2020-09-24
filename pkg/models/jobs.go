@@ -28,7 +28,6 @@ func init() {
 
 type SJobManager struct {
 	SNamespaceResourceBaseManager
-	SK8sOwnedResourceBaseManager
 }
 
 type SJob struct {
@@ -52,7 +51,6 @@ func GetJobManager() *SJobManager {
 				),
 			}
 		}).(*SJobManager)
-		jobManager.SK8sOwnedResourceBaseManager = SK8sOwnedResourceBaseManager{jobManager}
 	}
 	return jobManager
 }

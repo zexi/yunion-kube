@@ -11,6 +11,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -95,6 +96,22 @@ func (m *SClusterRoleManager) NewRemoteObjectForCreate(_ IClusterModel, _ *clien
 		return nil, err
 	}
 	return input.ToClusterRole(), nil
+}
+
+func (obj *SClusterRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	input := new(api.ClusterRoleUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, errors.Wrap(err, "unmarshal json")
+	}
+	oldObj := remoteObj.(*rbacv1.ClusterRole)
+	newObj := oldObj.DeepCopyObject().(*rbacv1.ClusterRole)
+	newObj.Rules = input.Rules
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRole), new(rbac.ClusterRole), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateClusterRoleUpdate(oldObj.(*rbac.ClusterRole), newObj.(*rbac.ClusterRole))
+	}); err != nil {
+		return nil, err
+	}
+	return newObj, nil
 }
 
 func (m *SClusterRoleManager) NewFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster, obj interface{}) (IClusterModel, error) {

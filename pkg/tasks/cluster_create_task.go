@@ -103,6 +103,7 @@ func (t *ClusterCreateTask) OnSyncStatusCompleteFailed(ctx context.Context, obj 
 }
 
 func (t *ClusterCreateTask) OnSyncComplete(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterCreate, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -118,5 +119,5 @@ func (t *ClusterCreateTask) SetFailed(ctx context.Context, obj db.IStandaloneMod
 	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, api.ClusterStatusCreateFail, reason.String())
 	t.STask.SetStageFailed(ctx, reason)
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterCreate, reason, t.UserCred, false)
+	logclient.LogWithStartable(t, obj, logclient.ActionClusterCreate, reason, t.UserCred, false)
 }

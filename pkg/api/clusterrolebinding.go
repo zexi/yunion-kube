@@ -22,3 +22,9 @@ func (crb ClusterRoleBindingCreateInput) ToClusterRoleBinding() *rbac.ClusterRol
 		RoleRef:    rbac.RoleRef(crb.RoleRef),
 	}
 }
+
+type ClusterRoleBindingUpdateInput struct {
+	ClusterResourceUpdateInput
+	Subjects Subjects `json:"subjects,omitempty"`
+	RoleRef  RoleRef  `json:"roleRef"`
+}

@@ -6,7 +6,6 @@ import (
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
-	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
@@ -49,21 +48,19 @@ func (obj *SFedRoleCluster) Detach(ctx context.Context, userCred mcclient.TokenC
 	return db.DetachJoint(ctx, userCred, obj)
 }
 
-func (obj *SFedRoleCluster) GetFedRole() (*SFedRole, error) {
-	fedObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(obj)
-	if err != nil {
-		return nil, err
-	}
-	return fedObj.(*SFedRole), nil
-}
-
-func (obj *SFedRoleCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
-	fedObj, err := obj.GetFedRole()
-	if err != nil {
-		return nil, errors.Wrapf(err, "get federated role object")
-	}
+func (obj *SFedRoleCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
+	fedObj := fObj.(*SFedRole)
 	input := api.RoleCreateInput{
 		NamespaceResourceCreateInput: base,
+		Rules:                        fedObj.Spec.Template.Rules,
+	}
+	return input.JSON(input), nil
+}
+
+func (obj *SFedRoleCluster) GetResourceUpdateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, resObj IClusterModel, base api.NamespaceResourceUpdateInput) (jsonutils.JSONObject, error) {
+	fedObj := fObj.(*SFedRole)
+	input := api.RoleUpdateInput{
+		NamespaceResourceUpdateInput: base,
 		Rules:                        fedObj.Spec.Template.Rules,
 	}
 	return input.JSON(input), nil

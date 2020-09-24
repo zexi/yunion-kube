@@ -122,6 +122,23 @@ func (m *SClusterRoleBindingManager) NewRemoteObjectForCreate(obj IClusterModel,
 	return input.ToClusterRoleBinding(), nil
 }
 
+func (crb *SClusterRoleBinding) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
+	input := new(api.ClusterRoleBindingUpdateInput)
+	if err := data.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	oldObj := remoteObj.(*rbacv1.ClusterRoleBinding)
+	newObj := oldObj.DeepCopyObject().(*rbacv1.ClusterRoleBinding)
+	newObj.Subjects = input.Subjects
+	newObj.RoleRef = rbacv1.RoleRef(input.RoleRef)
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRoleBinding), new(rbac.ClusterRoleBinding), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateClusterRoleBindingUpdate(oldObj.(*rbac.ClusterRoleBinding), newObj.(*rbac.ClusterRoleBinding))
+	}); err != nil {
+		return nil, err
+	}
+	return newObj, nil
+}
+
 func (crb *SClusterRoleBinding) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	return crb.SClusterResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj)
 }

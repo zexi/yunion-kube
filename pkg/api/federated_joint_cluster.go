@@ -2,6 +2,10 @@ package api
 
 import "yunion.io/x/onecloud/pkg/apis"
 
+const (
+	FederatedResourceStatusNotBind = "not_bind"
+)
+
 type FedJointClusterListInput struct {
 	apis.JointResourceBaseListInput
 

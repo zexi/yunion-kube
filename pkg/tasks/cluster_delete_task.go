@@ -49,7 +49,7 @@ func (t *ClusterDeleteTask) OnMachinesDeleted(ctx context.Context, cluster *mode
 		return
 	}
 	t.SetStageComplete(ctx, nil)
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterDelete, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterDelete, nil, t.UserCred, true)
 }
 
 func (t *ClusterDeleteTask) OnMachinesDeletedFailed(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
@@ -64,5 +64,5 @@ func (t *ClusterDeleteTask) SetFailed(ctx context.Context, obj db.IStandaloneMod
 	cluster := obj.(*models.SCluster)
 	cluster.SetStatus(t.UserCred, api.ClusterStatusDeleteFail, "")
 	t.STask.SetStageFailed(ctx, reason)
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterDelete, reason, t.UserCred, false)
+	logclient.LogWithStartable(t, obj, logclient.ActionClusterDelete, reason, t.UserCred, false)
 }

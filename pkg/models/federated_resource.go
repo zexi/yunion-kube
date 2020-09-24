@@ -3,10 +3,12 @@ package models
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -26,7 +28,7 @@ type IFedModelManager interface {
 }
 
 type IFedModel interface {
-	db.IModel
+	db.IStatusDomainLevelModel
 
 	GetManager() IFedModelManager
 	GetDetails(baseDetails interface{}, isList bool) interface{}
@@ -34,6 +36,8 @@ type IFedModel interface {
 	GetJointModelManager() IFedJointClusterManager
 	ValidateAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
 	ValidateDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (jsonutils.JSONObject, error)
+	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
+	LogPrefix() string
 }
 
 // +onecloud:swagger-gen-ignore
@@ -68,6 +72,10 @@ func (m *SFedResourceBaseManager) GetJointModelManager() IFedJointClusterManager
 
 func (m *SFedResourceBase) GetJointModelManager() IFedJointClusterManager {
 	return m.GetManager().GetJointModelManager()
+}
+
+func (obj *SFedResourceBase) LogPrefix() string {
+	return fmt.Sprintf("Federated %s %s(%s)", obj.Keyword(), obj.GetName(), obj.GetId())
 }
 
 func (m *SFedResourceBaseManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.FederatedResourceListInput) (*sqlchemy.SQuery, error) {
@@ -119,9 +127,20 @@ func (obj *SFedResourceBase) GetClustersCount() (int, error) {
 	return q.CountWithError()
 }
 
+func (obj *SFedResourceBase) PostCreate(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	obj.SStatusDomainLevelResourceBase.PostCreate(ctx, userCred, ownerId, query, data)
+	obj.SetStatus(userCred, api.FederatedResourceStatusActive, "post create")
+}
+
 func (obj *SFedResourceBase) GetDetails(base interface{}, isList bool) interface{} {
 	out := api.FederatedResourceDetails{
 		StatusDomainLevelResourceDetails: base.(apis.StatusDomainLevelResourceDetails),
+	}
+	clusterCount, err := obj.GetClustersCount()
+	if err == nil {
+		out.ClusterCount = &clusterCount
+	} else {
+		log.Errorf("Get %s cluster count error: %v", obj.LogPrefix(), err)
 	}
 	if isList {
 		return out
@@ -142,6 +161,7 @@ func (obj *SFedResourceBase) ValidateJointCluster(userCred mcclient.TokenCredent
 	}
 	clusterId = cluster.GetId()
 	data.(*jsonutils.JSONDict).Set("cluster_id", jsonutils.NewString(clusterId))
+	data.(*jsonutils.JSONDict).Set("cluster_name", jsonutils.NewString(cluster.GetName()))
 	jointModel, err := GetFederatedJointClusterModel(jointMan, obj.GetId(), clusterId)
 	return jointModel, data, err
 }
@@ -185,6 +205,14 @@ func (obj *SFedResourceBase) GetElemModel() (IFedModel, error) {
 	return elemObj.(IFedModel), nil
 }
 
+func (obj *SFedResourceBase) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	elemObj, err := obj.GetElemModel()
+	if err != nil {
+		return nil, err
+	}
+	return nil, GetFedResAPI().StartSyncTask(elemObj, ctx, userCred, data.(*jsonutils.JSONDict), "")
+}
+
 func (obj *SFedResourceBase) PerformSyncCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
 	elemObj, err := obj.GetElemModel()
 	if err != nil {
@@ -212,19 +240,6 @@ func (obj *SFedResourceBase) PerformDetachCluster(ctx context.Context, userCred 
 	return nil, GetFedResAPI().PerformDetachCluster(elemObj, ctx, userCred, data)
 }
 
-// TODO: move to api interface
-func (m *SFedResourceBase) GetAttachedClusters(ctx context.Context) ([]SCluster, error) {
-	jm := m.GetJointModelManager()
-	clusters := make([]SCluster, 0)
-	q := GetClusterManager().Query()
-	sq := jm.Query("cluster_id").Equals("federatedresource_id", m.GetId()).SubQuery()
-	q = q.In("id", sq)
-	if err := db.FetchModelObjects(GetClusterManager(), q, &clusters); err != nil {
-		return nil, errors.Wrapf(err, "get federated resource %s %s attached clusters", m.Keyword(), m.GetName())
-	}
-	return clusters, nil
-}
-
 func (m *SFedResourceBase) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.FedResourceUpdateInput) (*api.FedResourceUpdateInput, error) {
 	bInput, err := m.SStatusDomainLevelResourceBase.ValidateUpdateData(ctx, userCred, query, input.StatusDomainLevelResourceBaseUpdateInput)
 	if err != nil {
@@ -237,8 +252,15 @@ func (m *SFedResourceBase) ValidateUpdateData(ctx context.Context, userCred mccl
 	return input, nil
 }
 
-func (m *SFedResourceBase) ValidateDeleteCondition(ctx context.Context) error {
-	clusters, err := m.GetAttachedClusters(ctx)
+func (res *SFedResourceBase) PostUpdate(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) {
+	res.SStatusDomainLevelResourceBase.PostUpdate(ctx, userCred, query, data)
+	if err := GetFedResAPI().StartUpdateTask(res, ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
+		log.Errorf("StartUpdateTask %s error: %v", res.LogPrefix(), err)
+	}
+}
+
+func (obj *SFedResourceBase) ValidateDeleteCondition(ctx context.Context) error {
+	clusters, err := GetFedResAPI().GetAttachedClusters(obj)
 	if err != nil {
 		return errors.Wrap(err, "get attached clusters")
 	}
@@ -247,7 +269,7 @@ func (m *SFedResourceBase) ValidateDeleteCondition(ctx context.Context) error {
 		clsName[i] = clusters[i].GetName()
 	}
 	if len(clusters) != 0 {
-		return httperrors.NewNotEmptyError("federated resource %s attached to cluster %v", m.Keyword(), clsName)
+		return httperrors.NewNotEmptyError("federated resource %s attached to cluster %v", obj.Keyword(), clsName)
 	}
 	return nil
 }

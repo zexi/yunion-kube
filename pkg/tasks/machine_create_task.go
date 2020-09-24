@@ -42,7 +42,7 @@ func (t *MachineCreateTask) OnInit(ctx context.Context, obj db.IStandaloneModel,
 func (t *MachineCreateTask) OnMachinePrepared(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
 	//machine := obj.(*machines.SMachine)
 	t.SetStageComplete(ctx, nil)
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionMachineCreate, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, obj, logclient.ActionMachineCreate, nil, t.UserCred, true)
 }
 
 func (t *MachineCreateTask) OnMachinePreparedFailed(ctx context.Context, obj db.IStandaloneModel, data jsonutils.JSONObject) {
@@ -53,5 +53,5 @@ func (t *MachineCreateTask) OnMachinePreparedFailed(ctx context.Context, obj db.
 func (t *MachineCreateTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
 	machine.SetStatus(t.UserCred, api.MachineStatusCreateFail, err.Error())
 	t.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
-	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachineCreate, err.Error(), t.UserCred, false)
+	logclient.LogWithStartable(t, machine, logclient.ActionMachineCreate, err.Error(), t.UserCred, false)
 }

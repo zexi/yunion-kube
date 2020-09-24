@@ -3,14 +3,13 @@ package tasks
 import (
 	"context"
 
-	"yunion.io/x/yunion-kube/pkg/models"
-	"yunion.io/x/yunion-kube/pkg/utils/logclient"
-
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 
 	"yunion.io/x/yunion-kube/pkg/k8s/client/cmd"
+	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 func init() {
@@ -30,7 +29,7 @@ func (t *ClusterApplyAddonsTask) OnInit(ctx context.Context, obj db.IStandaloneM
 }
 
 func (t *ClusterApplyAddonsTask) OnApplyAddons(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterApplyAddons, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterApplyAddons, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -59,5 +58,5 @@ func ApplyAddons(cluster *models.SCluster) error {
 
 func (t *ClusterApplyAddonsTask) OnError(ctx context.Context, obj *models.SCluster, err jsonutils.JSONObject) {
 	t.SetStageFailed(ctx, err)
-	logclient.AddActionLogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err, t.UserCred, false)
+	logclient.LogWithStartable(t, obj, logclient.ActionClusterApplyAddons, err, t.UserCred, false)
 }
