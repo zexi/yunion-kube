@@ -39,11 +39,11 @@ func (t *ClusterSyncTask) OnInit(ctx context.Context, obj db.IStandaloneModel, d
 }
 
 func (t *ClusterSyncTask) OnSyncComplete(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSync, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterSync, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterSyncTask) OnSyncCompleteFailed(ctx context.Context, cluster *models.SCluster, reason jsonutils.JSONObject) {
 	t.SetStageFailed(ctx, reason)
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterSync, reason, t.UserCred, false)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterSync, reason, t.UserCred, false)
 }

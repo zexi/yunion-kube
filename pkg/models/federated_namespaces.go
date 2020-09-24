@@ -3,12 +3,12 @@ package models
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/core/validation"
 
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -78,12 +78,11 @@ func (m *SFedNamespaceManager) ValidateCreateData(ctx context.Context, userCred 
 	}
 	input.FederatedResourceCreateInput = *rInput
 	nsObj := input.ToNamespace()
-	out := new(core.Namespace)
-	if err := legacyscheme.Scheme.Convert(nsObj, out, nil); err != nil {
-		return nil, errors.Wrap(k8serrors.NewGeneralError(err), "convert to internal namespace object")
+	out, err := m.K8sConvertToInternalObject(nsObj)
+	if err != nil {
+		return nil, err
 	}
-	log.Errorf("internal namespace: %#v", out)
-	if err := validation.ValidateNamespace(out).ToAggregate(); err != nil {
+	if err := validation.ValidateNamespace(out.(*core.Namespace)).ToAggregate(); err != nil {
 		return nil, httperrors.NewInputParameterError("%s", err)
 	}
 	return input, nil
@@ -128,4 +127,29 @@ func (obj *SFedNamespace) PerformAttachCluster(ctx context.Context, userCred mcc
 func (obj *SFedNamespace) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedNamespaceDetachClusterInput) (*api.FederatedNamespaceDetachClusterInput, error) {
 	_, err := obj.SFedResourceBase.PerformDetachCluster(ctx, userCred, query, data.JSON(data))
 	return nil, err
+}
+
+func (m *SFedNamespaceManager) K8sConvertToInternalObject(in *corev1.Namespace) (interface{}, error) {
+	out := new(core.Namespace)
+	if err := legacyscheme.Scheme.Convert(in, out, nil); err != nil {
+		return nil, errors.Wrap(k8serrors.NewGeneralError(err), "convert to internal namespace object")
+	}
+	return out, nil
+}
+
+func (obj *SFedNamespace) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.FedNamespaceUpdateInput) (*api.FedNamespaceUpdateInput, error) {
+	rInput, err := obj.SFedResourceBase.ValidateUpdateData(ctx, userCred, query, &input.FedResourceUpdateInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SFedResourceBase.ValidateUpdateData")
+	}
+	input.FedResourceUpdateInput = *rInput
+	nsObj := input.ToNamespace(obj.GetK8sObjectMeta())
+	out, err := GetFedNamespaceManager().K8sConvertToInternalObject(nsObj)
+	if err != nil {
+		return nil, err
+	}
+	if err := validation.ValidateNamespace(out.(*core.Namespace)).ToAggregate(); err != nil {
+		return nil, httperrors.NewInputParameterError("%s", err)
+	}
+	return input, nil
 }

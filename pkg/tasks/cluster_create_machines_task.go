@@ -54,7 +54,7 @@ func (t *ClusterCreateMachinesTask) createMachines(ctx context.Context, cluster 
 }
 
 func (t *ClusterCreateMachinesTask) OnMachinesCreated(ctx context.Context, cluster *models.SCluster, data jsonutils.JSONObject) {
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, nil, t.UserCred, true)
 	t.SetStageComplete(ctx, nil)
 }
 
@@ -64,5 +64,5 @@ func (t *ClusterCreateMachinesTask) OnMachinesCreatedFailed(ctx context.Context,
 
 func (t *ClusterCreateMachinesTask) onError(ctx context.Context, cluster *models.SCluster, err error) {
 	SetObjectTaskFailed(ctx, t, cluster, api.ClusterStatusCreateMachineFail, err.Error())
-	logclient.AddActionLogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, err.Error(), t.UserCred, false)
+	logclient.LogWithStartable(t, cluster, logclient.ActionClusterCreateMachines, err.Error(), t.UserCred, false)
 }

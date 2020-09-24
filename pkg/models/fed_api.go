@@ -9,11 +9,13 @@ import (
 	"yunion.io/x/onecloud/pkg/apis"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/lockman"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 var (
@@ -38,12 +40,22 @@ type IFedResAPI interface {
 
 	// IsAttach2Cluster check federated object is attach to specified cluster
 	IsAttach2Cluster(obj IFedModel, clusterId string) (bool, error)
+	// GetAttachedClusters fetch clusters attached to current federated object
+	GetAttachedClusters(obj IFedModel) ([]SCluster, error)
+
 	// PerformAttachCluster sync federated template object to cluster
 	PerformAttachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFedJointClusterModel, error)
+
 	// PerformSyncCluster sync resource to cluster
 	PerformSyncCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error
+
 	// PerformDetachCluster delete federated releated object inside cluster
 	PerformDetachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error
+
+	// StartUpdateTask called when federated object post update
+	StartUpdateTask(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error
+	// StartSyncTask sync federated object current template to attached clusters
+	StartSyncTask(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error
 }
 
 type sFedResAPI struct {
@@ -92,12 +104,47 @@ func (a sFedResAPI) IsAttach2Cluster(obj IFedModel, clusterId string) (bool, err
 	return jObj != nil, nil
 }
 
+func (a sFedResAPI) GetAttachedClusters(obj IFedModel) ([]SCluster, error) {
+	jm := obj.GetJointModelManager()
+	clusters := make([]SCluster, 0)
+	q := GetClusterManager().Query()
+	sq := jm.Query("cluster_id").Equals("federatedresource_id", obj.GetId()).SubQuery()
+	q = q.In("id", sq)
+	if err := db.FetchModelObjects(GetClusterManager(), q, &clusters); err != nil {
+		return nil, errors.Wrapf(err, "get federated resource %s %s attached clusters", obj.Keyword(), obj.GetName())
+	}
+	return clusters, nil
+}
+
+func (a sFedResAPI) StartUpdateTask(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "FedResourceUpdateTask", obj, userCred, data, parentTaskId, "")
+	if err != nil {
+		return errors.Wrap(err, "New FedResourceUpdateTask")
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
+func (a sFedResAPI) StartSyncTask(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "FedResourceSyncTask", obj, userCred, data, parentTaskId, "")
+	if err != nil {
+		return errors.Wrap(err, "New FedResourceSyncTask")
+	}
+	task.ScheduleRun(nil)
+	return nil
+}
+
 func (a sFedResAPI) PerformSyncCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error {
 	jObj, data, err := obj.ValidateJointCluster(userCred, data)
 	if err != nil {
 		return err
 	}
-	return a.performSyncCluster(jObj, ctx, userCred)
+	if err := a.performSyncCluster(jObj, ctx, userCred); err != nil {
+		logclient.LogWithContext(ctx, obj, logclient.ActionResourceSync, err, userCred, false)
+		return err
+	}
+	logclient.LogWithContext(ctx, obj, logclient.ActionResourceSync, data, userCred, true)
+	return nil
 }
 
 func (a sFedResAPI) performSyncCluster(jObj IFedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
@@ -115,12 +162,15 @@ func (a sFedResAPI) PerformAttachCluster(obj IFedModel, ctx context.Context, use
 	}
 	jObj, err := a.attachCluster(obj, ctx, userCred, clusterId)
 	if err != nil {
+		logclient.LogWithContext(ctx, obj, logclient.ActionResourceAttach, err, userCred, false)
 		return nil, err
 	}
-	if err := a.performSyncCluster(jObj, ctx, userCred); err != nil {
+	logclient.LogWithContext(ctx, obj, logclient.ActionResourceAttach, data, userCred, true)
+
+	if err := a.PerformSyncCluster(obj, ctx, userCred, data); err != nil {
 		return nil, err
 	}
-	return jObj, err
+	return jObj, nil
 }
 
 func (a sFedResAPI) attachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFedJointClusterModel, error) {
@@ -163,7 +213,12 @@ func (a sFedResAPI) PerformDetachCluster(obj IFedModel, ctx context.Context, use
 		return err
 	}
 	clusterId, _ := data.GetString("cluster_id")
-	return a.detachCluster(obj, ctx, userCred, clusterId)
+	if err := a.detachCluster(obj, ctx, userCred, clusterId); err != nil {
+		logclient.LogWithContext(ctx, obj, logclient.ActionResourceDetach, err, userCred, false)
+		return err
+	}
+	logclient.LogWithContext(ctx, obj, logclient.ActionResourceDetach, data, userCred, true)
+	return nil
 }
 
 func (a sFedResAPI) detachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) error {
@@ -284,6 +339,8 @@ func (a sFedJointResAPI) GetDetails(jObj IFedJointClusterModel, userCred mcclien
 			out.ResourceStatus = resObj.GetStatus()
 			out.ResourceKeyword = resObj.Keyword()
 		}
+	} else {
+		out.ResourceStatus = api.FederatedResourceStatusNotBind
 	}
 	return out
 }
@@ -350,7 +407,7 @@ func (a sFedJointResAPI) IsResourceExist(jObj IFedJointClusterModel, userCred mc
 func (a sFedJointResAPI) ReconcileResource(jObj IFedJointClusterModel, ctx context.Context, userCred mcclient.TokenCredential) error {
 	resObj, exist, err := a.IsResourceExist(jObj, userCred)
 	if err != nil {
-		return errors.Wrapf(err, "Check %s/%s cluster resource %s %s exist", jObj.Keyword(), jObj.GetName(), resObj.Keyword(), resObj.GetName())
+		return errors.Wrapf(err, "Check %s/%s cluster resource exist", jObj.Keyword(), jObj.GetName())
 	}
 	cluster, err := jObj.GetCluster()
 	if err != nil {
@@ -389,13 +446,17 @@ func (a sFedJointResAPI) createResource(
 		}
 		baseInput.NamespaceId = clsNs.GetId()
 	}
-	data, err := jObj.GetResourceCreateData(ctx, userCred, *baseInput)
+	fedObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(jObj)
+	if err != nil {
+		return errors.Wrapf(err, "get fed joint resource %s master object", jObj.Keyword())
+	}
+	data, err := jObj.GetResourceCreateData(ctx, userCred, fedObj, *baseInput)
 	if err != nil {
 		return errors.Wrapf(err, "get fed joint resource %s create to cluster %s resource data", jObj.Keyword(), cluster.GetName())
 	}
 	resObj, err := db.DoCreate(jObj.GetResourceManager(), ctx, userCred, nil, data, ownerId)
 	if err != nil {
-		return errors.Wrapf(err, "create cluster %s %s local resource object", cluster.GetName(), jObj.GetResourceManager().Keyword())
+		return errors.Wrapf(err, "create cluster %q %s local resource object, data: %s", cluster.GetName(), jObj.GetResourceManager().Keyword(), data)
 	}
 	if err := jObj.SetResource(resObj.(IClusterModel)); err != nil {
 		return errors.Wrapf(err, "set %s resource object", jObj.Keyword())
@@ -418,7 +479,18 @@ func (a sFedJointResAPI) updateResource(
 	if err := jObj.SetResource(resObj.(IClusterModel)); err != nil {
 		return errors.Wrapf(err, "set %s resource object", jObj.Keyword())
 	}
-	resObj.PostUpdate(ctx, userCred, nil, jsonutils.NewDict())
+	baseInput := new(api.NamespaceResourceUpdateInput)
+
+	fedObj, err := GetFedResAPI().JointResAPI().FetchFedResourceModel(jObj)
+	if err != nil {
+		return errors.Wrapf(err, "get fed joint resource %s master object", jObj.Keyword())
+	}
+	data, err := jObj.GetResourceUpdateData(ctx, userCred, fedObj, resObj, *baseInput)
+	if err != nil {
+		return errors.Wrapf(err, "get fed joint resource %s update to cluster %s resource data", jObj.Keyword(), resObj.GetClusterId())
+	}
+
+	resObj.PostUpdate(ctx, userCred, nil, data)
 	return nil
 }
 

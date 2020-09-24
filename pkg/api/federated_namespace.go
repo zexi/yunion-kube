@@ -62,3 +62,12 @@ type FederatedNamespaceClusterDetails struct {
 type FederatedNamespaceClusterListInput struct {
 	FedJointClusterListInput
 }
+
+type FedNamespaceUpdateInput struct {
+	FedResourceUpdateInput
+	Spec FederatedNamespaceSpec `json:"spec"`
+}
+
+func (input FedNamespaceUpdateInput) ToNamespace(objMeta metav1.ObjectMeta) *corev1.Namespace {
+	return input.Spec.ToNamespace(objMeta)
+}

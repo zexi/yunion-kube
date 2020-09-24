@@ -53,3 +53,9 @@ func (rb RoleBindingCreateInput) ToRoleBinding(namespaceName string) (*rbac.Role
 		RoleRef:    rbac.RoleRef(rb.RoleRef),
 	}, nil
 }
+
+type RoleBindingUpdateInput struct {
+	NamespaceResourceUpdateInput
+	Subjects Subjects `json:"subjects,omitempty"`
+	RoleRef  RoleRef  `json:"roleRef"`
+}

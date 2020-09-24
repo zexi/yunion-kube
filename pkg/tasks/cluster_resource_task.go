@@ -2,15 +2,16 @@ package tasks
 
 import (
 	"context"
-	"yunion.io/x/log"
 
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db/taskman"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/models"
+	"yunion.io/x/yunion-kube/pkg/utils/logclient"
 )
 
 func init() {
@@ -64,10 +65,12 @@ func (t *ClusterResourceCreateTask) OnCreateCompleteFailed(ctx context.Context, 
 }
 
 func (t *ClusterResourceCreateTask) OnResourceSyncComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceCreate, nil, t.GetUserCred(), true)
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterResourceCreateTask) OnResourceSyncCompleteFailed(ctx context.Context, obj models.IClusterModel, err jsonutils.JSONObject) {
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceCreate, err, t.GetUserCred(), false)
 	t.SetStageFailed(ctx, err)
 }
 
@@ -91,10 +94,12 @@ func (t *ClusterResourceUpdateTask) OnInit(ctx context.Context, obj db.IStandalo
 
 func (t *ClusterResourceUpdateTask) OnUpdateComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
 	t.SetStageComplete(ctx, nil)
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceUpdate, nil, t.GetUserCred(), true)
 }
 
 func (t *ClusterResourceUpdateTask) OnUpdateCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusUpdateFail, reason.String())
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceUpdate, reason, t.GetUserCred(), false)
 }
 
 type ClusterResourceDeleteTask struct {
@@ -117,11 +122,14 @@ func (t *ClusterResourceDeleteTask) OnInit(ctx context.Context, obj db.IStandalo
 
 func (t *ClusterResourceDeleteTask) OnDeleteComplete(ctx context.Context, obj models.IClusterModel, data jsonutils.JSONObject) {
 	if err := obj.RealDelete(ctx, t.UserCred); err != nil {
-		SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusDeleteFail, err.Error())
+		t.OnDeleteCompleteFailed(ctx, obj, jsonutils.NewString(err.Error()))
+		return
 	}
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceDelete, nil, t.GetUserCred(), true)
 	t.SetStageComplete(ctx, nil)
 }
 
 func (t *ClusterResourceDeleteTask) OnDeleteCompleteFailed(ctx context.Context, obj models.IClusterModel, reason jsonutils.JSONObject) {
 	SetObjectTaskFailed(ctx, t, obj, api.ClusterResourceStatusDeleteFail, reason.String())
+	logclient.LogWithStartable(t, obj, logclient.ActionResourceDelete, reason, t.GetUserCred(), false)
 }

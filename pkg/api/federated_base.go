@@ -6,6 +6,13 @@ import (
 	"yunion.io/x/onecloud/pkg/apis"
 )
 
+const (
+	FederatedResourceStatusActive     = "active"
+	FederatedResourceStatusUpdateFail = "update_fail"
+	FederatedResourceStatusSyncing    = "syncing"
+	FedreatedResourceStatusSyncFail   = "sync_fail"
+)
+
 type FederatedResourceCreateInput struct {
 	K8sResourceCreateInput
 }
@@ -38,7 +45,8 @@ func (input FederatedNamespaceResourceCreateInput) ToObjectMeta(namespace string
 
 type FederatedResourceDetails struct {
 	apis.StatusDomainLevelResourceDetails
-	Placement FederatedPlacement `json:"placement"`
+	Placement    FederatedPlacement `json:"placement"`
+	ClusterCount *int               `json:"cluster_count"`
 }
 
 type FederatedPlacement struct {

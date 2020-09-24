@@ -67,19 +67,12 @@ func (t *MachinePrepareTask) OnInit(ctx context.Context, obj db.IStandaloneModel
 	}
 	machine.SetStatus(t.UserCred, api.MachineStatusRunning, "")
 
-	log.Infof("Prepare machine complete")
-	//cluster, err := machine.GetCluster()
-	//if err != nil {
-	//t.OnError(ctx, machine, err)
-	//return
-	//}
-	//cluster.StartSyncStatus(ctx, t.UserCred, "")
 	t.SetStageComplete(ctx, nil)
-	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, nil, t.UserCred, true)
+	logclient.LogWithStartable(t, machine, logclient.ActionMachinePrepare, nil, t.UserCred, true)
 }
 
 func (t *MachinePrepareTask) OnError(ctx context.Context, machine *models.SMachine, err error) {
 	machine.SetStatus(t.UserCred, api.MachineStatusPrepareFail, err.Error())
 	t.SetStageFailed(ctx, jsonutils.NewString(err.Error()))
-	logclient.AddActionLogWithStartable(t, machine, logclient.ActionMachinePrepare, err.Error(), t.UserCred, false)
+	logclient.LogWithStartable(t, machine, logclient.ActionMachinePrepare, err.Error(), t.UserCred, false)
 }

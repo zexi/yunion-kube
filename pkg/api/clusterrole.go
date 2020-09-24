@@ -16,3 +16,8 @@ func (input ClusterRoleCreateInput) ToClusterRole() *rbac.ClusterRole {
 		Rules:      input.Rules,
 	}
 }
+
+type ClusterRoleUpdateInput struct {
+	ClusterResourceUpdateInput
+	Rules []rbac.PolicyRule `json:"rules"`
+}

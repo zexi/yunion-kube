@@ -71,7 +71,8 @@ type IFedJointClusterModel interface {
 	GetCluster() (*SCluster, error)
 	GetResourceManager() IClusterModelManager
 	SetResource(resObj IClusterModel) error
-	GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, baseInput api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error)
+	GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, fedObj IFedModel, baseInput api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error)
+	GetResourceUpdateData(ctx context.Context, userCred mcclient.TokenCredential, fedObj IFedModel, resObj IClusterModel, baseInput api.NamespaceResourceUpdateInput) (jsonutils.JSONObject, error)
 	GetDetails(base api.FedJointClusterResourceDetails, isList bool) interface{}
 }
 

@@ -47,7 +47,6 @@ func GetServiceManager() *SServiceManager {
 
 type SServiceManager struct {
 	SNamespaceResourceBaseManager
-	SK8sOwnedResourceBaseManager
 }
 
 type SService struct {
