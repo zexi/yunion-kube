@@ -80,6 +80,9 @@ func (m *SFedClusterRoleManager) GetPropertyClusterUsers(ctx context.Context, us
 	if err != nil {
 		return nil, err
 	}
+	if ret == nil {
+		return []api.ClusterUser{}, nil
+	}
 	return ret.(api.ClusterUsers), nil
 }
 
@@ -87,6 +90,9 @@ func (m *SFedClusterRoleManager) GetPropertyClusterUserGroups(ctx context.Contex
 	ret, err := GetFedClustersUserGroups(ctx, userCred, query)
 	if err != nil {
 		return nil, err
+	}
+	if ret == nil {
+		return []api.ClusterUserGroup{}, nil
 	}
 	return ret.(api.ClusterUserGroups), nil
 }
