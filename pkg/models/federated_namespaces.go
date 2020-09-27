@@ -110,7 +110,7 @@ func (obj *SFedNamespace) ValidateDeleteCondition(ctx context.Context) error {
 			return errors.Wrapf(err, "fetch %s models by fednamespace", m.Keyword())
 		}
 		if len(objs) > 0 {
-			return httperrors.NewNotEmptyError("federatednamespace %s has %d related %s attached", obj.GetName(), m.Keyword(), len(objs))
+			return httperrors.NewNotEmptyError("federatednamespace %s has %d related %s attached", obj.GetName(), len(objs), m.Keyword())
 		}
 	}
 	return nil

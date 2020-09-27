@@ -25,6 +25,7 @@ type IFedModelManager interface {
 
 	GetJointModelManager() IFedJointClusterManager
 	SetJointModelManager(man IFedJointClusterManager)
+	PurgeAllByCluster(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error
 }
 
 type IFedModel interface {
@@ -111,6 +112,35 @@ func (m *SFedResourceBaseManager) FetchCustomizeColumns(
 		ret[idx] = out
 	}
 	return ret
+}
+
+func (m *SFedResourceBaseManager) PurgeAllByCluster(ctx context.Context, userCred mcclient.TokenCredential, cluster *SCluster) error {
+	jm := m.GetJointModelManager()
+	sq := jm.Query("federatedresource_id").Equals("cluster_id", cluster.GetId()).SubQuery()
+	q := m.Query().In("id", sq)
+	objs := make([]interface{}, 0)
+	if err := db.FetchModelObjects(m, q, &objs); err != nil {
+		return errors.Wrapf(err, "Fetch all %s objects when purge all", m.KeywordPlural())
+	}
+	fedApi := GetFedResAPI()
+	for i := range objs {
+		obj := objs[i]
+		objPtr := GetObjectPtr(obj).(IFedModel)
+		jObj, err := fedApi.GetJointModel(objPtr, cluster.GetId())
+		if err != nil {
+			if errors.Cause(err) == sql.ErrNoRows {
+				continue
+			}
+			return errors.Wrapf(err, "get joint model by cluster %s", cluster.GetId())
+		}
+		if jObj == nil {
+			continue
+		}
+		if err := jObj.Delete(ctx, userCred); err != nil {
+			return errors.Wrapf(err, "delete %s cluster %s joint model", objPtr.LogPrefix(), cluster.GetId())
+		}
+	}
+	return nil
 }
 
 func (obj *SFedResourceBase) GetManager() IFedModelManager {
