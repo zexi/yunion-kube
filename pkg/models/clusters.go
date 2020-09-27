@@ -1062,6 +1062,9 @@ func (c *SCluster) RealDelete(ctx context.Context, userCred mcclient.TokenCreden
 	if err := c.PurgeAllClusterResource(ctx, userCred); err != nil {
 		return errors.Wrap(err, "Purge all k8s cluster db resources")
 	}
+	if err := c.PurgeAllFedResource(ctx, userCred); err != nil {
+		return errors.Wrap(err, "Purge all federated cluster resources")
+	}
 	return c.SStatusDomainLevelResourceBase.Delete(ctx, userCred)
 }
 
@@ -1082,6 +1085,17 @@ func (c *SCluster) purgeSubClusterResource(ctx context.Context, userCred mcclien
 			return errors.Wrapf(err, "purge subresource %s", resMan.Keyword())
 		}
 		log.Infof("Purge cluster %s resources %s success.", c.GetName(), resMan.KeywordPlural())
+	}
+	return nil
+}
+
+func (c *SCluster) PurgeAllFedResource(ctx context.Context, userCred mcclient.TokenCredential) error {
+	for _, m := range GetFedManagers() {
+		log.Infof("start purge federated %s joint resource for cluster", m.KeywordPlural(), c.GetName())
+		if err := m.PurgeAllByCluster(ctx, userCred, c); err != nil {
+			return errors.Wrapf(err, "purge federated resource %s for cluster %s", m.Keyword(), c.GetName())
+		}
+		log.Infof("end purge federated %s joint resource for cluster %s", m.KeywordPlural(), c.GetName())
 	}
 	return nil
 }

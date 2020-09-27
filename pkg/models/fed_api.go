@@ -38,6 +38,8 @@ type IFedResAPI interface {
 	NamespaceScope() IFedNamespaceResAPI
 	JointResAPI() IFedJointResAPI
 
+	// GetJointModel fetch federated related joint object
+	GetJointModel(obj IFedModel, clusterId string) (IFedJointClusterModel, error)
 	// IsAttach2Cluster check federated object is attach to specified cluster
 	IsAttach2Cluster(obj IFedModel, clusterId string) (bool, error)
 	// GetAttachedClusters fetch clusters attached to current federated object
