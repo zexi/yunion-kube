@@ -735,8 +735,10 @@ func (obj *SClusterResourceBase) UpdateFromRemoteObject(
 	if obj.ResourceVersion != resVersion {
 		obj.ResourceVersion = resVersion
 	}
-	if obj.GetStatus() != api.ClusterResourceStatusActive {
-		obj.Status = api.ClusterResourceStatusActive
+	if obj.ResourceVersion == "" {
+		if obj.GetStatus() != api.ClusterResourceStatusActive {
+			obj.Status = api.ClusterResourceStatusActive
+		}
 	}
 	return nil
 }
