@@ -22,6 +22,7 @@ import (
 
 var (
 	nodeManager *SNodeManager
+	_           IPodOwnerModel = new(SNode)
 )
 
 func init() {
@@ -87,15 +88,12 @@ func (m *SNodeManager) FetchCustomizeColumns(ctx context.Context, userCred mccli
 	return m.SClusterResourceBaseManager.FetchCustomizeColumns(ctx, userCred, query, objs, fields, isList)
 }
 
-func (node *SNode) GetRawPods(rNode *v1.Node) ([]*v1.Pod, error) {
-	cluster, err := node.GetClusterClient()
-	if err != nil {
-		return nil, err
-	}
-	allPods, err := GetPodManager().GetAllRawPods(cluster)
+func (node *SNode) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
+	allPods, err := GetPodManager().GetAllRawPods(cli)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Get node %s pods", node.GetName())
 	}
+	rNode := rawObj.(*v1.Node)
 	ret := make([]*v1.Pod, 0)
 	for _, p := range allPods {
 		if p.Spec.NodeName == rNode.Name && p.Status.Phase != v1.PodSucceeded && p.Status.Phase != v1.PodFailed {
@@ -179,7 +177,7 @@ func (node *SNode) GetDetails(cli *client.ClusterManager, base interface{}, k8sO
 		Taints:                rNode.Spec.Taints,
 		Unschedulable:         rNode.Spec.Unschedulable,
 	}
-	pods, err := node.GetRawPods(rNode)
+	pods, err := node.GetRawPods(cli, rNode)
 	if err != nil {
 		log.Errorf("get pods: %v", err)
 		return out
