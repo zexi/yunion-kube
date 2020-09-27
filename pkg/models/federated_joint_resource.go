@@ -43,6 +43,14 @@ func GetFedJointNamespaceScopeManager() []IFedNamespaceJointClusterManager {
 	return ret
 }
 
+func GetFedManagers() []IFedModelManager {
+	ret := make([]IFedModelManager, 0)
+	for _, m := range globalFedJointClusterManagers {
+		ret = append(ret, m.GetFedManager())
+	}
+	return ret
+}
+
 type IFedJointModel interface {
 	db.IJointModel
 }
