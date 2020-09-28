@@ -121,6 +121,7 @@ type IClusterModel interface {
 	SetCluster(userCred mcclient.TokenCredential, cluster *SCluster)
 	SetStatus(userCred mcclient.TokenCredential, status string, reason string) error
 	NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error)
+	SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, remoteObj interface{}) error
 	UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error
 	GetClusterClient() (*client.ClusterManager, error)
 	RealDelete(ctx context.Context, userCred mcclient.TokenCredential) error
@@ -735,9 +736,11 @@ func (obj *SClusterResourceBase) UpdateFromRemoteObject(
 	if obj.ResourceVersion != resVersion {
 		obj.ResourceVersion = resVersion
 	}
-	if obj.GetStatus() != api.ClusterResourceStatusActive && (obj.GetExternalId() == "" || obj.GetStatus() == api.ClusterResourceStatusSyncing) {
-		obj.Status = api.ClusterResourceStatusActive
-	}
+	return nil
+}
+
+func (obj *SClusterResourceBase) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	obj.Status = api.ClusterResourceStatusActive
 	return nil
 }
 
@@ -1004,7 +1007,7 @@ func UpdateRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, 
 	if err != nil {
 		return nil, errors.Wrap(err, "get remote object after updated")
 	}
-	if err := model.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+	if err := GetClusterResAPI().UpdateFromRemoteObject(model, ctx, userCred, extObj); err != nil {
 		return nil, errors.Wrap(err, "UpdateFromRemoteObject")
 	}
 	return extObj, nil

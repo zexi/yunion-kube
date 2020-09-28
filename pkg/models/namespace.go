@@ -140,12 +140,12 @@ func (ns *SNamespace) UpdateFromRemoteObject(ctx context.Context, userCred mccli
 	if err := ns.SClusterResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (ns *SNamespace) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	k8sNsStatus := string(extObj.(*v1.Namespace).Status.Phase)
-	if ns.Status != k8sNsStatus {
-		if err := ns.SetStatus(userCred, k8sNsStatus, "update from remote object"); err != nil {
-			return err
-		}
-	}
+	ns.Status = k8sNsStatus
 	return nil
 }
 

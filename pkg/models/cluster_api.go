@@ -88,6 +88,9 @@ func (a sClusterResAPI) UpdateFromRemoteObject(obj IClusterModel, ctx context.Co
 		}
 		man := obj.GetClusterModelManager()
 		obj.SetExternalId(man.GetRemoteObjectGlobalId(cls, remoteObj))
+		if err := obj.SetStatusByRemoteObject(ctx, userCred, remoteObj); err != nil {
+			return errors.Wrap(err, "Set status by remote object")
+		}
 		return nil
 	})
 	if err != nil {

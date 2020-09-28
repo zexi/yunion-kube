@@ -470,16 +470,21 @@ func (p *SPod) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.Tok
 	if err != nil {
 		return errors.Wrap(err, "get pod resource requests and limits")
 	}
-	status := getters.GetPodStatus(k8sPod)
-	if status.Status != p.Status {
-		p.Status = status.Status
-	}
 	cpuRequests, cpuLimits, memoryRequests, memoryLimits := reqs[v1.ResourceCPU],
 		limits[v1.ResourceCPU], reqs[v1.ResourceMemory], limits[v1.ResourceMemory]
 	p.CpuRequests = cpuRequests.MilliValue()
 	p.CpuLimits = cpuLimits.MilliValue()
 	p.MemoryRequests = memoryRequests.MilliValue()
 	p.MemoryLimits = memoryLimits.MilliValue()
+	return nil
+}
+
+func (p *SPod) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	k8sPod := extObj.(*v1.Pod)
+	status := getters.GetPodStatus(k8sPod)
+	if status.Status != p.Status {
+		p.Status = status.Status
+	}
 	return nil
 }
 

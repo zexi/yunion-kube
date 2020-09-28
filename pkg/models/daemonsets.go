@@ -118,6 +118,10 @@ func (obj *SDaemonSet) UpdateFromRemoteObject(ctx context.Context, userCred mccl
 	if err := obj.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
 		return errors.Wrap(err, "update daemonset")
 	}
+	return nil
+}
+
+func (obj *SDaemonSet) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	cli, err := obj.GetClusterClient()
 	if err != nil {
 		return errors.Wrap(err, "get daemonset cluster client")
