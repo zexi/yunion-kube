@@ -111,6 +111,10 @@ func (obj *SDeployment) UpdateFromRemoteObject(ctx context.Context, userCred mcc
 	if err := obj.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
 		return errors.Wrap(err, "update deployment")
 	}
+	return nil
+}
+
+func (obj *SDeployment) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	cli, err := obj.GetClusterClient()
 	if err != nil {
 		return errors.Wrap(err, "get deployment cluster client")
