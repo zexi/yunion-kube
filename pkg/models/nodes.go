@@ -244,8 +244,13 @@ func (node *SNode) UpdateFromRemoteObject(ctx context.Context, userCred mcclient
 	k8sNode := extObj.(*v1.Node)
 	node.Address = jsonutils.Marshal(k8sNode.Status.Addresses)
 	node.NodeInfo = jsonutils.Marshal(k8sNode.Status.NodeInfo)
-	node.Status = node.getStatusFromRemote(k8sNode)
 	node.updateCapacity(k8sNode)
+	return nil
+}
+
+func (node *SNode) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	k8sNode := extObj.(*v1.Node)
+	node.Status = node.getStatusFromRemote(k8sNode)
 	return nil
 }
 

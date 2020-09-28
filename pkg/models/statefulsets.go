@@ -143,6 +143,10 @@ func (obj *SStatefulSet) UpdateFromRemoteObject(ctx context.Context, userCred mc
 	if err := obj.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
 		return errors.Wrap(err, "update statefulset")
 	}
+	return nil
+}
+
+func (obj *SStatefulSet) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	cli, err := obj.GetClusterClient()
 	if err != nil {
 		return errors.Wrap(err, "get statefulset cluster client")

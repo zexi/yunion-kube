@@ -11,6 +11,7 @@ import (
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/embed"
 	"yunion.io/x/yunion-kube/pkg/templates/components"
+	"yunion.io/x/yunion-kube/pkg/utils/certificates"
 )
 
 var (
@@ -91,7 +92,15 @@ func (c componentDriverMonitor) validateGrafana(conf *api.ComponentSettingMonito
 		return httperrors.NewInputParameterError("grafana public address or host must provide")
 	}
 	if conf.TLSKeyPair == nil {
-		return httperrors.NewInputParameterError("grafana tls key pair must provide")
+		// return httperrors.NewInputParameterError("grafana tls key pair must provide")
+		kp, err := certificates.GetOrGenerateCACert(nil, "grafana-tls")
+		if err != nil {
+			return errors.Wrap(err, "generate grafana tls keypair")
+		}
+		conf.TLSKeyPair = &api.TLSKeyPair{
+			Certificate: string(kp.Cert),
+			Key:         string(kp.Key),
+		}
 	}
 	if err := c.validateGrafanaTLSKeyPair(conf.TLSKeyPair); err != nil {
 		return errors.Wrap(err, "validate tls key pair")
