@@ -154,7 +154,7 @@ func (m *SStorageClass) GetDetails(cli *client.ClusterManager, base interface{},
 	return detail
 }
 
-func (m *SStorageClassManager) PerformClassConnectionTest(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
+func (m *SStorageClassManager) PerformConnectionTest(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
 	drv, err := m.GetDriver(input.Provisioner)
 	if err != nil {
 		return nil, err

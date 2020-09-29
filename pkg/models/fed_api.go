@@ -48,6 +48,9 @@ type IFedResAPI interface {
 	// PerformAttachCluster sync federated template object to cluster
 	PerformAttachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) (IFedJointClusterModel, error)
 
+	// JustAttachCluster just create joint model
+	JustAttachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFedJointClusterModel, error)
+
 	// PerformSyncCluster sync resource to cluster
 	PerformSyncCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, data jsonutils.JSONObject) error
 
@@ -162,7 +165,7 @@ func (a sFedResAPI) PerformAttachCluster(obj IFedModel, ctx context.Context, use
 	if err != nil {
 		return nil, err
 	}
-	jObj, err := a.attachCluster(obj, ctx, userCred, clusterId)
+	jObj, err := a.JustAttachCluster(obj, ctx, userCred, clusterId)
 	if err != nil {
 		logclient.LogWithContext(ctx, obj, logclient.ActionResourceAttach, err, userCred, false)
 		return nil, err
@@ -175,7 +178,7 @@ func (a sFedResAPI) PerformAttachCluster(obj IFedModel, ctx context.Context, use
 	return jObj, nil
 }
 
-func (a sFedResAPI) attachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFedJointClusterModel, error) {
+func (a sFedResAPI) JustAttachCluster(obj IFedModel, ctx context.Context, userCred mcclient.TokenCredential, clusterId string) (IFedJointClusterModel, error) {
 	defer lockman.ReleaseObject(ctx, obj)
 	lockman.LockObject(ctx, obj)
 
@@ -253,12 +256,24 @@ func newFedClusterResAPI() IFedClusterResAPI {
 	return &sFedClusterResAPI{}
 }
 
-type IFedNamespaceResAPI interface{}
+type IFedNamespaceResAPI interface {
+	// StartAttachClusterTask start background task to attach fedreated namespace resource to cluster
+	StartAttachClusterTask(obj IFedNamespaceModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error
+}
 
 type sFedNamespaceResAPI struct{}
 
 func newFedNamespaceResAPI() IFedNamespaceResAPI {
 	return &sFedNamespaceResAPI{}
+}
+
+func (a sFedNamespaceResAPI) StartAttachClusterTask(obj IFedNamespaceModel, ctx context.Context, userCred mcclient.TokenCredential, data *jsonutils.JSONDict, parentTaskId string) error {
+	task, err := taskman.TaskManager.NewTask(ctx, "FedResourceAttachClusterTask", obj, userCred, data, parentTaskId, "")
+	if err != nil {
+		return errors.Wrap(err, "New FedResourceAttachClusterTask")
+	}
+	task.ScheduleRun(nil)
+	return nil
 }
 
 type IFedJointResAPI interface {
