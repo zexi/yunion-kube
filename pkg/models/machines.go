@@ -339,11 +339,9 @@ func (m *SMachine) GetK8sModelNode(userCred mcclient.TokenCredential, cluster *S
 	if err != nil {
 		return nil, errors.Wrap(err, "get machine related k8s node")
 	}
-	k8sObj, err := obj.GetRemoteObject()
-	if err != nil {
-		return nil, errors.Wrap(err, "get k8s node object")
-	}
-	return jsonutils.Marshal(k8sObj), nil
+	details := GetNodeManager().FetchCustomizeColumns(context.TODO(), userCred, jsonutils.NewDict(), []interface{}{obj}, stringutils2.SSortedStrings{}, false)
+	detail := details[0]
+	return jsonutils.Marshal(detail), nil
 }
 
 func (m *SMachine) moreExtraInfo(userCred mcclient.TokenCredential, extra *jsonutils.JSONDict) *jsonutils.JSONDict {

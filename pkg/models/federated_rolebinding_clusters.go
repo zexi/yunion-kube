@@ -49,10 +49,11 @@ func (obj *SFedRoleBindingCluster) Detach(ctx context.Context, userCred mcclient
 }
 
 func (obj *SFedRoleBindingCluster) GetResourceCreateData(ctx context.Context, userCred mcclient.TokenCredential, fObj IFedModel, base api.NamespaceResourceCreateInput) (jsonutils.JSONObject, error) {
-	fedObj := fObj.(*SFedClusterRoleBinding)
+	fedObj := fObj.(*SFedRoleBinding)
 	input := api.RoleBindingCreateInput{
 		NamespaceResourceCreateInput: base,
 		Subjects:                     fedObj.Spec.Template.Subjects,
+		RoleRef:                      api.RoleRef(fedObj.Spec.Template.RoleRef),
 	}
 	return input.JSON(input), nil
 }
