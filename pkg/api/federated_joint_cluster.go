@@ -11,8 +11,10 @@ type FedJointClusterListInput struct {
 
 	FederatedResourceId string `json:"federatedresource_id"`
 	ClusterId           string `json:"cluster_id"`
+	ClusterName         string `json:"cluster_name"`
 	NamespaceId         string `json:"namespace_id"`
 	ResourceId          string `json:"resource_id"`
+	ResourceName        string `json:"resource_name"`
 }
 
 type FedNamespaceJointClusterListInput struct {
