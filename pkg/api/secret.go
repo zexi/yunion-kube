@@ -68,7 +68,7 @@ type SecretDetailV2 struct {
 	Data map[string][]byte `json:"data"`
 }
 
-type ListInputSecret struct {
-	ListInputK8SNamespaceBase
+type SecretListInput struct {
+	NamespaceResourceListInput
 	Type string `json:"type"`
 }
