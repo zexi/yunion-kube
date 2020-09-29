@@ -68,8 +68,8 @@ type SStorageClass struct {
 }
 
 type IStorageClassDriver interface {
-	ConnectionTest(cli *client.ClusterManager, input *api.StorageClassCreateInput) (*api.StorageClassTestResult, error)
-	ValidateCreateData(cli *client.ClusterManager, input *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error)
+	ConnectionTest(userCred mcclient.TokenCredential, cli *client.ClusterManager, input *api.StorageClassCreateInput) (*api.StorageClassTestResult, error)
+	ValidateCreateData(userCred mcclient.TokenCredential, cli *client.ClusterManager, input *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error)
 	ToStorageClassParams(input *api.StorageClassCreateInput) (map[string]string, error)
 }
 
@@ -107,7 +107,7 @@ func (m *SStorageClassManager) ValidateCreateData(ctx context.Context, userCred 
 	if err != nil {
 		return nil, errors.Wrapf(err, "get cluster client %s", input.ClusterId)
 	}
-	return drv.ValidateCreateData(cli, input)
+	return drv.ValidateCreateData(userCred, cli, input)
 }
 
 func (m *SStorageClassManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, body jsonutils.JSONObject) (interface{}, error) {
@@ -163,7 +163,7 @@ func (m *SStorageClassManager) PerformConnectionTest(ctx context.Context, userCr
 	if err != nil {
 		return nil, errors.Wrapf(err, "get cluster client %s", input.ClusterId)
 	}
-	return drv.ConnectionTest(cli, input)
+	return drv.ConnectionTest(userCred, cli, input)
 }
 
 func (m *SStorageClassManager) GetRawStorageClasses(cli *client.ClusterManager) ([]*v1.StorageClass, error) {
