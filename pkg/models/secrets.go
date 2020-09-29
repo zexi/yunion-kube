@@ -8,9 +8,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/jsonutils"
+	// "yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
+	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -60,6 +62,7 @@ type SSecretManager struct {
 
 type SSecret struct {
 	SNamespaceResourceBase
+	Type string `width:"64" charset:"ascii" nullable:"false" list:"user"`
 }
 
 func (m SSecretManager) GetDriver(typ v1.SecretType) (ISecretDriver, error) {
@@ -157,7 +160,49 @@ func (m *SSecretManager) NewRemoteObjectForCreate(model IClusterModel, cli *clie
 	}, nil
 }
 
+func (m *SSecretManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.SecretListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SNamespaceResourceBaseManager.ListItemFilter")
+	}
+	if input.Type != "" {
+		q = q.Equals("type", input.Type)
+	}
+	return q, nil
+}
+
+/*func (m *SSecretManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*db.CustomizeListFilters, error) {
+	input := new(api.SecretListInput)
+	if err := query.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	filters := db.NewCustomizeListFilters()
+	ff := func(obj jsonutils.JSONObject) (bool, error) {
+		secType, _ := obj.GetString("type")
+		if input.Type != "" {
+			log.Errorf("===try obj %s, type %q", obj, input.Type)
+			if secType == input.Type {
+				return true, nil
+			} else {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	filters.Append(ff)
+	return filters, nil
+}*/
+
 func (m SSecretManager) GetRawSecrets(cluster *client.ClusterManager, ns string) ([]*v1.Secret, error) {
 	indexer := cluster.GetHandler().GetIndexer()
 	return indexer.SecretLister().Secrets(ns).List(labels.Everything())
+}
+
+func (s *SSecret) UpdateFromRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	if err := s.SNamespaceResourceBase.UpdateFromRemoteObject(ctx, userCred, extObj); err != nil {
+		return err
+	}
+	rawSec := extObj.(*v1.Secret)
+	s.Type = string(rawSec.Type)
+	return nil
 }
