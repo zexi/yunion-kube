@@ -9,6 +9,7 @@ import (
 	"yunion.io/x/pkg/errors"
 	"yunion.io/x/pkg/utils"
 
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
 	"yunion.io/x/yunion-kube/pkg/models"
@@ -58,11 +59,12 @@ type cephConfig struct {
 	Key  string
 }
 
-func (drv *CephCSIRBD) getCephConfig(cli *client.ClusterManager, data *api.StorageClassCreateInput) (*cephConfig, error) {
+func (drv *CephCSIRBD) getCephConfig(userCred mcclient.TokenCredential, cli *client.ClusterManager, data *api.StorageClassCreateInput) (*cephConfig, error) {
 	input := data.CephCSIRBD
 	if input == nil {
 		return nil, httperrors.NewInputParameterError("cephCSIRBD config is empty")
 	}
+	cluster := cli.GetClusterObject().(*models.SCluster)
 	secretName := input.SecretName
 	if secretName == "" {
 		return nil, httperrors.NewNotEmptyError("secretName is empty")
@@ -71,13 +73,20 @@ func (drv *CephCSIRBD) getCephConfig(cli *client.ClusterManager, data *api.Stora
 	if secretNamespace == "" {
 		return nil, httperrors.NewNotEmptyError("secretNamespace is empty")
 	}
+	nsObj, err := models.FetchClusterResourceByIdOrName(models.GetNamespaceManager(), userCred, cluster.GetId(), "", secretNamespace)
+	if err != nil {
+		return nil, errors.Wrapf(err, "get cluster %s namespace %s", cluster.GetId(), secretNamespace)
+	}
+	secObj, err := models.FetchClusterResourceByIdOrName(models.GetSecretManager(), userCred, cluster.GetId(), nsObj.GetId(), secretName)
+	if err != nil {
+		return nil, errors.Wrapf(err, "get cluster %s secret %s/%s object", cluster.GetId(), nsObj.GetName(), secretName)
+	}
 
-	user, key, err := drv.getUserKeyFromSecret(cli, secretName, secretNamespace)
+	user, key, err := drv.getUserKeyFromSecret(cli, secObj.GetName(), nsObj.GetName())
 	if err != nil {
 		return nil, err
 	}
 
-	cluster := cli.GetClusterObject().(*models.SCluster)
 	// check clusterId
 	component, err := cluster.GetComponentByType(api.ClusterComponentCephCSI)
 	if err != nil {
@@ -104,8 +113,8 @@ func (drv *CephCSIRBD) getCephConfig(cli *client.ClusterManager, data *api.Stora
 	}, nil
 }
 
-func (drv *CephCSIRBD) ValidateCreateData(cli *client.ClusterManager, data *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error) {
-	cephConf, err := drv.getCephConfig(cli, data)
+func (drv *CephCSIRBD) ValidateCreateData(userCred mcclient.TokenCredential, cli *client.ClusterManager, data *api.StorageClassCreateInput) (*api.StorageClassCreateInput, error) {
+	cephConf, err := drv.getCephConfig(userCred, cli, data)
 	if err != nil {
 		return nil, err
 	}
@@ -161,8 +170,8 @@ func (drv *CephCSIRBD) validatePool(monitors []string, user string, key string, 
 	return nil
 }
 
-func (drv *CephCSIRBD) ConnectionTest(cli *client.ClusterManager, data *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
-	cephConf, err := drv.getCephConfig(cli, data)
+func (drv *CephCSIRBD) ConnectionTest(userCred mcclient.TokenCredential, cli *client.ClusterManager, data *api.StorageClassCreateInput) (*api.StorageClassTestResult, error) {
+	cephConf, err := drv.getCephConfig(userCred, cli, data)
 	if err != nil {
 		return nil, err
 	}
