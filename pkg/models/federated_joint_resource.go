@@ -220,12 +220,20 @@ func (m *SFedJointClusterManager) ListItemFilter(ctx context.Context, q *sqlchem
 		}
 		q = q.Equals("cluster_id", clusterObj.GetId())
 	}
+	if len(input.ClusterName) > 0 {
+		csq := GetClusterManager().Query("id").Contains("name", input.ClusterName).SubQuery()
+		q = q.In("cluster_id", csq)
+	}
 	if len(input.ResourceId) > 0 {
 		resObj, err := m.GetResourceManager().FetchByIdOrName(userCred, input.ResourceId)
 		if err != nil {
 			return nil, errors.Wrap(err, "Get resource")
 		}
 		q = q.Equals("resource_id", resObj.GetId())
+	}
+	if len(input.ResourceName) > 0 {
+		rsq := m.GetResourceManager().Query("id").Contains("name", input.ResourceName).SubQuery()
+		q = q.In("resource_id", rsq)
 	}
 	/*
 	 * if len(input.NamespaceId) > 0 {
