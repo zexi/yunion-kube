@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"time"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
@@ -83,19 +84,37 @@ func (obj *SFedNamespaceResource) ValidateAttachCluster(ctx context.Context, use
 	if err != nil {
 		return nil, err
 	}
-	fedNs, err := obj.GetFedNamespace()
+	// fedNs, err := obj.GetFedNamespace()
+	_, err = obj.GetFedNamespace()
 	if err != nil {
 		return nil, errors.Wrap(err, "get federated namespace")
 	}
-	clusterId, err := data.GetString("cluster_id")
+	// clusterId, err := data.GetString("cluster_id")
+	_, err = data.GetString("cluster_id")
 	if err != nil {
 		return nil, errors.Wrap(err, "get cluster_id")
 	}
-	nsObj, err := GetNamespaceManager().GetByIdOrName(userCred, clusterId, fedNs.GetName())
-	if err != nil {
-		return nil, errors.Wrapf(err, "get cluster %s namespace %s", clusterId, fedNs.GetName())
-	}
-	data.(*jsonutils.JSONDict).Set("namespace_id", jsonutils.NewString(nsObj.GetId()))
-	data.(*jsonutils.JSONDict).Set("namespace_name", jsonutils.NewString(nsObj.GetName()))
+	/*
+	 * nsObj, err := GetNamespaceManager().GetByIdOrName(userCred, clusterId, fedNs.GetName())
+	 * if err != nil {
+	 *     return nil, errors.Wrapf(err, "get cluster %s namespace %s", clusterId, fedNs.GetName())
+	 * }
+	 * data.(*jsonutils.JSONDict).Set("namespace_id", jsonutils.NewString(nsObj.GetId()))
+	 * data.(*jsonutils.JSONDict).Set("namespace_name", jsonutils.NewString(nsObj.GetName()))
+	 */
 	return data, nil
+}
+
+func (obj *SFedNamespaceResource) PerformAttachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data jsonutils.JSONObject) (jsonutils.JSONObject, error) {
+	elemObj, err := obj.GetElemModel()
+	if err != nil {
+		return nil, err
+	}
+	if err := GetFedResAPI().NamespaceScope().StartAttachClusterTask(elemObj.(IFedNamespaceModel), ctx, userCred, data.(*jsonutils.JSONDict), ""); err != nil {
+		return nil, errors.Wrap(err, "StartAttachClusterTask")
+	}
+	// hack sleep 1 seconds to wait joint model created
+	// TODO: fix this
+	time.Sleep(1 * time.Second)
+	return nil, nil
 }
