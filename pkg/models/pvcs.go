@@ -1,12 +1,18 @@
 package models
 
 import (
+	"context"
+
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
+	// "yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
+	"yunion.io/x/sqlchemy"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 	"yunion.io/x/yunion-kube/pkg/client"
@@ -51,6 +57,70 @@ type SPVCManager struct {
 type SPVC struct {
 	SNamespaceResourceBase
 }
+
+func (m *SPVCManager) ListItemFilter(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, input *api.PersistentVolumeClaimListInput) (*sqlchemy.SQuery, error) {
+	q, err := m.SNamespaceResourceBaseManager.ListItemFilter(ctx, q, userCred, &input.NamespaceResourceListInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "SNamespaceResourceBaseManager.ListItemFilter")
+	}
+	if input.Unused != nil {
+		unused := *input.Unused
+		if !unused {
+			q = q.Equals("status", string(v1.ClaimBound))
+		} else {
+			q = q.NotEquals("status", string(v1.ClaimBound))
+		}
+	}
+	return q, nil
+}
+
+/*func (m *SPVCManager) CustomizeFilterList(ctx context.Context, q *sqlchemy.SQuery, userCred mcclient.TokenCredential, query jsonutils.JSONObject) (*db.CustomizeListFilters, error) {
+	input := new(api.PersistentVolumeClaimListInput)
+	if err := query.Unmarshal(input); err != nil {
+		return nil, err
+	}
+	filters := db.NewCustomizeListFilters()
+	ff := func(obj jsonutils.JSONObject) (bool, error) {
+		dbObj, err := db.NewModelObject(m)
+		if err != nil {
+			return false, errors.Wrap(err, "new pvc db model obect")
+		}
+		if err := obj.Unmarshal(dbObj); err != nil {
+			return false, errors.Wrap(err, "unmarshal json object")
+		}
+		pvc := dbObj.(*SPVC)
+		cli, err := pvc.GetClusterClient()
+		if err != nil {
+			return false, errors.Wrap(err, "get cluster client")
+		}
+		rawPvc, err := pvc.GetK8sObject()
+		if err != nil {
+			return false, errors.Wrap(err, "get raw k8s pvc")
+		}
+		if input.Unused != nil {
+			mntPods, err := dbObj.(*SPVC).GetMountPodNames(cli, rawPvc.(*v1.PersistentVolumeClaim))
+			if err != nil {
+				return false, errors.Wrap(err, "get mount pods")
+			}
+			if *input.Unused {
+				if len(mntPods) == 0 {
+					return true, nil
+				} else {
+					return false, nil
+				}
+			} else {
+				if len(mntPods) > 0 {
+					return true, nil
+				} else {
+					return false, nil
+				}
+			}
+		}
+		return true, nil
+	}
+	filters.Append(ff)
+	return filters, nil
+}*/
 
 func (m *SPVCManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, body jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.PersistentVolumeClaimCreateInput)
@@ -105,6 +175,12 @@ func (obj *SPVC) getMountRawPods(cli *client.ClusterManager, pvc *v1.PersistentV
 		}
 	}
 	return mPods, nil
+}
+
+func (obj *SPVC) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	status := string(extObj.(*v1.PersistentVolumeClaim).Status.Phase)
+	obj.Status = status
+	return nil
 }
 
 func (obj *SPVC) GetMountPodNames(cli *client.ClusterManager, pvc *v1.PersistentVolumeClaim) ([]string, error) {
