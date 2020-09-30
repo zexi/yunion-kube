@@ -35,6 +35,7 @@ type PersistentVolumeClaimCreateInput struct {
 }
 
 type PersistentVolumeClaimListInput struct {
-	ListInputK8SNamespaceBase
+	NamespaceResourceListInput
+
 	Unused *bool `json:"unused"`
 }
