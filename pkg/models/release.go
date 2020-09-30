@@ -385,6 +385,14 @@ func (r *SRelease) UpdateFromRemoteObject(
 	return nil
 }
 
+func (r *SRelease) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
+	rls := extObj.(*release.Release)
+	if r.Status != string(rls.Info.Status) {
+		r.Status = string(rls.Info.Status)
+	}
+	return nil
+}
+
 func (r *SRelease) GetHelmClient() (*helm.Client, error) {
 	cls, err := r.GetCluster()
 	if err != nil {
