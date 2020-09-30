@@ -177,6 +177,11 @@ func (obj *SPVC) getMountRawPods(cli *client.ClusterManager, pvc *v1.PersistentV
 	return mPods, nil
 }
 
+func (obj *SPVC) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {
+	pvc := rawObj.(*v1.PersistentVolumeClaim)
+	return obj.getMountRawPods(cli, pvc)
+}
+
 func (obj *SPVC) SetStatusByRemoteObject(ctx context.Context, userCred mcclient.TokenCredential, extObj interface{}) error {
 	status := string(extObj.(*v1.PersistentVolumeClaim).Status.Phase)
 	obj.Status = status
