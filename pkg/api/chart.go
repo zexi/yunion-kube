@@ -8,7 +8,7 @@ import (
 type ChartResult struct {
 	*repo.ChartVersion `json:"chart"`
 	*chart.Metadata
-	Repo string `json:"repo"`
+	Repo string   `json:"repo"`
 	Type RepoType `json:"type"`
 }
 
