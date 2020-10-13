@@ -62,7 +62,7 @@ VERSION ?= $(shell git describe --exact-match 2> /dev/null || \
 	   	git describe --match=$(git rev-parse --short=8 HEAD) --always --dirty --abbrev=8)
 
 image: clean
-	REGISTRY=$(REGISTRY) ARCH=$(ARCH) DEBUG=$(DEBUG) $(CURDIR)/scripts/docker_push.sh
+	VERSION=$(VERSION) REGISTRY=$(REGISTRY) ARCH=$(ARCH) DEBUG=$(DEBUG) $(CURDIR)/scripts/docker_push.sh
 
 dev:
 	skaffold dev
