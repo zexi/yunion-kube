@@ -6,6 +6,9 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	iapps "k8s.io/kubernetes/pkg/apis/apps"
+	"k8s.io/kubernetes/pkg/apis/apps/validation"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -57,16 +60,41 @@ type SStatefulSet struct {
 	SNamespaceResourceBase
 }
 
+func (m *SStatefulSetManager) ValidateStatefulSetObject(deploy *apps.StatefulSet) error {
+	return ValidateCreateK8sObject(deploy, new(iapps.StatefulSet), func(out interface{}) field.ErrorList {
+		return validation.ValidateStatefulSet(out.(*iapps.StatefulSet))
+	})
+}
+
+func (m *SStatefulSetManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.StatefulsetCreateInput) (*api.StatefulsetCreateInput, error) {
+	nInput, err := m.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &input.NamespaceResourceCreateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.NamespaceResourceCreateInput = *nInput
+	ss, err := input.ToStatefulset(input.Namespace)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.ValidateStatefulSetObject(ss); err != nil {
+		return nil, err
+	}
+	if err := ValidateAppCreateService(userCred, *nInput, input.Service, &ss.ObjectMeta); err != nil {
+		return nil, errors.Wrap(err, "validate service create data")
+	}
+	return input, nil
+}
+
 func (m *SStatefulSetManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
-	input := new(api.StatefulsetCreateInputV2)
+	input := new(api.StatefulsetCreateInput)
 	data.Unmarshal(input)
 	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
 	if err != nil {
 		return nil, err
 	}
-	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	objMeta = *api.AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
-	input.Selector = GetSelectorByObjectMeta(&objMeta)
+	input.Selector = api.GetSelectorByObjectMeta(&objMeta)
 	input.ServiceName = objMeta.GetName()
 
 	for i, p := range input.VolumeClaimTemplates {
@@ -89,6 +117,11 @@ func (m *SStatefulSetManager) NewRemoteObjectForCreate(model IClusterModel, cli 
 
 func (obj *SStatefulSet) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (api.StatefulSetDetailV2, error) {
 	return api.StatefulSetDetailV2{}, nil
+}
+
+func (obj *SStatefulSet) GetRawServices(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Service, error) {
+	ss := rawObj.(*apps.StatefulSet)
+	return GetServiceManager().GetRawServicesByMatchLabels(cli, ss.GetNamespace(), ss.Spec.Selector.MatchLabels)
 }
 
 func (obj *SStatefulSet) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {

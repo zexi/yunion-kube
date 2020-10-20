@@ -66,18 +66,25 @@ type StatefulSetDetailV2 struct {
 }
 
 type StatefulsetCreateInput struct {
-	K8sNamespaceResourceCreateInput
-
+	NamespaceResourceCreateInput
 	apps.StatefulSetSpec
 
 	Service *ServiceCreateOption `json:"service"`
 }
 
-type StatefulsetCreateInputV2 struct {
-	NamespaceResourceCreateInput
-	apps.StatefulSetSpec
-
-	Service *ServiceCreateOption `json:"service"`
+func (input StatefulsetCreateInput) ToStatefulset(namespaceName string) (*apps.StatefulSet, error) {
+	objMeta, err := input.NamespaceResourceCreateInput.ToObjectMeta(newNamespaceGetter(namespaceName))
+	if err != nil {
+		return nil, err
+	}
+	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	input.Template.ObjectMeta = objMeta
+	input.Selector = GetSelectorByObjectMeta(&objMeta)
+	input.ServiceName = objMeta.GetName()
+	return &apps.StatefulSet{
+		ObjectMeta: objMeta,
+		Spec:       input.StatefulSetSpec,
+	}, nil
 }
 
 type StatefulsetUpdateInput struct {

@@ -7,6 +7,9 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/core/validation"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/mcclient"
@@ -53,7 +56,14 @@ type SService struct {
 	SNamespaceResourceBase
 }
 
-func (m *SServiceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.ServiceCreateInputV2) (*api.ServiceCreateInputV2, error) {
+func (m *SServiceManager) ValidateService(svc *v1.Service) error {
+	return ValidateCreateK8sObject(svc, new(core.Service), func(out interface{}) field.ErrorList {
+		return validation.ValidateService(out.(*core.Service))
+		// return validation.ValidateObjectMeta(&svc.ObjectMeta, true, validation.ValidateServiceName, field.NewPath("metadata"))
+	})
+}
+
+func (m *SServiceManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.ServiceCreateInput) (*api.ServiceCreateInput, error) {
 	nInput, err := m.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &data.NamespaceResourceCreateInput)
 	if err != nil {
 		return nil, err
@@ -63,7 +73,7 @@ func (m *SServiceManager) ValidateCreateData(ctx context.Context, userCred mccli
 }
 
 func (m *SServiceManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
-	input := new(api.ServiceCreateInputV2)
+	input := new(api.ServiceCreateInput)
 	data.Unmarshal(input)
 	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
 	if err != nil {
