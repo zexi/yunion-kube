@@ -63,7 +63,7 @@ func (m *SCronJobManager) NewRemoteObjectForCreate(model IClusterModel, cli *cli
 	if err != nil {
 		return nil, err
 	}
-	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	objMeta = *api.AddObjectMetaDefaultLabel(&objMeta)
 	input.JobTemplate.Spec.Template.ObjectMeta = objMeta
 	job := &batch2.CronJob{
 		ObjectMeta: objMeta,

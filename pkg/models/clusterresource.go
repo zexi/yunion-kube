@@ -10,8 +10,8 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	//"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kubectl/pkg/scheme"
 
@@ -869,9 +869,19 @@ func GetK8sObject(res IClusterModel) (runtime.Object, error) {
 		namespaceName = nsObj.GetName()
 	}
 	k8sObj, err := cli.GetHandler().Get(info.ResourceName, namespaceName, res.GetName())
+	// k8sObj, err := cli.GetClient().K8S().Get(info.ResourceName, namespaceName, res.GetName())
 	if err != nil {
 		return nil, errors.Wrapf(err, "get object from k8s %s/%s/%s", info.ResourceName, namespaceName, res.GetName())
 	}
+	/*
+	 * if unstruct, ok := k8sObj.(*unstructured.Unstructured); ok {
+	 *     newObj := info.Object.DeepCopyObject()
+	 *     if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstruct.Object, newObj); err != nil {
+	 *         return nil, errors.Wrap(err, "convert from unstructured")
+	 *     }
+	 *     k8sObj = newObj
+	 * }
+	 */
 	return k8sObj, nil
 }
 

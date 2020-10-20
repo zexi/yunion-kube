@@ -271,23 +271,6 @@ func ValueToJSONDict(out reflect.Value) *jsonutils.JSONDict {
 	return jsonObj.(*jsonutils.JSONDict)
 }
 
-func GetSelectorByObjectMeta(meta *metav1.ObjectMeta) *metav1.LabelSelector {
-	return &metav1.LabelSelector{
-		MatchLabels: meta.GetLabels(),
-	}
-}
-
-func AddObjectMetaDefaultLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
-	return AddObjectMetaRunLabel(meta)
-}
-
-func AddObjectMetaRunLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
-	if len(meta.Labels) == 0 {
-		meta.Labels["run"] = meta.GetName()
-	}
-	return meta
-}
-
 func GetServicePortsByMapping(ps []api.PortMapping) []v1.ServicePort {
 	ports := []v1.ServicePort{}
 	for _, p := range ps {
@@ -309,7 +292,7 @@ func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOpti
 	}
 	selector := opt.Selector
 	if len(selector) == 0 {
-		selector = GetSelectorByObjectMeta(objMeta).MatchLabels
+		selector = api.GetSelectorByObjectMeta(objMeta).MatchLabels
 	}
 	svc := &v1.Service{
 		ObjectMeta: *objMeta,
@@ -329,6 +312,29 @@ func GetServiceFromOption(objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOpti
 		svc.Annotations[api.YUNION_LB_CLUSTER_ANNOTATION] = opt.LoadBalancerCluster
 	}
 	return svc
+}
+
+func ValidateAppCreateService(userCred mcclient.TokenCredential, nsInput api.NamespaceResourceCreateInput, opt *api.ServiceCreateOption, objMeta *metav1.ObjectMeta) error {
+	if opt == nil {
+		return nil
+	}
+	m := GetServiceManager()
+	svc := GetServiceFromOption(objMeta, opt)
+	clusterId := nsInput.ClusterId
+	namespaceId := nsInput.NamespaceId
+	dbObj, err := m.GetByName(userCred, clusterId, namespaceId, svc.GetName())
+	if err != nil {
+		if errors.Cause(err) != sql.ErrNoRows {
+			return err
+		}
+	}
+	if dbObj != nil {
+		return httperrors.NewDuplicateNameError(dbObj.GetName(), dbObj.GetId())
+	}
+	if err := GetServiceManager().ValidateService(svc); err != nil {
+		return errors.Wrap(err, "validate service")
+	}
+	return nil
 }
 
 func CreateServiceIfNotExist(cli *client.ClusterManager, objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) (*v1.Service, error) {
@@ -584,6 +590,7 @@ func GetSecretsForPod(pod *v1.Pod, ss []*v1.Secret) []*v1.Secret {
 }
 
 func ValidateCreateK8sObject(versionObj runtime.Object, internalObj interface{}, validateFunc func(internalObj interface{}) field.ErrorList) error {
+	legacyscheme.Scheme.Default(versionObj)
 	if err := legacyscheme.Scheme.Convert(versionObj, internalObj, nil); err != nil {
 		return k8serrors.NewGeneralError(err)
 	}
