@@ -47,17 +47,24 @@ type DaemonSetDetail struct {
 }
 
 type DaemonSetCreateInput struct {
-	K8sNamespaceResourceCreateInput
+	NamespaceResourceCreateInput
 
 	apps.DaemonSetSpec
 	Service *ServiceCreateOption `json:"service"`
 }
 
-type DaemonSetCreateInputV2 struct {
-	NamespaceResourceCreateInput
-
-	apps.DaemonSetSpec
-	Service *ServiceCreateOption `json:"service"`
+func (input DaemonSetCreateInput) ToDaemonset(namespaceName string) (*apps.DaemonSet, error) {
+	objMeta, err := input.NamespaceResourceCreateInput.ToObjectMeta(newNamespaceGetter(namespaceName))
+	if err != nil {
+		return nil, err
+	}
+	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	input.Template.ObjectMeta = objMeta
+	input.Selector = GetSelectorByObjectMeta(&objMeta)
+	return &apps.DaemonSet{
+		ObjectMeta: objMeta,
+		Spec:       input.DaemonSetSpec,
+	}, nil
 }
 
 type DaemonSetUpdateInput struct {

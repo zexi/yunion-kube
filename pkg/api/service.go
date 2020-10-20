@@ -97,11 +97,6 @@ type ServiceCreateOption struct {
 }
 
 type ServiceCreateInput struct {
-	K8sNamespaceResourceCreateInput
-	ServiceCreateOption
-}
-
-type ServiceCreateInputV2 struct {
 	NamespaceResourceCreateInput
 	ServiceCreateOption
 }

@@ -2,6 +2,7 @@ package api
 
 import (
 	apps "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -120,6 +121,37 @@ type DeploymentCreateInput struct {
 	apps.DeploymentSpec
 
 	Service *ServiceCreateOption `json:"service"`
+}
+
+func AddObjectMetaDefaultLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
+	return AddObjectMetaRunLabel(meta)
+}
+
+func AddObjectMetaRunLabel(meta *metav1.ObjectMeta) *metav1.ObjectMeta {
+	if len(meta.Labels) == 0 {
+		meta.Labels["run"] = meta.GetName()
+	}
+	return meta
+}
+
+func GetSelectorByObjectMeta(meta *metav1.ObjectMeta) *metav1.LabelSelector {
+	return &metav1.LabelSelector{
+		MatchLabels: meta.GetLabels(),
+	}
+}
+
+func (input *DeploymentCreateInput) ToDeployment(namespaceName string) (*apps.Deployment, error) {
+	objMeta, err := input.NamespaceResourceCreateInput.ToObjectMeta(newNamespaceGetter(namespaceName))
+	if err != nil {
+		return nil, err
+	}
+	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	input.Selector = GetSelectorByObjectMeta(&objMeta)
+	input.Template.ObjectMeta = objMeta
+	return &apps.Deployment{
+		ObjectMeta: objMeta,
+		Spec:       input.DeploymentSpec,
+	}, nil
 }
 
 type DeploymentListInput struct {

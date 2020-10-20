@@ -7,6 +7,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	iapps "k8s.io/kubernetes/pkg/apis/apps"
+	"k8s.io/kubernetes/pkg/apis/apps/validation"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -56,16 +59,41 @@ type SDaemonSet struct {
 	SNamespaceResourceBase
 }
 
+func (m *SDaemonSetManager) ValidateDaemonSetObject(ds *apps.DaemonSet) error {
+	return ValidateCreateK8sObject(ds, new(iapps.StatefulSet), func(out interface{}) field.ErrorList {
+		return validation.ValidateDaemonSet(out.(*iapps.DaemonSet))
+	})
+}
+
+func (m *SDaemonSetManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.DaemonSetCreateInput) (*api.DaemonSetCreateInput, error) {
+	nInput, err := m.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &input.NamespaceResourceCreateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.NamespaceResourceCreateInput = *nInput
+	ds, err := input.ToDaemonset(input.Namespace)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.ValidateDaemonSetObject(ds); err != nil {
+		return nil, err
+	}
+	if err := ValidateAppCreateService(userCred, input.NamespaceResourceCreateInput, input.Service, &ds.ObjectMeta); err != nil {
+		return nil, errors.Wrap(err, "validate service create data")
+	}
+	return input, nil
+}
+
 func (m *SDaemonSetManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
-	input := new(api.DaemonSetCreateInputV2)
+	input := new(api.DaemonSetCreateInput)
 	data.Unmarshal(input)
 	objMeta, err := input.ToObjectMeta(model.(api.INamespaceGetter))
 	if err != nil {
 		return nil, err
 	}
-	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
+	objMeta = *api.AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
-	input.Selector = GetSelectorByObjectMeta(&objMeta)
+	input.Selector = api.GetSelectorByObjectMeta(&objMeta)
 	ds := &apps.DaemonSet{
 		ObjectMeta: objMeta,
 		Spec:       input.DaemonSetSpec,
@@ -78,6 +106,11 @@ func (m *SDaemonSetManager) NewRemoteObjectForCreate(model IClusterModel, cli *c
 
 func (obj *SDaemonSet) GetExtraDetails(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, isList bool) (api.DaemonSetDetailV2, error) {
 	return api.DaemonSetDetailV2{}, nil
+}
+
+func (obj *SDaemonSet) GetRawServices(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Service, error) {
+	ds := rawObj.(*apps.DaemonSet)
+	return GetServiceManager().GetRawServicesByMatchLabels(cli, ds.GetNamespace(), ds.Spec.Selector.MatchLabels)
 }
 
 func (obj *SDaemonSet) GetRawPods(cli *client.ClusterManager, rawObj runtime.Object) ([]*v1.Pod, error) {

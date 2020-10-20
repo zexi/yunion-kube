@@ -7,6 +7,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	iapps "k8s.io/kubernetes/pkg/apis/apps"
+	"k8s.io/kubernetes/pkg/apis/apps/validation"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
@@ -57,11 +60,29 @@ type SDeployment struct {
 	SNamespaceResourceBase
 }
 
-func (m *SDeploymentManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, data *api.DeploymentCreateInput) (*api.DeploymentCreateInput, error) {
-	if _, err := m.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &data.NamespaceResourceCreateInput); err != nil {
-		return data, err
+func (m *SDeploymentManager) ValidateDeploymentObject(deploy *apps.Deployment) error {
+	return ValidateCreateK8sObject(deploy, new(iapps.Deployment), func(out interface{}) field.ErrorList {
+		return validation.ValidateDeployment(out.(*iapps.Deployment))
+	})
+}
+
+func (m *SDeploymentManager) ValidateCreateData(ctx context.Context, userCred mcclient.TokenCredential, ownerId mcclient.IIdentityProvider, query jsonutils.JSONObject, input *api.DeploymentCreateInput) (*api.DeploymentCreateInput, error) {
+	nInput, err := m.SNamespaceResourceBaseManager.ValidateCreateData(ctx, userCred, ownerId, query, &input.NamespaceResourceCreateInput)
+	if err != nil {
+		return nil, err
 	}
-	return data, nil
+	input.NamespaceResourceCreateInput = *nInput
+	deploy, err := input.ToDeployment(input.Namespace)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.ValidateDeploymentObject(deploy); err != nil {
+		return nil, err
+	}
+	if err := ValidateAppCreateService(userCred, *nInput, input.Service, &deploy.ObjectMeta); err != nil {
+		return nil, errors.Wrap(err, "validate service create data")
+	}
+	return input, nil
 }
 
 func (m *SDeploymentManager) NewRemoteObjectForCreate(model IClusterModel, cli *client.ClusterManager, data jsonutils.JSONObject) (interface{}, error) {
@@ -71,9 +92,7 @@ func (m *SDeploymentManager) NewRemoteObjectForCreate(model IClusterModel, cli *
 	if err != nil {
 		return nil, err
 	}
-	objMeta = *AddObjectMetaDefaultLabel(&objMeta)
 	input.Template.ObjectMeta = objMeta
-	input.Selector = GetSelectorByObjectMeta(&objMeta)
 	deploy := &apps.Deployment{
 		ObjectMeta: objMeta,
 		Spec:       input.DeploymentSpec,
