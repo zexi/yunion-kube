@@ -127,6 +127,8 @@ type IModelManager interface {
 	QueryDistinctExtraField(q *sqlchemy.SQuery, field string) (*sqlchemy.SQuery, error)
 
 	GetPagingConfig() *SPagingConfig
+
+	GetI18N(ctx context.Context, idstr string, resObj jsonutils.JSONObject) *jsonutils.JSONDict
 }
 
 type IModel interface {
@@ -196,6 +198,7 @@ type IModel interface {
 	MarkDeletePreventionOff()
 
 	GetUsages() []IUsage
+	GetI18N(ctx context.Context) *jsonutils.JSONDict
 }
 
 type IResourceModelManager interface {
@@ -245,6 +248,10 @@ type IMetadataBaseModelManager interface {
 	GetMetadataHiddenKeys() []string
 }
 
+type IMetadataBaseModel interface {
+	OnMetadataUpdated(ctx context.Context, userCred mcclient.TokenCredential)
+}
+
 type IStandaloneModelManager interface {
 	IResourceModelManager
 
@@ -281,6 +288,8 @@ type IStandaloneModel interface {
 	GetAllMetadata(userCred mcclient.TokenCredential) (map[string]string, error)
 
 	IsShared() bool
+
+	IMetadataBaseModel
 }
 
 type IDomainLevelModelManager interface {

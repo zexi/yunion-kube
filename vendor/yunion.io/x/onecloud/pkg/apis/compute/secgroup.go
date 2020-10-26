@@ -134,6 +134,8 @@ type SecgroupListInput struct {
 
 	ServerFilterListInput
 
+	DBInstanceResourceInput
+
 	// equals
 	Equals string
 
@@ -259,4 +261,9 @@ type SecgroupMergeInput struct {
 }
 
 type SecurityGroupPurgeInput struct {
+}
+
+type SecurityGroupCloneInput struct {
+	Name        string
+	Description string
 }
