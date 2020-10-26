@@ -168,10 +168,17 @@ func (cp *ProviderConfig) AdaptiveTimeoutHttpClient() *http.Client {
 	return client
 }
 
+type SProviderInfo struct {
+	Name    string
+	Url     string
+	Account string
+	Secret  string
+}
+
 type ICloudProviderFactory interface {
 	GetProvider(cfg ProviderConfig) (ICloudProvider, error)
 
-	GetClientRC(url, account, secret string) (map[string]string, error)
+	GetClientRC(SProviderInfo) (map[string]string, error)
 
 	GetId() string
 	GetName() string
@@ -203,6 +210,11 @@ type ICloudProviderFactory interface {
 	IsSupportCreateCloudgroup() bool
 
 	IsSystemCloudpolicyUnified() bool // 国内国外权限是否一致
+
+	IsSupportCrossCloudEnvVpcPeering() bool
+	IsSupportCrossRegionVpcPeering() bool
+	IsSupportVpcPeeringVpcCidrOverlap() bool
+	ValidateCrossRegionVpcPeeringBandWidth(bandwidth int) error
 
 	GetSupportedDnsZoneTypes() []TDnsZoneType
 	GetSupportedDnsTypes() map[TDnsZoneType][]TDnsType
@@ -326,12 +338,18 @@ func GetProvider(cfg ProviderConfig) (ICloudProvider, error) {
 	return driver.GetProvider(cfg)
 }
 
-func GetClientRC(accessUrl, account, secret, provider string) (map[string]string, error) {
+func GetClientRC(name, accessUrl, account, secret, provider string) (map[string]string, error) {
 	driver, err := GetProviderFactory(provider)
 	if err != nil {
 		return nil, errors.Wrap(err, "GetProviderFactory")
 	}
-	return driver.GetClientRC(accessUrl, account, secret)
+	info := SProviderInfo{
+		Name:    name,
+		Url:     accessUrl,
+		Account: account,
+		Secret:  secret,
+	}
+	return driver.GetClientRC(info)
 }
 
 func IsSupported(provider string) bool {
@@ -596,6 +614,22 @@ func (factory *baseProviderFactory) IsSupportCreateCloudgroup() bool {
 
 func (factory *baseProviderFactory) IsSystemCloudpolicyUnified() bool {
 	return true
+}
+
+func (factory *baseProviderFactory) IsSupportCrossCloudEnvVpcPeering() bool {
+	return false
+}
+
+func (factory *baseProviderFactory) IsSupportCrossRegionVpcPeering() bool {
+	return false
+}
+
+func (factory *baseProviderFactory) IsSupportVpcPeeringVpcCidrOverlap() bool {
+	return false
+}
+
+func (factory *baseProviderFactory) ValidateCrossRegionVpcPeeringBandWidth(bandwidth int) error {
+	return nil
 }
 
 func (factory *baseProviderFactory) GetSupportedDnsZoneTypes() []TDnsZoneType {

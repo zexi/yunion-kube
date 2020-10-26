@@ -12,20 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package cloudprovider
 
-import (
-	"time"
-
-	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
-)
-
-func EnableGlobalRbac(refreshInterval time.Duration, debug bool) {
-	if !consts.IsRbacEnabled() {
-		consts.EnableRbac()
-		if debug {
-			consts.EnableRbacDebug()
-		}
-		PolicyManager.init(refreshInterval)
-	}
+type VpcPeeringConnectionCreateOptions struct {
+	Name          string
+	Desc          string
+	PeerVpcId     string
+	PeerAccountId string
+	PeerRegionId  string
+	Bandwidth     int //qcloud cross region,Mbps
 }

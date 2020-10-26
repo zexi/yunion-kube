@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package modules
 
-import (
-	"time"
+import "yunion.io/x/onecloud/pkg/mcclient/modulebase"
 
-	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
+var (
+	VpcPeeringConnections modulebase.ResourceManager
 )
 
-func EnableGlobalRbac(refreshInterval time.Duration, debug bool) {
-	if !consts.IsRbacEnabled() {
-		consts.EnableRbac()
-		if debug {
-			consts.EnableRbacDebug()
-		}
-		PolicyManager.init(refreshInterval)
-	}
+func init() {
+	VpcPeeringConnections = NewComputeManager("vpc_peering_connection", "vpc_peering_connections",
+		[]string{"ID", "Name", "Enabled", "Status", "vpc_id", "peer_vpc_id", "peer_account_id", "Public_Scope", "Domain_Id", "Domain"},
+		[]string{})
+
+	registerCompute(&VpcPeeringConnections)
 }
