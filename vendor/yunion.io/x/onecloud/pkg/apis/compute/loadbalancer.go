@@ -174,6 +174,7 @@ type LoadbalancerDetails struct {
 
 	VpcResourceInfoBase
 	ZoneResourceInfoBase
+	Zone1ResourceInfoBase
 	NetworkResourceInfoBase
 
 	SLoadbalancer
@@ -201,7 +202,10 @@ type LoadbalancerResourceInfo struct {
 	// 可用区ID
 	ZoneId string `json:"zone_id"`
 
-	ZoneResourceInfoBase
+	ZoneResourceInfo
+
+	// cloud provider info
+	ManagedResourceInfo
 }
 
 type LoadbalancerResourceInput struct {
@@ -249,6 +253,10 @@ type LoadbalancerCreateInput struct {
 	// LB的其他配置信息
 	LBInfo jsonutils.JSONObject `json:"lb_info"`
 
+	// 从可用区1
+	// required: false
+	Zone1 string `json:"zone_1"`
+
 	// SLoadbalancer
 
 	VpcResourceInput
@@ -261,4 +269,9 @@ type LoadbalancerCreateInput struct {
 	// Network     string `json:"network"`
 	CloudproviderResourceInput
 	// Manager     string `json:"manager"`
+}
+
+type LoadbalancerRemoteUpdateInput struct {
+	// 是否覆盖替换所有标签
+	ReplaceTags *bool `json:"replace_tags" help:"replace all remote tags"`
 }

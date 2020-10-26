@@ -41,11 +41,11 @@ require (
 	sigs.k8s.io/controller-runtime v0.1.10
 	sigs.k8s.io/yaml v1.1.0
 	yunion.io/x/code-generator v0.0.0-20200801025920-d006db774f0f
-	yunion.io/x/jsonutils v0.0.0-20200814075449-927b118adbd8
+	yunion.io/x/jsonutils v0.0.0-20201022101715-4e3add1ac4aa
 	yunion.io/x/log v0.0.0-20200313080802-57a4ce5966b3
-	yunion.io/x/onecloud v0.0.0-20200917023357-9047c8de39ad
+	yunion.io/x/onecloud v0.0.0-20201026090241-c492a8545dbc
 	yunion.io/x/pkg v0.0.0-20200814072949-4f1b541857d6
-	yunion.io/x/sqlchemy v0.0.0-20200909073353-606d1fe76db5
+	yunion.io/x/sqlchemy v0.0.0-20201014101037-8fe75542e6d8
 )
 
 replace (

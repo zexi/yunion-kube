@@ -266,36 +266,97 @@ func (model *SStandaloneResourceBase) GetMetadataJson(key string, userCred mccli
 	return Metadata.GetJsonValue(model, key, userCred)
 }
 
+func isUserMetadata(key string) bool {
+	return strings.HasPrefix(key, USER_TAG_PREFIX)
+}
+
+func containsUserMetadata(dict map[string]interface{}) bool {
+	for k := range dict {
+		if isUserMetadata(k) {
+			return true
+		}
+	}
+	return false
+}
+
 func (model *SStandaloneResourceBase) SetMetadata(ctx context.Context, key string, value interface{}, userCred mcclient.TokenCredential) error {
-	return Metadata.SetValue(ctx, model, key, value, userCred)
+	err := Metadata.SetValue(ctx, model, key, value, userCred)
+	if err != nil {
+		return errors.Wrap(err, "SetValue")
+	}
+	if isUserMetadata(key) {
+		model.GetIStandaloneModel().OnMetadataUpdated(ctx, userCred)
+	}
+	return nil
 }
 
 func (model *SStandaloneResourceBase) SetAllMetadata(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
-	return Metadata.SetValuesWithLog(ctx, model, dictstore, userCred)
+	err := Metadata.SetValuesWithLog(ctx, model, dictstore, userCred)
+	if err != nil {
+		return errors.Wrap(err, "SetValuesWithLog")
+	}
+	if containsUserMetadata(dictstore) {
+		model.GetIStandaloneModel().OnMetadataUpdated(ctx, userCred)
+	}
+	return nil
 }
 
 func (model *SStandaloneResourceBase) SetUserMetadataValues(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
-	return Metadata.SetValuesWithLog(ctx, model, dictstore, userCred)
+	err := Metadata.SetValuesWithLog(ctx, model, dictstore, userCred)
+	if err != nil {
+		return errors.Wrap(err, "SetValuesWithLog")
+	}
+	model.GetIStandaloneModel().OnMetadataUpdated(ctx, userCred)
+	return nil
 }
 
 func (model *SStandaloneResourceBase) SetUserMetadataAll(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
-	return Metadata.SetAll(ctx, model, dictstore, userCred, USER_TAG_PREFIX)
+	err := Metadata.SetAll(ctx, model, dictstore, userCred, USER_TAG_PREFIX)
+	if err != nil {
+		return errors.Wrap(err, "SetAll")
+	}
+	model.GetIStandaloneModel().OnMetadataUpdated(ctx, userCred)
+	return nil
 }
 
 func (model *SStandaloneResourceBase) SetCloudMetadataAll(ctx context.Context, dictstore map[string]interface{}, userCred mcclient.TokenCredential) error {
-	return Metadata.SetAll(ctx, model, dictstore, userCred, CLOUD_TAG_PREFIX)
+	err := Metadata.SetAll(ctx, model, dictstore, userCred, CLOUD_TAG_PREFIX)
+	if err != nil {
+		return errors.Wrap(err, "SetAll")
+	}
+	return nil
 }
 
 func (model *SStandaloneResourceBase) RemoveMetadata(ctx context.Context, key string, userCred mcclient.TokenCredential) error {
-	return Metadata.SetValue(ctx, model, key, "", userCred)
+	err := Metadata.SetValue(ctx, model, key, "", userCred)
+	if err != nil {
+		return errors.Wrap(err, "SetValue")
+	}
+	return nil
 }
 
 func (model *SStandaloneResourceBase) RemoveAllMetadata(ctx context.Context, userCred mcclient.TokenCredential) error {
-	return Metadata.RemoveAll(ctx, model, userCred)
+	err := Metadata.RemoveAll(ctx, model, userCred)
+	if err != nil {
+		return errors.Wrap(err, "RemoveAll")
+	}
+	return nil
 }
 
 func (model *SStandaloneResourceBase) GetAllMetadata(userCred mcclient.TokenCredential) (map[string]string, error) {
-	return Metadata.GetAll(model, nil, userCred)
+	return Metadata.GetAll(model, nil, "", userCred)
+}
+
+func (model *SStandaloneResourceBase) GetAllUserMetadata() (map[string]string, error) {
+	meta, err := Metadata.GetAll(model, nil, USER_TAG_PREFIX, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "Metadata.GetAll")
+	}
+	ret := make(map[string]string)
+	for k, v := range meta {
+		ret[k[len(USER_TAG_PREFIX):]] = v
+	}
+	return ret, nil
 }
 
 func (model *SStandaloneResourceBase) AllowGetDetailsMetadata(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject) bool {
@@ -304,9 +365,17 @@ func (model *SStandaloneResourceBase) AllowGetDetailsMetadata(ctx context.Contex
 
 // 获取资源标签（元数据）
 func (model *SStandaloneResourceBase) GetDetailsMetadata(ctx context.Context, userCred mcclient.TokenCredential, input apis.GetMetadataInput) (apis.GetMetadataOutput, error) {
-	val, err := Metadata.GetAll(model, input.Field, userCred)
+	val, err := Metadata.GetAll(model, input.Field, input.Prefix, userCred)
 	if err != nil {
 		return nil, errors.Wrap(err, "Metadata.GetAll")
+	}
+	if len(input.Prefix) > 0 {
+		// trim prefix from key
+		ret := make(map[string]string)
+		for k, v := range val {
+			ret[k[len(input.Prefix):]] = v
+		}
+		val = ret
 	}
 	return val, nil
 }
@@ -509,4 +578,8 @@ func (model *SStandaloneResourceBase) ValidateUpdateData(ctx context.Context, us
 
 func (model *SStandaloneResourceBase) IsShared() bool {
 	return false
+}
+
+func (model *SStandaloneResourceBase) OnMetadataUpdated(ctx context.Context, userCred mcclient.TokenCredential) {
+	// noop
 }
