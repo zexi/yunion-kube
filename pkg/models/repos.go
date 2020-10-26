@@ -160,7 +160,8 @@ func (man *SRepoManager) ValidateCreateData(ctx context.Context, userCred mcclie
 		return nil, err
 	}
 	if err := cli.Add(entry); err != nil {
-		return nil, err
+		log.Errorf("Add helm entry %#v error: %v", entry, err)
+		return nil, httperrors.NewNotAcceptableError("Add helm repo %s failed", entry.URL)
 	}
 
 	return data, nil
