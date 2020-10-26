@@ -4,7 +4,10 @@ import (
 	"context"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"yunion.io/x/jsonutils"
+	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/httperrors"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
@@ -117,4 +120,25 @@ func (obj *SFedNamespaceResource) PerformAttachCluster(ctx context.Context, user
 	// TODO: fix this
 	time.Sleep(1 * time.Second)
 	return nil, nil
+}
+
+func (obj *SFedNamespaceResource) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.FedNamespaceResourceUpdateInput) (*api.FedNamespaceResourceUpdateInput, error) {
+	bInput, err := obj.SFedResourceBase.ValidateUpdateData(ctx, userCred, query, &input.FedResourceUpdateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.FedResourceUpdateInput = *bInput
+	return input, nil
+}
+
+func (obj *SFedNamespaceResource) GetK8sObjectMeta() metav1.ObjectMeta {
+	objMeta := obj.SFedResourceBase.GetK8sObjectMeta()
+	fedNs, err := obj.GetFedNamespace()
+	if err != nil {
+		log.Errorf("GetK8sObjectMeta federated namespace error: %v", err)
+	}
+	if fedNs != nil {
+		objMeta.Namespace = fedNs.GetName()
+	}
+	return objMeta
 }

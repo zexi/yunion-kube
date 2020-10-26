@@ -33,11 +33,20 @@ func (spec *FederatedRoleSpec) ToRole(objMeta metav1.ObjectMeta) *rbac.Role {
 	}
 }
 
-type FederatedRoleCreateInput struct {
+type FedRoleCreateInput struct {
 	FederatedNamespaceResourceCreateInput
 	Spec *FederatedRoleSpec `json:"spec"`
 }
 
-func (input FederatedRoleCreateInput) ToRole(namespace string) *rbac.Role {
+func (input FedRoleCreateInput) ToRole(namespace string) *rbac.Role {
 	return input.Spec.ToRole(input.ToObjectMeta(namespace))
+}
+
+type FedRoleUpdateInput struct {
+	FedNamespaceResourceUpdateInput
+	Spec *FederatedRoleSpec `json:"spec"`
+}
+
+func (input FedRoleUpdateInput) ToRole(objMeta metav1.ObjectMeta) *rbac.Role {
+	return input.Spec.ToRole(objMeta)
 }

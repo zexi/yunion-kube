@@ -45,3 +45,12 @@ func (input FederatedClusterRoleCreateInput) ToClusterRole() *rbac.ClusterRole {
 type FederatedClusterRoleClusterListInput struct {
 	FedJointClusterListInput
 }
+
+type FedClusterRoleUpdateInput struct {
+	FedResourceUpdateInput
+	Spec *FederatedClusterRoleSpec `json:"spec"`
+}
+
+func (input FedClusterRoleUpdateInput) ToClusterRole(objMeta metav1.ObjectMeta) *rbac.ClusterRole {
+	return input.Spec.ToClusterRole(objMeta)
+}

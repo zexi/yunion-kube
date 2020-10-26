@@ -45,3 +45,12 @@ type ClusterRoleBindingTemplate struct {
 type FedClusterRoleBindingClusterListInput struct {
 	FedJointClusterListInput
 }
+
+type FedClusterRoleBindingUpdateInput struct {
+	FedResourceUpdateInput
+	Spec *FederatedClusterRoleBindingSpec `json:"spec"`
+}
+
+func (input FedClusterRoleBindingUpdateInput) ToClusterRoleBinding(objMeta metav1.ObjectMeta) *rbac.ClusterRoleBinding {
+	return input.Spec.ToClusterRoleBinding(objMeta)
+}
