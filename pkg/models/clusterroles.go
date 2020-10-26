@@ -98,6 +98,15 @@ func (m *SClusterRoleManager) NewRemoteObjectForCreate(_ IClusterModel, _ *clien
 	return input.ToClusterRole(), nil
 }
 
+func ValidateUpdateClusterRoleObject(oldObj, newObj *rbacv1.ClusterRole) error {
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRole), new(rbac.ClusterRole), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateClusterRoleUpdate(oldObj.(*rbac.ClusterRole), newObj.(*rbac.ClusterRole))
+	}); err != nil {
+		return errors.Wrap(err, "ValidateUpdateClusterRoleObject")
+	}
+	return nil
+}
+
 func (obj *SClusterRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.ClusterRoleUpdateInput)
 	if err := data.Unmarshal(input); err != nil {
@@ -106,9 +115,7 @@ func (obj *SClusterRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, re
 	oldObj := remoteObj.(*rbacv1.ClusterRole)
 	newObj := oldObj.DeepCopyObject().(*rbacv1.ClusterRole)
 	newObj.Rules = input.Rules
-	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRole), new(rbac.ClusterRole), func(newObj, oldObj interface{}) field.ErrorList {
-		return validation.ValidateClusterRoleUpdate(oldObj.(*rbac.ClusterRole), newObj.(*rbac.ClusterRole))
-	}); err != nil {
+	if err := ValidateUpdateClusterRoleObject(oldObj, newObj); err != nil {
 		return nil, err
 	}
 	return newObj, nil

@@ -43,3 +43,12 @@ type RoleBindingTemplate struct {
 func (input FederatedRoleBindingCreateInput) ToRoleBinding(namespace string) *rbac.RoleBinding {
 	return input.Spec.ToRoleBinding(input.ToObjectMeta(namespace))
 }
+
+type FedRoleBindingUpdateInput struct {
+	FedNamespaceResourceUpdateInput
+	Spec *FederatedRoleBindingSpec `json:"spec"`
+}
+
+func (input FedRoleBindingUpdateInput) ToRoleBinding(objMeta metav1.ObjectMeta) *rbac.RoleBinding {
+	return input.Spec.ToRoleBinding(objMeta)
+}

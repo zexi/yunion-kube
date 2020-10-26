@@ -111,6 +111,15 @@ func (obj *SRole) ValidateUpdateData(ctx context.Context, userCred mcclient.Toke
 	return input, nil
 }
 
+func ValidateUpdateRoleObject(oldObj, newObj *rbacv1.Role) error {
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.Role), new(rbac.Role), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateRoleUpdate(oldObj.(*rbac.Role), newObj.(*rbac.Role))
+	}); err != nil {
+		return errors.Wrap(err, "ValidateUpdateRoleObject")
+	}
+	return nil
+}
+
 func (obj *SRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.RoleUpdateInput)
 	if err := data.Unmarshal(input); err != nil {
@@ -119,9 +128,7 @@ func (obj *SRole) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj
 	oldObj := remoteObj.(*rbacv1.Role)
 	newObj := oldObj.DeepCopyObject().(*rbacv1.Role)
 	newObj.Rules = input.Rules
-	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.Role), new(rbac.Role), func(newObj, oldObj interface{}) field.ErrorList {
-		return validation.ValidateRoleUpdate(oldObj.(*rbac.Role), newObj.(*rbac.Role))
-	}); err != nil {
+	if err := ValidateUpdateRoleObject(oldObj, newObj); err != nil {
 		return nil, err
 	}
 	return newObj, nil
