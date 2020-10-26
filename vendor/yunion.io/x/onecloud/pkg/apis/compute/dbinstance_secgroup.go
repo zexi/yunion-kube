@@ -12,39 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package stringutils2
+package compute
 
-func IsUtf8(str string) bool {
-	for _, runeVal := range str {
-		if runeVal > 0x7f {
-			return true
-		}
-	}
-	return false
+import "yunion.io/x/onecloud/pkg/apis"
+
+type DBInstanceSecgroupListInput struct {
+	DBInstanceJoinListInput
+
+	SecgroupFilterListInput
 }
 
-func RemoveUtf8Strings(idOrNames []string) []string {
-	ids := make([]string, 0)
-	for _, idOrName := range idOrNames {
-		if !IsUtf8(idOrName) {
-			ids = append(ids, idOrName)
-		}
-	}
-	return ids
-}
+type DBInstanceSecgroupDetails struct {
+	apis.VirtualJointResourceBaseDetails
 
-func IsPrintableAscii(b byte) bool {
-	if b >= 32 && b <= 126 {
-		return true
-	}
-	return false
-}
-
-func IsPrintableAsciiString(str string) bool {
-	for _, b := range []byte(str) {
-		if !IsPrintableAscii(b) {
-			return false
-		}
-	}
-	return true
+	// RDS名称
+	DBInstance string `json:"dbinstance"`
+	// 安全组名称
+	Secgroup string `json:"secgroup"`
 }

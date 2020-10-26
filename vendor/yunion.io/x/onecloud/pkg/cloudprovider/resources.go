@@ -202,6 +202,7 @@ type ICloudStorage interface {
 	GetStorageType() string
 	GetMediumType() string
 	GetCapacityMB() int64 // MB
+	GetCapacityUsedMB() int64
 	GetStorageConf() jsonutils.JSONObject
 	GetEnabled() bool
 
@@ -248,6 +249,8 @@ type ICloudHost interface {
 
 	CreateVM(desc *SManagedVMCreateConfig) (ICloudVM, error)
 	GetIHostNics() ([]ICloudHostNetInterface, error)
+
+	GetSchedtags() ([]string, error)
 }
 
 type ICloudVM interface {
@@ -314,6 +317,8 @@ type ICloudVM interface {
 	LiveMigrateVM(hostid string) error
 
 	GetError() error
+
+	SetMetadata(tags map[string]string, replace bool) error
 }
 
 type ICloudNic interface {
@@ -500,6 +505,7 @@ type ICloudLoadbalancer interface {
 	GetNetworkIds() []string
 	GetVpcId() string
 	GetZoneId() string
+	GetZone1Id() string // first slave zone
 	GetLoadbalancerSpec() string
 	GetChargeType() string
 	GetEgressMbps() int
@@ -519,6 +525,8 @@ type ICloudLoadbalancer interface {
 
 	CreateILoadBalancerListener(ctx context.Context, listener *SLoadbalancerListener) (ICloudLoadbalancerListener, error)
 	GetILoadBalancerListenerById(listenerId string) (ICloudLoadbalancerListener, error)
+
+	SetMetadata(tags map[string]string, replace bool) error
 }
 
 type ICloudLoadbalancerListener interface {
@@ -748,7 +756,7 @@ type ICloudDBInstance interface {
 	Reboot() error
 
 	GetMasterInstanceId() string
-	GetSecurityGroupId() string
+	GetSecurityGroupIds() ([]string, error)
 	GetPort() int
 	GetEngine() string
 	GetEngineVersion() string
@@ -771,7 +779,7 @@ type ICloudDBInstance interface {
 	GetZone3Id() string
 	GetIVpcId() string
 
-	GetDBNetwork() (*SDBInstanceNetwork, error)
+	GetDBNetworks() ([]SDBInstanceNetwork, error)
 	GetIDBInstanceParameters() ([]ICloudDBInstanceParameter, error)
 	GetIDBInstanceDatabases() ([]ICloudDBInstanceDatabase, error)
 	GetIDBInstanceAccounts() ([]ICloudDBInstanceAccount, error)
@@ -791,6 +799,8 @@ type ICloudDBInstance interface {
 	RecoveryFromBackup(conf *SDBInstanceRecoveryConfig) error
 
 	Delete() error
+
+	SetMetadata(tags map[string]string, replace bool) error
 }
 
 type ICloudDBInstanceParameter interface {
@@ -824,7 +834,9 @@ type ICloudDBInstanceDatabase interface {
 }
 
 type ICloudDBInstanceAccount interface {
-	ICloudResource
+	GetName() string
+	GetStatus() string
+	GetHost() string
 
 	GetIDBInstanceAccountPrivileges() ([]ICloudDBInstanceAccountPrivilege, error)
 
@@ -893,6 +905,8 @@ type ICloudElasticcache interface {
 	UpdateAuthMode(noPasswordAccess bool) error
 	UpdateInstanceParameters(config jsonutils.JSONObject) error
 	UpdateBackupPolicy(config SCloudElasticCacheBackupPolicyUpdateInput) error
+
+	SetMetadata(tags map[string]string, replace bool) error
 }
 
 type ICloudElasticcacheAccount interface {

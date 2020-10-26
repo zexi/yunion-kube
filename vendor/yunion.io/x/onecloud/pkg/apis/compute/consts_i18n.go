@@ -12,39 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package stringutils2
+package compute
 
-func IsUtf8(str string) bool {
-	for _, runeVal := range str {
-		if runeVal > 0x7f {
-			return true
-		}
-	}
-	return false
-}
+import (
+	"yunion.io/x/onecloud/pkg/i18n"
+)
 
-func RemoveUtf8Strings(idOrNames []string) []string {
-	ids := make([]string, 0)
-	for _, idOrName := range idOrNames {
-		if !IsUtf8(idOrName) {
-			ids = append(ids, idOrName)
-		}
-	}
-	return ids
-}
+const (
+	CLOUD_PROVIDER_ONECLOUD_EN = "YunionCloud"
+	CLOUD_PROVIDER_ONECLOUD_CN = "云联壹云"
+)
 
-func IsPrintableAscii(b byte) bool {
-	if b >= 32 && b <= 126 {
-		return true
-	}
-	return false
-}
+var ComputeI18nTable = i18n.Table{}
 
-func IsPrintableAsciiString(str string) bool {
-	for _, b := range []byte(str) {
-		if !IsPrintableAscii(b) {
-			return false
-		}
-	}
-	return true
+func init() {
+	ComputeI18nTable.Set(CLOUD_PROVIDER_ONECLOUD, i18n.NewTableEntry().
+		EN(CLOUD_PROVIDER_ONECLOUD_EN).
+		CN(CLOUD_PROVIDER_ONECLOUD_CN),
+	)
 }

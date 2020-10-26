@@ -91,6 +91,13 @@ func GenerateName(manager IModelManager, ownerId mcclient.IIdentityProvider, hin
 	return GenerateName2(manager, ownerId, hint, nil, 1)
 }
 
+func GenerateAlterName(model IModel, hint string) (string, error) {
+	if hint == model.GetName() {
+		return hint, nil
+	}
+	return GenerateName2(nil, nil, hint, model, 1)
+}
+
 func GenerateName2(manager IModelManager, ownerId mcclient.IIdentityProvider, hint string, model IModel, baseIndex int) (string, error) {
 	_, pattern, patternLen := stringutils.ParseNamePattern(hint)
 	var name string

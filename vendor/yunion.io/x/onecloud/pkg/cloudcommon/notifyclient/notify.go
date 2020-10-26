@@ -20,23 +20,25 @@ import (
 	"html/template"
 	"io/ioutil"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/text/language"
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/log"
 
 	"yunion.io/x/onecloud/pkg/appsrv"
 	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
-	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/cloudcommon/db"
+	"yunion.io/x/onecloud/pkg/i18n"
 	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/onecloud/pkg/mcclient/auth"
 	"yunion.io/x/onecloud/pkg/mcclient/modulebase"
 	"yunion.io/x/onecloud/pkg/mcclient/modules"
 	npk "yunion.io/x/onecloud/pkg/mcclient/modules/notify"
+	"yunion.io/x/onecloud/pkg/util/httputils"
+	"yunion.io/x/onecloud/pkg/util/stringutils2"
 )
 
 var (
@@ -46,24 +48,24 @@ var (
 
 	notifyAdminUsers  []string
 	notifyAdminGroups []string
+
+	notifyclientI18nTable = i18n.Table{}
+)
+
+const (
+	SUFFIX = "suffix"
 )
 
 func init() {
 	notifyClientWorkerMan = appsrv.NewWorkerManager("NotifyClientWorkerManager", 1, 50, false)
 	templatesTableLock = &sync.Mutex{}
 	templatesTable = make(map[string]*template.Template)
+
+	notifyclientI18nTable.Set(SUFFIX, i18n.NewTableEntry().EN("en").CN("cn"))
 }
 
 func getLangSuffix(ctx context.Context) string {
-	lang := httperrors.Lang(ctx)
-	switch lang {
-	case language.English:
-		return "en"
-	case language.Chinese:
-		return "cn"
-	default:
-		return "en"
-	}
+	return notifyclientI18nTable.Lookup(ctx, SUFFIX)
 }
 
 func getTemplateString(ctx context.Context, topic string, contType string, channel npk.TNotifyChannel) ([]byte, error) {
@@ -80,7 +82,7 @@ func getTemplateString(ctx context.Context, topic string, contType string, chann
 }
 
 func getTemplate(ctx context.Context, topic string, contType string, channel npk.TNotifyChannel) (*template.Template, error) {
-	key := fmt.Sprintf("%s.%s.%s", topic, contType, channel)
+	key := fmt.Sprintf("%s.%s.%s@%s", topic, contType, channel, getLangSuffix(ctx))
 	templatesTableLock.Lock()
 	defer templatesTableLock.Unlock()
 
@@ -99,6 +101,9 @@ func getTemplate(ctx context.Context, topic string, contType string, channel npk
 }
 
 func getContent(ctx context.Context, topic string, contType string, channel npk.TNotifyChannel, data jsonutils.JSONObject) (string, error) {
+	if channel == npk.NotifyByWebhook {
+		return "", nil
+	}
 	tmpl, err := getTemplate(ctx, topic, contType, channel)
 	if err != nil {
 		return "", err
@@ -110,6 +115,23 @@ func getContent(ctx context.Context, topic string, contType string, channel npk.
 	}
 	// log.Debugf("notify.getContent %s %s %s %s", topic, contType, data, buf.String())
 	return buf.String(), nil
+}
+
+func NotifyWebhook(ctx context.Context, userCred mcclient.TokenCredential, obj db.IModel, action SAction) error {
+	ret, err := db.FetchCustomizeColumns(obj.GetModelManager(), ctx, userCred, jsonutils.NewDict(), []interface{}{obj}, stringutils2.SSortedStrings{}, false)
+	if err != nil {
+		return err
+	}
+	if len(ret) == 0 {
+		return fmt.Errorf("unable to get details for model %q", obj.GetId())
+	}
+	event := Event.WithAction(action).WithResourceType(obj.GetModelManager())
+	msg := jsonutils.NewDict()
+	msg.Set("resource_type", jsonutils.NewString(event.ResourceType()))
+	msg.Set("action", jsonutils.NewString(event.Action()))
+	msg.Set("resource_details", ret[0])
+	RawNotifyWithCtx(ctx, []string{}, false, npk.NotifyByWebhook, npk.NotifyPriorityNormal, event.String(), msg)
+	return nil
 }
 
 func NotifyWithCtx(ctx context.Context, recipientId []string, isGroup bool, priority npk.TNotifyPriority, event string, data jsonutils.JSONObject) {
@@ -139,7 +161,16 @@ func RawNotify(recipientId []string, isGroup bool, channel npk.TNotifyChannel, p
 	rawNotify(context.Background(), recipientId, isGroup, channel, priority, event, data)
 }
 
-func rawNotify(ctx context.Context, recipientId []string, isGroup bool, channel npk.TNotifyChannel, priority npk.TNotifyPriority, event string, data jsonutils.JSONObject) {
+// IntelliNotify try to create receiver nonexistent if createReceiver is set to true
+func IntelliNotify(ctx context.Context, recipientId []string, isGroup bool, channel npk.TNotifyChannel, priority npk.TNotifyPriority, event string, data jsonutils.JSONObject, createReceiver bool) {
+	intelliNotify(ctx, recipientId, isGroup, channel, priority, event, data, createReceiver)
+}
+
+const noSuchReceiver = `no such receiver whose uid is '(.*)'`
+
+var noSuchReceiverRegexp = regexp.MustCompile(noSuchReceiver)
+
+func intelliNotify(ctx context.Context, recipientId []string, isGroup bool, channel npk.TNotifyChannel, priority npk.TNotifyPriority, event string, data jsonutils.JSONObject, createReceiver bool) {
 	log.Infof("notify %s event %s priority %s", recipientId, event, priority)
 	msg := npk.SNotifyMessage{}
 	if isGroup {
@@ -162,8 +193,44 @@ func rawNotify(ctx context.Context, recipientId []string, isGroup bool, channel 
 	// log.Debugf("send notification %s %s", topic, body)
 	notifyClientWorkerMan.Run(func() {
 		s := auth.GetAdminSession(context.Background(), consts.GetRegion(), "")
-		npk.Notifications.Send(s, msg)
+		for {
+			err := npk.Notifications.Send(s, msg)
+			if err == nil {
+				break
+			}
+			if !createReceiver {
+				log.Errorf("unable to send notification: %v", err)
+				break
+			}
+			jerr, ok := err.(*httputils.JSONClientError)
+			if !ok {
+				log.Errorf("unable to send notification: %v", err)
+				break
+			}
+			if jerr.Code > 500 {
+				log.Errorf("unable to send notification: %v", err)
+				break
+			}
+			match := noSuchReceiverRegexp.FindStringSubmatch(jerr.Details)
+			if match == nil || len(match) <= 1 {
+				log.Errorf("unable to send notification: %v", err)
+				break
+			}
+			receiverId := match[1]
+			createData := jsonutils.NewDict()
+			createData.Set("uid", jsonutils.NewString(receiverId))
+			_, err = modules.NotifyReceiver.Create(s, createData)
+			if err != nil {
+				log.Errorf("try to create receiver %q, but failed: %v", receiverId, err)
+				break
+			}
+			log.Infof("create receiver %q successfully", receiverId)
+		}
 	}, nil, nil)
+}
+
+func rawNotify(ctx context.Context, recipientId []string, isGroup bool, channel npk.TNotifyChannel, priority npk.TNotifyPriority, event string, data jsonutils.JSONObject) {
+	intelliNotify(ctx, recipientId, isGroup, channel, priority, event, data, false)
 }
 
 func NotifyNormal(recipientId []string, isGroup bool, event string, data jsonutils.JSONObject) {
