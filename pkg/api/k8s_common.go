@@ -59,3 +59,7 @@ func (input K8sResourceCreateInput) ToObjectMeta() metav1.ObjectMeta {
 		Annotations: input.Annotations,
 	}
 }
+
+type K8sResourceUpdateInput struct {
+	apis.StatusDomainLevelResourceBaseUpdateInput
+}

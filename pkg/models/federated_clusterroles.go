@@ -3,9 +3,15 @@ package models
 import (
 	"context"
 
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kubernetes/pkg/apis/rbac"
+	"k8s.io/kubernetes/pkg/apis/rbac/validation"
+
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
@@ -108,4 +114,28 @@ func (obj *SFedClusterRole) PerformAttachCluster(ctx context.Context, userCred m
 func (obj *SFedClusterRole) PerformDetachCluster(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, data *api.FederatedResourceJointClusterInput) (*api.FederatedResourceJointClusterInput, error) {
 	_, err := obj.SFedResourceBase.PerformDetachCluster(ctx, userCred, query, data.JSON(data))
 	return nil, err
+}
+
+func ValidateUpdateFedClusterRoleObject(oldObj, newObj *rbacv1.ClusterRole) error {
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRole), new(rbac.ClusterRole), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateClusterRole(newObj.(*rbac.ClusterRole))
+	}); err != nil {
+		return errors.Wrap(err, "ValidateUpdateFedClusterRoleObject")
+	}
+	return nil
+}
+
+func (obj *SFedClusterRole) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.FedClusterRoleUpdateInput) (*api.FedClusterRoleUpdateInput, error) {
+	bInput, err := obj.SFedResourceBase.ValidateUpdateData(ctx, userCred, query, &input.FedResourceUpdateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.FedResourceUpdateInput = *bInput
+	objMeta := obj.GetK8sObjectMeta()
+	oldObj := obj.Spec.ToClusterRole(objMeta)
+	newObj := input.ToClusterRole(objMeta)
+	if err := ValidateUpdateFedClusterRoleObject(oldObj, newObj); err != nil {
+		return nil, err
+	}
+	return input, nil
 }
