@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policy
+package auth
 
 import (
-	"time"
+	"context"
 
-	"yunion.io/x/onecloud/pkg/cloudcommon/consts"
+	"yunion.io/x/onecloud/pkg/mcclient"
 )
 
-func EnableGlobalRbac(refreshInterval time.Duration, debug bool) {
-	if !consts.IsRbacEnabled() {
-		consts.EnableRbac()
-		if debug {
-			consts.EnableRbacDebug()
-		}
-		PolicyManager.init(refreshInterval)
-	}
+func (a *authManager) fetchMatchPolicies(ctx context.Context, token mcclient.TokenCredential) (*mcclient.SFetchMatchPoliciesOutput, error) {
+	return a.client.FetchMatchPolicies(ctx, token)
+}
+
+func FetchMatchPolicies(ctx context.Context, token mcclient.TokenCredential) (*mcclient.SFetchMatchPoliciesOutput, error) {
+	return manager.fetchMatchPolicies(ctx, token)
 }
