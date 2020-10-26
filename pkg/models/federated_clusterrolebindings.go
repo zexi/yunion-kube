@@ -3,10 +3,15 @@ package models
 import (
 	"context"
 
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/kubernetes/pkg/apis/rbac"
+	"k8s.io/kubernetes/pkg/apis/rbac/validation"
+
 	"yunion.io/x/jsonutils"
-	"yunion.io/x/log"
 	"yunion.io/x/onecloud/pkg/cloudcommon/db"
 	"yunion.io/x/onecloud/pkg/mcclient"
+	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
 )
@@ -55,7 +60,6 @@ func (m *SFedClusterRoleBindingManager) ValidateCreateData(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	log.Errorf("====input %#v", input.Spec.Template)
 	input.FederatedResourceCreateInput = *fInput
 	if err := ValidateFederatedRoleRef(ctx, userCred, input.Spec.Template.RoleRef); err != nil {
 		return nil, err
@@ -72,4 +76,34 @@ func (obj *SFedClusterRoleBinding) CustomizeCreate(ctx context.Context, userCred
 		return err
 	}
 	return nil
+}
+
+func ValidateUpdateFedClusterRoleBindingObject(oldObj, newObj *rbacv1.ClusterRoleBinding) error {
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRoleBinding), new(rbac.ClusterRoleBinding), func(newObj, oldObj interface{}) field.ErrorList {
+		crb := newObj.(*rbac.ClusterRoleBinding)
+		oldCrb := oldObj.(*rbac.ClusterRoleBinding)
+		allErrs := validation.ValidateClusterRoleBinding(crb)
+		if oldCrb.RoleRef != crb.RoleRef {
+			allErrs = append(allErrs, field.Invalid(field.NewPath("roleRef"), crb.RoleRef, "cannot change roleRef"))
+		}
+		return allErrs
+	}); err != nil {
+		return errors.Wrap(err, "ValidateUpdateFedClusterRoleBindingObject")
+	}
+	return nil
+}
+
+func (obj *SFedClusterRoleBinding) ValidateUpdateData(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input *api.FedClusterRoleBindingUpdateInput) (*api.FedClusterRoleBindingUpdateInput, error) {
+	bInput, err := obj.SFedResourceBase.ValidateUpdateData(ctx, userCred, query, &input.FedResourceUpdateInput)
+	if err != nil {
+		return nil, err
+	}
+	input.FedResourceUpdateInput = *bInput
+	objMeta := obj.GetK8sObjectMeta()
+	oldObj := obj.Spec.ToClusterRoleBinding(objMeta)
+	newObj := input.ToClusterRoleBinding(objMeta)
+	if err := ValidateUpdateFedClusterRoleBindingObject(oldObj, newObj); err != nil {
+		return nil, err
+	}
+	return input, nil
 }

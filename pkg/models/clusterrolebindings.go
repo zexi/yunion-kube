@@ -122,6 +122,15 @@ func (m *SClusterRoleBindingManager) NewRemoteObjectForCreate(obj IClusterModel,
 	return input.ToClusterRoleBinding(), nil
 }
 
+func ValidateUpdateClusterRoleBindingObject(oldObj, newObj *rbacv1.ClusterRoleBinding) error {
+	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRoleBinding), new(rbac.ClusterRoleBinding), func(newObj, oldObj interface{}) field.ErrorList {
+		return validation.ValidateClusterRoleBindingUpdate(oldObj.(*rbac.ClusterRoleBinding), newObj.(*rbac.ClusterRoleBinding))
+	}); err != nil {
+		return errors.Wrap(err, "ValidateUpdateClusterRoleBindingObject")
+	}
+	return nil
+}
+
 func (crb *SClusterRoleBinding) NewRemoteObjectForUpdate(cli *client.ClusterManager, remoteObj interface{}, data jsonutils.JSONObject) (interface{}, error) {
 	input := new(api.ClusterRoleBindingUpdateInput)
 	if err := data.Unmarshal(input); err != nil {
@@ -131,9 +140,7 @@ func (crb *SClusterRoleBinding) NewRemoteObjectForUpdate(cli *client.ClusterMana
 	newObj := oldObj.DeepCopyObject().(*rbacv1.ClusterRoleBinding)
 	newObj.Subjects = input.Subjects
 	newObj.RoleRef = rbacv1.RoleRef(input.RoleRef)
-	if err := ValidateUpdateK8sObject(oldObj, newObj, new(rbac.ClusterRoleBinding), new(rbac.ClusterRoleBinding), func(newObj, oldObj interface{}) field.ErrorList {
-		return validation.ValidateClusterRoleBindingUpdate(oldObj.(*rbac.ClusterRoleBinding), newObj.(*rbac.ClusterRoleBinding))
-	}); err != nil {
+	if err := ValidateUpdateClusterRoleBindingObject(oldObj, newObj); err != nil {
 		return nil, err
 	}
 	return newObj, nil
