@@ -28,7 +28,10 @@ type FederatedResourceListInput struct {
 
 type FederatedNamespaceResourceListInput struct {
 	FederatedResourceListInput
-	Federatednamespace string `json:"federatednamespace"`
+	FederatednamespaceId string `json:"federatednamespace_id"`
+	// swagger:ignore
+	// Deprecated
+	Federatednamespace string `json:"federatednamespace" yunion-deprecated-by:"federatednamespace_id"`
 }
 
 type FederatedNamespaceResourceCreateInput struct {
