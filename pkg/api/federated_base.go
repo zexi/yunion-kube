@@ -49,6 +49,12 @@ type FederatedResourceDetails struct {
 	ClusterCount *int               `json:"cluster_count"`
 }
 
+type FederatedNamespaceResourceDetails struct {
+	FederatedResourceDetails
+
+	Federatednamespace string `json:"federatednamespace"`
+}
+
 type FederatedPlacement struct {
 	Clusters []FederatedJointCluster `json:"clusters"`
 }
