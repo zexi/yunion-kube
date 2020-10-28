@@ -70,6 +70,9 @@ func (m *SFedRoleManager) GetPropertyApiResources(ctx context.Context, userCred 
 	if err != nil {
 		return nil, err
 	}
+	if ret == nil {
+		return []api.ClusterAPIGroupResource{}, nil
+	}
 	return ret.(api.ClusterAPIGroupResources), nil
 }
 
