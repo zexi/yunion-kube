@@ -142,3 +142,16 @@ func (obj *SFedNamespaceResource) GetK8sObjectMeta() metav1.ObjectMeta {
 	}
 	return objMeta
 }
+
+func (obj *SFedNamespaceResource) GetDetails(base interface{}, isList bool) interface{} {
+	out := api.FederatedNamespaceResourceDetails{
+		FederatedResourceDetails: base.(api.FederatedResourceDetails),
+	}
+	fedNs, err := obj.GetFedNamespace()
+	if err != nil {
+		log.Errorf("get federatednamespace error: %v", err)
+	} else {
+		out.Federatednamespace = fedNs.GetName()
+	}
+	return out
+}
