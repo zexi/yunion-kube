@@ -68,8 +68,8 @@ func (m *SFedNamespaceResourceManager) ListItemFilter(ctx context.Context, q *sq
 	if err != nil {
 		return nil, err
 	}
-	if input.Federatednamespace != "" {
-		ns, err := GetFedNamespaceManager().GetFedNamespaceByIdOrName(userCred, input.Federatednamespace)
+	if input.FederatednamespaceId != "" {
+		ns, err := GetFedNamespaceManager().GetFedNamespaceByIdOrName(userCred, input.FederatednamespaceId)
 		if err != nil {
 			return nil, err
 		}
