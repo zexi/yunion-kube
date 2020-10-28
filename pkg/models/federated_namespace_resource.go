@@ -145,7 +145,7 @@ func (obj *SFedNamespaceResource) GetK8sObjectMeta() metav1.ObjectMeta {
 
 func (obj *SFedNamespaceResource) GetDetails(base interface{}, isList bool) interface{} {
 	out := api.FederatedNamespaceResourceDetails{
-		FederatedResourceDetails: base.(api.FederatedResourceDetails),
+		FederatedResourceDetails: obj.SFedResourceBase.GetDetails(base, isList).(api.FederatedResourceDetails),
 	}
 	fedNs, err := obj.GetFedNamespace()
 	if err != nil {
