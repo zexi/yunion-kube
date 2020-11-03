@@ -27,6 +27,7 @@ type ComponentCreateInput struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 
+	Cluster string `json:"cluster"`
 	ComponentSettings
 }
 
