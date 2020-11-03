@@ -6,6 +6,7 @@ import (
 	"k8s.io/api/core/v1"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -59,21 +60,21 @@ func (c componentDriverMonitor) GetType() string {
 	return api.ClusterComponentMonitor
 }
 
-func (c componentDriverMonitor) ValidateCreateData(input *api.ComponentCreateInput) error {
-	return c.validateSetting(input.Monitor)
+func (c componentDriverMonitor) ValidateCreateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentCreateInput) error {
+	return c.validateSetting(userCred, cluster, input.Monitor)
 }
 
-func (c componentDriverMonitor) validateSetting(conf *api.ComponentSettingMonitor) error {
+func (c componentDriverMonitor) validateSetting(userCred mcclient.TokenCredential, cluster *SCluster, conf *api.ComponentSettingMonitor) error {
 	if conf == nil {
 		return httperrors.NewInputParameterError("monitor config is empty")
 	}
-	if err := c.validateGrafana(conf.Grafana); err != nil {
+	if err := c.validateGrafana(userCred, cluster, conf.Grafana); err != nil {
 		return errors.Wrap(err, "component grafana")
 	}
-	if err := c.validateLoki(conf.Loki); err != nil {
+	if err := c.validateLoki(userCred, cluster, conf.Loki); err != nil {
 		return errors.Wrap(err, "component loki")
 	}
-	if err := c.validatePrometheus(conf.Prometheus); err != nil {
+	if err := c.validatePrometheus(userCred, cluster, conf.Prometheus); err != nil {
 		return errors.Wrap(err, "component prometheus")
 	}
 	if err := c.validatePromtail(conf.Promtail); err != nil {
@@ -82,9 +83,9 @@ func (c componentDriverMonitor) validateSetting(conf *api.ComponentSettingMonito
 	return nil
 }
 
-func (c componentDriverMonitor) validateGrafana(conf *api.ComponentSettingMonitorGrafana) error {
+func (c componentDriverMonitor) validateGrafana(userCred mcclient.TokenCredential, cluster *SCluster, conf *api.ComponentSettingMonitorGrafana) error {
 	if conf.Storage.Enabled {
-		if err := c.validateStorage(conf.Storage); err != nil {
+		if err := c.validateStorage(userCred, cluster, conf.Storage); err != nil {
 			return err
 		}
 	}
@@ -121,31 +122,38 @@ func (c componentDriverMonitor) validateGrafanaTLSKeyPair(pair *api.TLSKeyPair) 
 	return nil
 }
 
-func (c componentDriverMonitor) validateLoki(conf *api.ComponentSettingMonitorLoki) error {
+func (c componentDriverMonitor) validateLoki(userCred mcclient.TokenCredential, cluster *SCluster, conf *api.ComponentSettingMonitorLoki) error {
 	if conf.Storage.Enabled {
-		if err := c.validateStorage(conf.Storage); err != nil {
+		if err := c.validateStorage(userCred, cluster, conf.Storage); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c componentDriverMonitor) validateStorage(storage *api.ComponentStorage) error {
+func (c componentDriverMonitor) validateStorage(userCred mcclient.TokenCredential, cluster *SCluster, storage *api.ComponentStorage) error {
 	if storage == nil {
 		return httperrors.NewInputParameterError("storage config is empty")
 	}
 	if storage.SizeMB < 1024 {
 		return httperrors.NewNotAcceptableError("storage size must large than 1 GB")
 	}
+	if storage.ClassName != "" {
+		obj, err := GetStorageClassManager().GetByIdOrName(userCred, cluster.GetId(), storage.ClassName)
+		if err != nil {
+			return errors.Wrapf(err, "get storageClass %s", storage.ClassName)
+		}
+		storage.ClassName = obj.GetName()
+	}
 	return nil
 }
 
-func (c componentDriverMonitor) validatePrometheus(conf *api.ComponentSettingMonitorPrometheus) error {
+func (c componentDriverMonitor) validatePrometheus(userCred mcclient.TokenCredential, cluster *SCluster, conf *api.ComponentSettingMonitorPrometheus) error {
 	if conf == nil {
 		return httperrors.NewInputParameterError("config is empty")
 	}
 	if conf.Storage.Enabled {
-		if err := c.validateStorage(conf.Storage); err != nil {
+		if err := c.validateStorage(userCred, cluster, conf.Storage); err != nil {
 			return err
 		}
 	}
@@ -157,8 +165,8 @@ func (c componentDriverMonitor) validatePromtail(conf *api.ComponentSettingMonit
 	return nil
 }
 
-func (c componentDriverMonitor) ValidateUpdateData(input *api.ComponentUpdateInput) error {
-	return c.validateSetting(input.Monitor)
+func (c componentDriverMonitor) ValidateUpdateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentUpdateInput) error {
+	return c.validateSetting(userCred, cluster, input.Monitor)
 }
 
 func (c componentDriverMonitor) GetCreateSettings(input *api.ComponentCreateInput) (*api.ComponentSettings, error) {

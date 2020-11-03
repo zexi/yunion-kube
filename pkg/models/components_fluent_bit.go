@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -56,7 +57,7 @@ func (c componentDriverFluentBit) GetType() string {
 	return api.ClusterComponentFluentBit
 }
 
-func (c componentDriverFluentBit) ValidateCreateData(input *api.ComponentCreateInput) error {
+func (c componentDriverFluentBit) ValidateCreateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentCreateInput) error {
 	return nil
 }
 
@@ -110,7 +111,7 @@ func (c componentDriverFluentBit) validateBackendKafka(conf *api.ComponentSettin
 	return nil
 }
 
-func (c componentDriverFluentBit) ValidateUpdateData(input *api.ComponentUpdateInput) error {
+func (c componentDriverFluentBit) ValidateUpdateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentUpdateInput) error {
 	return c.validateSetting(input.FluentBit)
 }
 

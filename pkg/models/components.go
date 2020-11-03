@@ -55,8 +55,8 @@ type SComponent struct {
 
 type IComponentDriver interface {
 	GetType() string
-	ValidateCreateData(input *api.ComponentCreateInput) error
-	ValidateUpdateData(input *api.ComponentUpdateInput) error
+	ValidateCreateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentCreateInput) error
+	ValidateUpdateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentUpdateInput) error
 	GetCreateSettings(input *api.ComponentCreateInput) (*api.ComponentSettings, error)
 	GetUpdateSettings(oldSetting *api.ComponentSettings, input *api.ComponentUpdateInput) (*api.ComponentSettings, error)
 	DoEnable(cluster *SCluster, settings *api.ComponentSettings) error
@@ -117,6 +117,7 @@ func (m *SComponentManager) CreateByCluster(
 		}
 		input.Name = newName
 	}
+	input.Cluster = cluster.GetId()
 	// 1. create component db record
 	obj, err := db.DoCreate(m, ctx, userCred, nil, input.JSON(input), userCred)
 	if err != nil {
@@ -152,7 +153,14 @@ func (m *SComponentManager) ValidateCreateData(
 	if err != nil {
 		return nil, err
 	}
-	if err := drv.ValidateCreateData(input); err != nil {
+	if input.Cluster == "" {
+		return nil, httperrors.NewNotEmptyError("cluster must specified")
+	}
+	cluster, err := GetClusterManager().FetchByIdOrName(userCred, input.Cluster)
+	if err != nil {
+		return nil, errors.Wrapf(err, "fetch cluster %s", input.Cluster)
+	}
+	if err := drv.ValidateCreateData(userCred, cluster.(*SCluster), input); err != nil {
 		return nil, err
 	}
 	return input.JSON(input), nil
