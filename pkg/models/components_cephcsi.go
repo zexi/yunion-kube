@@ -7,6 +7,7 @@ import (
 
 	"yunion.io/x/jsonutils"
 	"yunion.io/x/onecloud/pkg/httperrors"
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/yunion-kube/pkg/api"
@@ -59,7 +60,7 @@ func (c componentDriverCephCSI) GetType() string {
 	return api.ClusterComponentCephCSI
 }
 
-func (c componentDriverCephCSI) ValidateCreateData(input *api.ComponentCreateInput) error {
+func (c componentDriverCephCSI) ValidateCreateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentCreateInput) error {
 	return c.validateSetting(input.CephCSI)
 }
 
@@ -78,7 +79,7 @@ func (c componentDriverCephCSI) validateSetting(conf *api.ComponentSettingCephCS
 	return nil
 }
 
-func (c componentDriverCephCSI) ValidateUpdateData(input *api.ComponentUpdateInput) error {
+func (c componentDriverCephCSI) ValidateUpdateData(userCred mcclient.TokenCredential, cluster *SCluster, input *api.ComponentUpdateInput) error {
 	return c.validateSetting(input.CephCSI)
 }
 
