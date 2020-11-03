@@ -1808,7 +1808,7 @@ func (c *SCluster) PerformUpdateComponent(ctx context.Context, userCred mcclient
 	if err != nil {
 		return nil, err
 	}
-	if err := drv.ValidateUpdateData(input); err != nil {
+	if err := drv.ValidateUpdateData(userCred, c, input); err != nil {
 		return nil, err
 	}
 	if err := comp.DoUpdate(ctx, userCred, input); err != nil {
