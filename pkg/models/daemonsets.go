@@ -60,7 +60,7 @@ type SDaemonSet struct {
 }
 
 func (m *SDaemonSetManager) ValidateDaemonSetObject(ds *apps.DaemonSet) error {
-	return ValidateCreateK8sObject(ds, new(iapps.StatefulSet), func(out interface{}) field.ErrorList {
+	return ValidateCreateK8sObject(ds, new(iapps.DaemonSet), func(out interface{}) field.ErrorList {
 		return validation.ValidateDaemonSet(out.(*iapps.DaemonSet))
 	})
 }
