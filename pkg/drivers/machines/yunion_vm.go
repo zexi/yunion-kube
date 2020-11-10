@@ -105,6 +105,8 @@ func (d *SYunionVMDriver) getServerCreateInput(machine *models.SMachine, prepare
 		//EnableCloudInit: true,
 	}
 	input.Name = machine.Name
+	input.DomainId = machine.DomainId
+	input.ProjectId = machine.ProjectId
 	input.IsSystem = &tmpTrue
 	input.DisableDelete = &tmpFalse
 	input.Hypervisor = config.Hypervisor
