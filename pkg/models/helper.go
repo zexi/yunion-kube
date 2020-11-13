@@ -337,6 +337,30 @@ func ValidateAppCreateService(userCred mcclient.TokenCredential, nsInput api.Nam
 	return nil
 }
 
+func ValidatePodTemplate(userCred mcclient.TokenCredential, clusterId string, namespaceId string, template *v1.PodTemplateSpec) error {
+	vols := template.Spec.Volumes
+	validatePVC := func(vol v1.Volume) (v1.Volume, error) {
+		pvc := vol.PersistentVolumeClaim
+		pvcObj, err := GetPVCManager().GetByIdOrName(userCred, clusterId, namespaceId, pvc.ClaimName)
+		if err != nil {
+			return v1.Volume{}, errors.Wrapf(err, "get pvc by claimName %s", pvc.ClaimName)
+		}
+		vol.PersistentVolumeClaim.ClaimName = pvcObj.GetName()
+		return vol, nil
+	}
+	for idx, vol := range vols {
+		if vol.PersistentVolumeClaim == nil {
+			continue
+		}
+		vol, err := validatePVC(vol)
+		if err != nil {
+			return errors.Wrap(err, "validate pvc")
+		}
+		vols[idx] = vol
+	}
+	return nil
+}
+
 func CreateServiceIfNotExist(cli *client.ClusterManager, objMeta *metav1.ObjectMeta, opt *api.ServiceCreateOption) (*v1.Service, error) {
 	svc, err := cli.GetHandler().GetIndexer().ServiceLister().Services(objMeta.GetNamespace()).Get(objMeta.GetName())
 	if err != nil {
