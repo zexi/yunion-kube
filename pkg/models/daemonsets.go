@@ -75,6 +75,10 @@ func (m *SDaemonSetManager) ValidateCreateData(ctx context.Context, userCred mcc
 	if err != nil {
 		return nil, err
 	}
+	podTemplate := &input.Template
+	if err := ValidatePodTemplate(userCred, input.ClusterId, input.NamespaceId, podTemplate); err != nil {
+		return nil, errors.Wrap(err, "validate pod template")
+	}
 	if err := m.ValidateDaemonSetObject(ds); err != nil {
 		return nil, err
 	}

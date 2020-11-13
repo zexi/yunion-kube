@@ -76,6 +76,10 @@ func (m *SStatefulSetManager) ValidateCreateData(ctx context.Context, userCred m
 	if err != nil {
 		return nil, err
 	}
+	podTemplate := &input.Template
+	if err := ValidatePodTemplate(userCred, input.ClusterId, input.NamespaceId, podTemplate); err != nil {
+		return nil, errors.Wrap(err, "validate pod template")
+	}
 	if err := m.ValidateStatefulSetObject(ss); err != nil {
 		return nil, err
 	}
