@@ -61,6 +61,10 @@ func (m *SJobManager) ValidateCreateData(ctx context.Context, userCred mcclient.
 		return nil, err
 	}
 	input.NamespaceResourceCreateInput = *nInput
+	podTemplate := &input.Template
+	if err := ValidatePodTemplate(userCred, input.ClusterId, input.NamespaceId, podTemplate); err != nil {
+		return nil, errors.Wrap(err, "validate pod template")
+	}
 	return input, nil
 }
 
