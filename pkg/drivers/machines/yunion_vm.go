@@ -383,6 +383,13 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 		}
 	}
 	helper := onecloudcli.NewServerHelper(session)
+
+	enableDelete := jsonutils.NewDict()
+	enableDelete.Add(jsonutils.JSONFalse, "disable_delete")
+	if _, err := helper.Update(session, srvId, enableDelete); err != nil {
+		return errors.Wrapf(err, "enable server %s deletable", srvId)
+	}
+
 	params := jsonutils.NewDict()
 	params.Add(jsonutils.JSONTrue, "override_pending_delete")
 	_, err := helper.DeleteWithParam(session, srvId, params, nil)
