@@ -34,7 +34,8 @@ type VirtualMachineInfo struct {
 
 type VirtualMachineStatus struct {
 	Status       string             `json:"status"`
+	Reason       string             `json:"reason"`
 	ExternalInfo VirtualMachineInfo `json:"externalInfo"`
-	// CreateTimes record the continuous creation times
-	CreateTimes int32 `json:"createTimes"`
+	// TryTimes record the continuous creation try times
+	TryTimes int32 `json:"tryTimes"`
 }

@@ -69,10 +69,16 @@ func (obj *SVirtualMachine) FillAPIObjectBySpec(specObj jsonutils.JSONObject, ou
 
 func (obj *SVirtualMachine) FillAPIObjectByStatus(statusObj jsonutils.JSONObject, output IUnstructuredOutput) error {
 	vm := output.(*api.VirtualMachine)
+
 	phase, _ := statusObj.GetString("phase")
 	vm.VirtualMachineStatus.Status = phase
-	createTimes, _ := statusObj.Int("createTimes")
-	vm.VirtualMachineStatus.CreateTimes = int32(createTimes)
+
+	reason, _ := statusObj.GetString("reason")
+	vm.VirtualMachineStatus.Reason = reason
+
+	tryTimes, _ := statusObj.Int("tryTimes")
+	vm.VirtualMachineStatus.TryTimes = int32(tryTimes)
+
 	extInfo := &vm.VirtualMachineStatus.ExternalInfo
 	if extraInfoObj, err := statusObj.Get("externalInfo"); err == nil {
 		extraInfoObj.Unmarshal(extInfo)
