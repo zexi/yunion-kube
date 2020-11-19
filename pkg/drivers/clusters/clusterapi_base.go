@@ -74,7 +74,7 @@ func (d *sClusterAPIDriver) CreateMachines(
 			return nil, fmt.Errorf("Empty controlplane machines")
 		}
 	}
-	cms, nms, err := createMachines(ctx, userCred, controls, nodes)
+	cms, nms, err := createMachines(ctx, cluster, userCred, controls, nodes)
 	if err != nil {
 		return nil, err
 	}
@@ -100,13 +100,13 @@ func newMachineData(machine *models.SMachine, input *api.CreateMachineData) *mac
 	}
 }
 
-func createMachines(ctx context.Context, userCred mcclient.TokenCredential, controls, nodes []*api.CreateMachineData) ([]*machineData, []*machineData, error) {
+func createMachines(ctx context.Context, cluster *models.SCluster, userCred mcclient.TokenCredential, controls, nodes []*api.CreateMachineData) ([]*machineData, []*machineData, error) {
 	cms := make([]*machineData, 0)
 	nms := make([]*machineData, 0)
 	cf := func(data []*api.CreateMachineData) ([]*machineData, error) {
 		ret := make([]*machineData, 0)
 		for _, m := range data {
-			obj, err := models.MachineManager.CreateMachineNoHook(ctx, userCred, m)
+			obj, err := models.MachineManager.CreateMachineNoHook(ctx, cluster, userCred, m)
 			if err != nil {
 				return nil, err
 			}
