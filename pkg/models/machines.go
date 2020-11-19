@@ -121,9 +121,19 @@ func (man *SMachineManager) IsMachineExists(userCred mcclient.TokenCredential, i
 	return obj.(*SMachine), true, nil
 }
 
-func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, userCred mcclient.TokenCredential, data *api.CreateMachineData) (manager.IMachine, error) {
+func (man *SMachineManager) CreateMachineNoHook(ctx context.Context, cluster *SCluster, userCred mcclient.TokenCredential, data *api.CreateMachineData) (manager.IMachine, error) {
 	input := jsonutils.Marshal(data)
-	obj, err := db.DoCreate(man, ctx, userCred, nil, input, userCred)
+	project, err := db.TenantCacheManager.FindFirstProjectOfDomain(ctx, cluster.DomainId)
+	if err != nil {
+		return nil, errors.Wrapf(err, "FindFirstProjectOfDomain %s of cluster %s", cluster.DomainId, cluster.GetName())
+	}
+	projectInfo := jsonutils.NewDict()
+	projectInfo.Add(jsonutils.NewString(project.GetId()), "project_id")
+	ownerId, err := db.FetchProjectInfo(ctx, projectInfo)
+	if err != nil {
+		return nil, errors.Wrapf(err, "db.FetchProjectInfo of project_id %s/%s", project.GetId(), project.GetName())
+	}
+	obj, err := db.DoCreate(man, ctx, userCred, nil, input, ownerId)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +153,11 @@ func (m *SMachine) GetCreateInput(userCred mcclient.TokenCredential) (*api.Creat
 }
 
 func (man *SMachineManager) CreateMachine(ctx context.Context, userCred mcclient.TokenCredential, data *api.CreateMachineData) (manager.IMachine, error) {
-	obj, err := man.CreateMachineNoHook(ctx, userCred, data)
+	cluster, err := GetClusterManager().GetClusterByIdOrName(userCred, data.ClusterId)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get cluster by id %s", data.ClusterId)
+	}
+	obj, err := man.CreateMachineNoHook(ctx, cluster, userCred, data)
 	if err != nil {
 		return nil, err
 	}
