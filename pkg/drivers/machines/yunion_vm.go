@@ -387,7 +387,9 @@ func (d *SYunionVMDriver) TerminateResource(session *mcclient.ClientSession, mac
 	enableDelete := jsonutils.NewDict()
 	enableDelete.Add(jsonutils.JSONFalse, "disable_delete")
 	if _, err := helper.Update(session, srvId, enableDelete); err != nil {
-		return errors.Wrapf(err, "enable server %s deletable", srvId)
+		if !onecloudcli.IsNotFoundError(err) {
+			return errors.Wrapf(err, "enable server %s deletable", srvId)
+		}
 	}
 
 	params := jsonutils.NewDict()
